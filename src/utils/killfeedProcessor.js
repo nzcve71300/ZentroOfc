@@ -89,6 +89,12 @@ class KillfeedProcessor {
       let victim = match[1].trim();
       let killer = match[2].trim();
       
+      console.log('Reverse format match - victim:', victim, 'killer:', killer);
+      
+      // Clean up any extra words that might have been captured
+      victim = victim.replace(/\s+was$/, '').trim();
+      killer = killer.replace(/^by\s+/, '').trim();
+      
       // Check if victim is a scientist ID (numeric)
       if (/^\d+$/.test(victim)) {
         victim = 'Scientist';
