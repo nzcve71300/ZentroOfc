@@ -43,11 +43,10 @@ module.exports = {
             .setStyle(ButtonStyle.Danger)
         );
       
+      const confirmEmbed = orangeEmbed('Confirm Link', `Are you sure you want to link your Discord account to **${ign}**?\n\n**Discord User:** ${interaction.user.tag}\n**In-Game Name:** ${ign}`);
+      
       await interaction.editReply({
-        embeds: [orangeEmbed('Confirm Link', `Are you sure you want to link your Discord account to **${ign}**?`, [
-          { name: 'Discord User', value: interaction.user.tag, inline: true },
-          { name: 'In-Game Name', value: ign, inline: true }
-        ])],
+        embeds: [confirmEmbed],
         components: [row]
       });
       

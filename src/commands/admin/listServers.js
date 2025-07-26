@@ -28,10 +28,12 @@ module.exports = {
              );
 
       if (serversResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed(
-          '🖥️ Servers',
-          'No servers found in this guild.\n\nUse `/add-server` to add your first server!'
-        ));
+        return interaction.editReply({
+          embeds: [orangeEmbed(
+            '🖥️ Servers',
+            'No servers found in this guild.\n\nUse `/add-server` to add your first server!'
+          )]
+        });
       }
 
       let serverList = '';
@@ -41,14 +43,18 @@ module.exports = {
                serverList += `   • **RCON:** ${server.password ? 'Configured' : 'Not configured'}\n\n`;
              });
 
-      await interaction.editReply(orangeEmbed(
-        '🖥️ Servers',
-        serverList
-      ));
+      await interaction.editReply({
+        embeds: [orangeEmbed(
+          '🖥️ Servers',
+          serverList
+        )]
+      });
 
     } catch (error) {
       console.error('Error listing servers:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to list servers. Please try again.'));
+      await interaction.editReply({
+        embeds: [orangeEmbed('Error', 'Failed to list servers. Please try again.')]
+      });
     }
   },
 }; 

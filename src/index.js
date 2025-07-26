@@ -81,10 +81,14 @@ client.on('interactionCreate', async interaction => {
     await command.execute(interaction);
   } catch (error) {
     console.error(error);
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ content: 'There was an error executing this command.', ephemeral: true });
-    } else {
-      await interaction.reply({ content: 'There was an error executing this command.', ephemeral: true });
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: 'There was an error executing this command.', ephemeral: true });
+      } else {
+        await interaction.reply({ content: 'There was an error executing this command.', ephemeral: true });
+      }
+    } catch (replyError) {
+      console.error('Failed to send error reply:', replyError);
     }
   }
 });
