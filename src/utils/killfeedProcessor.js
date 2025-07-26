@@ -57,6 +57,8 @@ class KillfeedProcessor {
     // "PlayerA killed 5148727" (scientist ID)
     // "PlayerA was killed by PlayerB" (reverse format)
     
+    console.log('Parsing kill message:', killMessage);
+    
     // Try normal format first: "Killer killed Victim"
     let killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
     let match = killMessage.match(killPattern);
@@ -64,6 +66,8 @@ class KillfeedProcessor {
     if (match) {
       let killer = match[1].trim();
       let victim = match[2].trim();
+      
+      console.log('Normal format match - killer:', killer, 'victim:', victim);
       
       // Check if victim is a scientist ID (numeric)
       if (/^\d+$/.test(victim)) {
@@ -82,35 +86,37 @@ class KillfeedProcessor {
     }
     
     // Try reverse format: "Victim was killed by Killer"
-    killPattern = /^(.+?)\s+was\s+killed\s+by\s+(.+?)(?:\s+with|\s+at|$)/i;
-    match = killMessage.match(killPattern);
-    
-    if (match) {
-      let victim = match[1].trim();
-      let killer = match[2].trim();
-      
-      console.log('Reverse format match - victim:', victim, 'killer:', killer);
-      
-      // Clean up any extra words that might have been captured
-      victim = victim.replace(/\s+was$/, '').trim();
-      killer = killer.replace(/^by\s+/, '').trim();
-      
-      // Check if victim is a scientist ID (numeric)
-      if (/^\d+$/.test(victim)) {
-        victim = 'Scientist';
+    if (killMessage.includes('was killed by')) {
+      const parts = killMessage.split(' was killed by ');
+      if (parts.length === 2) {
+        let victim = parts[0].trim();
+        let killer = parts[1].trim();
+        
+        console.log('Reverse format split - victim:', victim, 'killer:', killer);
+        
+        // Remove any extra words like "with" or "at"
+        killer = killer.replace(/\s+(with|at).*$/i, '').trim();
+        
+        console.log('After cleanup - victim:', victim, 'killer:', killer);
+        
+        // Check if victim is a scientist ID (numeric)
+        if (/^\d+$/.test(victim)) {
+          victim = 'Scientist';
+        }
+        
+        // Check if killer is a scientist ID (numeric)
+        if (/^\d+$/.test(killer)) {
+          killer = 'Scientist';
+        }
+        
+        return {
+          killer,
+          victim
+        };
       }
-      
-      // Check if killer is a scientist ID (numeric)
-      if (/^\d+$/.test(killer)) {
-        killer = 'Scientist';
-      }
-      
-      return {
-        killer,
-        victim
-      };
     }
     
+    console.log('No pattern matched for kill message:', killMessage);
     return { killer: null, victim: null };
   }
 
