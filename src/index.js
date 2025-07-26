@@ -63,10 +63,17 @@ client.on('interactionCreate', async interaction => {
       await interactionHandler.execute(interaction);
     } catch (error) {
       console.error('Error handling interaction:', error);
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ content: 'There was an error processing this interaction.', ephemeral: true });
-      } else {
-        await interaction.reply({ content: 'There was an error processing this interaction.', ephemeral: true });
+      
+      // Only try to reply if the interaction hasn't been acknowledged yet
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({ 
+            content: 'There was an error processing this interaction.', 
+            ephemeral: true 
+          });
+        } catch (replyError) {
+          console.error('Failed to send error reply:', replyError);
+        }
       }
     }
     return;
@@ -80,15 +87,18 @@ client.on('interactionCreate', async interaction => {
   try {
     await command.execute(interaction);
   } catch (error) {
-    console.error(error);
-    try {
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ content: 'There was an error executing this command.', ephemeral: true });
-      } else {
-        await interaction.reply({ content: 'There was an error executing this command.', ephemeral: true });
+    console.error('Command execution error:', error);
+    
+    // Only try to reply if the interaction hasn't been acknowledged yet
+    if (!interaction.replied && !interaction.deferred) {
+      try {
+        await interaction.reply({ 
+          content: 'There was an error executing this command.', 
+          ephemeral: true 
+        });
+      } catch (replyError) {
+        console.error('Failed to send error reply:', replyError);
       }
-    } catch (replyError) {
-      console.error('Failed to send error reply:', replyError);
     }
   }
 });

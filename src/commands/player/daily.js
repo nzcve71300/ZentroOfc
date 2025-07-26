@@ -8,7 +8,6 @@ module.exports = {
     .setDescription('Claim your daily currency reward'),
 
   async execute(interaction) {
-    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -21,7 +20,10 @@ module.exports = {
       );
 
       if (serversResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'No servers found in this guild.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'No servers found in this guild.')],
+          ephemeral: true
+        });
       }
 
       const dailyReward = 100; // Default daily reward amount
@@ -100,11 +102,17 @@ module.exports = {
         response += `\n**Failed to process:** ${failedResults.map(r => r.server).join(', ')}`;
       }
 
-      await interaction.editReply(orangeEmbed('🎁 Daily Reward', response));
+      await interaction.reply({
+        embeds: [orangeEmbed('🎁 Daily Reward', response)],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error claiming daily reward:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to claim daily reward. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to claim daily reward. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

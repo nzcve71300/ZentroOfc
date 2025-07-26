@@ -8,7 +8,6 @@ module.exports = {
     .setDescription('Open the shop to purchase items and kits'),
 
   async execute(interaction) {
-    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -21,7 +20,10 @@ module.exports = {
       );
 
       if (serversResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'No servers found in this guild.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'No servers found in this guild.')],
+          ephemeral: true
+        });
       }
 
       // Get player's balance across all servers
@@ -37,10 +39,13 @@ module.exports = {
       );
 
       if (balanceResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed(
-          '💰 Shop',
-          'You don\'t have any balance on any servers.\n\nUse `/daily` to get some coins first!'
-        ));
+        return interaction.reply({
+          embeds: [orangeEmbed(
+            '💰 Shop',
+            'You don\'t have any balance on any servers.\n\nUse `/daily` to get some coins first!'
+          )],
+          ephemeral: true
+        });
       }
 
       // Get shop categories for all servers
@@ -55,10 +60,13 @@ module.exports = {
       );
 
       if (categoriesResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed(
-          '💰 Shop',
-          'No shop categories available.\n\nAdmins need to create categories using `/add-shop-category`.'
-        ));
+        return interaction.reply({
+          embeds: [orangeEmbed(
+            '💰 Shop',
+            'No shop categories available.\n\nAdmins need to create categories using `/add-shop-category`.'
+          )],
+          ephemeral: true
+        });
       }
 
       // Create server selection dropdown
@@ -86,14 +94,17 @@ module.exports = {
         `**Your Balance:**\n${balanceList}\n\nSelect a server to browse their shop!`
       );
 
-      await interaction.editReply({
+      await interaction.reply({
         embeds: [embed],
         components: [row]
       });
 
     } catch (error) {
       console.error('Error opening shop:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to open shop. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to open shop. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

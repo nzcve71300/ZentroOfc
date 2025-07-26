@@ -8,7 +8,6 @@ module.exports = {
     .setDescription('View your currency balance across all servers'),
 
   async execute(interaction) {
-    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -27,10 +26,13 @@ module.exports = {
       );
 
       if (result.rows.length === 0) {
-        return interaction.editReply(orangeEmbed(
-          '💰 Balance',
-          'You don\'t have any balance on any servers in this guild.\n\nUse `/link` to link your Discord account to your in-game name first.'
-        ));
+        return interaction.reply({
+          embeds: [orangeEmbed(
+            '💰 Balance',
+            'You don\'t have any balance on any servers in this guild.\n\nUse `/link` to link your Discord account to your in-game name first.'
+          )],
+          ephemeral: true
+        });
       }
 
       // Calculate total balance
@@ -46,11 +48,17 @@ module.exports = {
         `**Total Balance:** ${totalBalance} coins\n\n**Server Breakdown:**\n${balanceList}`
       );
 
-      await interaction.editReply(embed);
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error fetching balance:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to fetch balance. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to fetch balance. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

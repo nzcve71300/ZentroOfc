@@ -32,7 +32,7 @@ module.exports = {
       });
     }
 
-    await interaction.deferReply();
+
 
     const nickname = interaction.options.getString('nickname');
     const ip = interaction.options.getString('ip');
@@ -66,7 +66,7 @@ module.exports = {
 
       if (existingServer.rows.length > 0) {
         const errorEmbed = orangeEmbed('Error', `A server with nickname **${nickname}** already exists in this guild.`);
-        return interaction.editReply({ embeds: [errorEmbed] });
+        return interaction.reply({ embeds: [errorEmbed] });
       }
 
       // Add the server
@@ -80,7 +80,10 @@ module.exports = {
         `**${nickname}** has been added successfully!\n\n**IP:** ${ip}:${port}\n**RCON:** ${rconPassword ? 'Configured' : 'Not configured'}\n\nYou can now use this server in other commands with autocomplete.`
       );
 
-      await interaction.editReply({ embeds: [successEmbed] });
+              await interaction.reply({ 
+          embeds: [successEmbed],
+          ephemeral: true
+        });
 
     } catch (error) {
       console.error('Error adding server:', error);
@@ -98,9 +101,12 @@ module.exports = {
       
       const errorEmbed = orangeEmbed('Error', errorMessage);
       
-      try {
-        await interaction.editReply({ embeds: [errorEmbed] });
-      } catch (replyError) {
+              try {
+          await interaction.reply({ 
+            embeds: [errorEmbed],
+            ephemeral: true
+          });
+        } catch (replyError) {
         console.error('Failed to send error reply:', replyError);
         // Try to send a new reply if edit fails
         try {

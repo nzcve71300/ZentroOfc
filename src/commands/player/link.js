@@ -52,7 +52,7 @@ module.exports = {
       });
       
     } catch (error) {
-      console.error(error);
+      console.error('Error in /link command:', error);
       await interaction.reply({
         embeds: [orangeEmbed('Error', 'Failed to process link request.')],
         ephemeral: true
