@@ -48,14 +48,12 @@ module.exports = {
       );
 
       if (guildResult.rows.length === 0) {
-        await pool.query(
-          'INSERT INTO guilds (discord_id, name) VALUES ($1, $2)',
+        // Create guild with explicit ID to avoid sequence permission issues
+        const newGuildResult = await pool.query(
+          'INSERT INTO guilds (discord_id, name) VALUES ($1, $2) RETURNING id',
           [guildId, interaction.guild.name]
         );
-        guildResult = await pool.query(
-          'SELECT id FROM guilds WHERE discord_id = $1',
-          [guildId]
-        );
+        guildResult = newGuildResult;
       }
 
       const guildDbId = guildResult.rows[0].id;
@@ -67,7 +65,8 @@ module.exports = {
       );
 
       if (existingServer.rows.length > 0) {
-        return interaction.editReply(orangeEmbed('Error', `A server with nickname **${nickname}** already exists in this guild.`));
+        const errorEmbed = orangeEmbed('Error', `A server with nickname **${nickname}** already exists in this guild.`);
+        return interaction.editReply({ embeds: [errorEmbed] });
       }
 
       // Add the server
@@ -76,14 +75,43 @@ module.exports = {
         [guildDbId, nickname, ip, port, rconPassword]
       );
 
-      await interaction.editReply(orangeEmbed(
+      const successEmbed = orangeEmbed(
         '✅ Server Added',
         `**${nickname}** has been added successfully!\n\n**IP:** ${ip}:${port}\n**RCON:** ${rconPassword ? 'Configured' : 'Not configured'}\n\nYou can now use this server in other commands with autocomplete.`
-      ));
+      );
+
+      await interaction.editReply({ embeds: [successEmbed] });
 
     } catch (error) {
       console.error('Error adding server:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to add server. Please try again.'));
+      
+      let errorMessage = 'Failed to add server. Please try again.';
+      
+      // Handle specific database errors
+      if (error.code === '42501') {
+        errorMessage = 'Database permission error. Please check PostgreSQL user permissions. Contact the bot owner.';
+      } else if (error.code === '23505') {
+        errorMessage = 'A server with this nickname already exists.';
+      } else if (error.code === '23502') {
+        errorMessage = 'Missing required data. Please check all required fields.';
+      }
+      
+      const errorEmbed = orangeEmbed('Error', errorMessage);
+      
+      try {
+        await interaction.editReply({ embeds: [errorEmbed] });
+      } catch (replyError) {
+        console.error('Failed to send error reply:', replyError);
+        // Try to send a new reply if edit fails
+        try {
+          await interaction.followUp({ 
+            embeds: [errorEmbed],
+            ephemeral: true 
+          });
+        } catch (followUpError) {
+          console.error('Failed to send followUp:', followUpError);
+        }
+      }
     }
   },
 }; 
