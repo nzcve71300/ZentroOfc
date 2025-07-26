@@ -1,22 +1,22 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('add-server')
+    .setName('setup-server')
     .setDescription('Add a Rust server to the bot')
     .addStringOption(option =>
       option.setName('nickname')
         .setDescription('Server nickname (e.g., Main Server, PvP Server)')
         .setRequired(true))
     .addStringOption(option =>
-      option.setName('ip')
+      option.setName('server_ip')
         .setDescription('Server IP address')
         .setRequired(true))
     .addIntegerOption(option =>
-      option.setName('port')
-        .setDescription('Server port (default: 28016)')
+      option.setName('rcon_port')
+        .setDescription('RCON port (default: 28016)')
         .setRequired(false))
     .addStringOption(option =>
       option.setName('rcon_password')
@@ -24,19 +24,19 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     // Check if user is authorized (only you can use this command)
     if (interaction.user.id !== '1252993829007528086') {
-      return interaction.reply({
-        embeds: [orangeEmbed('❌ Access Denied', 'You do not have permission to use this command.')],
-        ephemeral: true
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You do not have permission to use this command.')]
       });
     }
 
-
-
     const nickname = interaction.options.getString('nickname');
-    const ip = interaction.options.getString('ip');
-    const port = interaction.options.getInteger('port') || 28016;
+    const ip = interaction.options.getString('server_ip');
+    const port = interaction.options.getInteger('rcon_port') || 28016;
     const rconPassword = interaction.options.getString('rcon_password') || '';
     const guildId = interaction.guildId;
 
@@ -65,8 +65,9 @@ module.exports = {
       );
 
       if (existingServer.rows.length > 0) {
-        const errorEmbed = orangeEmbed('Error', `A server with nickname **${nickname}** already exists in this guild.`);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Exists', `A server with nickname **${nickname}** already exists in this guild.`)]
+        });
       }
 
       // Add the server
@@ -75,15 +76,12 @@ module.exports = {
         [guildDbId, nickname, ip, port, rconPassword]
       );
 
-      const successEmbed = orangeEmbed(
-        '✅ Server Added',
+      const successEmbedObj = successEmbed(
+        'Server Added Successfully',
         `**${nickname}** has been added successfully!\n\n**IP:** ${ip}:${port}\n**RCON:** ${rconPassword ? 'Configured' : 'Not configured'}\n\nYou can now use this server in other commands with autocomplete.`
       );
 
-              await interaction.reply({ 
-          embeds: [successEmbed],
-          ephemeral: true
-        });
+      await interaction.editReply({ embeds: [successEmbedObj] });
 
     } catch (error) {
       console.error('Error adding server:', error);
@@ -99,25 +97,9 @@ module.exports = {
         errorMessage = 'Missing required data. Please check all required fields.';
       }
       
-      const errorEmbed = orangeEmbed('Error', errorMessage);
-      
-              try {
-          await interaction.reply({ 
-            embeds: [errorEmbed],
-            ephemeral: true
-          });
-        } catch (replyError) {
-        console.error('Failed to send error reply:', replyError);
-        // Try to send a new reply if edit fails
-        try {
-          await interaction.followUp({ 
-            embeds: [errorEmbed],
-            ephemeral: true 
-          });
-        } catch (followUpError) {
-          console.error('Failed to send followUp:', followUpError);
-        }
-      }
+      await interaction.editReply({
+        embeds: [errorEmbed('Database Error', errorMessage)]
+      });
     }
   },
 }; 

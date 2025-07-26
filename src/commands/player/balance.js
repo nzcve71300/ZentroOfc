@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -8,6 +8,8 @@ module.exports = {
     .setDescription('View your currency balance across all servers'),
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -26,12 +28,11 @@ module.exports = {
       );
 
       if (result.rows.length === 0) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [orangeEmbed(
             '💰 Balance',
             'You don\'t have any balance on any servers in this guild.\n\nUse `/link` to link your Discord account to your in-game name first.'
-          )],
-          ephemeral: true
+          )]
         });
       }
 
@@ -48,16 +49,14 @@ module.exports = {
         `**Total Balance:** ${totalBalance} coins\n\n**Server Breakdown:**\n${balanceList}`
       );
 
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [embed]
       });
 
     } catch (error) {
       console.error('Error fetching balance:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to fetch balance. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to fetch balance. Please try again.')]
       });
     }
   },

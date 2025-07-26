@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -44,8 +44,11 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const serverNickname = interaction.options.getString('server');
-    const player = interaction.options.getUser('player');
+    const playerName = interaction.options.getString('player_name');
     const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guildId;
 
@@ -57,26 +60,25 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'Server not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Check if player exists
+      // Check if player exists by in-game name
       let playerResult = await pool.query(
-        'SELECT id FROM players WHERE discord_id = $1 AND server_id = $2',
-        [player.id, serverId]
+        'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2',
+        [playerName, serverId]
       );
 
       let playerId;
       if (playerResult.rows.length === 0) {
-        // Create player record
+        // Create player record with the provided in-game name
         const newPlayerResult = await pool.query(
           'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) RETURNING id',
-          [guildId, serverId, player.id, 'Unknown']
+          [guildId, serverId, null, playerName]
         );
         playerId = newPlayerResult.rows[0].id;
       } else {
@@ -89,15 +91,17 @@ module.exports = {
         [playerId]
       );
 
+      let newBalance;
       if (economyResult.rows.length === 0) {
         // Create economy record with the amount
         await pool.query(
           'INSERT INTO economy (player_id, balance) VALUES ($1, $2)',
           [playerId, amount]
         );
+        newBalance = amount;
       } else {
         // Update existing balance
-        const newBalance = parseInt(economyResult.rows[0].balance || 0) + amount;
+        newBalance = parseInt(economyResult.rows[0].balance || 0) + amount;
         await pool.query(
           'UPDATE economy SET balance = $1 WHERE player_id = $2',
           [newBalance, playerId]
@@ -110,19 +114,17 @@ module.exports = {
         [playerId, amount, 'admin_add']
       );
 
-      await interaction.reply({
-        embeds: [orangeEmbed(
-          '💰 Currency Added',
-          `Added **${amount} coins** to **${player.username}** on **${serverNickname}**.`
-        )],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Currency Added',
+          `Added **${amount} coins** to **${playerName}** on **${serverNickname}**.\n\n**New Balance:** ${newBalance} coins`
+        )]
       });
 
     } catch (error) {
       console.error('Error adding currency to player:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to add currency to player. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to add currency to player. Please try again.')]
       });
     }
   },

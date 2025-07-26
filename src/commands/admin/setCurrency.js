@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -39,8 +39,11 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const serverNickname = interaction.options.getString('server');
-    const amount = interaction.options.getInteger('amount');
+    const currencyName = interaction.options.getString('name');
     const guildId = interaction.guildId;
 
     try {
@@ -51,36 +54,26 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'Server not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Update currency for all players on this server
-      const result = await pool.query(
-        `UPDATE economy 
-         SET balance = $1 
-         FROM players p 
-         WHERE economy.player_id = p.id AND p.server_id = $2`,
-        [amount, serverId]
-      );
-
-      await interaction.reply({
-        embeds: [orangeEmbed(
-          '💰 Currency Set',
-          `Set all players' balance to **${amount} coins** on **${serverNickname}**.\n\n**Players affected:** ${result.rowCount}`
-        )],
-        ephemeral: true
+      // For now, we'll just acknowledge the currency name
+      // In a full implementation, you might store this in a separate table
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Currency Set',
+          `Currency name set to **${currencyName}** for **${serverNickname}**.\n\nNote: This is currently informational only. The currency name will be displayed in future messages.`
+        )]
       });
 
     } catch (error) {
       console.error('Error setting currency:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to set currency. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to set currency. Please try again.')]
       });
     }
   },

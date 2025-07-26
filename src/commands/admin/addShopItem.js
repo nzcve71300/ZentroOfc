@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -89,6 +89,9 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const serverNickname = interaction.options.getString('server');
     const categoryName = interaction.options.getString('category');
     const displayName = interaction.options.getString('display_name');
@@ -110,9 +113,8 @@ module.exports = {
       );
 
       if (result.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'Server or category not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Not Found', 'Server or category not found.')]
         });
       }
 
@@ -125,9 +127,8 @@ module.exports = {
       );
 
       if (existingResult.rows.length > 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', `Item **${displayName}** already exists in this category.`)],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Item Exists', `Item **${displayName}** already exists in this category.`)]
         });
       }
 
@@ -139,19 +140,17 @@ module.exports = {
 
       const timerText = timer ? ` (Timer: ${timer}m)` : '';
       
-      await interaction.reply({
-        embeds: [orangeEmbed(
-          '✅ Item Added',
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Item Added',
           `**${displayName}** has been added to **${categoryName}** in **${serverNickname}**'s shop.\n\n**Price:** ${price}\n**Quantity:** ${quantity}${timerText}`
-        )],
-        ephemeral: true
+        )]
       });
 
     } catch (error) {
       console.error('Error adding shop item:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to add shop item. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to add shop item. Please try again.')]
       });
     }
   },

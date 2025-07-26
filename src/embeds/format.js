@@ -10,4 +10,20 @@ function orangeEmbed(title, description, fields = []) {
     .setTimestamp();
 }
 
-module.exports = { orangeEmbed }; 
+function errorEmbed(title, description) {
+  return new EmbedBuilder()
+    .setColor(0xFF0000)
+    .setTitle(`❌ ${title}`)
+    .setDescription(description)
+    .setTimestamp();
+}
+
+function successEmbed(title, description) {
+  return new EmbedBuilder()
+    .setColor(0x00FF00)
+    .setTitle(`✅ ${title}`)
+    .setDescription(description)
+    .setTimestamp();
+}
+
+module.exports = { orangeEmbed, errorEmbed, successEmbed }; 

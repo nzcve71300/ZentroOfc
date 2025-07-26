@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -8,6 +8,8 @@ module.exports = {
     .setDescription('Open the shop to purchase items and kits'),
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -20,9 +22,8 @@ module.exports = {
       );
 
       if (serversResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'No servers found in this guild.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('No Servers', 'No servers found in this guild.')]
         });
       }
 
@@ -39,12 +40,11 @@ module.exports = {
       );
 
       if (balanceResult.rows.length === 0) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [orangeEmbed(
             '💰 Shop',
             'You don\'t have any balance on any servers.\n\nUse `/daily` to get some coins first!'
-          )],
-          ephemeral: true
+          )]
         });
       }
 
@@ -60,12 +60,11 @@ module.exports = {
       );
 
       if (categoriesResult.rows.length === 0) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [orangeEmbed(
             '💰 Shop',
             'No shop categories available.\n\nAdmins need to create categories using `/add-shop-category`.'
-          )],
-          ephemeral: true
+          )]
         });
       }
 
@@ -94,16 +93,15 @@ module.exports = {
         `**Your Balance:**\n${balanceList}\n\nSelect a server to browse their shop!`
       );
 
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [embed],
         components: [row]
       });
 
     } catch (error) {
       console.error('Error opening shop:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to open shop. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to open shop. Please try again.')]
       });
     }
   },

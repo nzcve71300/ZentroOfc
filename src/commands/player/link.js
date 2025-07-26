@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const pool = require('../../db');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,6 +12,9 @@ module.exports = {
         .setRequired(true)
     ),
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const guildId = interaction.guildId;
     const discordId = interaction.user.id;
     const ign = interaction.options.getString('in-game-name');
@@ -24,9 +27,8 @@ module.exports = {
       );
       
       if (existingResult.rows.length > 0) {
-        return await interaction.reply({
-          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to an in-game name.')],
-          ephemeral: true
+        return await interaction.editReply({
+          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to an in-game name.')]
         });
       }
       
@@ -45,17 +47,15 @@ module.exports = {
       
       const confirmEmbed = orangeEmbed('Confirm Link', `Are you sure you want to link your Discord account to **${ign}**?\n\n**Discord User:** ${interaction.user.tag}\n**In-Game Name:** ${ign}`);
       
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [confirmEmbed],
-        components: [row],
-        ephemeral: true
+        components: [row]
       });
       
     } catch (error) {
       console.error('Error in /link command:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to process link request.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to process link request.')]
       });
     }
   }

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -21,7 +21,8 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Items', value: 'items' },
-          { name: 'Kits', value: 'kits' }
+          { name: 'Kits', value: 'kits' },
+          { name: 'Both', value: 'both' }
         ))
     .addRoleOption(option =>
       option.setName('role')
@@ -51,6 +52,9 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const serverNickname = interaction.options.getString('server');
     const categoryName = interaction.options.getString('name');
     const categoryType = interaction.options.getString('type');
@@ -65,9 +69,8 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'Server not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
@@ -80,9 +83,8 @@ module.exports = {
       );
 
       if (existingResult.rows.length > 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', `Category **${categoryName}** already exists for this server.`)],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Category Exists', `Category **${categoryName}** already exists for this server.`)]
         });
       }
 
@@ -94,19 +96,17 @@ module.exports = {
 
       const roleText = role ? ` (Role: ${role.name})` : '';
       
-      await interaction.reply({
-        embeds: [orangeEmbed(
-          '✅ Category Added',
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Category Added',
           `**${categoryName}** has been added to **${serverNickname}**'s shop.\n\n**Type:** ${categoryType}${roleText}`
-        )],
-        ephemeral: true
+        )]
       });
 
     } catch (error) {
       console.error('Error adding shop category:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to add shop category. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to add shop category. Please try again.')]
       });
     }
   },

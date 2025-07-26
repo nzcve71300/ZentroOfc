@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -27,7 +27,7 @@ module.exports = {
 
       if (balanceResult.rows.length === 0) {
         return interaction.reply({
-          embeds: [orangeEmbed('Error', 'You need to have balance on at least one server to play blackjack.')],
+          embeds: [errorEmbed('No Balance', 'You need to have balance on at least one server to play blackjack. Use `/daily` to get some coins!')],
           ephemeral: true
         });
       }
@@ -56,7 +56,7 @@ module.exports = {
     } catch (error) {
       console.error('Error starting blackjack:', error);
       await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to start blackjack game.')],
+        embeds: [errorEmbed('Error', 'Failed to start blackjack game.')],
         ephemeral: true
       });
     }

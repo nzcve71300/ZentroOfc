@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -8,6 +8,8 @@ module.exports = {
     .setDescription('Claim your daily currency reward'),
 
   async execute(interaction) {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -20,9 +22,8 @@ module.exports = {
       );
 
       if (serversResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'No servers found in this guild.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('No Servers', 'No servers found in this guild.')]
         });
       }
 
@@ -54,12 +55,11 @@ module.exports = {
             timeText = `${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''}`;
           }
           
-          return interaction.reply({
+          return interaction.editReply({
             embeds: [orangeEmbed(
               '⏰ Daily Reward Cooldown',
               `You've already claimed your daily reward!\n\n⏳ **Next claim available in:** ${timeText}`
-            )],
-            ephemeral: true
+            )]
           });
         }
       }
@@ -142,16 +142,14 @@ module.exports = {
 
       response += '\n⏰ **Next daily reward available in 24 hours**';
 
-      await interaction.reply({
-        embeds: [orangeEmbed('🎁 Daily Reward', response)],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [successEmbed('Daily Reward', response)]
       });
 
     } catch (error) {
       console.error('Error claiming daily reward:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to claim daily reward. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to claim daily reward. Please try again.')]
       });
     }
   },

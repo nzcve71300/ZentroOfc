@@ -4,20 +4,16 @@ const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('remove-currency-player')
-    .setDescription('Remove currency from a specific player')
+    .setName('add-currency-server')
+    .setDescription('Add currency to all players on a server')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
         .setRequired(true)
         .setAutocomplete(true))
-    .addStringOption(option =>
-      option.setName('player_name')
-        .setDescription('Player\'s in-game name')
-        .setRequired(true))
     .addIntegerOption(option =>
       option.setName('amount')
-        .setDescription('Amount of currency to remove')
+        .setDescription('Amount to add to all players')
         .setRequired(true)
         .setMinValue(1)),
 
@@ -48,7 +44,6 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
 
     const serverNickname = interaction.options.getString('server');
-    const playerName = interaction.options.getString('player_name');
     const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guildId;
 
@@ -67,58 +62,49 @@ module.exports = {
 
       const serverId = serverResult.rows[0].id;
 
-      // Get player record by in-game name
-      const playerResult = await pool.query(
-        'SELECT id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2',
-        [playerName, serverId]
+      // Update currency for all players on this server
+      const result = await pool.query(
+        `UPDATE economy 
+         SET balance = balance + $1 
+         FROM players p 
+         WHERE economy.player_id = p.id AND p.server_id = $2`,
+        [amount, serverId]
       );
 
-      if (playerResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Player Not Found', `Player **${playerName}** not found on **${serverNickname}**.`)]
+      // Get list of affected players
+      const playersResult = await pool.query(
+        `SELECT p.ign, e.balance 
+         FROM players p 
+         JOIN economy e ON p.id = e.player_id 
+         WHERE p.server_id = $1 
+         ORDER BY e.balance DESC`,
+        [serverId]
+      );
+
+      let playersList = '';
+      if (playersResult.rows.length > 0) {
+        playersList = '\n\n**Players affected:**\n';
+        playersResult.rows.forEach((player, index) => {
+          if (index < 10) { // Show first 10 players
+            playersList += `• **${player.ign}:** ${player.balance} coins\n`;
+          }
         });
+        if (playersResult.rows.length > 10) {
+          playersList += `• ... and ${playersResult.rows.length - 10} more players\n`;
+        }
       }
-
-      const playerId = playerResult.rows[0].id;
-
-      // Get current balance
-      const economyResult = await pool.query(
-        'SELECT balance FROM economy WHERE player_id = $1',
-        [playerId]
-      );
-
-      if (economyResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('No Balance', `Player **${playerName}** has no balance on **${serverNickname}**.`)]
-        });
-      }
-
-      const currentBalance = parseInt(economyResult.rows[0].balance || 0);
-      const newBalance = Math.max(0, currentBalance - amount);
-
-      // Update balance
-      await pool.query(
-        'UPDATE economy SET balance = $1 WHERE player_id = $2',
-        [newBalance, playerId]
-      );
-
-      // Record transaction
-      await pool.query(
-        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-        [playerId, -amount, 'admin_remove']
-      );
 
       await interaction.editReply({
         embeds: [successEmbed(
-          'Currency Removed',
-          `Removed **${amount} coins** from **${playerName}** on **${serverNickname}**.\n\n**Previous Balance:** ${currentBalance} coins\n**New Balance:** ${newBalance} coins`
+          'Currency Added',
+          `Added **${amount} coins** to all players on **${serverNickname}**.\n\n**Players affected:** ${result.rowCount}${playersList}`
         )]
       });
 
     } catch (error) {
-      console.error('Error removing currency from player:', error);
+      console.error('Error adding currency to server:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to remove currency from player. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to add currency to server. Please try again.')]
       });
     }
   },
