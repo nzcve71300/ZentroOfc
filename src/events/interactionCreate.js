@@ -38,9 +38,12 @@ module.exports = {
 
       // Handle button clicks
       if (interaction.isButton()) {
+        console.log('Button clicked - customId:', interaction.customId);
         if (interaction.customId.startsWith('confirm_purchase_')) {
+          console.log('Handling confirm purchase button');
           await handleConfirmPurchase(interaction);
         } else if (interaction.customId.startsWith('cancel_purchase_')) {
+          console.log('Handling cancel purchase button');
           await handleCancelPurchase(interaction);
         } else if (interaction.customId.startsWith('link_confirm_')) {
           await handleLinkConfirm(interaction);
