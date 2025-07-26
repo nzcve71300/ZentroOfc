@@ -50,14 +50,28 @@ class KillfeedProcessor {
     // "PlayerA killed PlayerB"
     // "PlayerA killed PlayerB with AK47"
     // "PlayerA killed PlayerB at distance 150m"
+    // "PlayerA killed 5148727" (scientist ID)
     
     const killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
     const match = killMessage.match(killPattern);
     
     if (match) {
+      let killer = match[1].trim();
+      let victim = match[2].trim();
+      
+      // Check if victim is a scientist ID (numeric)
+      if (/^\d+$/.test(victim)) {
+        victim = 'Scientist';
+      }
+      
+      // Check if killer is a scientist ID (numeric)
+      if (/^\d+$/.test(killer)) {
+        killer = 'Scientist';
+      }
+      
       return {
-        killer: match[1].trim(),
-        victim: match[2].trim()
+        killer,
+        victim
       };
     }
     
@@ -116,7 +130,7 @@ class KillfeedProcessor {
 
   isNPCorAnimal(victimName) {
     const lowerVictim = victimName.toLowerCase();
-    return this.npcKeywords.some(keyword => lowerVictim.includes(keyword));
+    return this.npcKeywords.some(keyword => lowerVictim.includes(keyword)) || lowerVictim === 'scientist';
   }
 
   async processKillStats(killerName, victimName, serverId) {
@@ -245,6 +259,11 @@ class KillfeedProcessor {
       const sanitizedName = playerName.replace(/\0/g, '').trim();
       
       if (!sanitizedName) {
+        return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0, kd_ratio: '0' };
+      }
+      
+      // If it's a scientist, return default stats
+      if (sanitizedName.toLowerCase() === 'scientist') {
         return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0, kd_ratio: '0' };
       }
       
