@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -13,51 +13,65 @@ module.exports = {
         .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('format')
-        .setDescription('Killfeed format string (use variables like {Victim}, {Killer}, etc.)')
+        .setDescription('Killfeed format string (use variables like {Victim}, {Killer}, {VictimKD}, {KillerKD}, {KillerStreak}, {VictimStreak}, {VictimHighest}, {KillerHighest})')
         .setRequired(true)),
 
   async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
-        [guildId, `%${focusedValue}%`]
-      );
+      if (focusedOption.name === 'server') {
+        const value = focusedOption.value.toLowerCase();
+        
+        // Get servers for this guild
+        const result = await pool.query(
+          `SELECT rs.id, rs.nickname 
+           FROM rust_servers rs 
+           JOIN guilds g ON rs.guild_id = g.id 
+           WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
+           ORDER BY rs.nickname 
+           LIMIT 25`,
+          [guildId, `%${value}%`]
+        );
 
-      const choices = result.rows.map(row => ({
-        name: row.nickname,
-        value: row.nickname
-      }));
+        const choices = result.rows.map(row => ({
+          name: row.nickname,
+          value: row.id.toString()
+        }));
 
-      await interaction.respond(choices);
+        await interaction.respond(choices);
+      }
     } catch (error) {
-      console.error('Autocomplete error:', error);
+      console.error('Error in autocomplete:', error);
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
-    const serverNickname = interaction.options.getString('server');
-    const channel = interaction.options.getChannel('channel');
+    await interaction.deferReply();
+
+    const serverId = interaction.options.getString('server');
+    const formatString = interaction.options.getString('format');
     const guildId = interaction.guildId;
 
     try {
-      // Get server ID
+      // Verify server exists and belongs to this guild
       const serverResult = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverNickname]
+        `SELECT rs.id, rs.nickname 
+         FROM rust_servers rs 
+         JOIN guilds g ON rs.guild_id = g.id 
+         WHERE g.discord_id = $1 AND rs.id = $2`,
+        [guildId, serverId]
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'Server not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The selected server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
+      const { nickname } = serverResult.rows[0];
 
       // Check if killfeed config already exists
       const existingResult = await pool.query(
@@ -68,30 +82,31 @@ module.exports = {
       if (existingResult.rows.length > 0) {
         // Update existing config
         await pool.query(
-          'UPDATE killfeed_configs SET channel_id = $1 WHERE server_id = $2',
-          [channel.id, serverId]
+          'UPDATE killfeed_configs SET format_string = $1, enabled = true WHERE server_id = $2',
+          [formatString, serverId]
         );
       } else {
         // Create new config
         await pool.query(
-          'INSERT INTO killfeed_configs (server_id, channel_id) VALUES ($1, $2)',
-          [serverId, channel.id]
+          'INSERT INTO killfeed_configs (server_id, format_string, enabled) VALUES ($1, $2, true)',
+          [serverId, formatString]
         );
       }
 
-      await interaction.reply({
-        embeds: [orangeEmbed(
-          '🔫 Killfeed Setup',
-          `Killfeed has been configured for **${serverNickname}**.\n\n**Channel:** ${channel}\n\nKill events will now be posted to this channel.`
-        )],
-        ephemeral: true
+      // Create success embed with format preview
+      const embed = successEmbed(
+        '🔫 Killfeed Setup Complete',
+        `**Server:** ${nickname}\n**Format:** ${formatString}\n\n**Available Variables:**\n• \`{Victim}\` - Victim's name\n• \`{Killer}\` - Killer's name\n• \`{VictimKD}\` - Victim's K/D ratio\n• \`{KillerKD}\` - Killer's K/D ratio\n• \`{KillerStreak}\` - Killer's kill streak\n• \`{VictimStreak}\` - Victim's kill streak\n• \`{VictimHighest}\` - Victim's highest kill streak\n• \`{KillerHighest}\` - Killer's highest kill streak\n\n✅ Killfeed has been configured and enabled!`
+      );
+
+      await interaction.editReply({
+        embeds: [embed]
       });
 
     } catch (error) {
       console.error('Error setting up killfeed:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to setup killfeed. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to setup killfeed. Please try again.')]
       });
     }
   },
