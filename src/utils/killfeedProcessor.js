@@ -90,30 +90,32 @@ class KillfeedProcessor {
       }
     }
     
-    // Try normal format: "Killer killed Victim"
-    let killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
-    let match = killMessage.match(killPattern);
-    
-    if (match) {
-      let killer = match[1].trim();
-      let victim = match[2].trim();
+    // Try normal format: "Killer killed Victim" - but be more specific to avoid matching reverse format
+    if (!killMessage.includes('was killed by')) {
+      let killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
+      let match = killMessage.match(killPattern);
       
-      console.log('Normal format match - killer:', killer, 'victim:', victim);
-      
-      // Check if victim is a scientist ID (numeric)
-      if (/^\d+$/.test(victim)) {
-        victim = 'Scientist';
+      if (match) {
+        let killer = match[1].trim();
+        let victim = match[2].trim();
+        
+        console.log('Normal format match - killer:', killer, 'victim:', victim);
+        
+        // Check if victim is a scientist ID (numeric)
+        if (/^\d+$/.test(victim)) {
+          victim = 'Scientist';
+        }
+        
+        // Check if killer is a scientist ID (numeric)
+        if (/^\d+$/.test(killer)) {
+          killer = 'Scientist';
+        }
+        
+        return {
+          killer,
+          victim
+        };
       }
-      
-      // Check if killer is a scientist ID (numeric)
-      if (/^\d+$/.test(killer)) {
-        killer = 'Scientist';
-      }
-      
-      return {
-        killer,
-        victim
-      };
     }
     
     console.log('No pattern matched for kill message:', killMessage);
@@ -177,12 +179,21 @@ class KillfeedProcessor {
 
   async processKillStats(killerName, victimName, serverId) {
     try {
+      // Sanitize names to remove null bytes and invalid characters
+      const sanitizedKiller = killerName.replace(/\0/g, '').trim();
+      const sanitizedVictim = victimName.replace(/\0/g, '').trim();
+      
+      if (!sanitizedKiller || !sanitizedVictim) {
+        console.log('Invalid names after sanitization:', { killerName, victimName });
+        return;
+      }
+      
       // Get killer player record
       const killerResult = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
-        [serverId, killerName]
+        [serverId, sanitizedKiller]
       );
 
       if (killerResult.rows.length === 0) {
@@ -192,8 +203,8 @@ class KillfeedProcessor {
       }
 
       const killerPlayerId = killerResult.rows[0].id;
-      const isPlayerKill = await this.isPlayerKill(victimName, serverId);
-      const isNPCorAnimal = this.isNPCorAnimal(victimName);
+      const isPlayerKill = await this.isPlayerKill(sanitizedVictim, serverId);
+      const isNPCorAnimal = this.isNPCorAnimal(sanitizedVictim);
 
       // Get or create killer stats
       let killerStats = await this.getOrCreatePlayerStats(killerPlayerId);
@@ -208,7 +219,7 @@ class KillfeedProcessor {
         });
 
         // Process victim death
-        await this.processVictimDeath(victimName, serverId);
+        await this.processVictimDeath(sanitizedVictim, serverId);
 
       } else if (isNPCorAnimal) {
         // NPC/Animal kill - decrease stats (penalty)
