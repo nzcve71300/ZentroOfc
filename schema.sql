@@ -83,7 +83,8 @@ CREATE TABLE killfeed_configs (
     id SERIAL PRIMARY KEY,
     server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
     enabled BOOLEAN DEFAULT false,
-    format_string TEXT
+    format_string TEXT,
+    randomizer_enabled BOOLEAN DEFAULT false
 );
 
 CREATE TABLE player_stats (
