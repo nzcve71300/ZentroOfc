@@ -61,6 +61,8 @@ module.exports = {
 
     console.log('All options:', interaction.options.data);
     console.log('Option value:', option);
+    console.log('Option type:', typeof option);
+    console.log('Raw option data:', JSON.stringify(interaction.options.data));
 
     try {
       // Verify server exists and belongs to this guild
@@ -78,8 +80,8 @@ module.exports = {
         });
       }
 
-      const { nickname } = serverResult.rows[0];
-      const enabled = option === 'on';
+             const { nickname } = serverResult.rows[0];
+       const enabled = option === 'on' || option === 'enable';
 
       console.log('Killfeed command - option:', option, 'enabled:', enabled);
 
