@@ -1,11 +1,11 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('shop')
-    .setDescription('Open the shop to purchase items and kits'),
+    .setDescription('Browse and purchase items from the shop'),
 
   async execute(interaction) {
     // Defer reply to prevent timeout
