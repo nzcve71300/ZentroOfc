@@ -12,12 +12,13 @@ module.exports = {
         .setRequired(true)
         .setAutocomplete(true))
     .addStringOption(option =>
-      option.setName('option')
+      option.setName('action')
         .setDescription('Enable or disable killfeed')
         .setRequired(true)
         .addChoices(
-          { name: 'Enable', value: 'on' },
-          { name: 'Disable', value: 'off' }
+          { name: 'Enable', value: 'enable' },
+          { name: 'Disable', value: 'disable' },
+          { name: 'Status', value: 'status' }
         )),
 
   async autocomplete(interaction) {
@@ -43,10 +44,8 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
-    const option = interaction.options.getString('option');
+    const action = interaction.options.getString('action');
     const guildId = interaction.guildId;
 
     try {
@@ -57,41 +56,83 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Check if killfeed config exists
-      let configResult = await pool.query(
-        'SELECT id FROM killfeed_configs WHERE server_id = $1',
+      // Get current killfeed config
+      const configResult = await pool.query(
+        'SELECT id, enabled FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
 
       if (configResult.rows.length === 0) {
-        // Create new killfeed config
-        await pool.query(
-          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES ($1, $2, $3)',
-          [serverId, option === 'on', '{Victim} was killed by {Killer}']
-        );
-      } else {
-        // Update existing config
-        await pool.query(
-          'UPDATE killfeed_configs SET enabled = $1 WHERE server_id = $2',
-          [option === 'on', serverId]
-        );
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', `Killfeed not configured for **${serverNickname}**. Use \`/killfeed-setup\` first.`)],
+          ephemeral: true
+        });
       }
 
-      const status = option === 'on' ? 'enabled' : 'disabled';
+      const configId = configResult.rows[0].id;
+      const currentStatus = configResult.rows[0].enabled;
 
-      await interaction.editReply(orangeEmbed(
-        '✅ Killfeed Updated',
-        `Killfeed for **${serverNickname}** has been **${status}**.\n\nUse \`/killfeed-setup\` to customize the killfeed format.`
-      ));
+      if (action === 'enable') {
+        if (currentStatus) {
+          return interaction.reply({
+            embeds: [orangeEmbed('Info', `Killfeed is already enabled for **${serverNickname}**.`)],
+            ephemeral: true
+          });
+        }
+        
+        await pool.query(
+          'UPDATE killfeed_configs SET enabled = true WHERE id = $1',
+          [configId]
+        );
+
+        await interaction.reply({
+          embeds: [orangeEmbed('✅ Killfeed Enabled', `Killfeed has been enabled for **${serverNickname}**.`)],
+          ephemeral: true
+        });
+
+      } else if (action === 'disable') {
+        if (!currentStatus) {
+          return interaction.reply({
+            embeds: [orangeEmbed('Info', `Killfeed is already disabled for **${serverNickname}**.`)],
+            ephemeral: true
+          });
+        }
+
+        await pool.query(
+          'UPDATE killfeed_configs SET enabled = false WHERE id = $1',
+          [configId]
+        );
+
+        await interaction.reply({
+          embeds: [orangeEmbed('❌ Killfeed Disabled', `Killfeed has been disabled for **${serverNickname}**.`)],
+          ephemeral: true
+        });
+
+      } else if (action === 'status') {
+        const statusText = currentStatus ? '🟢 Enabled' : '🔴 Disabled';
+        await interaction.reply({
+          embeds: [orangeEmbed(
+            '🔫 Killfeed Status',
+            `**${serverNickname}** Killfeed Status: ${statusText}`
+          )],
+          ephemeral: true
+        });
+      }
 
     } catch (error) {
-      console.error('Error updating killfeed:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to update killfeed. Please try again.'));
+      console.error('Error managing killfeed:', error);
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to manage killfeed. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

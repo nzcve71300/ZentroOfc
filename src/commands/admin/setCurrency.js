@@ -39,10 +39,8 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
-    const currencyName = interaction.options.getString('name');
+    const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guildId;
 
     try {
@@ -53,21 +51,37 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // For now, we'll just confirm the currency name
-      // In a full implementation, you'd store this in a config table
-      await interaction.editReply(orangeEmbed(
-        '✅ Currency Set',
-        `Currency for **${serverNickname}** has been set to **${currencyName}**.\n\nPlayers will now see their balance in ${currencyName}.`
-      ));
+      // Update currency for all players on this server
+      const result = await pool.query(
+        `UPDATE economy 
+         SET balance = $1 
+         FROM players p 
+         WHERE economy.player_id = p.id AND p.server_id = $2`,
+        [amount, serverId]
+      );
+
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '💰 Currency Set',
+          `Set all players' balance to **${amount} coins** on **${serverNickname}**.\n\n**Players affected:** ${result.rowCount}`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error setting currency:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to set currency. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to set currency. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

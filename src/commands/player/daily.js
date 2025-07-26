@@ -26,6 +26,44 @@ module.exports = {
         });
       }
 
+      // Check if user has claimed daily reward in the last 24 hours
+      const lastClaimResult = await pool.query(
+        `SELECT MAX(t.timestamp) as last_claim
+         FROM transactions t
+         JOIN players p ON t.player_id = p.id
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2 AND t.type = 'daily_reward'`,
+        [userId, guildId]
+      );
+
+      const lastClaim = lastClaimResult.rows[0]?.last_claim;
+      if (lastClaim) {
+        const now = new Date();
+        const timeSinceLastClaim = now - new Date(lastClaim);
+        const hoursSinceLastClaim = timeSinceLastClaim / (1000 * 60 * 60);
+        
+        if (hoursSinceLastClaim < 24) {
+          const hoursRemaining = Math.ceil(24 - hoursSinceLastClaim);
+          const minutesRemaining = Math.ceil((24 - hoursSinceLastClaim) * 60);
+          
+          let timeText;
+          if (hoursRemaining >= 1) {
+            timeText = `${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''}`;
+          } else {
+            timeText = `${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''}`;
+          }
+          
+          return interaction.reply({
+            embeds: [orangeEmbed(
+              '⏰ Daily Reward Cooldown',
+              `You've already claimed your daily reward!\n\n⏳ **Next claim available in:** ${timeText}`
+            )],
+            ephemeral: true
+          });
+        }
+      }
+
       const dailyReward = 100; // Default daily reward amount
       const results = [];
 
@@ -101,6 +139,8 @@ module.exports = {
       if (failedResults.length > 0) {
         response += `\n**Failed to process:** ${failedResults.map(r => r.server).join(', ')}`;
       }
+
+      response += '\n⏰ **Next daily reward available in 24 hours**';
 
       await interaction.reply({
         embeds: [orangeEmbed('🎁 Daily Reward', response)],

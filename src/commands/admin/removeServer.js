@@ -48,8 +48,6 @@ module.exports = {
       });
     }
 
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
     const guildId = interaction.guildId;
 
@@ -61,25 +59,31 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', `Server **${serverNickname}** not found in this guild.`)],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Remove the server (this will cascade delete related data)
-      await pool.query(
-        'DELETE FROM rust_servers WHERE id = $1',
-        [serverId]
-      );
+      // Delete the server (this will cascade to related data)
+      await pool.query('DELETE FROM rust_servers WHERE id = $1', [serverId]);
 
-      await interaction.editReply(orangeEmbed(
-        '✅ Server Removed',
-        `**${serverNickname}** has been removed successfully.\n\nAll related data (players, economy, shop items, etc.) has also been removed.`
-      ));
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '🗑️ Server Removed',
+          `**${serverNickname}** has been removed from the bot.\n\nAll associated data (players, economy, shop items, etc.) has been deleted.`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error removing server:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to remove server. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to remove server. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

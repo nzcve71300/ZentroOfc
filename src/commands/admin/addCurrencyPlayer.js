@@ -44,10 +44,8 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
-    const playerName = interaction.options.getString('player_name');
+    const player = interaction.options.getUser('player');
     const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guildId;
 
@@ -59,72 +57,73 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Find player by IGN
-      const playerResult = await pool.query(
-        'SELECT id, ign FROM players WHERE server_id = $1 AND ign ILIKE $2',
-        [serverId, playerName]
+      // Check if player exists
+      let playerResult = await pool.query(
+        'SELECT id FROM players WHERE discord_id = $1 AND server_id = $2',
+        [player.id, serverId]
       );
 
+      let playerId;
       if (playerResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', `Player **${playerName}** not found on **${serverNickname}**.`));
+        // Create player record
+        const newPlayerResult = await pool.query(
+          'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) RETURNING id',
+          [guildId, serverId, player.id, 'Unknown']
+        );
+        playerId = newPlayerResult.rows[0].id;
+      } else {
+        playerId = playerResult.rows[0].id;
       }
 
-      const playerId = playerResult.rows[0].id;
-
-      // Get or create economy record
+      // Check if economy record exists
       let economyResult = await pool.query(
         'SELECT id, balance FROM economy WHERE player_id = $1',
         [playerId]
       );
 
       if (economyResult.rows.length === 0) {
-        // Create economy record
+        // Create economy record with the amount
         await pool.query(
           'INSERT INTO economy (player_id, balance) VALUES ($1, $2)',
           [playerId, amount]
         );
-        const newBalance = amount;
-        
-        // Record transaction
-        await pool.query(
-          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-          [playerId, amount, 'admin_add']
-        );
-
-        await interaction.editReply(orangeEmbed(
-          '✅ Currency Added',
-          `Added **${amount} coins** to **${playerName}** on **${serverNickname}**.\n\n**New Balance:** ${newBalance} coins`
-        ));
       } else {
         // Update existing balance
-        const currentBalance = parseInt(economyResult.rows[0].balance || 0);
-        const newBalance = currentBalance + amount;
-        
+        const newBalance = parseInt(economyResult.rows[0].balance || 0) + amount;
         await pool.query(
           'UPDATE economy SET balance = $1 WHERE player_id = $2',
           [newBalance, playerId]
         );
-
-        // Record transaction
-        await pool.query(
-          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-          [playerId, amount, 'admin_add']
-        );
-
-        await interaction.editReply(orangeEmbed(
-          '✅ Currency Added',
-          `Added **${amount} coins** to **${playerName}** on **${serverNickname}**.\n\n**Previous Balance:** ${currentBalance} coins\n**New Balance:** ${newBalance} coins`
-        ));
       }
+
+      // Record transaction
+      await pool.query(
+        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
+        [playerId, amount, 'admin_add']
+      );
+
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '💰 Currency Added',
+          `Added **${amount} coins** to **${player.username}** on **${serverNickname}**.`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error adding currency to player:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to add currency to player. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to add currency to player. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

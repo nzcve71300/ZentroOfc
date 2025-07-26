@@ -44,11 +44,8 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
-    const playerName = interaction.options.getString('player_name');
-    const amount = interaction.options.getInteger('amount');
+    const player = interaction.options.getUser('player');
     const guildId = interaction.guildId;
 
     try {
@@ -59,61 +56,49 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Find player by IGN
+      // Get player record
       const playerResult = await pool.query(
-        'SELECT id, ign FROM players WHERE server_id = $1 AND ign ILIKE $2',
-        [serverId, playerName]
+        'SELECT id FROM players WHERE discord_id = $1 AND server_id = $2',
+        [player.id, serverId]
       );
 
       if (playerResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', `Player **${playerName}** not found on **${serverNickname}**.`));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', `Player ${player.username} not found on ${serverNickname}.`)],
+          ephemeral: true
+        });
       }
 
       const playerId = playerResult.rows[0].id;
 
-      // Get economy record
-      const economyResult = await pool.query(
-        'SELECT id, balance FROM economy WHERE player_id = $1',
-        [playerId]
-      );
+      // Remove economy record
+      await pool.query('DELETE FROM economy WHERE player_id = $1', [playerId]);
 
-      if (economyResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', `Player **${playerName}** has no balance on **${serverNickname}**.`));
-      }
+      // Remove player record
+      await pool.query('DELETE FROM players WHERE id = $1', [playerId]);
 
-      const currentBalance = parseInt(economyResult.rows[0].balance || 0);
-      
-      if (currentBalance < amount) {
-        return interaction.editReply(orangeEmbed('Error', `Player **${playerName}** only has **${currentBalance} coins** on **${serverNickname}**. Cannot remove ${amount} coins.`));
-      }
-
-      const newBalance = currentBalance - amount;
-      
-      // Update balance
-      await pool.query(
-        'UPDATE economy SET balance = $1 WHERE player_id = $2',
-        [newBalance, playerId]
-      );
-
-      // Record transaction
-      await pool.query(
-        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-        [playerId, -amount, 'admin_remove']
-      );
-
-      await interaction.editReply(orangeEmbed(
-        '✅ Currency Removed',
-        `Removed **${amount} coins** from **${playerName}** on **${serverNickname}**.\n\n**Previous Balance:** ${currentBalance} coins\n**New Balance:** ${newBalance} coins`
-      ));
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '🗑️ Player Removed',
+          `**${player.username}** has been removed from **${serverNickname}**.\n\nTheir currency and player data have been deleted.`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
-      console.error('Error removing currency from player:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to remove currency from player. Please try again.'));
+      console.error('Error removing player:', error);
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to remove player. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

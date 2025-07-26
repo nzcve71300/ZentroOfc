@@ -39,10 +39,8 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
-    const format = interaction.options.getString('format');
+    const channel = interaction.options.getChannel('channel');
     const guildId = interaction.guildId;
 
     try {
@@ -53,51 +51,48 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Check if killfeed config exists
-      let configResult = await pool.query(
+      // Check if killfeed config already exists
+      const existingResult = await pool.query(
         'SELECT id FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
 
-      if (configResult.rows.length === 0) {
-        // Create new killfeed config
-        await pool.query(
-          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES ($1, $2, $3)',
-          [serverId, true, format]
-        );
-      } else {
+      if (existingResult.rows.length > 0) {
         // Update existing config
         await pool.query(
-          'UPDATE killfeed_configs SET format_string = $1 WHERE server_id = $2',
-          [format, serverId]
+          'UPDATE killfeed_configs SET channel_id = $1 WHERE server_id = $2',
+          [channel.id, serverId]
+        );
+      } else {
+        // Create new config
+        await pool.query(
+          'INSERT INTO killfeed_configs (server_id, channel_id) VALUES ($1, $2)',
+          [serverId, channel.id]
         );
       }
 
-      // Show available variables
-      const variables = [
-        '{Victim} - Victim name',
-        '{Killer} - Killer name', 
-        '{VictimKD} - Victim K/D ratio',
-        '{KillerKD} - Killer K/D ratio',
-        '{KillerStreak} - Killer kill streak',
-        '{VictimStreak} - Victim kill streak',
-        '{VictimHighest} - Victim highest streak',
-        '{KillerHighest} - Killer highest streak'
-      ];
-
-      await interaction.editReply(orangeEmbed(
-        '✅ Killfeed Format Updated',
-        `Killfeed format for **${serverNickname}** has been updated.\n\n**New Format:** ${format}\n\n**Available Variables:**\n${variables.join('\n')}`
-      ));
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '🔫 Killfeed Setup',
+          `Killfeed has been configured for **${serverNickname}**.\n\n**Channel:** ${channel}\n\nKill events will now be posted to this channel.`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
-      console.error('Error updating killfeed format:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to update killfeed format. Please try again.'));
+      console.error('Error setting up killfeed:', error);
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to setup killfeed. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

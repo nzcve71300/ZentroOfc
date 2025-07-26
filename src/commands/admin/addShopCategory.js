@@ -21,8 +21,7 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Items', value: 'items' },
-          { name: 'Kits', value: 'kits' },
-          { name: 'Both', value: 'both' }
+          { name: 'Kits', value: 'kits' }
         ))
     .addRoleOption(option =>
       option.setName('role')
@@ -52,8 +51,6 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
     const categoryName = interaction.options.getString('name');
     const categoryType = interaction.options.getString('type');
@@ -68,7 +65,10 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
@@ -80,7 +80,10 @@ module.exports = {
       );
 
       if (existingResult.rows.length > 0) {
-        return interaction.editReply(orangeEmbed('Error', `Category **${categoryName}** already exists for this server.`));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', `Category **${categoryName}** already exists for this server.`)],
+          ephemeral: true
+        });
       }
 
       // Insert new category
@@ -91,14 +94,20 @@ module.exports = {
 
       const roleText = role ? ` (Role: ${role.name})` : '';
       
-      await interaction.editReply(orangeEmbed(
-        '✅ Category Added',
-        `**${categoryName}** has been added to **${serverNickname}**'s shop.\n\n**Type:** ${categoryType}${roleText}`
-      ));
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '✅ Category Added',
+          `**${categoryName}** has been added to **${serverNickname}**'s shop.\n\n**Type:** ${categoryType}${roleText}`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error adding shop category:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to add shop category. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to add shop category. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

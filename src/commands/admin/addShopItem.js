@@ -89,8 +89,6 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
     const categoryName = interaction.options.getString('category');
     const displayName = interaction.options.getString('display_name');
@@ -112,7 +110,10 @@ module.exports = {
       );
 
       if (result.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server or category not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server or category not found.')],
+          ephemeral: true
+        });
       }
 
       const { server_id, category_id } = result.rows[0];
@@ -124,7 +125,10 @@ module.exports = {
       );
 
       if (existingResult.rows.length > 0) {
-        return interaction.editReply(orangeEmbed('Error', `Item **${displayName}** already exists in this category.`));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', `Item **${displayName}** already exists in this category.`)],
+          ephemeral: true
+        });
       }
 
       // Insert new item
@@ -135,14 +139,20 @@ module.exports = {
 
       const timerText = timer ? ` (Timer: ${timer}m)` : '';
       
-      await interaction.editReply(orangeEmbed(
-        '✅ Item Added',
-        `**${displayName}** has been added to **${categoryName}** in **${serverNickname}**'s shop.\n\n**Price:** ${price}\n**Quantity:** ${quantity}${timerText}`
-      ));
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '✅ Item Added',
+          `**${displayName}** has been added to **${categoryName}** in **${serverNickname}**'s shop.\n\n**Price:** ${price}\n**Quantity:** ${quantity}${timerText}`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error adding shop item:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to add shop item. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to add shop item. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

@@ -62,8 +62,6 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
     const setup = interaction.options.getString('setup');
     const option = interaction.options.getString('option');
@@ -78,7 +76,10 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
@@ -109,7 +110,10 @@ module.exports = {
         case 'cooldown':
           updateValue = parseInt(value);
           if (isNaN(updateValue) || updateValue < 0) {
-            return interaction.editReply(orangeEmbed('Error', 'Cooldown must be a positive number.'));
+            return interaction.reply({
+              embeds: [orangeEmbed('Error', 'Cooldown must be a positive number.')],
+              ephemeral: true
+            });
           }
           updateQuery = 'UPDATE autokits SET cooldown = $1 WHERE server_id = $2 AND kit_name = $3';
           break;
@@ -118,21 +122,30 @@ module.exports = {
           updateQuery = 'UPDATE autokits SET game_name = $1 WHERE server_id = $2 AND kit_name = $3';
           break;
         default:
-          return interaction.editReply(orangeEmbed('Error', 'Invalid option.'));
+          return interaction.reply({
+            embeds: [orangeEmbed('Error', 'Invalid option.')],
+            ephemeral: true
+          });
       }
 
       await pool.query(updateQuery, [updateValue, serverId, setup]);
 
       const statusText = option === 'enabled' ? (updateValue ? 'enabled' : 'disabled') : `set to ${updateValue}`;
 
-      await interaction.editReply(orangeEmbed(
-        '✅ Autokit Updated',
-        `**${setup}** on **${serverNickname}** has been updated.\n\n**${option}:** ${statusText}`
-      ));
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '✅ Autokit Updated',
+          `**${setup}** on **${serverNickname}** has been updated.\n\n**${option}:** ${statusText}`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error updating autokit:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to update autokit. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to update autokit. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 

@@ -35,8 +35,6 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
-
     const serverNickname = interaction.options.getString('server');
     const guildId = interaction.guildId;
 
@@ -48,49 +46,50 @@ module.exports = {
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Error', 'Server not found.'));
+        return interaction.reply({
+          embeds: [orangeEmbed('Error', 'Server not found.')],
+          ephemeral: true
+        });
       }
 
       const serverId = serverResult.rows[0].id;
 
-      // Get shop categories
+      // Get shop categories for this server
       const categoriesResult = await pool.query(
         'SELECT id, name, type FROM shop_categories WHERE server_id = $1 ORDER BY name',
         [serverId]
       );
 
       if (categoriesResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Shop', `No shop categories found for **${serverNickname}**. Use \`/add-shop-category\` to create categories.`));
+        return interaction.reply({
+          embeds: [orangeEmbed(
+            '💰 Shop',
+            `No shop categories found for **${serverNickname}**.\n\nUse \`/add-shop-category\` to create categories first.`
+          )],
+          ephemeral: true
+        });
       }
 
-      // Create dropdown menu
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(`shop_${serverId}`)
-            .setPlaceholder('Select a category')
-            .addOptions(
-              categoriesResult.rows.map(category => ({
-                label: category.name,
-                description: `Type: ${category.type}`,
-                value: category.id.toString()
-              }))
-            )
-        );
+      // Create category list
+      let categoryList = '';
+      categoriesResult.rows.forEach(category => {
+        categoryList += `• **${category.name}** (${category.type})\n`;
+      });
 
-      const embed = orangeEmbed(
-        '🛒 Shop',
-        `**${serverNickname}**\n\nSelect a category to browse items and kits.`
-      );
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: [row]
+      await interaction.reply({
+        embeds: [orangeEmbed(
+          '💰 Shop',
+          `**${serverNickname}** Shop Categories:\n\n${categoryList}\n\nPlayers can use \`/shop\` to browse and purchase items.`
+        )],
+        ephemeral: true
       });
 
     } catch (error) {
       console.error('Error opening shop:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to open shop. Please try again.'));
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to open shop. Please try again.')],
+        ephemeral: true
+      });
     }
   },
 }; 
