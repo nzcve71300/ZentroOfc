@@ -22,7 +22,7 @@ class KillfeedProcessor {
 
       // Check if killfeed is enabled for this server
       const killfeedConfig = await this.getKillfeedConfig(serverId);
-      if (!killfeedConfig || !killfeedConfig.enabled) {
+      if (!killfeedConfig.enabled) {
         return null;
       }
 
@@ -70,11 +70,24 @@ class KillfeedProcessor {
         'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
-      return result.rows[0] || null;
-    } catch (error) {
-      console.error('Error getting killfeed config:', error);
-      return null;
-    }
+      
+             if (result.rows.length > 0) {
+         return result.rows[0];
+       } else {
+         // Return default config if none exists
+         return {
+           enabled: true, // Default to enabled
+           format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}'
+         };
+       }
+     } catch (error) {
+       console.error('Error getting killfeed config:', error);
+       // Return default config on error
+       return {
+         enabled: true,
+         format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}'
+       };
+     }
   }
 
   async isPlayerKill(victimName, serverId) {

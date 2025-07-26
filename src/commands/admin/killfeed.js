@@ -59,6 +59,9 @@ module.exports = {
     const option = interaction.options.getString('option');
     const guildId = interaction.guildId;
 
+    console.log('All options:', interaction.options.data);
+    console.log('Option value:', option);
+
     try {
       // Verify server exists and belongs to this guild
       const serverResult = await pool.query(
@@ -93,14 +96,14 @@ module.exports = {
           [enabled, serverId]
         );
         console.log('Updated existing killfeed config - enabled:', enabled);
-      } else {
-        // Create new config with default format
-        await pool.query(
-          'INSERT INTO killfeed_configs (server_id, format_string, enabled) VALUES ($1, $2, $3)',
-          [serverId, '{Killer} killed {Victim}', enabled]
-        );
-        console.log('Created new killfeed config - enabled:', enabled);
-      }
+             } else {
+         // Create new config with default format
+         await pool.query(
+           'INSERT INTO killfeed_configs (server_id, format_string, enabled) VALUES ($1, $2, $3)',
+           [serverId, '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}', enabled]
+         );
+         console.log('Created new killfeed config - enabled:', enabled);
+       }
 
       // Verify the update worked
       const verifyResult = await pool.query(
