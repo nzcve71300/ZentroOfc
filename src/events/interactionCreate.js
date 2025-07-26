@@ -394,8 +394,14 @@ async function handleShopItemSelect(interaction) {
 async function handleConfirmPurchase(interaction) {
   await interaction.deferUpdate();
   
-  const [, type, itemId, playerId] = interaction.customId.split('_');
+  console.log('handleConfirmPurchase - customId:', interaction.customId);
+  const parts = interaction.customId.split('_');
+  console.log('handleConfirmPurchase - parts:', parts);
+  
+  const [, type, itemId, playerId] = parts;
   const userId = interaction.user.id;
+  
+  console.log('handleConfirmPurchase - parsed values:', { type, itemId, playerId, userId });
   
   try {
     let itemData;
