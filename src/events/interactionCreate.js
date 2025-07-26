@@ -283,6 +283,8 @@ async function handleShopItemSelect(interaction) {
   try {
     const [type, itemId] = selection.split('_');
     
+    console.log('Shop item select - type:', type, 'itemId:', itemId);
+    
     let itemData;
     let itemType;
 
@@ -291,6 +293,7 @@ async function handleShopItemSelect(interaction) {
         'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE id = $1',
         [itemId]
       );
+      console.log('Item query result:', result.rows);
       itemData = result.rows[0];
       itemType = 'item';
     } else if (type === 'kit') {
@@ -298,6 +301,7 @@ async function handleShopItemSelect(interaction) {
         'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE id = $1',
         [itemId]
       );
+      console.log('Kit query result:', result.rows);
       itemData = result.rows[0];
       itemType = 'kit';
     }
