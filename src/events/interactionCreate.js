@@ -362,10 +362,13 @@ async function handleShopItemSelect(interaction) {
     );
 
     // Create confirmation buttons
+    const confirmCustomId = `confirm_purchase_${type}_${itemId}_${player_id}`;
+    console.log('Creating confirm button with customId:', confirmCustomId);
+    
     const row = new ActionRowBuilder()
       .addComponents(
         new ButtonBuilder()
-          .setCustomId(`confirm_purchase_${type}_${itemId}_${player_id}`)
+          .setCustomId(confirmCustomId)
           .setLabel('Confirm Purchase')
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
