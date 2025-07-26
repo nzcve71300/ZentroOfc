@@ -1,6 +1,7 @@
 const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../embeds/format');
 const pool = require('../db');
+const { sendRconCommand } = require('../rcon');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -410,17 +411,27 @@ async function handleConfirmPurchase(interaction) {
       [playerId, -itemData.price, 'shop_purchase']
     );
 
-    // TODO: Send RCON command to server
-    // For now, just show success message
-    console.log(`RCON Command for ${itemData.nickname}: ${command}`);
+         // Send RCON command to server
+     try {
+       sendRconCommand(itemData.ip, itemData.port, itemData.password, command);
+       console.log(`RCON Command sent to ${itemData.nickname}: ${command}`);
+       
+       // Send confirmation message to player in-game
+       const playerName = interaction.user.username;
+       const confirmMessage = `say <color=green>${playerName}</color>-green Your purchase was successful-white`;
+       sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
+       console.log(`Confirmation message sent to ${itemData.nickname}: ${confirmMessage}`);
+     } catch (error) {
+       console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
+     }
 
-    await interaction.editReply({
-      embeds: [successEmbed(
-        'Purchase Successful',
-        `**${itemData.display_name}** has been purchased for ${itemData.price} coins!\n\n**RCON Command:** \`${command}\`\n\nPlease contact an admin to execute this command on the server.`
-      )],
-      components: []
-    });
+     await interaction.editReply({
+       embeds: [successEmbed(
+         'Purchase Successful',
+         `**${itemData.display_name}** has been purchased for ${itemData.price} coins!\n\n✅ **Item delivered in-game!**`
+       )],
+       components: []
+     });
 
   } catch (error) {
     console.error('Error confirming purchase:', error);
