@@ -308,15 +308,28 @@ async function handleShopItemSelect(interaction) {
       });
     }
 
-         // Get player balance
+         // Get player balance - first get the server_id from the category
+     const serverResult = await pool.query(
+       'SELECT rs.id as server_id, rs.nickname FROM shop_categories sc JOIN rust_servers rs ON sc.server_id = rs.id WHERE sc.id = $1',
+       [categoryId]
+     );
+
+     if (serverResult.rows.length === 0) {
+       return interaction.editReply({
+         embeds: [errorEmbed('Server Not Found', 'The server for this category was not found.')]
+       });
+     }
+
+     const serverId = serverResult.rows[0].server_id;
+     const nickname = serverResult.rows[0].nickname;
+
+     // Now get player balance for this specific server
      const balanceResult = await pool.query(
-       `SELECT e.balance, p.id as player_id, rs.nickname
+       `SELECT e.balance, p.id as player_id
         FROM players p
         JOIN economy e ON p.id = e.player_id
-        JOIN rust_servers rs ON p.server_id = rs.id
-        JOIN shop_categories sc ON rs.id = sc.server_id
-        WHERE p.discord_id = $1 AND sc.id = $2`,
-       [userId, categoryId]
+        WHERE p.discord_id = $1 AND p.server_id = $2`,
+       [userId, serverId]
      );
      
      console.log('Balance result:', balanceResult.rows);
@@ -327,7 +340,7 @@ async function handleShopItemSelect(interaction) {
       });
     }
 
-    const { balance, player_id, nickname } = balanceResult.rows[0];
+    const { balance, player_id } = balanceResult.rows[0];
 
     if (balance < itemData.price) {
       return interaction.editReply({
