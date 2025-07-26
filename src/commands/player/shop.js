@@ -5,7 +5,34 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('shop')
-    .setDescription('Browse and purchase items from the shop'),
+    .setDescription('Browse and purchase items from the shop')
+    .addStringOption(option =>
+      option.setName('server')
+        .setDescription('Select a server to browse')
+        .setRequired(true)
+        .setAutocomplete(true)),
+
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guildId;
+
+    try {
+      const result = await pool.query(
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        [guildId, `%${focusedValue}%`]
+      );
+
+      const choices = result.rows.map(row => ({
+        name: row.nickname,
+        value: row.nickname
+      }));
+
+      await interaction.respond(choices);
+    } catch (error) {
+      console.error('Autocomplete error:', error);
+      await interaction.respond([]);
+    }
+  },
 
   async execute(interaction) {
     // Defer reply to prevent timeout
@@ -13,84 +40,77 @@ module.exports = {
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
+    const serverOption = interaction.options.getString('server');
 
     try {
-      // Get all servers in this guild
-      const serversResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1',
-        [guildId]
+      // Get the specific server
+      const serverResult = await pool.query(
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverOption]
       );
 
-      if (serversResult.rows.length === 0) {
+      if (serverResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('No Servers', 'No servers found in this guild.')]
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      // Get player's balance across all servers
+      const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
+
+      // Get player's balance for this specific server
       const balanceResult = await pool.query(
-        `SELECT rs.nickname, e.balance, p.id as player_id
+        `SELECT e.balance, p.id as player_id
          FROM players p
          JOIN economy e ON p.id = e.player_id
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
-         ORDER BY e.balance DESC`,
-        [userId, guildId]
+         WHERE p.discord_id = $1 AND p.server_id = $2`,
+        [userId, serverId]
       );
 
-      if (balanceResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [orangeEmbed(
-            '💰 Shop',
-            'You don\'t have any balance on any servers.\n\nUse `/daily` to get some coins first!'
-          )]
-        });
+      let balance = 0;
+      let playerId = null;
+
+      if (balanceResult.rows.length > 0) {
+        balance = balanceResult.rows[0].balance || 0;
+        playerId = balanceResult.rows[0].player_id;
       }
 
-      // Get shop categories for all servers
+      // Get shop categories for this specific server
       const categoriesResult = await pool.query(
-        `SELECT sc.id, sc.name, sc.type, rs.nickname as server_name, rs.id as server_id
+        `SELECT sc.id, sc.name, sc.type
          FROM shop_categories sc
-         JOIN rust_servers rs ON sc.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE g.discord_id = $1
-         ORDER BY rs.nickname, sc.name`,
-        [guildId]
+         WHERE sc.server_id = $1
+         ORDER BY sc.name`,
+        [serverId]
       );
 
       if (categoriesResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             '💰 Shop',
-            'No shop categories available.\n\nAdmins need to create categories using `/add-shop-category`.'
+            `No shop categories available on **${serverName}**.\n\nAdmins need to create categories using \`/add-shop-category\`.`
           )]
         });
       }
 
-      // Create server selection dropdown
-      const serverOptions = serversResult.rows.map(server => ({
-        label: server.nickname,
-        description: `Browse ${server.nickname}'s shop`,
-        value: server.id.toString()
+      // Create category selection dropdown
+      const categoryOptions = categoriesResult.rows.map(category => ({
+        label: category.name,
+        description: `${category.type} category`,
+        value: category.id.toString()
       }));
 
       const row = new ActionRowBuilder()
         .addComponents(
           new StringSelectMenuBuilder()
-            .setCustomId('shop_server_select')
-            .setPlaceholder('Select a server to browse')
-            .addOptions(serverOptions)
+            .setCustomId('shop_category_select')
+            .setPlaceholder('Select a category to browse')
+            .addOptions(categoryOptions)
         );
-
-      // Show balance summary
-      const balanceList = balanceResult.rows.map(row => 
-        `**${row.nickname}:** ${row.balance || 0} coins`
-      ).join('\n');
 
       const embed = orangeEmbed(
         '💰 Shop',
-        `**Your Balance:**\n${balanceList}\n\nSelect a server to browse their shop!`
+        `**Server:** ${serverName}\n**Your Balance:** ${balance} coins\n\nSelect a category to browse items and kits!`
       );
 
       await interaction.editReply({

@@ -27,9 +27,7 @@ module.exports = {
 
       // Handle shop dropdown selection
       if (interaction.isStringSelectMenu()) {
-        if (interaction.customId === 'shop_server_select') {
-          await handleShopServerSelect(interaction);
-        } else if (interaction.customId.startsWith('shop_category_')) {
+        if (interaction.customId === 'shop_category_select') {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
@@ -153,7 +151,6 @@ async function handleShopCategorySelect(interaction) {
   await interaction.deferUpdate();
   
   const categoryId = interaction.values[0];
-  const serverId = interaction.customId.split('_')[2];
   const userId = interaction.user.id;
   
   try {
@@ -196,13 +193,16 @@ async function handleShopCategorySelect(interaction) {
 
     // Get player balance
     const balanceResult = await pool.query(
-      `SELECT e.balance FROM players p
+      `SELECT e.balance, rs.id as server_id FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = $1 AND p.server_id = $2`,
-      [userId, serverId]
+       JOIN rust_servers rs ON p.server_id = rs.id
+       JOIN shop_categories sc ON rs.id = sc.server_id
+       WHERE p.discord_id = $1 AND sc.id = $2`,
+      [userId, categoryId]
     );
 
     const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;
+    const serverId = balanceResult.rows.length > 0 ? balanceResult.rows[0].server_id : null;
 
     // Create embed
     const embed = orangeEmbed(

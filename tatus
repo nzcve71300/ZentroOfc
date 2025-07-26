@@ -1,0 +1,5 @@
+[33m1ad0041[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix
+[33m437a20e[m fixes
+[33m7800eb1[m Fixes
+[33mff55543[m Fix main interaction handler - Remove error reply attempts that cause 'Interaction has already been acknowledged' errors - Let commands manage their own responses
+[33mb045dd1[m Fix daily cooldown and remove deferReply from all commands - Add 24-hour cooldown to daily command - Remove 'both' option from add-shop-category - Remove deferReply from all admin commands - Use direct reply with ephemeral messages for consistency
