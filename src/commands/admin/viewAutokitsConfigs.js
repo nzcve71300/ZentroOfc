@@ -1,11 +1,11 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('open-shop')
-    .setDescription('Open the shop for a specific server')
+    .setName('view-autokits-configs')
+    .setDescription('View autokit configurations for a server')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
@@ -53,44 +53,35 @@ module.exports = {
 
       const serverId = serverResult.rows[0].id;
 
-      // Get shop categories
-      const categoriesResult = await pool.query(
-        'SELECT id, name, type FROM shop_categories WHERE server_id = $1 ORDER BY name',
+      // Get all autokits for this server
+      const autokitsResult = await pool.query(
+        'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 ORDER BY kit_name',
         [serverId]
       );
 
-      if (categoriesResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Shop', `No shop categories found for **${serverNickname}**. Use \`/add-shop-category\` to create categories.`));
+      if (autokitsResult.rows.length === 0) {
+        return interaction.editReply(orangeEmbed(
+          '🔧 Autokit Configurations',
+          `No autokits configured for **${serverNickname}**.\n\nUse \`/autokits-setup\` to configure autokits.`
+        ));
       }
 
-      // Create dropdown menu
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(`shop_${serverId}`)
-            .setPlaceholder('Select a category')
-            .addOptions(
-              categoriesResult.rows.map(category => ({
-                label: category.name,
-                description: `Type: ${category.type}`,
-                value: category.id.toString()
-              }))
-            )
-        );
+      // Create configuration display
+      let configText = `**${serverNickname}** Autokit Configurations:\n\n`;
 
-      const embed = orangeEmbed(
-        '🛒 Shop',
-        `**${serverNickname}**\n\nSelect a category to browse items and kits.`
-      );
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: [row]
+      autokitsResult.rows.forEach(autokit => {
+        const status = autokit.enabled ? '🟢' : '🔴';
+        configText += `${status} **${autokit.kit_name}**\n`;
+        configText += `   • **Status:** ${autokit.enabled ? 'Enabled' : 'Disabled'}\n`;
+        configText += `   • **Cooldown:** ${autokit.cooldown} minutes\n`;
+        configText += `   • **Kit Name:** ${autokit.game_name}\n\n`;
       });
 
+      await interaction.editReply(orangeEmbed('🔧 Autokit Configurations', configText));
+
     } catch (error) {
-      console.error('Error opening shop:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to open shop. Please try again.'));
+      console.error('Error viewing autokit configs:', error);
+      await interaction.editReply(orangeEmbed('Error', 'Failed to view autokit configurations. Please try again.'));
     }
   },
 }; 

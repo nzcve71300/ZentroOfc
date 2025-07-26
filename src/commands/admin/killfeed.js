@@ -1,16 +1,24 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('open-shop')
-    .setDescription('Open the shop for a specific server')
+    .setName('killfeed')
+    .setDescription('Enable or disable killfeed for a server')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
         .setRequired(true)
-        .setAutocomplete(true)),
+        .setAutocomplete(true))
+    .addStringOption(option =>
+      option.setName('option')
+        .setDescription('Enable or disable killfeed')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Enable', value: 'on' },
+          { name: 'Disable', value: 'off' }
+        )),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -38,6 +46,7 @@ module.exports = {
     await interaction.deferReply();
 
     const serverNickname = interaction.options.getString('server');
+    const option = interaction.options.getString('option');
     const guildId = interaction.guildId;
 
     try {
@@ -53,44 +62,36 @@ module.exports = {
 
       const serverId = serverResult.rows[0].id;
 
-      // Get shop categories
-      const categoriesResult = await pool.query(
-        'SELECT id, name, type FROM shop_categories WHERE server_id = $1 ORDER BY name',
+      // Check if killfeed config exists
+      let configResult = await pool.query(
+        'SELECT id FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
 
-      if (categoriesResult.rows.length === 0) {
-        return interaction.editReply(orangeEmbed('Shop', `No shop categories found for **${serverNickname}**. Use \`/add-shop-category\` to create categories.`));
+      if (configResult.rows.length === 0) {
+        // Create new killfeed config
+        await pool.query(
+          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES ($1, $2, $3)',
+          [serverId, option === 'on', '{Victim} was killed by {Killer}']
+        );
+      } else {
+        // Update existing config
+        await pool.query(
+          'UPDATE killfeed_configs SET enabled = $1 WHERE server_id = $2',
+          [option === 'on', serverId]
+        );
       }
 
-      // Create dropdown menu
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(`shop_${serverId}`)
-            .setPlaceholder('Select a category')
-            .addOptions(
-              categoriesResult.rows.map(category => ({
-                label: category.name,
-                description: `Type: ${category.type}`,
-                value: category.id.toString()
-              }))
-            )
-        );
+      const status = option === 'on' ? 'enabled' : 'disabled';
 
-      const embed = orangeEmbed(
-        '🛒 Shop',
-        `**${serverNickname}**\n\nSelect a category to browse items and kits.`
-      );
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: [row]
-      });
+      await interaction.editReply(orangeEmbed(
+        '✅ Killfeed Updated',
+        `Killfeed for **${serverNickname}** has been **${status}**.\n\nUse \`/killfeed-setup\` to customize the killfeed format.`
+      ));
 
     } catch (error) {
-      console.error('Error opening shop:', error);
-      await interaction.editReply(orangeEmbed('Error', 'Failed to open shop. Please try again.'));
+      console.error('Error updating killfeed:', error);
+      await interaction.editReply(orangeEmbed('Error', 'Failed to update killfeed. Please try again.'));
     }
   },
 }; 

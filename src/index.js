@@ -42,6 +42,7 @@ client.once('ready', () => {
 });
 
 client.on('interactionCreate', async interaction => {
+  // Handle autocomplete
   if (interaction.isAutocomplete()) {
     const command = client.commands.get(interaction.commandName);
     if (!command || !command.autocomplete) return;
@@ -54,7 +55,24 @@ client.on('interactionCreate', async interaction => {
     }
     return;
   }
+
+  // Handle shop dropdowns and other interactions
+  if (interaction.isStringSelectMenu() || interaction.isButton()) {
+    try {
+      const interactionHandler = require('./events/interactionCreate');
+      await interactionHandler.execute(interaction);
+    } catch (error) {
+      console.error('Error handling interaction:', error);
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: 'There was an error processing this interaction.', ephemeral: true });
+      } else {
+        await interaction.reply({ content: 'There was an error processing this interaction.', ephemeral: true });
+      }
+    }
+    return;
+  }
   
+  // Handle chat commands
   if (!interaction.isChatInputCommand()) return;
   const command = client.commands.get(interaction.commandName);
   if (!command) return;

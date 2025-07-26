@@ -1,105 +1,96 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const pool = require('../../db');
+const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed } = require('../../embeds/format');
+const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('add-shop-item')
-    .setDescription('Add a shop item')
-    .addStringOption(opt => 
-      opt.setName('server')
-        .setDescription('Select server')
+    .setDescription('Add an item to a shop category')
+    .addStringOption(option =>
+      option.setName('server')
+        .setDescription('Select a server')
         .setRequired(true)
-        .setAutocomplete(true)
-    )
-    .addStringOption(opt => 
-      opt.setName('category')
-        .setDescription('Select category')
+        .setAutocomplete(true))
+    .addStringOption(option =>
+      option.setName('category')
+        .setDescription('Select a category')
         .setRequired(true)
-        .setAutocomplete(true)
-    )
-    .addStringOption(opt => 
-      opt.setName('display_name')
+        .setAutocomplete(true))
+    .addStringOption(option =>
+      option.setName('display_name')
         .setDescription('Display name for the item')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('short_name')
+        .setDescription('Short name/ID for the item')
+        .setRequired(true))
+    .addIntegerOption(option =>
+      option.setName('price')
+        .setDescription('Price in currency')
         .setRequired(true)
-    )
-    .addStringOption(opt => 
-      opt.setName('short_name')
-        .setDescription('Item short name (for inventory.giveto)')
-        .setRequired(true)
-    )
-    .addIntegerOption(opt => 
-      opt.setName('price')
-        .setDescription('Item price in coins')
-        .setRequired(true)
-    )
-    .addIntegerOption(opt => 
-      opt.setName('quantity')
+        .setMinValue(1))
+    .addIntegerOption(option =>
+      option.setName('quantity')
         .setDescription('Quantity to give')
         .setRequired(true)
-    )
-    .addIntegerOption(opt => 
-      opt.setName('timer')
+        .setMinValue(1))
+    .addIntegerOption(option =>
+      option.setName('timer')
         .setDescription('Cooldown timer in minutes (optional)')
         .setRequired(false)
-    ),
+        .setMinValue(1)),
+
   async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guildId;
     const focusedOption = interaction.options.getFocused(true);
-    
+    const guildId = interaction.guildId;
+
     try {
       if (focusedOption.name === 'server') {
         const result = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)',
-          [guildId]
+          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+          [guildId, `%${focusedOption.value}%`]
         );
-        
+
         const choices = result.rows.map(row => ({
           name: row.nickname,
           value: row.nickname
         }));
-        
-        const filtered = choices.filter(choice => 
-          choice.name.toLowerCase().includes(focusedValue.toLowerCase())
-        );
-        
-        await interaction.respond(filtered.slice(0, 25));
+
+        await interaction.respond(choices);
       } else if (focusedOption.name === 'category') {
         const serverNickname = interaction.options.getString('server');
+        
         if (!serverNickname) {
           await interaction.respond([]);
           return;
         }
-        
+
         const result = await pool.query(
-          `SELECT sc.name FROM shop_categories sc 
+          `SELECT sc.id, sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
-           WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-           AND rs.nickname = $2 
-           AND (sc.type = 'items' OR sc.type = 'both')`,
-          [guildId, serverNickname]
+           JOIN guilds g ON rs.guild_id = g.id 
+           WHERE g.discord_id = $1 AND rs.nickname = $2 
+           AND (sc.type = 'items' OR sc.type = 'both')
+           AND sc.name ILIKE $3 LIMIT 25`,
+          [guildId, serverNickname, `%${focusedOption.value}%`]
         );
-        
+
         const choices = result.rows.map(row => ({
           name: row.name,
           value: row.name
         }));
-        
-        const filtered = choices.filter(choice => 
-          choice.name.toLowerCase().includes(focusedValue.toLowerCase())
-        );
-        
-        await interaction.respond(filtered.slice(0, 25));
+
+        await interaction.respond(choices);
       }
     } catch (error) {
-      console.error(error);
+      console.error('Autocomplete error:', error);
       await interaction.respond([]);
     }
   },
+
   async execute(interaction) {
     await interaction.deferReply();
-    const guildId = interaction.guildId;
+
     const serverNickname = interaction.options.getString('server');
     const categoryName = interaction.options.getString('category');
     const displayName = interaction.options.getString('display_name');
@@ -107,49 +98,51 @@ module.exports = {
     const price = interaction.options.getInteger('price');
     const quantity = interaction.options.getInteger('quantity');
     const timer = interaction.options.getInteger('timer');
-    
+    const guildId = interaction.guildId;
+
     try {
-      // Get category ID
-      const categoryResult = await pool.query(
-        `SELECT sc.id FROM shop_categories sc 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-         AND rs.nickname = $2 
-         AND sc.name = $3`,
+      // Get server and category
+      const result = await pool.query(
+        `SELECT rs.id as server_id, sc.id as category_id 
+         FROM rust_servers rs 
+         JOIN guilds g ON rs.guild_id = g.id 
+         JOIN shop_categories sc ON rs.id = sc.server_id 
+         WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name = $3`,
         [guildId, serverNickname, categoryName]
       );
-      
-      if (categoryResult.rows.length === 0) {
-        return await interaction.editReply({
-          embeds: [orangeEmbed('Error', 'Category not found.')]
-        });
+
+      if (result.rows.length === 0) {
+        return interaction.editReply(orangeEmbed('Error', 'Server or category not found.'));
       }
-      
-      const categoryId = categoryResult.rows[0].id;
-      
-      // Insert item
-      const result = await pool.query(
-        'INSERT INTO shop_items (category_id, display_name, short_name, price, quantity, timer) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [categoryId, displayName, shortName, price, quantity, timer]
+
+      const { server_id, category_id } = result.rows[0];
+
+      // Check if item already exists in this category
+      const existingResult = await pool.query(
+        'SELECT id FROM shop_items WHERE category_id = $1 AND (display_name ILIKE $2 OR short_name ILIKE $3)',
+        [category_id, displayName, shortName]
       );
+
+      if (existingResult.rows.length > 0) {
+        return interaction.editReply(orangeEmbed('Error', `Item **${displayName}** already exists in this category.`));
+      }
+
+      // Insert new item
+      await pool.query(
+        'INSERT INTO shop_items (category_id, display_name, short_name, price, quantity, timer) VALUES ($1, $2, $3, $4, $5, $6)',
+        [category_id, displayName, shortName, price, quantity, timer || null]
+      );
+
+      const timerText = timer ? ` (Timer: ${timer}m)` : '';
       
-      const item = result.rows[0];
-      
-      await interaction.editReply({
-        embeds: [orangeEmbed('Item Added', `**${displayName}** has been added to **${categoryName}** in **${serverNickname}**'s shop.`, [
-          { name: 'Display Name', value: displayName, inline: true },
-          { name: 'Short Name', value: shortName, inline: true },
-          { name: 'Price', value: `${price} coins`, inline: true },
-          { name: 'Quantity', value: quantity.toString(), inline: true },
-          { name: 'Timer', value: timer ? `${timer} minutes` : 'None', inline: true }
-        ])]
-      });
-      
+      await interaction.editReply(orangeEmbed(
+        '✅ Item Added',
+        `**${displayName}** has been added to **${categoryName}** in **${serverNickname}**'s shop.\n\n**Price:** ${price}\n**Quantity:** ${quantity}${timerText}`
+      ));
+
     } catch (error) {
-      console.error(error);
-      await interaction.editReply({
-        embeds: [orangeEmbed('Error', 'Failed to add item. It may already exist or there was a database error.')]
-      });
+      console.error('Error adding shop item:', error);
+      await interaction.editReply(orangeEmbed('Error', 'Failed to add shop item. Please try again.'));
     }
-  }
+  },
 }; 
