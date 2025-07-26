@@ -13,7 +13,7 @@ module.exports = {
         .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('format')
-        .setDescription('Killfeed format string (use variables like {Victim}, {Killer}, {VictimKD}, {KillerKD}, {KillerStreak}, {VictimStreak}, {VictimHighest}, {KillerHighest})')
+        .setDescription('Killfeed format string (use {Victim}, {Killer}, {VictimKD}, {KillerKD}, etc.)')
         .setRequired(true)),
 
   async autocomplete(interaction) {
