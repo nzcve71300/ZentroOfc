@@ -14,7 +14,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('format')
         .setDescription('Killfeed format string (use {Victim}, {Killer}, {VictimKD}, {KillerKD}, etc.)')
-        .setRequired(true))
+        .setRequired(true)),
     // Temporarily removed randomizer option until database is fixed
     // .addStringOption(option =>
     //   option.setName('randomizer')
