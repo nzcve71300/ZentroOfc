@@ -12,8 +12,12 @@ class KillfeedProcessor {
 
   async processKill(killMessage, serverId) {
     try {
+      console.log('Processing kill message:', killMessage);
+      
       // Extract killer and victim from kill message
       const { killer, victim } = this.parseKillMessage(killMessage);
+      
+      console.log('Parsed killer:', killer, 'victim:', victim);
       
       if (!killer || !victim) {
         console.log('Could not parse kill message:', killMessage);
@@ -51,13 +55,39 @@ class KillfeedProcessor {
     // "PlayerA killed PlayerB with AK47"
     // "PlayerA killed PlayerB at distance 150m"
     // "PlayerA killed 5148727" (scientist ID)
+    // "PlayerA was killed by PlayerB" (reverse format)
     
-    const killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
-    const match = killMessage.match(killPattern);
+    // Try normal format first: "Killer killed Victim"
+    let killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
+    let match = killMessage.match(killPattern);
     
     if (match) {
       let killer = match[1].trim();
       let victim = match[2].trim();
+      
+      // Check if victim is a scientist ID (numeric)
+      if (/^\d+$/.test(victim)) {
+        victim = 'Scientist';
+      }
+      
+      // Check if killer is a scientist ID (numeric)
+      if (/^\d+$/.test(killer)) {
+        killer = 'Scientist';
+      }
+      
+      return {
+        killer,
+        victim
+      };
+    }
+    
+    // Try reverse format: "Victim was killed by Killer"
+    killPattern = /^(.+?)\s+was\s+killed\s+by\s+(.+?)(?:\s+with|\s+at|$)/i;
+    match = killMessage.match(killPattern);
+    
+    if (match) {
+      let victim = match[1].trim();
+      let killer = match[2].trim();
       
       // Check if victim is a scientist ID (numeric)
       if (/^\d+$/.test(victim)) {
@@ -145,6 +175,7 @@ class KillfeedProcessor {
 
       if (killerResult.rows.length === 0) {
         console.log('Killer not found in database:', killerName);
+        console.log('Searching for killer in server:', serverId);
         return;
       }
 
