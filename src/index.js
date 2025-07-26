@@ -50,8 +50,12 @@ client.on('interactionCreate', async interaction => {
     try {
       await command.autocomplete(interaction);
     } catch (error) {
-      console.error(error);
-      await interaction.respond([]);
+      console.error('Autocomplete error:', error);
+      try {
+        await interaction.respond([]);
+      } catch (respondError) {
+        console.error('Failed to respond to autocomplete:', respondError);
+      }
     }
     return;
   }
@@ -63,18 +67,7 @@ client.on('interactionCreate', async interaction => {
       await interactionHandler.execute(interaction);
     } catch (error) {
       console.error('Error handling interaction:', error);
-      
-      // Only try to reply if the interaction hasn't been acknowledged yet
-      if (!interaction.replied && !interaction.deferred) {
-        try {
-          await interaction.reply({ 
-            content: 'There was an error processing this interaction.', 
-            ephemeral: true 
-          });
-        } catch (replyError) {
-          console.error('Failed to send error reply:', replyError);
-        }
-      }
+      // Don't try to reply here - let the interaction handler manage its own responses
     }
     return;
   }
@@ -88,18 +81,7 @@ client.on('interactionCreate', async interaction => {
     await command.execute(interaction);
   } catch (error) {
     console.error('Command execution error:', error);
-    
-    // Only try to reply if the interaction hasn't been acknowledged yet
-    if (!interaction.replied && !interaction.deferred) {
-      try {
-        await interaction.reply({ 
-          content: 'There was an error executing this command.', 
-          ephemeral: true 
-        });
-      } catch (replyError) {
-        console.error('Failed to send error reply:', replyError);
-      }
-    }
+    // Don't try to reply here - let commands manage their own responses
   }
 });
 
