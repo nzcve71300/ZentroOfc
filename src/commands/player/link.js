@@ -12,7 +12,6 @@ module.exports = {
         .setRequired(true)
     ),
   async execute(interaction) {
-    await interaction.deferReply();
     const guildId = interaction.guildId;
     const discordId = interaction.user.id;
     const ign = interaction.options.getString('in-game-name');
@@ -25,8 +24,9 @@ module.exports = {
       );
       
       if (existingResult.rows.length > 0) {
-        return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to an in-game name.')]
+        return await interaction.reply({
+          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to an in-game name.')],
+          ephemeral: true
         });
       }
       
@@ -45,15 +45,17 @@ module.exports = {
       
       const confirmEmbed = orangeEmbed('Confirm Link', `Are you sure you want to link your Discord account to **${ign}**?\n\n**Discord User:** ${interaction.user.tag}\n**In-Game Name:** ${ign}`);
       
-      await interaction.editReply({
+      await interaction.reply({
         embeds: [confirmEmbed],
-        components: [row]
+        components: [row],
+        ephemeral: true
       });
       
     } catch (error) {
       console.error(error);
-      await interaction.editReply({
-        embeds: [orangeEmbed('Error', 'Failed to process link request.')]
+      await interaction.reply({
+        embeds: [orangeEmbed('Error', 'Failed to process link request.')],
+        ephemeral: true
       });
     }
   }
