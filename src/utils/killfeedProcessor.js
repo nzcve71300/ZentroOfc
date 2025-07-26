@@ -30,7 +30,7 @@ class KillfeedProcessor {
       await this.processKillStats(killer, victim, serverId);
 
       // Format the killfeed message
-      const formattedMessage = this.formatKillfeedMessage(killMessage, killfeedConfig.format_string, killer, victim, serverId);
+      const formattedMessage = await this.formatKillfeedMessage(killMessage, killfeedConfig.format_string, killer, victim, serverId);
 
       return {
         message: formattedMessage,
@@ -92,12 +92,19 @@ class KillfeedProcessor {
 
   async isPlayerKill(victimName, serverId) {
     try {
+      // Sanitize the victim name to remove null bytes and invalid characters
+      const sanitizedName = victimName.replace(/\0/g, '').trim();
+      
+      if (!sanitizedName) {
+        return false;
+      }
+      
       // Check if victim is a linked player
       const result = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
-        [serverId, victimName]
+        [serverId, sanitizedName]
       );
       
       return result.rows.length > 0;
@@ -234,12 +241,19 @@ class KillfeedProcessor {
 
   async getPlayerStats(playerName, serverId) {
     try {
+      // Sanitize the player name to remove null bytes and invalid characters
+      const sanitizedName = playerName.replace(/\0/g, '').trim();
+      
+      if (!sanitizedName) {
+        return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0, kd_ratio: '0' };
+      }
+      
       const result = await pool.query(
         `SELECT ps.* FROM player_stats ps
          JOIN players p ON ps.player_id = p.id
          JOIN rust_servers rs ON p.server_id = rs.id
          WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
-        [serverId, playerName]
+        [serverId, sanitizedName]
       );
 
       if (result.rows.length === 0) {
