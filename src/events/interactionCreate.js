@@ -395,17 +395,21 @@ async function handleConfirmPurchase(interaction) {
     let command;
 
     if (type === 'item') {
+      console.log('Confirm purchase - querying item with ID:', itemId);
       const result = await pool.query(
         'SELECT si.display_name, si.short_name, si.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = $1',
         [itemId]
       );
+      console.log('Confirm purchase - item query result:', result.rows);
       itemData = result.rows[0];
       command = `inventory.giveto "${interaction.user.username}" "${itemData.short_name}" 1`;
     } else if (type === 'kit') {
+      console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
         'SELECT sk.display_name, sk.kit_name, sk.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = $1',
         [itemId]
       );
+      console.log('Confirm purchase - kit query result:', result.rows);
       itemData = result.rows[0];
       command = `kit givetoplayer ${itemData.kit_name} ${interaction.user.username}`;
     }
