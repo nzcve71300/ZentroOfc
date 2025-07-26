@@ -12,7 +12,7 @@ module.exports = {
         .setRequired(true)
         .setAutocomplete(true))
     .addStringOption(option =>
-      option.setName('option')
+      option.setName('action')
         .setDescription('Enable or disable killfeed')
         .setRequired(true)
         .addChoices(
@@ -56,7 +56,7 @@ module.exports = {
     await interaction.deferReply();
 
     const serverId = interaction.options.getString('server');
-    const option = interaction.options.getString('option');
+    const option = interaction.options.getString('action');
     const guildId = interaction.guildId;
 
     console.log('All options:', interaction.options.data);
