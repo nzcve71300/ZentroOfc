@@ -277,6 +277,8 @@ async function handleShopItemSelect(interaction) {
   const categoryId = interaction.customId.split('_')[2];
   const userId = interaction.user.id;
   
+  console.log('Shop item select - selection:', selection, 'categoryId:', categoryId, 'customId:', interaction.customId);
+  
   try {
     const [type, itemId] = selection.split('_');
     
@@ -305,16 +307,18 @@ async function handleShopItemSelect(interaction) {
       });
     }
 
-    // Get player balance
-    const balanceResult = await pool.query(
-      `SELECT e.balance, p.id as player_id, rs.nickname
-       FROM players p
-       JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       JOIN shop_categories sc ON rs.id = sc.server_id
-       WHERE p.discord_id = $1 AND sc.id = $2`,
-      [userId, categoryId]
-    );
+         // Get player balance
+     const balanceResult = await pool.query(
+       `SELECT e.balance, p.id as player_id, rs.nickname
+        FROM players p
+        JOIN economy e ON p.id = e.player_id
+        JOIN rust_servers rs ON p.server_id = rs.id
+        JOIN shop_categories sc ON rs.id = sc.server_id
+        WHERE p.discord_id = $1 AND sc.id = $2`,
+       [userId, categoryId]
+     );
+     
+     console.log('Balance result:', balanceResult.rows);
 
     if (balanceResult.rows.length === 0) {
       return interaction.editReply({
