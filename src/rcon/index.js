@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const pool = require('../db');
 const { orangeEmbed } = require('../embeds/format');
+const killfeedProcessor = require('../utils/killfeedProcessor');
 
 let activeConnections = {};
 let joinLeaveBuffer = {};
@@ -130,21 +131,8 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 }
 
 async function handleKillEvent(client, guildId, serverName, msg, ip, port, password) {
-  const killMatch = msg.match(/^(.*?) was killed by (.*?)$/);
-  if (!killMatch) return;
-
-  const victim = killMatch[1].replace(/\0/g, '').trim();
-  const killer = killMatch[2].replace(/\0/g, '').trim();
-
-  // Add to Discord killfeed buffer
-  const isScientist = victim.match(/^\d+$/);
-  const isAnimal = /\(Wolf\)|\(Bear\)|\(Boar\)|\(Stag\)|\(Chicken\)|\(Horse\)/i.test(killer);
-  const isPVP = !isScientist && !isAnimal;
-  const victimDisplay = isScientist ? 'Scientist' : victim;
-  addToKillFeedBuffer(guildId, serverName, `${killer} killed ${victimDisplay}`);
-
-  // Check killfeed config
   try {
+    // Get server ID
     const serverResult = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
       [guildId, serverName]
@@ -153,28 +141,22 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
     if (serverResult.rows.length === 0) return;
     
     const serverId = serverResult.rows[0].id;
-    const configResult = await pool.query(
-      'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = $1',
-      [serverId]
-    );
 
-    if (configResult.rows.length > 0 && configResult.rows[0].enabled) {
-      const format = configResult.rows[0].format_string || '{Killer} killed {Victim}';
-      const formattedMessage = format
-        .replace(/{Killer}/g, killer)
-        .replace(/{Victim}/g, victimDisplay)
-        .replace(/{KillerKD}/g, '0.00')
-        .replace(/{VictimKD}/g, '0.00')
-        .replace(/{KillerStreak}/g, '0')
-        .replace(/{VictimStreak}/g, '0')
-        .replace(/{KillerHighest}/g, '0')
-        .replace(/{VictimHighest}/g, '0');
-
-      sendRconCommand(ip, port, password, `say ${formattedMessage}`);
+    // Process kill with new killfeed processor
+    const killData = await killfeedProcessor.processKill(msg, serverId);
+    
+    if (killData) {
+      // Send formatted killfeed message to server
+      sendRconCommand(ip, port, password, `say ${killData.message}`);
+      
+      // Add to Discord killfeed buffer
+      addToKillFeedBuffer(guildId, serverName, killData.message);
+      
+      // Handle coin rewards for kills (only for player kills)
+      if (killData.isPlayerKill) {
+        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
+      }
     }
-
-    // Handle coin rewards for kills
-    await handleKillRewards(guildId, serverName, killer, victim, isScientist);
 
   } catch (error) {
     console.error('Error handling kill event:', error);

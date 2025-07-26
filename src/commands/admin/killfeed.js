@@ -1,137 +1,117 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('killfeed')
-    .setDescription('Enable or disable killfeed for a server')
+    .setDescription('Toggle killfeed on/off for a server')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
         .setRequired(true)
         .setAutocomplete(true))
     .addStringOption(option =>
-      option.setName('action')
+      option.setName('option')
         .setDescription('Enable or disable killfeed')
         .setRequired(true)
         .addChoices(
-          { name: 'Enable', value: 'enable' },
-          { name: 'Disable', value: 'disable' },
-          { name: 'Status', value: 'status' }
+          { name: 'on', value: 'on' },
+          { name: 'off', value: 'off' }
         )),
 
   async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
-        [guildId, `%${focusedValue}%`]
-      );
+      if (focusedOption.name === 'server') {
+        const value = focusedOption.value.toLowerCase();
+        
+        // Get servers for this guild
+        const result = await pool.query(
+          `SELECT rs.id, rs.nickname 
+           FROM rust_servers rs 
+           JOIN guilds g ON rs.guild_id = g.id 
+           WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
+           ORDER BY rs.nickname 
+           LIMIT 25`,
+          [guildId, `%${value}%`]
+        );
 
-      const choices = result.rows.map(row => ({
-        name: row.nickname,
-        value: row.nickname
-      }));
+        const choices = result.rows.map(row => ({
+          name: row.nickname,
+          value: row.id.toString()
+        }));
 
-      await interaction.respond(choices);
+        await interaction.respond(choices);
+      }
     } catch (error) {
-      console.error('Autocomplete error:', error);
+      console.error('Error in autocomplete:', error);
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
-    const serverNickname = interaction.options.getString('server');
-    const action = interaction.options.getString('action');
+    await interaction.deferReply();
+
+    const serverId = interaction.options.getString('server');
+    const option = interaction.options.getString('option');
     const guildId = interaction.guildId;
 
     try {
-      // Get server ID
+      // Verify server exists and belongs to this guild
       const serverResult = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverNickname]
+        `SELECT rs.id, rs.nickname 
+         FROM rust_servers rs 
+         JOIN guilds g ON rs.guild_id = g.id 
+         WHERE g.discord_id = $1 AND rs.id = $2`,
+        [guildId, serverId]
       );
 
       if (serverResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'Server not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The selected server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
+      const { nickname } = serverResult.rows[0];
+      const enabled = option === 'on';
 
-      // Get current killfeed config
-      const configResult = await pool.query(
-        'SELECT id, enabled FROM killfeed_configs WHERE server_id = $1',
+      // Check if killfeed config already exists
+      const existingResult = await pool.query(
+        'SELECT id FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
 
-      if (configResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', `Killfeed not configured for **${serverNickname}**. Use \`/killfeed-setup\` first.`)],
-          ephemeral: true
-        });
+      if (existingResult.rows.length > 0) {
+        // Update existing config
+        await pool.query(
+          'UPDATE killfeed_configs SET enabled = $1 WHERE server_id = $2',
+          [enabled, serverId]
+        );
+      } else {
+        // Create new config with default format
+        await pool.query(
+          'INSERT INTO killfeed_configs (server_id, format_string, enabled) VALUES ($1, $2, $3)',
+          [serverId, '{Killer} killed {Victim}', enabled]
+        );
       }
 
-      const configId = configResult.rows[0].id;
-      const currentStatus = configResult.rows[0].enabled;
+      const status = enabled ? '🟢 Enabled' : '🔴 Disabled';
+      const embed = successEmbed(
+        '🔫 Killfeed Status Updated',
+        `**Server:** ${nickname}\n**Status:** ${status}\n\n${enabled ? '✅ Killfeed is now active and will show kill messages with K/D tracking!' : '❌ Killfeed is now disabled and will not show kill messages.'}`
+      );
 
-      if (action === 'enable') {
-        if (currentStatus) {
-          return interaction.reply({
-            embeds: [orangeEmbed('Info', `Killfeed is already enabled for **${serverNickname}**.`)],
-            ephemeral: true
-          });
-        }
-        
-        await pool.query(
-          'UPDATE killfeed_configs SET enabled = true WHERE id = $1',
-          [configId]
-        );
-
-        await interaction.reply({
-          embeds: [orangeEmbed('✅ Killfeed Enabled', `Killfeed has been enabled for **${serverNickname}**.`)],
-          ephemeral: true
-        });
-
-      } else if (action === 'disable') {
-        if (!currentStatus) {
-          return interaction.reply({
-            embeds: [orangeEmbed('Info', `Killfeed is already disabled for **${serverNickname}**.`)],
-            ephemeral: true
-          });
-        }
-
-        await pool.query(
-          'UPDATE killfeed_configs SET enabled = false WHERE id = $1',
-          [configId]
-        );
-
-        await interaction.reply({
-          embeds: [orangeEmbed('❌ Killfeed Disabled', `Killfeed has been disabled for **${serverNickname}**.`)],
-          ephemeral: true
-        });
-
-      } else if (action === 'status') {
-        const statusText = currentStatus ? '🟢 Enabled' : '🔴 Disabled';
-        await interaction.reply({
-          embeds: [orangeEmbed(
-            '🔫 Killfeed Status',
-            `**${serverNickname}** Killfeed Status: ${statusText}`
-          )],
-          ephemeral: true
-        });
-      }
+      await interaction.editReply({
+        embeds: [embed]
+      });
 
     } catch (error) {
-      console.error('Error managing killfeed:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to manage killfeed. Please try again.')],
-        ephemeral: true
+      console.error('Error updating killfeed status:', error);
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to update killfeed status. Please try again.')]
       });
     }
   },

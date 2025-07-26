@@ -11,10 +11,10 @@ module.exports = {
         .setDescription('Select a server')
         .setRequired(true)
         .setAutocomplete(true))
-    .addStringOption(option =>
-      option.setName('format')
-        .setDescription('Killfeed format string (use {Victim}, {Killer}, {VictimKD}, {KillerKD}, etc.)')
-        .setRequired(true)),
+                   .addStringOption(option =>
+        option.setName('format')
+          .setDescription('Killfeed format string (use {Victim}, {Killer}, {VictimKD}, {KillerKD}, etc.)')
+          .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedOption = interaction.options.getFocused(true);
@@ -93,11 +93,11 @@ module.exports = {
         );
       }
 
-      // Create success embed with format preview
-      const embed = successEmbed(
-        '🔫 Killfeed Setup Complete',
-        `**Server:** ${nickname}\n**Format:** ${formatString}\n\n**Available Variables:**\n• \`{Victim}\` - Victim's name\n• \`{Killer}\` - Killer's name\n• \`{VictimKD}\` - Victim's K/D ratio\n• \`{KillerKD}\` - Killer's K/D ratio\n• \`{KillerStreak}\` - Killer's kill streak\n• \`{VictimStreak}\` - Victim's kill streak\n• \`{VictimHighest}\` - Victim's highest kill streak\n• \`{KillerHighest}\` - Killer's highest kill streak\n\n✅ Killfeed has been configured and enabled!`
-      );
+                    // Create success embed with format preview
+        const embed = successEmbed(
+          '🔫 Killfeed Setup Complete',
+          `**Server:** ${nickname}\n**Format:** ${formatString}\n\n**Available Variables:**\n• \`{Victim}\` - Victim's name\n• \`{Killer}\` - Killer's name\n• \`{VictimKD}\` - Victim's K/D ratio\n• \`{KillerKD}\` - Killer's K/D ratio\n• \`{KillerStreak}\` - Killer's current kill streak\n• \`{VictimStreak}\` - Victim's current kill streak\n• \`{VictimHighest}\` - Victim's highest kill streak\n• \`{KillerHighest}\` - Killer's highest kill streak\n\n**Example Formats:**\n• \`{Killer} killed {Victim} (KD: {KillerKD})\`\n• \`💀 {Killer} → {Victim} (Streak: {KillerStreak})\`\n• \`{Victim} was killed by {Killer} (Highest: {KillerHighest})\`\n\n✅ Killfeed has been configured and enabled!\n\n**Note:** NPC/Animal kills decrease K/D and reset streaks!`
+        );
 
       await interaction.editReply({
         embeds: [embed]

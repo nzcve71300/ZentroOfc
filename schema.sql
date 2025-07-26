@@ -84,4 +84,14 @@ CREATE TABLE killfeed_configs (
     server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
     enabled BOOLEAN DEFAULT false,
     format_string TEXT
-); 
+);
+
+CREATE TABLE player_stats (
+    id SERIAL PRIMARY KEY,
+    player_id INT REFERENCES players(id) ON DELETE CASCADE,
+    kills INTEGER DEFAULT 0,
+    deaths INTEGER DEFAULT 0,
+    kill_streak INTEGER DEFAULT 0,
+    highest_streak INTEGER DEFAULT 0,
+    last_kill_time TIMESTAMP DEFAULT NOW()
+);
