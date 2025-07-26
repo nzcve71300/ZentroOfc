@@ -71,7 +71,7 @@ module.exports = {
 
       // Add the server
       await pool.query(
-        'INSERT INTO rust_servers (guild_id, nickname, ip, port, rcon_password) VALUES ($1, $2, $3, $4, $5)',
+        'INSERT INTO rust_servers (guild_id, nickname, ip, port, password) VALUES ($1, $2, $3, $4, $5)',
         [guildDbId, nickname, ip, port, rconPassword]
       );
 
