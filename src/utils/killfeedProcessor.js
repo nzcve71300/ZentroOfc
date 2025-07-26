@@ -59,33 +59,7 @@ class KillfeedProcessor {
     
     console.log('Parsing kill message:', killMessage);
     
-    // Try normal format first: "Killer killed Victim"
-    let killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
-    let match = killMessage.match(killPattern);
-    
-    if (match) {
-      let killer = match[1].trim();
-      let victim = match[2].trim();
-      
-      console.log('Normal format match - killer:', killer, 'victim:', victim);
-      
-      // Check if victim is a scientist ID (numeric)
-      if (/^\d+$/.test(victim)) {
-        victim = 'Scientist';
-      }
-      
-      // Check if killer is a scientist ID (numeric)
-      if (/^\d+$/.test(killer)) {
-        killer = 'Scientist';
-      }
-      
-      return {
-        killer,
-        victim
-      };
-    }
-    
-    // Try reverse format: "Victim was killed by Killer"
+    // Try reverse format first: "Victim was killed by Killer"
     if (killMessage.includes('was killed by')) {
       const parts = killMessage.split(' was killed by ');
       if (parts.length === 2) {
@@ -114,6 +88,32 @@ class KillfeedProcessor {
           victim
         };
       }
+    }
+    
+    // Try normal format: "Killer killed Victim"
+    let killPattern = /^(.+?)\s+killed\s+(.+?)(?:\s+with|\s+at|$)/i;
+    let match = killMessage.match(killPattern);
+    
+    if (match) {
+      let killer = match[1].trim();
+      let victim = match[2].trim();
+      
+      console.log('Normal format match - killer:', killer, 'victim:', victim);
+      
+      // Check if victim is a scientist ID (numeric)
+      if (/^\d+$/.test(victim)) {
+        victim = 'Scientist';
+      }
+      
+      // Check if killer is a scientist ID (numeric)
+      if (/^\d+$/.test(killer)) {
+        killer = 'Scientist';
+      }
+      
+      return {
+        killer,
+        victim
+      };
     }
     
     console.log('No pattern matched for kill message:', killMessage);
