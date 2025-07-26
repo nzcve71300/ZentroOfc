@@ -78,6 +78,8 @@ module.exports = {
       const { nickname } = serverResult.rows[0];
       const enabled = option === 'on';
 
+      console.log('Killfeed command - option:', option, 'enabled:', enabled);
+
       // Check if killfeed config already exists
       const existingResult = await pool.query(
         'SELECT id FROM killfeed_configs WHERE server_id = $1',
@@ -90,13 +92,22 @@ module.exports = {
           'UPDATE killfeed_configs SET enabled = $1 WHERE server_id = $2',
           [enabled, serverId]
         );
+        console.log('Updated existing killfeed config - enabled:', enabled);
       } else {
         // Create new config with default format
         await pool.query(
           'INSERT INTO killfeed_configs (server_id, format_string, enabled) VALUES ($1, $2, $3)',
           [serverId, '{Killer} killed {Victim}', enabled]
         );
+        console.log('Created new killfeed config - enabled:', enabled);
       }
+
+      // Verify the update worked
+      const verifyResult = await pool.query(
+        'SELECT enabled FROM killfeed_configs WHERE server_id = $1',
+        [serverId]
+      );
+      console.log('Verification - database enabled value:', verifyResult.rows[0]?.enabled);
 
       const status = enabled ? '🟢 Enabled' : '🔴 Disabled';
       const embed = successEmbed(
