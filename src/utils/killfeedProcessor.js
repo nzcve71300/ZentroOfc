@@ -125,7 +125,7 @@ class KillfeedProcessor {
     async getKillfeedConfig(serverId) {
     try {
       const result = await pool.query(
-        'SELECT enabled, format_string, randomizer_enabled FROM killfeed_configs WHERE server_id = $1',
+        'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
       
@@ -135,8 +135,7 @@ class KillfeedProcessor {
         // Return default config if none exists
         return {
           enabled: true, // Default to enabled
-          format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}',
-          randomizer_enabled: false
+          format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}'
         };
       }
     } catch (error) {
@@ -144,8 +143,7 @@ class KillfeedProcessor {
       // Return default config on error
       return {
         enabled: true,
-        format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}',
-        randomizer_enabled: false
+        format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}'
       };
     }
   }
@@ -365,11 +363,11 @@ class KillfeedProcessor {
         .replace(/{KillerHighest}/g, killerStats.highest_streak.toString())
         .replace(/{VictimHighest}/g, victimStats.highest_streak.toString());
 
-      // Apply randomizer if enabled
-      const killfeedConfig = await this.getKillfeedConfig(serverId);
-      if (killfeedConfig.randomizer_enabled) {
-        formatted = this.applyKillPhraseRandomizer(formatted);
-      }
+      // Apply randomizer if enabled (temporarily disabled until database is fixed)
+      // const killfeedConfig = await this.getKillfeedConfig(serverId);
+      // if (killfeedConfig.randomizer_enabled) {
+      //   formatted = this.applyKillPhraseRandomizer(formatted);
+      // }
 
       return formatted;
     } catch (error) {

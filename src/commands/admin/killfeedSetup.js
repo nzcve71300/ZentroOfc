@@ -15,14 +15,15 @@ module.exports = {
       option.setName('format')
         .setDescription('Killfeed format string (use {Victim}, {Killer}, {VictimKD}, {KillerKD}, etc.)')
         .setRequired(true))
-    .addStringOption(option =>
-      option.setName('randomizer')
-        .setDescription('Enable or disable kill phrase randomizer')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Enable', value: 'enable' },
-          { name: 'Disable', value: 'disable' }
-        )),
+    // Temporarily removed randomizer option until database is fixed
+    // .addStringOption(option =>
+    //   option.setName('randomizer')
+    //     .setDescription('Enable or disable kill phrase randomizer')
+    //     .setRequired(true)
+    //     .addChoices(
+    //       { name: 'Enable', value: 'enable' },
+    //       { name: 'Disable', value: 'disable' }
+    //     )),
 
   async autocomplete(interaction) {
     const focusedOption = interaction.options.getFocused(true);
@@ -61,7 +62,7 @@ module.exports = {
 
     const serverId = interaction.options.getString('server');
     const formatString = interaction.options.getString('format');
-    const randomizer = interaction.options.getString('randomizer');
+    // const randomizer = interaction.options.getString('randomizer'); // Temporarily removed
     const guildId = interaction.guildId;
 
     try {
@@ -88,27 +89,26 @@ module.exports = {
         [serverId]
       );
 
-      const randomizerEnabled = randomizer === 'enable';
+      // const randomizerEnabled = randomizer === 'enable'; // Temporarily removed
       
       if (existingResult.rows.length > 0) {
-        // Update existing config
+        // Update existing config (without randomizer for now)
         await pool.query(
-          'UPDATE killfeed_configs SET format_string = $1, enabled = true, randomizer_enabled = $2 WHERE server_id = $3',
-          [formatString, randomizerEnabled, serverId]
+          'UPDATE killfeed_configs SET format_string = $1, enabled = true WHERE server_id = $2',
+          [formatString, serverId]
         );
       } else {
-        // Create new config
+        // Create new config (without randomizer for now)
         await pool.query(
-          'INSERT INTO killfeed_configs (server_id, format_string, enabled, randomizer_enabled) VALUES ($1, $2, true, $3)',
-          [serverId, formatString, randomizerEnabled]
+          'INSERT INTO killfeed_configs (server_id, format_string, enabled) VALUES ($1, $2, true)',
+          [serverId, formatString]
         );
       }
 
       // Create success embed with format preview
-      const randomizerStatus = randomizerEnabled ? '🟢 Enabled' : '🔴 Disabled';
       const embed = successEmbed(
         '🔫 Killfeed Setup Complete',
-        `**Server:** ${nickname}\n**Format:** ${formatString}\n**Randomizer:** ${randomizerStatus}\n\n**Available Variables:**\n• \`{Victim}\` - Victim's name\n• \`{Killer}\` - Killer's name\n• \`{VictimKD}\` - Victim's K/D ratio\n• \`{KillerKD}\` - Killer's K/D ratio\n• \`{KillerStreak}\` - Killer's current kill streak\n• \`{VictimStreak}\` - Victim's current kill streak\n• \`{VictimHighest}\` - Victim's highest kill streak\n• \`{KillerHighest}\` - Killer's highest kill streak\n\n**Example Formats:**\n• \`{Killer} killed {Victim} (KD: {KillerKD})\`\n• \`💀 {Killer} → {Victim} (Streak: {KillerStreak})\`\n• \`{Victim} was killed by {Killer} (Highest: {KillerHighest})\`\n\n${randomizerEnabled ? '🎲 **Random Kill Phrases:**\n• eliminated, gunned down, slaughtered, destroyed, took out, obliterated, dropped, annihilated, wrecked, snapped, ended, demolished, neutralized, wiped out, punished, executed, blasted, crushed, flattened, smoked\n\n**Note:** The word "killed" in your format will be randomly replaced with one of these phrases!' : ''}\n\n✅ Killfeed has been configured and enabled!\n\n**Note:** NPC/Animal kills decrease K/D and reset streaks!`
+        `**Server:** ${nickname}\n**Format:** ${formatString}\n\n**Available Variables:**\n• \`{Victim}\` - Victim's name\n• \`{Killer}\` - Killer's name\n• \`{VictimKD}\` - Victim's K/D ratio\n• \`{KillerKD}\` - Killer's K/D ratio\n• \`{KillerStreak}\` - Killer's current kill streak\n• \`{VictimStreak}\` - Victim's current kill streak\n• \`{VictimHighest}\` - Victim's highest kill streak\n• \`{KillerHighest}\` - Killer's highest kill streak\n\n**Example Formats:**\n• \`{Killer} killed {Victim} (KD: {KillerKD})\`\n• \`💀 {Killer} → {Victim} (Streak: {KillerStreak})\`\n• \`{Victim} was killed by {Killer} (Highest: {KillerHighest})\`\n\n✅ Killfeed has been configured and enabled!\n\n**Note:** NPC/Animal kills decrease K/D and reset streaks!\n\n**🎲 Randomizer Feature:** Coming soon!`
       );
 
       await interaction.editReply({
