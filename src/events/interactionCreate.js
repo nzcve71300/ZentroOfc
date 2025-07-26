@@ -398,7 +398,7 @@ async function handleConfirmPurchase(interaction) {
   const parts = interaction.customId.split('_');
   console.log('handleConfirmPurchase - parts:', parts);
   
-  const [, type, itemId, playerId] = parts;
+  const [, , type, itemId, playerId] = parts;
   const userId = interaction.user.id;
   
   console.log('handleConfirmPurchase - parsed values:', { type, itemId, playerId, userId });
