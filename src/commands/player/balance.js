@@ -5,18 +5,17 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('balance')
-    .setDescription('View your currency balance across all servers'),
+    .setDescription('View your balance across all servers'),
 
   async execute(interaction) {
-    // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
 
     try {
-      // Get player's balance across all servers in this guild
-      const result = await pool.query(
+      // Get all servers and balances for this player
+      const balanceResult = await pool.query(
         `SELECT rs.nickname, e.balance, p.ign
          FROM players p
          JOIN economy e ON p.id = e.player_id
@@ -27,27 +26,38 @@ module.exports = {
         [userId, guildId]
       );
 
-      if (result.rows.length === 0) {
+      if (balanceResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             '💰 Balance',
-            'You don\'t have any balance on any servers in this guild.\n\nUse `/link` to link your Discord account to your in-game name first.'
+            'You don\'t have any accounts linked yet.\n\nUse `/link <in-game-name>` to link your Discord account to your in-game character.'
           )]
         });
       }
 
       // Calculate total balance
-      const totalBalance = result.rows.reduce((sum, row) => sum + parseInt(row.balance || 0), 0);
+      const totalBalance = balanceResult.rows.reduce((sum, row) => sum + (row.balance || 0), 0);
 
-      // Create balance list
-      const balanceList = result.rows.map(row => 
-        `**${row.nickname}:** ${row.balance || 0} coins`
-      ).join('\n');
-
+      // Create embed
       const embed = orangeEmbed(
-        '💰 Balance',
-        `**Total Balance:** ${totalBalance} coins\n\n**Server Breakdown:**\n${balanceList}`
+        '💰 Balance Overview',
+        `**Total Balance:** ${totalBalance} coins\n\n**Balance by Server:**`
       );
+
+      for (const row of balanceResult.rows) {
+        const ign = row.ign || 'Not linked';
+        embed.addFields({
+          name: `🏠 ${row.nickname}`,
+          value: `**Balance:** ${row.balance || 0} coins\n**IGN:** ${ign}`,
+          inline: true
+        });
+      }
+
+      embed.addFields({
+        name: '💡 Tips',
+        value: '• Use `/daily` to claim daily rewards\n• Play `/blackjack` or `/slots` to earn more coins\n• Use `/shop` to spend your coins',
+        inline: false
+      });
 
       await interaction.editReply({
         embeds: [embed]

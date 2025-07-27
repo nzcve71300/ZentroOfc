@@ -5,10 +5,10 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('open-shop')
-    .setDescription('Create a shop on a server')
+    .setDescription('Open the shop for a specific server')
     .addStringOption(option =>
       option.setName('server')
-        .setDescription('Select a server or "All" for all servers')
+        .setDescription('Select a server to open shop for')
         .setRequired(true)
         .setAutocomplete(true)),
 
@@ -17,22 +17,15 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Add "All" option
-      const choices = [{ name: 'All Servers', value: 'All' }];
+      const result = await pool.query(
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        [guildId, `%${focusedValue}%`]
+      );
 
-      if (focusedValue.toLowerCase() !== 'all') {
-        const result = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 24',
-          [guildId, `%${focusedValue}%`]
-        );
-
-        result.rows.forEach(row => {
-          choices.push({
-            name: row.nickname,
-            value: row.nickname
-          });
-        });
-      }
+      const choices = result.rows.map(row => ({
+        name: row.nickname,
+        value: row.nickname
+      }));
 
       await interaction.respond(choices);
     } catch (error) {
@@ -42,59 +35,91 @@ module.exports = {
   },
 
   async execute(interaction) {
-    // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
+
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
 
     const serverOption = interaction.options.getString('server');
     const guildId = interaction.guildId;
 
     try {
-      if (serverOption === 'All') {
-        // Get all servers in this guild
-        const serversResult = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)',
-          [guildId]
-        );
+      // Get server info
+      const serverResult = await pool.query(
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverOption]
+      );
 
-        if (serversResult.rows.length === 0) {
-          return interaction.editReply({
-            embeds: [errorEmbed('No Servers', 'No servers found in this guild.')]
-          });
-        }
-
-        const serverList = serversResult.rows.map(row => row.nickname).join(', ');
-
-        await interaction.editReply({
-          embeds: [successEmbed(
-            'Shop Created',
-            `You successfully created shops on all servers:\n\n**${serverList}**\n\nPlayers can now use \`/shop\` to browse and purchase items.`
-          )]
+      if (serverResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
-      } else {
-        // Get specific server
-        const serverResult = await pool.query(
-          'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-          [guildId, serverOption]
-        );
+      }
 
-        if (serverResult.rows.length === 0) {
-          return interaction.editReply({
-            embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
-          });
-        }
+      const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
 
-        await interaction.editReply({
-          embeds: [successEmbed(
-            'Shop Created',
-            `You successfully created a shop on server: **${serverOption}**\n\nPlayers can now use \`/shop\` to browse and purchase items.`
+      // Get shop categories for this server
+      const categoriesResult = await pool.query(
+        'SELECT id, name, type FROM shop_categories WHERE server_id = $1 ORDER BY name',
+        [serverId]
+      );
+
+      if (categoriesResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [orangeEmbed(
+            '💰 Shop Status',
+            `**Server:** ${serverName}\n\nNo shop categories available. Create categories using \`/add-shop-category\` first.`
           )]
         });
       }
 
+      // Create shop overview embed
+      const embed = orangeEmbed(
+        '💰 Shop Overview',
+        `**Server:** ${serverName}\n\n**Available Categories:**`
+      );
+
+      for (const category of categoriesResult.rows) {
+        // Count items and kits in this category
+        const itemsResult = await pool.query(
+          'SELECT COUNT(*) as count FROM shop_items WHERE category_id = $1',
+          [category.id]
+        );
+        
+        const kitsResult = await pool.query(
+          'SELECT COUNT(*) as count FROM shop_kits WHERE category_id = $1',
+          [category.id]
+        );
+
+        const itemCount = itemsResult.rows[0].count;
+        const kitCount = kitsResult.rows[0].count;
+
+        embed.addFields({
+          name: `📁 ${category.name}`,
+          value: `**Type:** ${category.type}\n**Items:** ${itemCount} | **Kits:** ${kitCount}`,
+          inline: true
+        });
+      }
+
+      embed.addFields({
+        name: '📋 Instructions',
+        value: 'Players can use `/shop` to browse and purchase items from this server.',
+        inline: false
+      });
+
+      await interaction.editReply({
+        embeds: [embed]
+      });
+
     } catch (error) {
       console.error('Error opening shop:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to create shop. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to open shop. Please try again.')]
       });
     }
   },

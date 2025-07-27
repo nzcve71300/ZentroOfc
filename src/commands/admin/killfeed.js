@@ -12,122 +12,119 @@ module.exports = {
         .setRequired(true)
         .setAutocomplete(true))
     .addStringOption(option =>
-      option.setName('action')
+      option.setName('option')
         .setDescription('Enable or disable killfeed')
         .setRequired(true)
         .addChoices(
-          { name: 'on', value: 'on' },
-          { name: 'off', value: 'off' }
+          { name: 'On', value: 'on' },
+          { name: 'Off', value: 'off' }
         )),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(true);
+    const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
 
     try {
-      if (focusedOption.name === 'server') {
-        const value = focusedOption.value.toLowerCase();
-        
-        // Get servers for this guild
-        const result = await pool.query(
-          `SELECT rs.id, rs.nickname 
-           FROM rust_servers rs 
-           JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
-           ORDER BY rs.nickname 
-           LIMIT 25`,
-          [guildId, `%${value}%`]
-        );
+      const result = await pool.query(
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        [guildId, `%${focusedValue}%`]
+      );
 
-        const choices = result.rows.map(row => ({
-          name: row.nickname,
-          value: row.id.toString()
-        }));
+      const choices = result.rows.map(row => ({
+        name: row.nickname,
+        value: row.nickname
+      }));
 
-        await interaction.respond(choices);
-      }
+      await interaction.respond(choices);
     } catch (error) {
-      console.error('Error in autocomplete:', error);
+      console.error('Autocomplete error:', error);
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
-    const serverId = interaction.options.getString('server');
-    const option = interaction.options.getString('action');
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
+    const serverOption = interaction.options.getString('server');
+    const option = interaction.options.getString('option');
     const guildId = interaction.guildId;
 
-    console.log('All options:', interaction.options.data);
-    console.log('Option value:', option);
-    console.log('Option type:', typeof option);
-    console.log('Raw option data:', JSON.stringify(interaction.options.data));
-
     try {
-      // Verify server exists and belongs to this guild
+      // Get server info
       const serverResult = await pool.query(
-        `SELECT rs.id, rs.nickname 
-         FROM rust_servers rs 
-         JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.id = $2`,
-        [guildId, serverId]
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverOption]
       );
 
       if (serverResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The selected server was not found.')]
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-             const { nickname } = serverResult.rows[0];
-       const enabled = option === 'on' || option === 'enable';
+      const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
 
-      console.log('Killfeed command - option:', option, 'enabled:', enabled);
-
-      // Check if killfeed config already exists
-      const existingResult = await pool.query(
-        'SELECT id FROM killfeed_configs WHERE server_id = $1',
+      // Check if killfeed config exists
+      let killfeedResult = await pool.query(
+        'SELECT id, enabled, format_string FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
 
-      if (existingResult.rows.length > 0) {
-        // Update existing config
+      if (killfeedResult.rows.length === 0) {
+        // Create new killfeed config with default format
+        const defaultFormat = '{Killer} killed {Victim} ({VictimKD} K/D)';
         await pool.query(
-          'UPDATE killfeed_configs SET enabled = $1 WHERE server_id = $2',
-          [enabled, serverId]
+          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES ($1, $2, $3)',
+          [serverId, option === 'on', defaultFormat]
         );
-        console.log('Updated existing killfeed config - enabled:', enabled);
-             } else {
-         // Create new config with default format
-         await pool.query(
-           'INSERT INTO killfeed_configs (server_id, format_string, enabled, randomizer_enabled) VALUES ($1, $2, $3, false)',
-           [serverId, '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}', enabled]
-         );
-         console.log('Created new killfeed config - enabled:', enabled);
-       }
+        killfeedResult = await pool.query(
+          'SELECT id, enabled, format_string FROM killfeed_configs WHERE server_id = $1',
+          [serverId]
+        );
+      }
 
-      // Verify the update worked
-      const verifyResult = await pool.query(
-        'SELECT enabled FROM killfeed_configs WHERE server_id = $1',
-        [serverId]
+      const killfeed = killfeedResult.rows[0];
+      const enabled = option === 'on';
+
+      // Update killfeed status
+      await pool.query(
+        'UPDATE killfeed_configs SET enabled = $1 WHERE id = $2',
+        [enabled, killfeed.id]
       );
-      console.log('Verification - database enabled value:', verifyResult.rows[0]?.enabled);
 
-      const status = enabled ? '🟢 Enabled' : '🔴 Disabled';
       const embed = successEmbed(
-        '🔫 Killfeed Status Updated',
-        `**Server:** ${nickname}\n**Status:** ${status}\n\n${enabled ? '✅ Killfeed is now active and will show kill messages with K/D tracking!' : '❌ Killfeed is now disabled and will not show kill messages.'}`
+        'Killfeed Updated',
+        `**${serverName}** killfeed has been **${enabled ? 'enabled' : 'disabled'}**.`
       );
+
+      embed.addFields({
+        name: '📋 Current Configuration',
+        value: `**Status:** ${enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${killfeed.format_string}`,
+        inline: false
+      });
+
+      embed.addFields({
+        name: '💡 Configuration',
+        value: 'Use `/killfeed-setup` to customize the killfeed format.',
+        inline: false
+      });
 
       await interaction.editReply({
         embeds: [embed]
       });
 
     } catch (error) {
-      console.error('Error updating killfeed status:', error);
+      console.error('Error updating killfeed:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to update killfeed status. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to update killfeed. Please try again.')]
       });
     }
   },

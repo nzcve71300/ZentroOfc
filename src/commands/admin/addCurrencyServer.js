@@ -13,7 +13,7 @@ module.exports = {
         .setAutocomplete(true))
     .addIntegerOption(option =>
       option.setName('amount')
-        .setDescription('Amount to add to all players')
+        .setDescription('Amount of currency to add')
         .setRequired(true)
         .setMinValue(1)),
 
@@ -40,18 +40,24 @@ module.exports = {
   },
 
   async execute(interaction) {
-    // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
 
-    const serverNickname = interaction.options.getString('server');
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
+    const serverOption = interaction.options.getString('server');
     const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guildId;
 
     try {
-      // Get server ID
+      // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverNickname]
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverOption]
       );
 
       if (serverResult.rows.length === 0) {
@@ -61,44 +67,83 @@ module.exports = {
       }
 
       const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
 
-      // Update currency for all players on this server
-      const result = await pool.query(
-        `UPDATE economy 
-         SET balance = balance + $1 
-         FROM players p 
-         WHERE economy.player_id = p.id AND p.server_id = $2`,
-        [amount, serverId]
-      );
-
-      // Get list of affected players
+      // Get all players on this server
       const playersResult = await pool.query(
-        `SELECT p.ign, e.balance 
-         FROM players p 
-         JOIN economy e ON p.id = e.player_id 
-         WHERE p.server_id = $1 
-         ORDER BY e.balance DESC`,
+        `SELECT p.id as player_id, p.ign, p.discord_id, e.balance
+         FROM players p
+         LEFT JOIN economy e ON p.id = e.player_id
+         WHERE p.server_id = $1
+         ORDER BY p.ign`,
         [serverId]
       );
 
-      let playersList = '';
-      if (playersResult.rows.length > 0) {
-        playersList = '\n\n**Players affected:**\n';
-        playersResult.rows.forEach((player, index) => {
-          if (index < 10) { // Show first 10 players
-            playersList += `• **${player.ign}:** ${player.balance} coins\n`;
-          }
+      if (playersResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [orangeEmbed(
+            'No Players Found',
+            `No players found on **${serverName}**.\n\nPlayers need to use \`/link <in-game-name>\` to create their accounts first.`
+          )]
         });
-        if (playersResult.rows.length > 10) {
-          playersList += `• ... and ${playersResult.rows.length - 10} more players\n`;
-        }
+      }
+
+      let updatedPlayers = [];
+      let totalAdded = 0;
+
+      // Update each player's balance
+      for (const player of playersResult.rows) {
+        const currentBalance = player.balance || 0;
+        const newBalance = currentBalance + amount;
+
+        // Update balance
+        await pool.query(
+          'UPDATE economy SET balance = $1 WHERE player_id = $2',
+          [newBalance, player.player_id]
+        );
+
+        // Record transaction
+        await pool.query(
+          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
+          [player.player_id, amount, 'admin_add']
+        );
+
+        updatedPlayers.push({
+          ign: player.ign || 'Unknown',
+          discordId: player.discord_id,
+          oldBalance: currentBalance,
+          newBalance: newBalance
+        });
+
+        totalAdded += amount;
+      }
+
+      // Create success embed
+      const embed = successEmbed(
+        '💰 Currency Added to Server',
+        `**Server:** ${serverName}\n**Amount Added:** ${amount} coins\n**Players Affected:** ${updatedPlayers.length}\n**Total Added:** ${totalAdded} coins`
+      );
+
+      // Add player details (limit to first 10 to avoid embed field limits)
+      const playersToShow = updatedPlayers.slice(0, 10);
+      for (const player of playersToShow) {
+        embed.addFields({
+          name: `👤 ${player.ign}`,
+          value: `${player.oldBalance} → ${player.newBalance} coins (+${amount})`,
+          inline: true
+        });
+      }
+
+      if (updatedPlayers.length > 10) {
+        embed.addFields({
+          name: '📋 And More...',
+          value: `${updatedPlayers.length - 10} more players were also updated.`,
+          inline: false
+        });
       }
 
       await interaction.editReply({
-        embeds: [successEmbed(
-          'Currency Added',
-          `Added **${amount} coins** to all players on **${serverNickname}**.\n\n**Players affected:** ${result.rowCount}${playersList}`
-        )]
+        embeds: [embed]
       });
 
     } catch (error) {

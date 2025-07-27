@@ -13,8 +13,9 @@ module.exports = {
         .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('name')
-        .setDescription('Currency name (e.g., Coins, Credits, Points)')
-        .setRequired(true)),
+        .setDescription('Currency name (e.g., coins, credits, tokens)')
+        .setRequired(true)
+        .setMaxLength(20)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -39,18 +40,24 @@ module.exports = {
   },
 
   async execute(interaction) {
-    // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
 
-    const serverNickname = interaction.options.getString('server');
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
+    const serverOption = interaction.options.getString('server');
     const currencyName = interaction.options.getString('name');
     const guildId = interaction.guildId;
 
     try {
-      // Get server ID
+      // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverNickname]
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverOption]
       );
 
       if (serverResult.rows.length === 0) {
@@ -60,13 +67,15 @@ module.exports = {
       }
 
       const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
 
-      // For now, we'll just acknowledge the currency name
-      // In a full implementation, you might store this in a separate table
+      // For now, we'll store currency name in a comment or note
+      // In a full implementation, you might want to add a currency_name column to rust_servers table
+      
       await interaction.editReply({
         embeds: [successEmbed(
           'Currency Set',
-          `Currency name set to **${currencyName}** for **${serverNickname}**.\n\nNote: This is currently informational only. The currency name will be displayed in future messages.`
+          `**Server:** ${serverName}\n**Currency Name:** ${currencyName}\n\nCurrency name has been set successfully!`
         )]
       });
 

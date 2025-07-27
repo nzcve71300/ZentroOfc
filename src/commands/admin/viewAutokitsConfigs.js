@@ -1,11 +1,11 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('view-autokits-configs')
-    .setDescription('View autokit configurations for a server')
+    .setDescription('View all autokit configurations for a server')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
@@ -35,74 +35,93 @@ module.exports = {
   },
 
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    const serverOption = interaction.options.getString('server');
     const guildId = interaction.guildId;
 
     try {
-      // Get all servers in this guild
-      const serversResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1',
-        [guildId]
+      // Get server info
+      const serverResult = await pool.query(
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverOption]
       );
 
-      if (serversResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [orangeEmbed('Error', 'No servers found in this guild.')],
-          ephemeral: true
+      if (serverResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      // Get autokits configs for all servers
-      const configsResult = await pool.query(
-        `SELECT ac.id, ac.name, ac.cooldown_hours, ac.role, rs.nickname as server_name
-         FROM autokits_configs ac
-         JOIN rust_servers rs ON ac.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE g.discord_id = $1
-         ORDER BY rs.nickname, ac.name`,
-        [guildId]
+      const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
+
+      // Get all autokit configurations for this server
+      const autokitsResult = await pool.query(
+        'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 ORDER BY kit_name',
+        [serverId]
       );
 
-      if (configsResult.rows.length === 0) {
-        return interaction.reply({
+      if (autokitsResult.rows.length === 0) {
+        return interaction.editReply({
           embeds: [orangeEmbed(
-            '🔧 Autokits Configs',
-            'No autokits configurations found.\n\nUse `/autokits-setup` to create configurations.'
-          )],
-          ephemeral: true
+            '📋 Autokit Configurations',
+            `**Server:** ${serverName}\n\nNo autokit configurations found.\n\nUse \`/autokits-setup\` to configure autokits.`
+          )]
         });
       }
 
-      // Group configs by server
-      const configsByServer = {};
-      configsResult.rows.forEach(row => {
-        if (!configsByServer[row.server_name]) {
-          configsByServer[row.server_name] = [];
-        }
-        configsByServer[row.server_name].push(row);
-      });
+      // Create embed
+      const embed = orangeEmbed(
+        '📋 Autokit Configurations',
+        `**Server:** ${serverName}\n\n**Configured Kits:**`
+      );
 
-      // Create response
-      let response = '**🔧 Autokits Configurations:**\n\n';
+      // Define expected kit names in order
+      const expectedKits = ['FREEkit1', 'FREEkit2', 'VIPkit', 'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5'];
       
-      Object.keys(configsByServer).forEach(serverName => {
-        response += `**${serverName}:**\n`;
-        configsByServer[serverName].forEach(config => {
-          const roleText = config.role ? ` (Role: <@&${config.role}>)` : '';
-          response += `• **${config.name}:** ${config.cooldown_hours}h cooldown${roleText}\n`;
-        });
-        response += '\n';
+      // Create a map of existing configurations
+      const configMap = {};
+      autokitsResult.rows.forEach(row => {
+        configMap[row.kit_name] = row;
       });
 
-      await interaction.reply({
-        embeds: [orangeEmbed('🔧 Autokits Configs', response)],
-        ephemeral: true
+      // Show all expected kits, even if not configured
+      for (const kitName of expectedKits) {
+        const config = configMap[kitName];
+        
+        if (config) {
+          const status = config.enabled ? '🟢' : '🔴';
+          const cooldownText = config.cooldown > 0 ? `${config.cooldown}m` : 'No cooldown';
+          
+          embed.addFields({
+            name: `${status} ${kitName}`,
+            value: `**Status:** ${config.enabled ? 'Enabled' : 'Disabled'}\n**Cooldown:** ${cooldownText}\n**Kit Name:** ${config.game_name}`,
+            inline: true
+          });
+        } else {
+          embed.addFields({
+            name: `⚪ ${kitName}`,
+            value: '**Status:** Not configured\n**Cooldown:** N/A\n**Kit Name:** N/A',
+            inline: true
+          });
+        }
+      }
+
+      embed.addFields({
+        name: '💡 Configuration',
+        value: 'Use `/autokits-setup` to configure these kits.',
+        inline: false
+      });
+
+      await interaction.editReply({
+        embeds: [embed]
       });
 
     } catch (error) {
-      console.error('Error fetching autokits configs:', error);
-      await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to fetch autokits configurations. Please try again.')],
-        ephemeral: true
+      console.error('Error viewing autokit configs:', error);
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to view autokit configurations. Please try again.')]
       });
     }
   },

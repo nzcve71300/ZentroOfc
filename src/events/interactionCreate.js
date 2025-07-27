@@ -22,6 +22,10 @@ module.exports = {
           await handleBlackjackBet(interaction);
         } else if (interaction.customId === 'slots_bet') {
           await handleSlotsBet(interaction);
+        } else if (interaction.customId.startsWith('edit_item_modal_')) {
+          await handleEditItemModal(interaction);
+        } else if (interaction.customId.startsWith('edit_kit_modal_')) {
+          await handleEditKitModal(interaction);
         }
         return;
       }
@@ -752,6 +756,100 @@ async function handleSlotsBet(interaction) {
     console.error('Error processing slots bet:', error);
     await interaction.editReply({
       embeds: [errorEmbed('Error', 'Failed to process slots game. Please try again.')]
+    });
+  }
+} 
+
+async function handleEditItemModal(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+  
+  const itemId = interaction.customId.split('_')[3];
+  const displayName = interaction.fields.getTextInputValue('display_name');
+  const shortName = interaction.fields.getTextInputValue('short_name');
+  const price = parseInt(interaction.fields.getTextInputValue('price'));
+  const quantity = parseInt(interaction.fields.getTextInputValue('quantity'));
+  const timer = interaction.fields.getTextInputValue('timer');
+
+  // Validate inputs
+  if (isNaN(price) || price < 0) {
+    return interaction.editReply({
+      embeds: [errorEmbed('Invalid Price', 'Price must be a positive number.')]
+    });
+  }
+
+  if (isNaN(quantity) || quantity < 1) {
+    return interaction.editReply({
+      embeds: [errorEmbed('Invalid Quantity', 'Quantity must be at least 1.')]
+    });
+  }
+
+  const timerValue = timer.trim() === '' ? null : (isNaN(parseInt(timer)) ? null : parseInt(timer));
+
+  try {
+    // Update the item
+    await pool.query(
+      'UPDATE shop_items SET display_name = $1, short_name = $2, price = $3, quantity = $4, timer = $5 WHERE id = $6',
+      [displayName, shortName, price, quantity, timerValue, itemId]
+    );
+
+    await interaction.editReply({
+      embeds: [successEmbed(
+        'Item Updated',
+        `**${displayName}** has been updated successfully!\n\n**New Details:**\n• **Price:** ${price} coins\n• **Quantity:** ${quantity}\n• **Timer:** ${timerValue ? timerValue + ' minutes' : 'None'}`
+      )]
+    });
+
+  } catch (error) {
+    console.error('Error updating item:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to update item. Please try again.')]
+    });
+  }
+}
+
+async function handleEditKitModal(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+  
+  const kitId = interaction.customId.split('_')[3];
+  const displayName = interaction.fields.getTextInputValue('display_name');
+  const kitName = interaction.fields.getTextInputValue('kit_name');
+  const price = parseInt(interaction.fields.getTextInputValue('price'));
+  const quantity = parseInt(interaction.fields.getTextInputValue('quantity'));
+  const timer = interaction.fields.getTextInputValue('timer');
+
+  // Validate inputs
+  if (isNaN(price) || price < 0) {
+    return interaction.editReply({
+      embeds: [errorEmbed('Invalid Price', 'Price must be a positive number.')]
+    });
+  }
+
+  if (isNaN(quantity) || quantity < 1) {
+    return interaction.editReply({
+      embeds: [errorEmbed('Invalid Quantity', 'Quantity must be at least 1.')]
+    });
+  }
+
+  const timerValue = timer.trim() === '' ? null : (isNaN(parseInt(timer)) ? null : parseInt(timer));
+
+  try {
+    // Update the kit
+    await pool.query(
+      'UPDATE shop_kits SET display_name = $1, kit_name = $2, price = $3, quantity = $4, timer = $5 WHERE id = $6',
+      [displayName, kitName, price, quantity, timerValue, kitId]
+    );
+
+    await interaction.editReply({
+      embeds: [successEmbed(
+        'Kit Updated',
+        `**${displayName}** has been updated successfully!\n\n**New Details:**\n• **Kit Name:** ${kitName}\n• **Price:** ${price} coins\n• **Quantity:** ${quantity}\n• **Timer:** ${timerValue ? timerValue + ' minutes' : 'None'}`
+      )]
+    });
+
+  } catch (error) {
+    console.error('Error updating kit:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to update kit. Please try again.')]
     });
   }
 } 
