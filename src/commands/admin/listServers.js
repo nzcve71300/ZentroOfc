@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
+const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -8,12 +9,9 @@ module.exports = {
     .setDescription('List all Rust servers in this guild'),
 
   async execute(interaction) {
-    // Check if user is authorized (only you can use this command)
-    if (interaction.user.id !== '1252993829007528086') {
-      return interaction.reply({
-        embeds: [orangeEmbed('❌ Access Denied', 'You do not have permission to use this command.')],
-        ephemeral: true
-      });
+    // Check if user has admin permissions (Zentro Admin role or Administrator)
+    if (!hasAdminPermissions(interaction.member)) {
+      return sendAccessDeniedMessage(interaction, true);
     }
 
     const guildId = interaction.guildId;

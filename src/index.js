@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { discordToken } = require('./config');
 const { startRconListeners } = require('./rcon');
+const { ensureZentroAdminRole } = require('./utils/permissions');
 const fs = require('fs');
 const path = require('path');
 
@@ -37,6 +38,15 @@ loadCommands(path.join(__dirname, 'commands'));
 client.once('ready', () => {
   console.log(`Zentro Bot is online as ${client.user.tag}`);
   console.log('🚀 Bot startup complete - Latest code version loaded');
+  
+  // Create Zentro Admin role in all guilds the bot is in
+  client.guilds.cache.forEach(async (guild) => {
+    try {
+      await ensureZentroAdminRole(guild);
+    } catch (error) {
+      console.error(`Failed to ensure Zentro Admin role in guild ${guild.name}:`, error);
+    }
+  });
   
   // Start RCON listeners after bot is ready
   startRconListeners(client);
@@ -83,6 +93,16 @@ client.on('interactionCreate', async interaction => {
   } catch (error) {
     console.error('Command execution error:', error);
     // Don't try to reply here - let commands manage their own responses
+  }
+});
+
+// Handle bot joining new guilds
+client.on('guildCreate', async (guild) => {
+  console.log(`Bot joined new guild: ${guild.name}`);
+  try {
+    await ensureZentroAdminRole(guild);
+  } catch (error) {
+    console.error(`Failed to create Zentro Admin role in new guild ${guild.name}:`, error);
   }
 });
 

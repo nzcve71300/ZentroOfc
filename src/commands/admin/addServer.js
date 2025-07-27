@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
+const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -27,11 +28,9 @@ module.exports = {
     // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
 
-    // Check if user is authorized (only you can use this command)
-    if (interaction.user.id !== '1252993829007528086') {
-      return interaction.editReply({
-        embeds: [errorEmbed('Access Denied', 'You do not have permission to use this command.')]
-      });
+    // Check if user has admin permissions (Zentro Admin role or Administrator)
+    if (!hasAdminPermissions(interaction.member)) {
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const nickname = interaction.options.getString('nickname');
