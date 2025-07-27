@@ -9,13 +9,14 @@ let killFeedBuffer = {};
 
 // Kit emote mappings
 const KIT_EMOTES = {
-  freekit: 'd11_quick_chat_i_need_phrase_format d11_Wood',
-  vipkit: 'd11_quick_chat_i_need_phrase_format stones',
-  elitekit1: 'd11_quick_chat_i_need_phrase_format d11_Metal_Fragments',
-  elitekit2: 'd11_quick_chat_i_need_phrase_format metal.refined',
-  elitekit3: 'd11_quick_chat_i_need_phrase_format d11_Scrap',
-  elitekit4: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
-  elitekit5: 'd11_quick_chat_i_need_phrase_format d11_Food',
+  FREEkit1: 'd11_quick_chat_i_need_phrase_format d11_Wood',
+  FREEkit2: 'd11_quick_chat_i_need_phrase_format stones',
+  VIPkit: 'd11_quick_chat_i_need_phrase_format d11_Metal_Fragments',
+  ELITEkit1: 'd11_quick_chat_i_need_phrase_format metal.refined',
+  ELITEkit2: 'd11_quick_chat_i_need_phrase_format d11_Scrap',
+  ELITEkit3: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
+  ELITEkit4: 'd11_quick_chat_i_need_phrase_format d11_Food',
+  ELITEkit5: 'd11_quick_chat_i_need_phrase_format d11_Cloth',
 };
 
 // Teleport emote mappings
@@ -264,15 +265,20 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
     }
   }
 
+  console.log('[KIT EMOTE DEBUG] Processing message:', kitMsg);
+
   for (const [kitKey, emote] of Object.entries(KIT_EMOTES)) {
     let player = null;
     if (typeof kitMsg === 'string' && kitMsg.includes(emote)) {
       player = extractPlayerName(kitMsg);
+      console.log('[KIT EMOTE DEBUG] Found kit emote in string:', kitKey, 'player:', player, 'emote:', emote);
     } else if (typeof kitMsg === 'object' && kitMsg.Message && kitMsg.Message.includes(emote)) {
       player = kitMsg.Username || null;
+      console.log('[KIT EMOTE DEBUG] Found kit emote in object:', kitKey, 'player:', player, 'emote:', emote);
     }
     
     if (player) {
+      console.log('[KIT EMOTE DEBUG] Processing kit claim for:', kitKey, 'player:', player);
       await handleKitClaim(client, guildId, serverName, ip, port, password, kitKey, player);
     }
   }
@@ -280,13 +286,18 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
 
 async function handleKitClaim(client, guildId, serverName, ip, port, password, kitKey, player) {
   try {
+    console.log('[KIT CLAIM DEBUG] Processing claim for:', kitKey, 'player:', player, 'server:', serverName);
+    
     // Get server ID
     const serverResult = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) return;
+    if (serverResult.rows.length === 0) {
+      console.log('[KIT CLAIM DEBUG] Server not found:', serverName);
+      return;
+    }
     
     const serverId = serverResult.rows[0].id;
 
@@ -296,7 +307,10 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       [serverId, kitKey]
     );
 
+    console.log('[KIT CLAIM DEBUG] Autokit config:', autokitResult.rows[0]);
+
     if (autokitResult.rows.length === 0 || !autokitResult.rows[0].enabled) {
+      console.log('[KIT CLAIM DEBUG] Kit not enabled or not found:', kitKey);
       return;
     }
 
@@ -316,28 +330,33 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       const lastClaim = recentKitClaims.get(claimKey) || 0;
       if (now - lastClaim < kitConfig.cooldown * 60) {
         const remaining = Math.ceil((kitConfig.cooldown * 60 - (now - lastClaim)) / 60);
-        sendRconCommand(ip, port, password, `say <color=#00008B>${player}</color> wait ${remaining}m before claiming ${kitName} again!`);
+        console.log('[KIT CLAIM DEBUG] Cooldown active for:', kitKey, 'player:', player, 'remaining:', remaining, 'minutes');
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> please wait <color=white>before claiming again</color> <color=#800080>${remaining}m</color>`);
         return;
       }
     }
 
     // Check elite kit authorization
-    if (kitKey.startsWith('elitekit')) {
+    if (kitKey.startsWith('ELITEkit')) {
+      console.log('[KIT CLAIM DEBUG] Checking elite authorization for:', kitKey, 'player:', player);
       const authResult = await pool.query(
         'SELECT * FROM kit_auth WHERE server_id = $1 AND discord_id = (SELECT discord_id FROM players WHERE server_id = $1 AND ign = $2) AND kitlist = $3',
         [serverId, player, kitKey]
       );
       
+      console.log('[KIT CLAIM DEBUG] Elite auth result:', authResult.rows);
+      
       if (authResult.rows.length === 0) {
-        console.log('[KIT CLAIM] Not authorized for', kitKey, 'player:', player);
+        console.log('[KIT CLAIM DEBUG] Not authorized for', kitKey, 'player:', player);
         return;
       }
     }
 
     // Record claim and give kit
     recentKitClaims.set(claimKey, now);
+    console.log('[KIT CLAIM DEBUG] Giving kit:', kitName, 'to player:', player);
     sendRconCommand(ip, port, password, `kit givetoplayer ${kitName} ${player}`);
-    sendRconCommand(ip, port, password, `say <color=#00008B>${player}</color> successfully claimed ${kitName}`);
+    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>claimed</color> <color=#800080>${kitName}</color>`);
 
     // Log to admin feed
     await sendFeedEmbed(client, guildId, serverName, 'admin_feed', `🛡️ **Kit Claim:** ${player} claimed ${kitName}`);
