@@ -39,9 +39,6 @@ module.exports = {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
-        } else if (interaction.customId.startsWith('position_select_')) {
-          console.log('🎯 Position select menu detected, calling handlePositionSelect...');
-          await handlePositionSelect(interaction);
         } else {
           console.log('⚠️ Unhandled StringSelectMenu interaction:', interaction.customId);
         }
@@ -867,85 +864,7 @@ async function handleEditKitModal(interaction) {
   }
 }
 
-async function handlePositionSelect(interaction) {
-  console.log('🔍 handlePositionSelect called - customId:', interaction.customId, 'values:', interaction.values);
-  
-  try {
-    await interaction.deferUpdate();
-    console.log('✅ deferUpdate completed');
-    
-    const serverId = interaction.customId.split('_')[2];
-    const positionType = interaction.values[0];
-    console.log('📊 Parsed serverId:', serverId, 'positionType:', positionType);
-    
-    // Get current position data
-    console.log('🔍 Querying database for existing position data...');
-    const result = await pool.query(
-      'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
-      [serverId, positionType]
-    );
-    console.log('✅ Database query completed, rows found:', result.rows.length);
-    
-    const currentData = result.rows[0] || { x_pos: '', y_pos: '', z_pos: '' };
-    console.log('📊 Current data:', currentData);
-    
-    // Create modal
-    console.log('🔨 Creating modal...');
-    const modal = new ModalBuilder()
-      .setCustomId(`position_modal_${serverId}_${positionType}`)
-      .setTitle(`${positionType === 'outpost' ? 'Outpost' : 'Bandit Camp'} Coordinates`);
-    
-    const xInput = new TextInputBuilder()
-      .setCustomId('x_position')
-      .setLabel('X Position')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter X coordinate')
-      .setValue(currentData.x_pos || '')
-      .setRequired(false);
-    
-    const yInput = new TextInputBuilder()
-      .setCustomId('y_position')
-      .setLabel('Y Position')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter Y coordinate')
-      .setValue(currentData.y_pos || '')
-      .setRequired(false);
-    
-    const zInput = new TextInputBuilder()
-      .setCustomId('z_position')
-      .setLabel('Z Position')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter Z coordinate')
-      .setValue(currentData.z_pos || '')
-      .setRequired(false);
-    
-    const firstActionRow = new ActionRowBuilder().addComponents(xInput);
-    const secondActionRow = new ActionRowBuilder().addComponents(yInput);
-    const thirdActionRow = new ActionRowBuilder().addComponents(zInput);
-    
-    modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
-    console.log('🔍 Modal components added - ActionRows:', modal.components.length);
-    console.log('✅ Modal created successfully');
-    
-    console.log('🚀 Showing modal...');
-    console.log('🔍 Modal data:', JSON.stringify(modal.toJSON(), null, 2));
-    await interaction.showModal(modal);
-    console.log('✅ Modal shown successfully');
-    
-  } catch (error) {
-    console.error('❌ Error in handlePositionSelect:', error);
-    console.error('❌ Error stack:', error.stack);
-    try {
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to create position modal. Please try again.')]
-      });
-      console.log('✅ Error response sent successfully');
-    } catch (replyError) {
-      console.error('❌ Failed to send error response:', replyError);
-      console.error('❌ Reply error stack:', replyError.stack);
-    }
-  }
-}
+
 
 async function handlePositionModal(interaction) {
   console.log('🔍 handlePositionModal called - customId:', interaction.customId);
@@ -1001,13 +920,13 @@ async function handlePositionModal(interaction) {
       console.log('✅ Insert completed');
     }
     
-    const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
+    const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'BanditCamp';
     console.log('📝 Sending success response...');
     
     await interaction.editReply({
       embeds: [successEmbed(
         'Coordinates Updated',
-        `**${positionDisplayName}** coordinates have been set to:\n**X:** ${xPos} | **Y:** ${yPos} | **Z:** ${zPos}`
+        `**${positionDisplayName}** coordinates have been set to:\n**X:** ${xPos} | **Y:** ${yPos} | **Z:** ${zPos}\n\nCoordinates are now saved and will be used when players teleport to this position.`
       )]
     });
     console.log('✅ Success response sent');
