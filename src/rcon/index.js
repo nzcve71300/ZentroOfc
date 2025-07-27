@@ -85,6 +85,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       if (msg.match(/has entered the game/)) {
         const player = msg.split(' ')[0];
         addToBuffer(guildId, serverName, 'joins', player);
+        await ensurePlayerExists(guildId, serverName, player);
       }
       if (msg.match(/has disconnected/)) {
         const player = msg.split(' ')[0];
@@ -160,6 +161,54 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
 
   } catch (error) {
     console.error('Error handling kill event:', error);
+  }
+}
+
+// Add function to automatically create player records
+async function ensurePlayerExists(guildId, serverName, playerName) {
+  try {
+    // Get guild and server IDs
+    const guildResult = await pool.query(
+      'SELECT id FROM guilds WHERE discord_id = $1',
+      [guildId]
+    );
+    
+    if (guildResult.rows.length === 0) return;
+    
+    const guildId_db = guildResult.rows[0].id;
+    
+    const serverResult = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = $1 AND nickname = $2',
+      [guildId_db, serverName]
+    );
+    
+    if (serverResult.rows.length === 0) return;
+    
+    const serverId = serverResult.rows[0].id;
+
+    // Check if player already exists
+    const existingPlayer = await pool.query(
+      'SELECT id FROM players WHERE guild_id = $1 AND server_id = $2 AND ign = $3',
+      [guildId_db, serverId, playerName]
+    );
+
+    if (existingPlayer.rows.length === 0) {
+      // Create new player record
+      const newPlayer = await pool.query(
+        'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ($1, $2, $3, $4) RETURNING id',
+        [guildId_db, serverId, null, playerName]
+      );
+
+      // Create player stats record
+      await pool.query(
+        'INSERT INTO player_stats (player_id, kills, deaths, kill_streak, highest_streak) VALUES ($1, 0, 0, 0, 0)',
+        [newPlayer.rows[0].id]
+      );
+
+      console.log(`✅ Created player record for ${playerName} on server ${serverName}`);
+    }
+  } catch (error) {
+    console.error('Error ensuring player exists:', error);
   }
 }
 
