@@ -34,12 +34,16 @@ module.exports = {
 
       // Handle shop dropdown selection
       if (interaction.isStringSelectMenu()) {
+        console.log('🔍 StringSelectMenu interaction - customId:', interaction.customId);
         if (interaction.customId === 'shop_category_select') {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
         } else if (interaction.customId.startsWith('position_select_')) {
+          console.log('🎯 Position select menu detected, calling handlePositionSelect...');
           await handlePositionSelect(interaction);
+        } else {
+          console.log('⚠️ Unhandled StringSelectMenu interaction:', interaction.customId);
         }
         return;
       }
@@ -864,21 +868,29 @@ async function handleEditKitModal(interaction) {
 }
 
 async function handlePositionSelect(interaction) {
-  await interaction.deferUpdate();
-  
-  const serverId = interaction.customId.split('_')[2];
-  const positionType = interaction.values[0];
+  console.log('🔍 handlePositionSelect called - customId:', interaction.customId, 'values:', interaction.values);
   
   try {
+    await interaction.deferUpdate();
+    console.log('✅ deferUpdate completed');
+    
+    const serverId = interaction.customId.split('_')[2];
+    const positionType = interaction.values[0];
+    console.log('📊 Parsed serverId:', serverId, 'positionType:', positionType);
+    
     // Get current position data
+    console.log('🔍 Querying database for existing position data...');
     const result = await pool.query(
       'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
       [serverId, positionType]
     );
+    console.log('✅ Database query completed, rows found:', result.rows.length);
     
     const currentData = result.rows[0] || { x_pos: '', y_pos: '', z_pos: '' };
+    console.log('📊 Current data:', currentData);
     
     // Create modal
+    console.log('🔨 Creating modal...');
     const modal = new ModalBuilder()
       .setCustomId(`position_modal_${serverId}_${positionType}`)
       .setTitle(`${positionType === 'outpost' ? 'Outpost' : 'Bandit Camp'} Coordinates`);
@@ -912,62 +924,83 @@ async function handlePositionSelect(interaction) {
     const thirdActionRow = new ActionRowBuilder().addComponents(zInput);
     
     modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
+    console.log('✅ Modal created successfully');
     
+    console.log('🚀 Showing modal...');
     await interaction.showModal(modal);
+    console.log('✅ Modal shown successfully');
     
   } catch (error) {
-    console.error('Error creating position modal:', error);
+    console.error('❌ Error in handlePositionSelect:', error);
+    console.error('❌ Error stack:', error.stack);
     try {
       await interaction.editReply({
         embeds: [errorEmbed('Error', 'Failed to create position modal. Please try again.')]
       });
+      console.log('✅ Error response sent successfully');
     } catch (replyError) {
-      console.error('Failed to send error response:', replyError);
+      console.error('❌ Failed to send error response:', replyError);
+      console.error('❌ Reply error stack:', replyError.stack);
     }
   }
 }
 
 async function handlePositionModal(interaction) {
-  await interaction.deferReply({ ephemeral: true });
-  
-  const [, , serverId, positionType] = interaction.customId.split('_');
-  const xPos = interaction.fields.getTextInputValue('x_position');
-  const yPos = interaction.fields.getTextInputValue('y_position');
-  const zPos = interaction.fields.getTextInputValue('z_position');
-  
-  // Validate coordinates are valid numbers (including decimals)
-  const xNum = parseFloat(xPos);
-  const yNum = parseFloat(yPos);
-  const zNum = parseFloat(zPos);
-  
-  if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
-    return interaction.editReply({
-      embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')]
-    });
-  }
+  console.log('🔍 handlePositionModal called - customId:', interaction.customId);
   
   try {
+    await interaction.deferReply({ ephemeral: true });
+    console.log('✅ deferReply completed');
+    
+    const [, , serverId, positionType] = interaction.customId.split('_');
+    console.log('📊 Parsed serverId:', serverId, 'positionType:', positionType);
+    
+    const xPos = interaction.fields.getTextInputValue('x_position');
+    const yPos = interaction.fields.getTextInputValue('y_position');
+    const zPos = interaction.fields.getTextInputValue('z_position');
+    console.log('📊 Received coordinates - X:', xPos, 'Y:', yPos, 'Z:', zPos);
+    
+    // Validate coordinates are valid numbers (including decimals)
+    const xNum = parseFloat(xPos);
+    const yNum = parseFloat(yPos);
+    const zNum = parseFloat(zPos);
+    console.log('📊 Parsed numbers - X:', xNum, 'Y:', yNum, 'Z:', zNum);
+    
+    if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
+      console.log('❌ Invalid coordinates detected');
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')]
+      });
+    }
+    
+    console.log('🔍 Checking if position coordinates exist...');
     // Check if position coordinates exist
     const existingResult = await pool.query(
       'SELECT * FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
       [serverId, positionType]
     );
+    console.log('✅ Existing check completed, rows found:', existingResult.rows.length);
     
     if (existingResult.rows.length > 0) {
       // Update existing coordinates
+      console.log('🔄 Updating existing coordinates...');
       await pool.query(
         'UPDATE position_coordinates SET x_pos = $1, y_pos = $2, z_pos = $3, updated_at = NOW() WHERE server_id = $4 AND position_type = $5',
         [xPos, yPos, zPos, serverId, positionType]
       );
+      console.log('✅ Update completed');
     } else {
       // Create new coordinates
+      console.log('➕ Creating new coordinates...');
       await pool.query(
         'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
         [serverId, positionType, xPos, yPos, zPos]
       );
+      console.log('✅ Insert completed');
     }
     
     const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
+    console.log('📝 Sending success response...');
     
     await interaction.editReply({
       embeds: [successEmbed(
@@ -975,11 +1008,19 @@ async function handlePositionModal(interaction) {
         `**${positionDisplayName}** coordinates have been set to:\n**X:** ${xPos} | **Y:** ${yPos} | **Z:** ${zPos}`
       )]
     });
+    console.log('✅ Success response sent');
     
   } catch (error) {
-    console.error('Error saving position coordinates:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')]
-    });
+    console.error('❌ Error in handlePositionModal:', error);
+    console.error('❌ Error stack:', error.stack);
+    try {
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')]
+      });
+      console.log('✅ Error response sent successfully');
+    } catch (replyError) {
+      console.error('❌ Failed to send error response:', replyError);
+      console.error('❌ Reply error stack:', replyError.stack);
+    }
   }
 } 
