@@ -363,11 +363,11 @@ class KillfeedProcessor {
         .replace(/{KillerHighest}/g, killerStats.highest_streak.toString())
         .replace(/{VictimHighest}/g, victimStats.highest_streak.toString());
 
-      // Apply randomizer if enabled (temporarily disabled until database is fixed)
-      // const killfeedConfig = await this.getKillfeedConfig(serverId);
-      // if (killfeedConfig.randomizer_enabled) {
-      //   formatted = this.applyKillPhraseRandomizer(formatted);
-      // }
+      // Apply randomizer if enabled
+      const killfeedConfig = await this.getKillfeedConfig(serverId);
+      if (killfeedConfig.randomizer_enabled) {
+        formatted = this.applyKillPhraseRandomizer(formatted);
+      }
 
       return formatted;
     } catch (error) {
