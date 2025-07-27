@@ -120,10 +120,15 @@ client.on('guildCreate', async (guild) => {
   const isAuthorized = await isAuthorizedGuild(guild);
   
   if (!isAuthorized) {
-    console.log(`Unauthorized guild attempted to add bot: ${guild.name} (ID: ${guild.id})`);
-    // You could leave the guild here if you want to be strict
-    // await guild.leave();
-    // console.log(`Left unauthorized guild: ${guild.name}`);
+    console.log(`🚫 Unauthorized guild attempted to add bot: ${guild.name} (ID: ${guild.id})`);
+    console.log(`🚪 Leaving unauthorized guild: ${guild.name}`);
+    
+    try {
+      await guild.leave();
+      console.log(`✅ Successfully left unauthorized guild: ${guild.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to leave unauthorized guild ${guild.name}:`, error);
+    }
     return;
   }
   
