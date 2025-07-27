@@ -214,6 +214,10 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
 
 async function handleKillRewards(guildId, serverName, killer, victim, isScientist) {
   try {
+    // Sanitize player names to remove null bytes and invalid characters
+    const sanitizedKiller = killer.replace(/\0/g, '').trim();
+    const sanitizedVictim = victim.replace(/\0/g, '').trim();
+    
     const serverResult = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
       [guildId, serverName]
@@ -227,7 +231,7 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
     // Find player by IGN
     const playerResult = await pool.query(
       'SELECT id FROM players WHERE server_id = $1 AND ign = $2',
-      [serverId, killer]
+      [serverId, sanitizedKiller]
     );
 
     if (playerResult.rows.length > 0) {
