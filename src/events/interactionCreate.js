@@ -334,7 +334,7 @@ async function handleShopItemSelect(interaction) {
      const serverId = serverResult.rows[0].server_id;
      const nickname = serverResult.rows[0].nickname;
 
-     // Now get player balance for this specific server
+     // Now get player balance for this specific server (requires linking)
      const balanceResult = await pool.query(
        `SELECT e.balance, p.id as player_id
         FROM players p
@@ -347,7 +347,7 @@ async function handleShopItemSelect(interaction) {
 
     if (balanceResult.rows.length === 0) {
       return interaction.editReply({
-        embeds: [errorEmbed('No Balance', 'You don\'t have a balance on this server. Use `/daily` to get some coins!')]
+        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
@@ -459,6 +459,11 @@ async function handleConfirmPurchase(interaction) {
        const confirmMessage = `say <color=green>${playerName}</color>-green Your purchase was successful-white`;
        sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
        console.log(`Confirmation message sent to ${itemData.nickname}: ${confirmMessage}`);
+       
+       // Send to admin feed
+       const guildId = interaction.guildId;
+       const { sendFeedEmbed } = require('../rcon');
+       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} for ${itemData.price} coins`);
      } catch (error) {
        console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
      }

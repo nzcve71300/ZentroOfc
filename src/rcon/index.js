@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const { EmbedBuilder } = require('discord.js');
 const pool = require('../db');
 const { orangeEmbed } = require('../embeds/format');
 const killfeedProcessor = require('../utils/killfeedProcessor');
@@ -10,8 +11,8 @@ let killFeedBuffer = {};
 // Kit emote mappings
 const KIT_EMOTES = {
   FREEkit1: 'd11_quick_chat_i_need_phrase_format d11_Wood',
-  FREEkit2: 'd11_quick_chat_i_need_phrase_format stones',
-  VIPkit: 'd11_quick_chat_i_need_phrase_format d11_Metal_Fragments',
+  FREEkit2: 'd11_quick_chat_i_need_phrase_format d11_Water',
+  VIPkit: 'd11_quick_chat_i_need_phrase_format stones',
   ELITEkit1: 'd11_quick_chat_i_need_phrase_format metal.refined',
   ELITEkit2: 'd11_quick_chat_i_need_phrase_format d11_Scrap',
   ELITEkit3: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
@@ -87,10 +88,38 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         const player = msg.split(' ')[0];
         addToBuffer(guildId, serverName, 'joins', player);
         await ensurePlayerExists(guildId, serverName, player);
+        // Send to playerfeed
+        await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
       }
       if (msg.match(/has disconnected/)) {
         const player = msg.split(' ')[0];
         addToBuffer(guildId, serverName, 'leaves', player);
+      }
+
+      // Handle admin loot spawns
+      if (msg.match(/\[ServerVar\] giving .* x /)) {
+        const match = msg.match(/\[ServerVar\] giving (.*?) (\d+) x (.*)/);
+        if (match) {
+          const player = match[1];
+          const amount = match[2];
+          const item = match[3];
+          await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `**Admin spawned:** ${amount}x ${item} for **${player}**`);
+        }
+      }
+
+      // Handle note panel messages
+      if (msg.match(/\[NOTE PANEL\] Player \[ .*? \] changed name from \[ .*? \] to \[ .*? \]/)) {
+        const match = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
+        if (match) {
+          const player = match[1];
+          const note = match[2].replace(/\\n/g, '\n').trim();
+          if (note) {
+            // Send green message in-game
+            sendRconCommand(ip, port, password, `say <color=green>${note}</color>`);
+            // Send to notefeed
+            await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${note}`);
+          }
+        }
       }
 
       // Handle kill events
@@ -336,11 +365,27 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       }
     }
 
-    // Check elite kit authorization
+    // Check elite kit authorization (requires both being added to list AND being linked)
     if (kitKey.startsWith('ELITEkit')) {
       console.log('[KIT CLAIM DEBUG] Checking elite authorization for:', kitKey, 'player:', player);
+      
+      // First check if player is linked
+      const playerResult = await pool.query(
+        'SELECT discord_id FROM players WHERE server_id = $1 AND ign = $2',
+        [serverId, player]
+      );
+      
+      if (playerResult.rows.length === 0 || !playerResult.rows[0].discord_id) {
+        console.log('[KIT CLAIM DEBUG] Player not linked for elite kit:', kitKey, 'player:', player);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you must link your Discord account first</color> <color=#800080>to claim elite kits</color>`);
+        return;
+      }
+      
+      // Then check if player is authorized for this kit
       const authResult = await pool.query(
-        'SELECT * FROM kit_auth WHERE server_id = $1 AND discord_id = (SELECT discord_id FROM players WHERE server_id = $1 AND ign = $2) AND kitlist = $3',
+        `SELECT ka.* FROM kit_auth ka 
+         JOIN players p ON ka.discord_id = p.discord_id 
+         WHERE ka.server_id = $1 AND p.ign = $2 AND ka.kitlist = $3`,
         [serverId, player, kitKey]
       );
       
@@ -348,6 +393,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       
       if (authResult.rows.length === 0) {
         console.log('[KIT CLAIM DEBUG] Not authorized for', kitKey, 'player:', player);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not authorized for</color> <color=#800080>${kitName}</color>`);
         return;
       }
     }
@@ -359,7 +405,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>claimed</color> <color=#800080>${kitName}</color>`);
 
     // Log to admin feed
-    await sendFeedEmbed(client, guildId, serverName, 'admin_feed', `🛡️ **Kit Claim:** ${player} claimed ${kitName}`);
+    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🛡️ **Kit Claim:** ${player} claimed ${kitName}`);
 
   } catch (error) {
     console.error('Error handling kit claim:', error);
@@ -405,12 +451,16 @@ async function flushJoinLeaveBuffers(client) {
 
 async function pollPlayerCounts(client) {
   try {
-    const result = await pool.query('SELECT * FROM rust_servers');
+    const result = await pool.query(`
+      SELECT rs.*, g.discord_id as guild_discord_id 
+      FROM rust_servers rs 
+      JOIN guilds g ON rs.guild_id = g.id
+    `);
     for (const server of result.rows) {
       try {
         const info = await getServerInfo(server.ip, server.port, server.password);
         if (info && info.Players !== undefined) {
-          await updatePlayerCountChannel(client, server.guild_id, server.nickname, info.Players, info.Queued || 0);
+          await updatePlayerCountChannel(client, server.guild_discord_id, server.nickname, info.Players, info.Queued || 0);
         }
       } catch (e) {
         console.log(`❌ Failed to fetch playercount for ${server.nickname}:`, e.message);
@@ -456,9 +506,38 @@ function sendRconCommand(ip, port, password, command) {
 
 async function sendFeedEmbed(client, guildId, serverName, channelType, message) {
   try {
-    // This would need to be implemented based on your channel configuration
-    // For now, we'll just log the message
-    console.log(`[${channelType.toUpperCase()}] ${serverName}: ${message}`);
+    // Get the channel ID from database
+    const result = await pool.query(
+      `SELECT cs.channel_id 
+       FROM channel_settings cs 
+       JOIN rust_servers rs ON cs.server_id = rs.id 
+       JOIN guilds g ON rs.guild_id = g.id 
+       WHERE g.discord_id = $1 AND rs.nickname = $2 AND cs.channel_type = $3`,
+      [guildId, serverName, channelType]
+    );
+
+    if (result.rows.length === 0) {
+      console.log(`[${channelType.toUpperCase()}] No channel configured for ${serverName}: ${message}`);
+      return;
+    }
+
+    const channelId = result.rows[0].channel_id;
+    const channel = await client.channels.fetch(channelId);
+    
+    if (!channel) {
+      console.error(`[${channelType.toUpperCase()}] Channel not found: ${channelId}`);
+      return;
+    }
+
+    // Create embed
+    const embed = new EmbedBuilder()
+      .setColor(0xFF8C00) // Orange color
+      .setTitle(`${channelType.charAt(0).toUpperCase() + channelType.slice(1)} - ${serverName}`)
+      .setDescription(message)
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+    console.log(`[${channelType.toUpperCase()}] Sent to ${serverName}: ${message}`);
   } catch (error) {
     console.error('Error sending feed embed:', error);
   }
@@ -466,9 +545,38 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
 
 async function updatePlayerCountChannel(client, guildId, serverName, online, queued) {
   try {
-    // This would update a voice channel name with player count
-    // Implementation depends on your channel setup
-    console.log(`[PLAYER COUNT] ${serverName}: ${online} online, ${queued} queued`);
+    // Get the channel ID from database
+    const result = await pool.query(
+      `SELECT cs.channel_id 
+       FROM channel_settings cs 
+       JOIN rust_servers rs ON cs.server_id = rs.id 
+       JOIN guilds g ON rs.guild_id = g.id 
+       WHERE g.discord_id = $1 AND rs.nickname = $2 AND cs.channel_type = 'playercount'`,
+      [guildId, serverName]
+    );
+
+    if (result.rows.length === 0) {
+      console.log(`[PLAYER COUNT] No channel configured for ${serverName}: ${online} online, ${queued} queued`);
+      return;
+    }
+
+    const channelId = result.rows[0].channel_id;
+    const channel = await client.channels.fetch(channelId);
+    
+    if (!channel) {
+      console.error(`[PLAYER COUNT] Channel not found: ${channelId}`);
+      return;
+    }
+
+    if (channel.type !== 2) { // 2 = voice channel
+      console.error(`[PLAYER COUNT] Channel is not a voice channel: ${channelId}`);
+      return;
+    }
+
+    // Update voice channel name
+    const newName = `🌐${online}🕑${queued}`;
+    await channel.setName(newName);
+    console.log(`[PLAYER COUNT] Updated ${serverName}: ${newName}`);
   } catch (error) {
     console.error('Error updating player count channel:', error);
   }

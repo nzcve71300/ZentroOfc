@@ -28,9 +28,9 @@ module.exports = {
 
       if (balanceResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [orangeEmbed(
-            '💰 Balance',
-            'You don\'t have any accounts linked yet.\n\nUse `/link <in-game-name>` to link your Discord account to your in-game character.'
+          embeds: [errorEmbed(
+            'Account Not Linked',
+            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
           )]
         });
       }

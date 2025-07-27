@@ -27,7 +27,7 @@ module.exports = {
 
       if (balanceResult.rows.length === 0) {
         return interaction.reply({
-          embeds: [errorEmbed('No Balance', 'You need to have balance on at least one server to play blackjack. Use `/daily` to get some coins!')],
+          embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')],
           ephemeral: true
         });
       }

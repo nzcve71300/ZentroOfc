@@ -30,8 +30,8 @@ module.exports = {
       if (playerResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed(
-            'No Accounts Linked',
-            'You don\'t have any accounts linked yet.\n\nUse `/link <in-game-name>` to link your Discord account to your in-game character first.'
+            'Account Not Linked',
+            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
           )]
         });
       }

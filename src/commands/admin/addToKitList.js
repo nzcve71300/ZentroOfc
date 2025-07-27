@@ -87,7 +87,7 @@ module.exports = {
          FROM players p
          JOIN rust_servers rs ON p.server_id = rs.id
          JOIN guilds g ON rs.guild_id = g.id
-         WHERE g.discord_id = $1 AND rs.id = $2 AND (p.ign ILIKE $3 OR p.discord_id = $3)
+         WHERE g.discord_id = $1 AND rs.id = $2 AND (p.ign ILIKE $3 OR p.discord_id = $3 OR p.discord_id IS NULL)
          ORDER BY p.ign`,
         [guildId, serverId, playerName]
       );
@@ -129,6 +129,13 @@ module.exports = {
       if (existingResult.rows.length > 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Already in List', `${player.ign || 'Player'} is already in ${kitlist} on ${serverName}.`)]
+        });
+      }
+
+      // If player doesn't have a Discord ID, we can't add them to kit list
+      if (!player.discord_id) {
+        return interaction.editReply({
+          embeds: [errorEmbed('No Discord Link', `${player.ign || 'Player'} doesn't have a Discord account linked. They need to use \`/link <in-game-name>\` first.`)]
         });
       }
 

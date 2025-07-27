@@ -96,3 +96,13 @@ CREATE TABLE player_stats (
     highest_streak INTEGER DEFAULT 0,
     last_kill_time TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE channel_settings (
+    id SERIAL PRIMARY KEY,
+    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    channel_type TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(server_id, channel_type)
+);

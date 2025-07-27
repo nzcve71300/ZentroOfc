@@ -58,22 +58,26 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverName = serverResult.rows[0].nickname;
 
-      // Get player's balance for this specific server
+      // Get player's balance for this specific server (requires linking)
       const balanceResult = await pool.query(
-        `SELECT e.balance, p.id as player_id
+        `SELECT e.balance, p.id as player_id, p.ign
          FROM players p
          JOIN economy e ON p.id = e.player_id
          WHERE p.discord_id = $1 AND p.server_id = $2`,
         [userId, serverId]
       );
 
-      let balance = 0;
-      let playerId = null;
-
-      if (balanceResult.rows.length > 0) {
-        balance = balanceResult.rows[0].balance || 0;
-        playerId = balanceResult.rows[0].player_id;
+      if (balanceResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed(
+            'Account Not Linked',
+            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
+          )]
+        });
       }
+
+      const balance = balanceResult.rows[0].balance || 0;
+      const playerId = balanceResult.rows[0].player_id;
 
       // Get shop categories for this specific server
       const categoriesResult = await pool.query(
