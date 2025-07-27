@@ -895,29 +895,29 @@ async function handlePositionSelect(interaction) {
       .setCustomId(`position_modal_${serverId}_${positionType}`)
       .setTitle(`${positionType === 'outpost' ? 'Outpost' : 'Bandit Camp'} Coordinates`);
     
-    const xInput = new TextInputBuilder()
-      .setCustomId('x_position')
-      .setLabel('X Position')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter X coordinate')
-      .setValue(currentData.x_pos || '')
-      .setRequired(true);
-    
-    const yInput = new TextInputBuilder()
-      .setCustomId('y_position')
-      .setLabel('Y Position')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter Y coordinate')
-      .setValue(currentData.y_pos || '')
-      .setRequired(true);
-    
-    const zInput = new TextInputBuilder()
-      .setCustomId('z_position')
-      .setLabel('Z Position')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter Z coordinate')
-      .setValue(currentData.z_pos || '')
-      .setRequired(true);
+               const xInput = new TextInputBuilder()
+             .setCustomId('x_position')
+             .setLabel('X Position')
+             .setStyle(TextInputStyle.Short)
+             .setPlaceholder('Enter X coordinate')
+             .setValue(currentData.x_pos || '')
+             .setRequired(false);
+           
+           const yInput = new TextInputBuilder()
+             .setCustomId('y_position')
+             .setLabel('Y Position')
+             .setStyle(TextInputStyle.Short)
+             .setPlaceholder('Enter Y coordinate')
+             .setValue(currentData.y_pos || '')
+             .setRequired(false);
+           
+           const zInput = new TextInputBuilder()
+             .setCustomId('z_position')
+             .setLabel('Z Position')
+             .setStyle(TextInputStyle.Short)
+             .setPlaceholder('Enter Z coordinate')
+             .setValue(currentData.z_pos || '')
+             .setRequired(false);
     
     const firstActionRow = new ActionRowBuilder().addComponents(xInput);
     const secondActionRow = new ActionRowBuilder().addComponents(yInput);
