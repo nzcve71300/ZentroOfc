@@ -3,7 +3,7 @@
 
 module.exports = {
   // Option 1: Allow all guilds (current setting - most permissive)
-  allowAllGuilds: false, // Changed to false - now only authorized servers can add the bot
+  allowAllGuilds: true, // Temporarily set to true so you can authorize your server
   
   // Option 2: Only allow specific guild IDs (more secure)
   // Add your authorized guild IDs here
