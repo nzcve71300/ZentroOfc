@@ -917,9 +917,13 @@ async function handlePositionSelect(interaction) {
     
   } catch (error) {
     console.error('Error creating position modal:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to create position modal. Please try again.')]
-    });
+    try {
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to create position modal. Please try again.')]
+      });
+    } catch (replyError) {
+      console.error('Failed to send error response:', replyError);
+    }
   }
 }
 
@@ -931,10 +935,14 @@ async function handlePositionModal(interaction) {
   const yPos = interaction.fields.getTextInputValue('y_position');
   const zPos = interaction.fields.getTextInputValue('z_position');
   
-  // Validate coordinates are numbers
-  if (isNaN(xPos) || isNaN(yPos) || isNaN(zPos)) {
+  // Validate coordinates are valid numbers (including decimals)
+  const xNum = parseFloat(xPos);
+  const yNum = parseFloat(yPos);
+  const zNum = parseFloat(zPos);
+  
+  if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
     return interaction.editReply({
-      embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers.')]
+      embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')]
     });
   }
   
