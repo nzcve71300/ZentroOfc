@@ -73,14 +73,12 @@ module.exports = {
               {
                 label: 'Outpost',
                 description: 'Manage Outpost coordinates',
-                value: 'outpost',
-                emoji: '🏰'
+                value: 'outpost'
               },
               {
                 label: 'Bandit Camp',
                 description: 'Manage Bandit Camp coordinates',
-                value: 'banditcamp',
-                emoji: '🏕️'
+                value: 'banditcamp'
               }
             ])
         );

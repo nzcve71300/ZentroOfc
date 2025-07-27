@@ -24,13 +24,9 @@ module.exports = {
           { name: 'Banditcamp - Set time in minutes', value: 'banditcamp_time' }
         ))
     .addStringOption(option =>
-      option.setName('option')
-        .setDescription('Select enable or disable')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Enable', value: 'enable' },
-          { name: 'Disable', value: 'disable' }
-        )),
+      option.setName('value')
+        .setDescription('Enter the value (on/off for enabled, number for delay/time)')
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -64,7 +60,7 @@ module.exports = {
 
     const serverId = parseInt(interaction.options.getString('server'));
     const configs = interaction.options.getString('configs');
-    const option = interaction.options.getString('option');
+    const value = interaction.options.getString('value');
     const guildId = interaction.guildId;
 
     try {
@@ -87,7 +83,25 @@ module.exports = {
 
       // Parse the config type and setting
       const [positionType, setting] = configs.split('_');
-      const isEnabled = option === 'enable';
+      
+      // Validate and parse the value
+      let parsedValue;
+      if (setting === 'enabled') {
+        const lowerValue = value.toLowerCase();
+        if (lowerValue !== 'on' && lowerValue !== 'off') {
+          return interaction.editReply({
+            embeds: [errorEmbed('Invalid Value', 'For enabled setting, use "on" or "off"')]
+          });
+        }
+        parsedValue = lowerValue === 'on';
+      } else if (setting === 'delay' || setting === 'time') {
+        parsedValue = parseInt(value);
+        if (isNaN(parsedValue) || parsedValue < 0) {
+          return interaction.editReply({
+            embeds: [errorEmbed('Invalid Value', `Please enter a valid number for ${setting}`)]
+          });
+        }
+      }
 
       // Check if position config exists for this server
       const existingResult = await pool.query(
@@ -102,13 +116,13 @@ module.exports = {
 
         if (setting === 'enabled') {
           updateQuery = 'UPDATE position_configs SET enabled = $1, updated_at = NOW() WHERE server_id = $2 AND position_type = $3';
-          updateValue = isEnabled;
+          updateValue = parsedValue;
         } else if (setting === 'delay') {
           updateQuery = 'UPDATE position_configs SET delay_seconds = $1, updated_at = NOW() WHERE server_id = $2 AND position_type = $3';
-          updateValue = isEnabled ? 5 : 0; // Default 5 seconds if enabled, 0 if disabled
+          updateValue = parsedValue;
         } else if (setting === 'time') {
           updateQuery = 'UPDATE position_configs SET cooldown_minutes = $1, updated_at = NOW() WHERE server_id = $2 AND position_type = $3';
-          updateValue = isEnabled ? 10 : 0; // Default 10 minutes if enabled, 0 if disabled
+          updateValue = parsedValue;
         }
 
         await pool.query(updateQuery, [updateValue, serverId, positionType]);
@@ -121,21 +135,21 @@ module.exports = {
           [
             serverId, 
             positionType, 
-            setting === 'enabled' ? isEnabled : true,
-            setting === 'delay' ? (isEnabled ? 5 : 0) : 5,
-            setting === 'time' ? (isEnabled ? 10 : 0) : 10
+            setting === 'enabled' ? parsedValue : true,
+            setting === 'delay' ? parsedValue : 5,
+            setting === 'time' ? parsedValue : 10
           ]
         );
       }
 
       const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
       const settingDisplayName = setting === 'enabled' ? 'Teleport' : 
-                                setting === 'delay' ? 'Delay' : 'Cooldown Time';
+                                setting === 'delay' ? 'Delay (seconds)' : 'Cooldown Time (minutes)';
 
       await interaction.editReply({
         embeds: [successEmbed(
           'Position Configuration Updated',
-          `**${positionDisplayName}** ${settingDisplayName} has been **${option}d** for **${serverName}**`
+          `**${positionDisplayName}** ${settingDisplayName} has been set to **${value}** for **${serverName}**`
         )]
       });
 
