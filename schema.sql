@@ -106,3 +106,15 @@ CREATE TABLE channel_settings (
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(server_id, channel_type)
 );
+
+CREATE TABLE position_coordinates (
+    id SERIAL PRIMARY KEY,
+    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    position_type TEXT NOT NULL,
+    x_pos TEXT,
+    y_pos TEXT,
+    z_pos TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(server_id, position_type)
+);
