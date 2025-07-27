@@ -1,4 +1,5 @@
 const { errorEmbed } = require('../embeds/format');
+const authConfig = require('../config/authorization');
 
 /**
  * Check if a user has the "Zentro Admin" role
@@ -44,6 +45,43 @@ async function ensureZentroAdminRole(guild) {
 }
 
 /**
+ * Check if guild was added through authorized invite
+ * @param {Guild} guild - The guild to check
+ * @returns {Promise<boolean>} - True if authorized, false otherwise
+ */
+async function isAuthorizedGuild(guild) {
+  // Option 1: Allow all guilds (current behavior)
+  if (authConfig.allowAllGuilds) {
+    return true;
+  }
+  
+  // Option 2: Check against hardcoded guild IDs
+  if (authConfig.authorizedGuildIds.includes(guild.id)) {
+    return true;
+  }
+  
+  // Option 3: Check environment variable
+  const envGuildIds = process.env.AUTHORIZED_GUILD_IDS?.split(',') || [];
+  if (envGuildIds.includes(guild.id)) {
+    return true;
+  }
+  
+  // Option 4: Check database table
+  if (authConfig.useDatabase) {
+    try {
+      const pool = require('../db');
+      const result = await pool.query('SELECT id FROM authorized_guilds WHERE discord_id = $1', [guild.id]);
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('Error checking database authorization:', error);
+      return false;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Send an access denied message for admin commands
  * @param {CommandInteraction} interaction - The interaction to reply to
  * @param {boolean} ephemeral - Whether the message should be ephemeral
@@ -61,9 +99,24 @@ async function sendAccessDeniedMessage(interaction, ephemeral = true) {
   }
 }
 
+/**
+ * Send an unauthorized guild message
+ * @param {CommandInteraction} interaction - The interaction to reply to
+ */
+async function sendUnauthorizedGuildMessage(interaction) {
+  const embed = errorEmbed(
+    'Unauthorized Server', 
+    'This server is not authorized to use Zentro Bot. Please contact the bot owner for access.'
+  );
+  
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
 module.exports = {
   hasZentroAdminRole,
   hasAdminPermissions,
   ensureZentroAdminRole,
-  sendAccessDeniedMessage
+  isAuthorizedGuild,
+  sendAccessDeniedMessage,
+  sendUnauthorizedGuildMessage
 }; 

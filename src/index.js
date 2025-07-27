@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { discordToken } = require('./config');
 const { startRconListeners } = require('./rcon');
-const { ensureZentroAdminRole } = require('./utils/permissions');
+const { ensureZentroAdminRole, isAuthorizedGuild, sendUnauthorizedGuildMessage } = require('./utils/permissions');
 const fs = require('fs');
 const path = require('path');
 
@@ -88,6 +88,22 @@ client.on('interactionCreate', async interaction => {
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
   
+  // Check if guild is authorized (except for player commands)
+  if (command.data.name.startsWith('add-') || command.data.name.startsWith('remove-') || 
+      command.data.name.startsWith('edit-') || command.data.name.startsWith('setup-') ||
+      command.data.name.startsWith('manage-') || command.data.name.startsWith('set-') ||
+      command.data.name.startsWith('channel-') || command.data.name.startsWith('eco-') ||
+      command.data.name.startsWith('autokits-') || command.data.name.startsWith('killfeed') ||
+      command.data.name.startsWith('view-') || command.data.name.startsWith('list-') ||
+      command.data.name.startsWith('open-') || command.data.name.startsWith('allow-') ||
+      command.data.name.startsWith('unlink')) {
+    
+    const isAuthorized = await isAuthorizedGuild(interaction.guild);
+    if (!isAuthorized) {
+      return sendUnauthorizedGuildMessage(interaction);
+    }
+  }
+  
   try {
     await command.execute(interaction);
   } catch (error) {
@@ -98,11 +114,24 @@ client.on('interactionCreate', async interaction => {
 
 // Handle bot joining new guilds
 client.on('guildCreate', async (guild) => {
-  console.log(`Bot joined new guild: ${guild.name}`);
+  console.log(`Bot joined new guild: ${guild.name} (ID: ${guild.id})`);
+  
+  // Check if this guild is authorized
+  const isAuthorized = await isAuthorizedGuild(guild);
+  
+  if (!isAuthorized) {
+    console.log(`Unauthorized guild attempted to add bot: ${guild.name} (ID: ${guild.id})`);
+    // You could leave the guild here if you want to be strict
+    // await guild.leave();
+    // console.log(`Left unauthorized guild: ${guild.name}`);
+    return;
+  }
+  
   try {
     await ensureZentroAdminRole(guild);
+    console.log(`Successfully set up Zentro Admin role in authorized guild: ${guild.name}`);
   } catch (error) {
-    console.error(`Failed to create Zentro Admin role in new guild ${guild.name}:`, error);
+    console.error(`Failed to create Zentro Admin role in guild ${guild.name}:`, error);
   }
 });
 
