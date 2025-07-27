@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const pool = require('../../db');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 
@@ -10,7 +10,19 @@ module.exports = {
       option.setName('server')
         .setDescription('Select the server')
         .setRequired(true)
-        .setAutocomplete(true)),
+        .setAutocomplete(true))
+    .addStringOption(option =>
+      option.setName('position')
+        .setDescription('Select position type')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Outpost', value: 'outpost' },
+          { name: 'BanditCamp', value: 'banditcamp' }
+        ))
+    .addStringOption(option =>
+      option.setName('coordinates')
+        .setDescription('Enter coordinates (format: X,Y,Z)')
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -41,6 +53,8 @@ module.exports = {
 
   async execute(interaction) {
     const serverId = parseInt(interaction.options.getString('server'));
+    const positionType = interaction.options.getString('position');
+    const coordinates = interaction.options.getString('coordinates');
     const guildId = interaction.guildId;
 
     try {
@@ -62,57 +76,64 @@ module.exports = {
 
       const serverName = serverResult.rows[0].nickname;
 
-      // Create modal with position type selection and coordinates
-      const modal = new ModalBuilder()
-        .setCustomId(`position_modal_${serverId}`)
-        .setTitle(`Position Coordinates - ${serverName}`);
+      // Parse coordinates
+      const coordParts = coordinates.split(',').map(coord => coord.trim());
+      if (coordParts.length !== 3) {
+        return interaction.reply({
+          embeds: [errorEmbed('Invalid Coordinates', 'Coordinates must be in format: X,Y,Z (e.g., 100.5,200.3,300.7)')],
+          ephemeral: true
+        });
+      }
 
-      // Position type input (Outpost or BanditCamp)
-      const positionTypeInput = new TextInputBuilder()
-        .setCustomId('position_type')
-        .setLabel('Position Type')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter: outpost OR banditcamp')
-        .setRequired(true);
+      const [xPos, yPos, zPos] = coordParts;
 
-      // X coordinate input
-      const xInput = new TextInputBuilder()
-        .setCustomId('x_position')
-        .setLabel('X Position')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter X coordinate')
-        .setRequired(false);
+      // Validate coordinates are valid numbers (including decimals)
+      const xNum = parseFloat(xPos);
+      const yNum = parseFloat(yPos);
+      const zNum = parseFloat(zPos);
 
-      // Y coordinate input
-      const yInput = new TextInputBuilder()
-        .setCustomId('y_position')
-        .setLabel('Y Position')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter Y coordinate')
-        .setRequired(false);
+      if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
+        return interaction.reply({
+          embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')],
+          ephemeral: true
+        });
+      }
 
-      // Z coordinate input
-      const zInput = new TextInputBuilder()
-        .setCustomId('z_position')
-        .setLabel('Z Position')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter Z coordinate')
-        .setRequired(false);
+      // Check if position coordinates exist
+      const existingResult = await pool.query(
+        'SELECT * FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
+        [serverId, positionType]
+      );
 
-      const firstActionRow = new ActionRowBuilder().addComponents(positionTypeInput);
-      const secondActionRow = new ActionRowBuilder().addComponents(xInput);
-      const thirdActionRow = new ActionRowBuilder().addComponents(yInput);
-      const fourthActionRow = new ActionRowBuilder().addComponents(zInput);
+      if (existingResult.rows.length > 0) {
+        // Update existing coordinates
+        await pool.query(
+          'UPDATE position_coordinates SET x_pos = $1, y_pos = $2, z_pos = $3, updated_at = NOW() WHERE server_id = $4 AND position_type = $5',
+          [xPos, yPos, zPos, serverId, positionType]
+        );
+      } else {
+        // Create new coordinates
+        await pool.query(
+          'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+          [serverId, positionType, xPos, yPos, zPos]
+        );
+      }
 
-      modal.addComponents(firstActionRow, secondActionRow, thirdActionRow, fourthActionRow);
+      const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'BanditCamp';
 
-      // Show modal immediately
-      await interaction.showModal(modal);
+      // Show confirmation message
+      await interaction.reply({
+        embeds: [successEmbed(
+          'Coordinates Updated',
+          `**${positionDisplayName}** coordinates have been set for **${serverName}**!\n\n**Coordinates:** X: ${xPos} | Y: ${yPos} | Z: ${zPos}\n\nCoordinates are now saved and will be used when players teleport to this position.`
+        )],
+        ephemeral: true
+      });
 
     } catch (error) {
       console.error('Error in manage-positions command:', error);
       await interaction.reply({
-        embeds: [errorEmbed('Error', 'Failed to load position management. Please try again.')],
+        embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')],
         ephemeral: true
       });
     }

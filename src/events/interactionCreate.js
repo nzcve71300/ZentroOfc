@@ -26,9 +26,7 @@ module.exports = {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
-        } else if (interaction.customId.startsWith('position_modal_')) {
-          await handlePositionModal(interaction);
-        }
+
         return;
       }
 
@@ -866,92 +864,4 @@ async function handleEditKitModal(interaction) {
 
 
 
-async function handlePositionModal(interaction) {
-  console.log('🔍 handlePositionModal called - customId:', interaction.customId);
-  
-  try {
-    await interaction.deferReply({ ephemeral: true });
-    console.log('✅ deferReply completed');
-    
-    const [, , serverId] = interaction.customId.split('_');
-    console.log('📊 Parsed serverId:', serverId);
-    
-    // Get position type from modal input
-    const positionType = interaction.fields.getTextInputValue('position_type').toLowerCase().trim();
-    const xPos = interaction.fields.getTextInputValue('x_position');
-    const yPos = interaction.fields.getTextInputValue('y_position');
-    const zPos = interaction.fields.getTextInputValue('z_position');
-    console.log('📊 Received data - Position Type:', positionType, 'X:', xPos, 'Y:', yPos, 'Z:', zPos);
-    
-    // Validate position type
-    if (positionType !== 'outpost' && positionType !== 'banditcamp') {
-      console.log('❌ Invalid position type detected:', positionType);
-      return interaction.editReply({
-        embeds: [errorEmbed('Invalid Position Type', 'Position type must be either "outpost" or "banditcamp".')]
-      });
-    }
-    
-    // Validate coordinates are valid numbers (including decimals)
-    const xNum = parseFloat(xPos);
-    const yNum = parseFloat(yPos);
-    const zNum = parseFloat(zPos);
-    console.log('📊 Parsed numbers - X:', xNum, 'Y:', yNum, 'Z:', zNum);
-    
-    if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
-      console.log('❌ Invalid coordinates detected');
-      return interaction.editReply({
-        embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')]
-      });
-    }
-    
-    console.log('🔍 Checking if position coordinates exist...');
-    // Check if position coordinates exist
-    const existingResult = await pool.query(
-      'SELECT * FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
-      [serverId, positionType]
-    );
-    console.log('✅ Existing check completed, rows found:', existingResult.rows.length);
-    
-    if (existingResult.rows.length > 0) {
-      // Update existing coordinates
-      console.log('🔄 Updating existing coordinates...');
-      await pool.query(
-        'UPDATE position_coordinates SET x_pos = $1, y_pos = $2, z_pos = $3, updated_at = NOW() WHERE server_id = $4 AND position_type = $5',
-        [xPos, yPos, zPos, serverId, positionType]
-      );
-      console.log('✅ Update completed');
-    } else {
-      // Create new coordinates
-      console.log('➕ Creating new coordinates...');
-      await pool.query(
-        'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
-        [serverId, positionType, xPos, yPos, zPos]
-      );
-      console.log('✅ Insert completed');
-    }
-    
-    const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'BanditCamp';
-    console.log('📝 Sending success response...');
-    
-    await interaction.editReply({
-      embeds: [successEmbed(
-        'Coordinates Updated',
-        `**${positionDisplayName}** coordinates have been set to:\n**X:** ${xPos} | **Y:** ${yPos} | **Z:** ${zPos}\n\nCoordinates are now saved and will be used when players teleport to this position.`
-      )]
-    });
-    console.log('✅ Success response sent');
-    
-  } catch (error) {
-    console.error('❌ Error in handlePositionModal:', error);
-    console.error('❌ Error stack:', error.stack);
-    try {
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')]
-      });
-      console.log('✅ Error response sent successfully');
-    } catch (replyError) {
-      console.error('❌ Failed to send error response:', replyError);
-      console.error('❌ Reply error stack:', replyError.stack);
-    }
-  }
-} 
+ 
