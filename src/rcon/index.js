@@ -413,9 +413,125 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
 }
 
 async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, port, password) {
-  // Implementation for teleport emotes
-  // This would handle bandit/outpost teleports
-  // Similar structure to kit emotes but with position lookups
+  try {
+    const msg = parsed.Message;
+    if (!msg) return;
+
+    // Get server ID
+    const serverResult = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.rows.length === 0) return;
+    
+    const serverId = serverResult.rows[0].id;
+
+    // Check for Outpost emote
+    if (msg.includes('d11_quick_chat_combat_slot_2')) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'outpost', player);
+      }
+    }
+
+    // Check for Bandit Camp emote
+    if (msg.includes('d11_quick_chat_combat_slot_0')) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'banditcamp', player);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error handling teleport emotes:', error);
+  }
+}
+
+async function handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, positionType, player) {
+  try {
+    // Get position configuration
+    const configResult = await pool.query(
+      'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = $1 AND position_type = $2',
+      [serverId, positionType]
+    );
+
+    if (configResult.rows.length === 0 || !configResult.rows[0].enabled) {
+      return; // Position teleport is not configured or disabled
+    }
+
+    const config = configResult.rows[0];
+
+    // Check cooldown
+    const cooldownKey = `${serverId}_${positionType}_${player}`;
+    const now = Date.now();
+    const lastTeleport = recentTeleports.get(cooldownKey) || 0;
+    const cooldownMs = config.cooldown_minutes * 60 * 1000;
+
+    if (now - lastTeleport < cooldownMs) {
+      const remainingMinutes = Math.ceil((cooldownMs - (now - lastTeleport)) / (60 * 1000));
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>please wait</color> <color=#800080>${remainingMinutes} minutes</color> <color=white>before teleporting again</color>`);
+      return;
+    }
+
+    // Get position coordinates
+    const coordResult = await pool.query(
+      'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
+      [serverId, positionType]
+    );
+
+    if (coordResult.rows.length === 0) {
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleport coordinates not configured</color>`);
+      return;
+    }
+
+    const coords = coordResult.rows[0];
+    const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
+
+    // If there's a delay, show countdown
+    if (config.delay_seconds > 0) {
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleporting to</color> <color=#800080>${positionDisplayName}</color> <color=white>in</color> <color=#800080>${config.delay_seconds} seconds</color>`);
+      
+      // Wait for delay
+      setTimeout(async () => {
+        // Check cooldown again after delay
+        const currentTime = Date.now();
+        if (currentTime - lastTeleport < cooldownMs) {
+          return; // Player used another teleport during delay
+        }
+
+        // Execute teleport
+        const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
+        sendRconCommand(ip, port, password, teleportCommand);
+        
+        // Send success message
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleported to</color> <color=#800080>${positionDisplayName}</color> <color=white>successfully</color>`);
+        
+        // Update cooldown
+        recentTeleports.set(cooldownKey, currentTime);
+        
+        // Send to admin feed
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
+        
+      }, config.delay_seconds * 1000);
+    } else {
+      // Execute teleport immediately
+      const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
+      sendRconCommand(ip, port, password, teleportCommand);
+      
+      // Send success message
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleported to</color> <color=#800080>${positionDisplayName}</color> <color=white>successfully</color>`);
+      
+      // Update cooldown
+      recentTeleports.set(cooldownKey, now);
+      
+      // Send to admin feed
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
+    }
+
+  } catch (error) {
+    console.error('Error handling position teleport:', error);
+  }
 }
 
 async function handleBookARide(client, guildId, serverName, parsed, ip, port, password) {

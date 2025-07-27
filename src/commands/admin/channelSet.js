@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-const { pool } = require('../../db');
+const pool = require('../../db');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 
 module.exports = {

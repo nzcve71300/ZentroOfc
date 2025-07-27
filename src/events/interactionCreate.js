@@ -1,4 +1,4 @@
-const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../embeds/format');
 const pool = require('../db');
 const { sendRconCommand } = require('../rcon');
@@ -26,6 +26,8 @@ module.exports = {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
+        } else if (interaction.customId.startsWith('position_modal_')) {
+          await handlePositionModal(interaction);
         }
         return;
       }
@@ -36,6 +38,8 @@ module.exports = {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
+        } else if (interaction.customId.startsWith('position_select_')) {
+          await handlePositionSelect(interaction);
         }
         return;
       }
@@ -855,6 +859,119 @@ async function handleEditKitModal(interaction) {
     console.error('Error updating kit:', error);
     await interaction.editReply({
       embeds: [errorEmbed('Error', 'Failed to update kit. Please try again.')]
+    });
+  }
+}
+
+async function handlePositionSelect(interaction) {
+  await interaction.deferUpdate();
+  
+  const serverId = interaction.customId.split('_')[2];
+  const positionType = interaction.values[0];
+  
+  try {
+    // Get current position data
+    const result = await pool.query(
+      'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
+      [serverId, positionType]
+    );
+    
+    const currentData = result.rows[0] || { x_pos: '', y_pos: '', z_pos: '' };
+    
+    // Create modal
+    const modal = new ModalBuilder()
+      .setCustomId(`position_modal_${serverId}_${positionType}`)
+      .setTitle(`${positionType === 'outpost' ? 'Outpost' : 'Bandit Camp'} Coordinates`);
+    
+    const xInput = new TextInputBuilder()
+      .setCustomId('x_position')
+      .setLabel('X Position')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter X coordinate')
+      .setValue(currentData.x_pos || '')
+      .setRequired(true);
+    
+    const yInput = new TextInputBuilder()
+      .setCustomId('y_position')
+      .setLabel('Y Position')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter Y coordinate')
+      .setValue(currentData.y_pos || '')
+      .setRequired(true);
+    
+    const zInput = new TextInputBuilder()
+      .setCustomId('z_position')
+      .setLabel('Z Position')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter Z coordinate')
+      .setValue(currentData.z_pos || '')
+      .setRequired(true);
+    
+    const firstActionRow = new ActionRowBuilder().addComponents(xInput);
+    const secondActionRow = new ActionRowBuilder().addComponents(yInput);
+    const thirdActionRow = new ActionRowBuilder().addComponents(zInput);
+    
+    modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
+    
+    await interaction.showModal(modal);
+    
+  } catch (error) {
+    console.error('Error creating position modal:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to create position modal. Please try again.')]
+    });
+  }
+}
+
+async function handlePositionModal(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+  
+  const [, , serverId, positionType] = interaction.customId.split('_');
+  const xPos = interaction.fields.getTextInputValue('x_position');
+  const yPos = interaction.fields.getTextInputValue('y_position');
+  const zPos = interaction.fields.getTextInputValue('z_position');
+  
+  // Validate coordinates are numbers
+  if (isNaN(xPos) || isNaN(yPos) || isNaN(zPos)) {
+    return interaction.editReply({
+      embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers.')]
+    });
+  }
+  
+  try {
+    // Check if position coordinates exist
+    const existingResult = await pool.query(
+      'SELECT * FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
+      [serverId, positionType]
+    );
+    
+    if (existingResult.rows.length > 0) {
+      // Update existing coordinates
+      await pool.query(
+        'UPDATE position_coordinates SET x_pos = $1, y_pos = $2, z_pos = $3, updated_at = NOW() WHERE server_id = $4 AND position_type = $5',
+        [xPos, yPos, zPos, serverId, positionType]
+      );
+    } else {
+      // Create new coordinates
+      await pool.query(
+        'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+        [serverId, positionType, xPos, yPos, zPos]
+      );
+    }
+    
+    const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
+    
+    await interaction.editReply({
+      embeds: [successEmbed(
+        'Coordinates Updated',
+        `**${positionDisplayName}** coordinates have been set to:\n**X:** ${xPos} | **Y:** ${yPos} | **Z:** ${zPos}`
+      )]
+    });
+    
+  } catch (error) {
+    console.error('Error saving position coordinates:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')]
     });
   }
 } 

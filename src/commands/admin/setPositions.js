@@ -1,0 +1,149 @@
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const pool = require('../../db');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('set-positions')
+    .setDescription('Configure position teleport settings')
+    .addStringOption(option =>
+      option.setName('server')
+        .setDescription('Select the server')
+        .setRequired(true)
+        .setAutocomplete(true))
+    .addStringOption(option =>
+      option.setName('configs')
+        .setDescription('Select the configuration to set')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Outpost - Set TP to work or not', value: 'outpost_enabled' },
+          { name: 'Outpost - Add delay in seconds', value: 'outpost_delay' },
+          { name: 'Outpost - Set time in minutes', value: 'outpost_time' },
+          { name: 'Banditcamp - Set TP to work or not', value: 'banditcamp_enabled' },
+          { name: 'Banditcamp - Add delay in seconds', value: 'banditcamp_delay' },
+          { name: 'Banditcamp - Set time in minutes', value: 'banditcamp_time' }
+        ))
+    .addStringOption(option =>
+      option.setName('option')
+        .setDescription('Select enable or disable')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Enable', value: 'enable' },
+          { name: 'Disable', value: 'disable' }
+        )),
+
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guildId;
+
+    try {
+      const result = await pool.query(
+        `SELECT rs.id, rs.nickname 
+         FROM rust_servers rs 
+         JOIN guilds g ON rs.guild_id = g.id 
+         WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
+         ORDER BY rs.nickname 
+         LIMIT 25`,
+        [guildId, `%${focusedValue}%`]
+      );
+
+      const choices = result.rows.map(row => ({
+        name: row.nickname,
+        value: row.id.toString()
+      }));
+
+      await interaction.respond(choices);
+    } catch (error) {
+      console.error('Error in set-positions autocomplete:', error);
+      await interaction.respond([]);
+    }
+  },
+
+  async execute(interaction) {
+    await interaction.deferReply();
+
+    const serverId = parseInt(interaction.options.getString('server'));
+    const configs = interaction.options.getString('configs');
+    const option = interaction.options.getString('option');
+    const guildId = interaction.guildId;
+
+    try {
+      // Verify server exists and belongs to this guild
+      const serverResult = await pool.query(
+        `SELECT rs.nickname 
+         FROM rust_servers rs 
+         JOIN guilds g ON rs.guild_id = g.id 
+         WHERE rs.id = $1 AND g.discord_id = $2`,
+        [serverId, guildId]
+      );
+
+      if (serverResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The selected server was not found in this guild.')]
+        });
+      }
+
+      const serverName = serverResult.rows[0].nickname;
+
+      // Parse the config type and setting
+      const [positionType, setting] = configs.split('_');
+      const isEnabled = option === 'enable';
+
+      // Check if position config exists for this server
+      const existingResult = await pool.query(
+        'SELECT * FROM position_configs WHERE server_id = $1 AND position_type = $2',
+        [serverId, positionType]
+      );
+
+      if (existingResult.rows.length > 0) {
+        // Update existing config
+        let updateQuery;
+        let updateValue;
+
+        if (setting === 'enabled') {
+          updateQuery = 'UPDATE position_configs SET enabled = $1, updated_at = NOW() WHERE server_id = $2 AND position_type = $3';
+          updateValue = isEnabled;
+        } else if (setting === 'delay') {
+          updateQuery = 'UPDATE position_configs SET delay_seconds = $1, updated_at = NOW() WHERE server_id = $2 AND position_type = $3';
+          updateValue = isEnabled ? 5 : 0; // Default 5 seconds if enabled, 0 if disabled
+        } else if (setting === 'time') {
+          updateQuery = 'UPDATE position_configs SET cooldown_minutes = $1, updated_at = NOW() WHERE server_id = $2 AND position_type = $3';
+          updateValue = isEnabled ? 10 : 0; // Default 10 minutes if enabled, 0 if disabled
+        }
+
+        await pool.query(updateQuery, [updateValue, serverId, positionType]);
+      } else {
+        // Create new config
+        await pool.query(
+          `INSERT INTO position_configs 
+           (server_id, position_type, enabled, delay_seconds, cooldown_minutes, created_at, updated_at) 
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+          [
+            serverId, 
+            positionType, 
+            setting === 'enabled' ? isEnabled : true,
+            setting === 'delay' ? (isEnabled ? 5 : 0) : 5,
+            setting === 'time' ? (isEnabled ? 10 : 0) : 10
+          ]
+        );
+      }
+
+      const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
+      const settingDisplayName = setting === 'enabled' ? 'Teleport' : 
+                                setting === 'delay' ? 'Delay' : 'Cooldown Time';
+
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Position Configuration Updated',
+          `**${positionDisplayName}** ${settingDisplayName} has been **${option}d** for **${serverName}**`
+        )]
+      });
+
+    } catch (error) {
+      console.error('Error in set-positions command:', error);
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to update position configuration. Please try again.')]
+      });
+    }
+  }
+}; 
