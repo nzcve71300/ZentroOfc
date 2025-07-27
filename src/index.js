@@ -36,6 +36,7 @@ loadCommands(path.join(__dirname, 'commands'));
 
 client.once('ready', () => {
   console.log(`Zentro Bot is online as ${client.user.tag}`);
+  console.log('🚀 Bot startup complete - Latest code version loaded');
   
   // Start RCON listeners after bot is ready
   startRconListeners(client);
