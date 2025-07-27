@@ -31,8 +31,8 @@ async function ensureZentroAdminRole(guild) {
     try {
       role = await guild.roles.create({
         name: 'Zentro Admin',
-        color: '#FF6B35', // Orange color
-        reason: 'Zentro Bot admin role for managing bot features'
+        color: 0xFF6B35,
+        reason: 'Zentro Bot admin role'
       });
       console.log(`Created Zentro Admin role in guild: ${guild.name}`);
     } catch (error) {
@@ -88,14 +88,16 @@ async function isAuthorizedGuild(guild) {
  */
 async function sendAccessDeniedMessage(interaction, ephemeral = true) {
   const embed = errorEmbed(
-    'Access Denied', 
-    'You need the "Zentro Admin" role or Administrator permissions to use this command.'
+    'Access Denied',
+    'You need the **Zentro Admin** role or **Administrator** permission to use this command.'
   );
   
-  if (ephemeral) {
-    await interaction.reply({ embeds: [embed], ephemeral: true });
-  } else {
+  if (interaction.deferred) {
     await interaction.editReply({ embeds: [embed] });
+  } else if (interaction.replied) {
+    await interaction.followUp({ embeds: [embed], ephemeral });
+  } else {
+    await interaction.reply({ embeds: [embed], ephemeral });
   }
 }
 
@@ -105,11 +107,17 @@ async function sendAccessDeniedMessage(interaction, ephemeral = true) {
  */
 async function sendUnauthorizedGuildMessage(interaction) {
   const embed = errorEmbed(
-    'Unauthorized Server', 
+    'Unauthorized Server',
     'This server is not authorized to use Zentro Bot. Please contact the bot owner for access.'
   );
   
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  if (interaction.deferred) {
+    await interaction.editReply({ embeds: [embed] });
+  } else if (interaction.replied) {
+    await interaction.followUp({ embeds: [embed], ephemeral: true });
+  } else {
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
 }
 
 module.exports = {

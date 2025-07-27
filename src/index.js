@@ -88,16 +88,15 @@ client.on('interactionCreate', async interaction => {
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
   
-  // Check if guild is authorized (except for player commands and authorization management commands)
-  if ((command.data.name.startsWith('add-') || command.data.name.startsWith('remove-') || 
+  // Check if guild is authorized (except for player commands)
+  if (command.data.name.startsWith('add-') || command.data.name.startsWith('remove-') || 
       command.data.name.startsWith('edit-') || command.data.name.startsWith('setup-') ||
       command.data.name.startsWith('manage-') || command.data.name.startsWith('set-') ||
       command.data.name.startsWith('channel-') || command.data.name.startsWith('eco-') ||
       command.data.name.startsWith('autokits-') || command.data.name.startsWith('killfeed') ||
       command.data.name.startsWith('view-') || command.data.name.startsWith('list-') ||
       command.data.name.startsWith('open-') || command.data.name.startsWith('allow-') ||
-      command.data.name.startsWith('unlink')) &&
-      command.data.name !== 'authorize-server' && command.data.name !== 'list-authorized-servers') {
+      command.data.name.startsWith('unlink')) {
     
     const isAuthorized = await isAuthorizedGuild(interaction.guild);
     if (!isAuthorized) {
