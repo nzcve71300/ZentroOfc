@@ -873,13 +873,23 @@ async function handlePositionModal(interaction) {
     await interaction.deferReply({ ephemeral: true });
     console.log('✅ deferReply completed');
     
-    const [, , serverId, positionType] = interaction.customId.split('_');
-    console.log('📊 Parsed serverId:', serverId, 'positionType:', positionType);
+    const [, , serverId] = interaction.customId.split('_');
+    console.log('📊 Parsed serverId:', serverId);
     
+    // Get position type from modal input
+    const positionType = interaction.fields.getTextInputValue('position_type').toLowerCase().trim();
     const xPos = interaction.fields.getTextInputValue('x_position');
     const yPos = interaction.fields.getTextInputValue('y_position');
     const zPos = interaction.fields.getTextInputValue('z_position');
-    console.log('📊 Received coordinates - X:', xPos, 'Y:', yPos, 'Z:', zPos);
+    console.log('📊 Received data - Position Type:', positionType, 'X:', xPos, 'Y:', yPos, 'Z:', zPos);
+    
+    // Validate position type
+    if (positionType !== 'outpost' && positionType !== 'banditcamp') {
+      console.log('❌ Invalid position type detected:', positionType);
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid Position Type', 'Position type must be either "outpost" or "banditcamp".')]
+      });
+    }
     
     // Validate coordinates are valid numbers (including decimals)
     const xNum = parseFloat(xPos);

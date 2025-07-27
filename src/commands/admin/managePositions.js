@@ -10,15 +10,7 @@ module.exports = {
       option.setName('server')
         .setDescription('Select the server')
         .setRequired(true)
-        .setAutocomplete(true))
-    .addStringOption(option =>
-      option.setName('positions')
-        .setDescription('Select position type')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Outpost', value: 'outpost' },
-          { name: 'BanditCamp', value: 'banditcamp' }
-        )),
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -49,7 +41,6 @@ module.exports = {
 
   async execute(interaction) {
     const serverId = parseInt(interaction.options.getString('server'));
-    const positionType = interaction.options.getString('positions');
     const guildId = interaction.guildId;
 
     try {
@@ -71,50 +62,49 @@ module.exports = {
 
       const serverName = serverResult.rows[0].nickname;
 
-      // Get current position data if it exists
-      const currentDataResult = await pool.query(
-        `SELECT x_pos, y_pos, z_pos 
-         FROM position_coordinates 
-         WHERE server_id = $1 AND position_type = $2`,
-        [serverId, positionType]
-      );
-
-      const currentData = currentDataResult.rows[0] || { x_pos: '', y_pos: '', z_pos: '' };
-
-      // Create modal
+      // Create modal with position type selection and coordinates
       const modal = new ModalBuilder()
-        .setCustomId(`position_modal_${serverId}_${positionType}`)
-        .setTitle(`${positionType === 'outpost' ? 'Outpost' : 'BanditCamp'} Coordinates`);
+        .setCustomId(`position_modal_${serverId}`)
+        .setTitle(`Position Coordinates - ${serverName}`);
 
+      // Position type input (Outpost or BanditCamp)
+      const positionTypeInput = new TextInputBuilder()
+        .setCustomId('position_type')
+        .setLabel('Position Type')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Enter: outpost OR banditcamp')
+        .setRequired(true);
+
+      // X coordinate input
       const xInput = new TextInputBuilder()
         .setCustomId('x_position')
         .setLabel('X Position')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('Enter X coordinate')
-        .setValue(currentData.x_pos || '')
         .setRequired(false);
 
+      // Y coordinate input
       const yInput = new TextInputBuilder()
         .setCustomId('y_position')
         .setLabel('Y Position')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('Enter Y coordinate')
-        .setValue(currentData.y_pos || '')
         .setRequired(false);
 
+      // Z coordinate input
       const zInput = new TextInputBuilder()
         .setCustomId('z_position')
         .setLabel('Z Position')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('Enter Z coordinate')
-        .setValue(currentData.z_pos || '')
         .setRequired(false);
 
-      const firstActionRow = new ActionRowBuilder().addComponents(xInput);
-      const secondActionRow = new ActionRowBuilder().addComponents(yInput);
-      const thirdActionRow = new ActionRowBuilder().addComponents(zInput);
+      const firstActionRow = new ActionRowBuilder().addComponents(positionTypeInput);
+      const secondActionRow = new ActionRowBuilder().addComponents(xInput);
+      const thirdActionRow = new ActionRowBuilder().addComponents(yInput);
+      const fourthActionRow = new ActionRowBuilder().addComponents(zInput);
 
-      modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
+      modal.addComponents(firstActionRow, secondActionRow, thirdActionRow, fourthActionRow);
 
       // Show modal immediately
       await interaction.showModal(modal);
