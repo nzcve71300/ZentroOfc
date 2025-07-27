@@ -37,6 +37,13 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
+    // Check if user has administrator permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
     const serverOption = interaction.options.getString('server');
     const guildId = interaction.guildId;
 

@@ -56,6 +56,13 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply();
 
+    // Check if user has administrator permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
     const serverId = parseInt(interaction.options.getString('server'));
     const channel = interaction.options.getChannel('channel');
     const channelType = interaction.options.getString('channel_type');

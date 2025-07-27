@@ -58,6 +58,13 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply();
 
+    // Check if user has administrator permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
     const serverId = parseInt(interaction.options.getString('server'));
     const configs = interaction.options.getString('configs');
     const value = interaction.options.getString('value');

@@ -52,6 +52,14 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Check if user has administrator permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.reply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')],
+        ephemeral: true
+      });
+    }
+
     const serverId = parseInt(interaction.options.getString('server'));
     const positionType = interaction.options.getString('position');
     const coordinates = interaction.options.getString('coordinates');

@@ -47,6 +47,13 @@ module.exports = {
     // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
 
+    // Check if user has administrator permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Access Denied', 'You need administrator permissions to use this command.')]
+      });
+    }
+
     const serverNickname = interaction.options.getString('server');
     const playerName = interaction.options.getString('player_name');
     const amount = interaction.options.getInteger('amount');
