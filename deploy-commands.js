@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const commands = [];
-const commandsPath = './src/commands';
+const commandsPath = path.join(__dirname, 'src', 'commands');
 
 // Check if commands directory exists
 if (!fs.existsSync(commandsPath)) {
@@ -17,7 +17,7 @@ const commandFolders = fs.readdirSync(commandsPath);
 console.log('Found command folders:', commandFolders);
 
 for (const folder of commandFolders) {
-  const folderPath = `${commandsPath}/${folder}`;
+  const folderPath = path.join(commandsPath, folder);
   if (!fs.statSync(folderPath).isDirectory()) continue;
   
   const commandFiles = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
