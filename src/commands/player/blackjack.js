@@ -12,27 +12,37 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Check if player has balance on any server
-      const balanceResult = await pool.query(
-        `SELECT rs.nickname, e.balance 
+      // Check if player is linked to any server
+      const linkedResult = await pool.query(
+        `SELECT p.id as player_id
          FROM players p
-         JOIN economy e ON p.id = e.player_id
          JOIN rust_servers rs ON p.server_id = rs.id
          JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2 AND e.balance > 0
-         ORDER BY e.balance DESC
+         WHERE p.discord_id = $1 AND g.discord_id = $2
          LIMIT 1`,
         [userId, guildId]
       );
 
-      if (balanceResult.rows.length === 0) {
+      if (linkedResult.rows.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')],
           ephemeral: true
         });
       }
 
-      const { nickname, balance } = balanceResult.rows[0];
+      // Get Discord balance (single balance for all servers)
+      const balanceResult = await pool.query(
+        `SELECT e.balance
+         FROM players p
+         JOIN economy e ON p.id = e.player_id
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2
+         LIMIT 1`,
+        [userId, guildId]
+      );
+
+      const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance || 0 : 0;
 
       // Create modal for bet amount
       const modal = new ModalBuilder()

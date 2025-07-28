@@ -12,6 +12,8 @@ module.exports = {
         .setRequired(true)
         .setAutocomplete(true)),
 
+
+
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
@@ -58,16 +60,18 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverName = serverResult.rows[0].nickname;
 
-      // Get player's balance for this specific server (requires linking)
-      const balanceResult = await pool.query(
-        `SELECT e.balance, p.id as player_id, p.ign
+      // Check if player is linked to any server
+      const linkedResult = await pool.query(
+        `SELECT p.id as player_id, p.ign
          FROM players p
-         JOIN economy e ON p.id = e.player_id
-         WHERE p.discord_id = $1 AND p.server_id = $2`,
-        [userId, serverId]
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2
+         LIMIT 1`,
+        [userId, guildId]
       );
 
-      if (balanceResult.rows.length === 0) {
+      if (linkedResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed(
             'Account Not Linked',
@@ -76,8 +80,20 @@ module.exports = {
         });
       }
 
-      const balance = balanceResult.rows[0].balance || 0;
-      const playerId = balanceResult.rows[0].player_id;
+      // Get Discord balance (single balance for all servers)
+      const balanceResult = await pool.query(
+        `SELECT e.balance
+         FROM players p
+         JOIN economy e ON p.id = e.player_id
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2
+         LIMIT 1`,
+        [userId, guildId]
+      );
+
+      const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance || 0 : 0;
+      const playerId = linkedResult.rows[0].player_id;
 
       // Get shop categories for this specific server
       const categoriesResult = await pool.query(

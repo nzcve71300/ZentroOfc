@@ -6,34 +6,14 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('view-autokits-configs')
-    .setDescription('View all autokit configurations for a server')
-    .addStringOption(option =>
-      option.setName('server')
-        .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true)),
+    .setDescription('View all autokit configurations for all servers')
+    .addIntegerOption(option =>
+      option.setName('page')
+        .setDescription('Page number to view (default: 1)')
+        .setRequired(false)
+        .setMinValue(1)),
 
-  async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guildId;
 
-    try {
-      const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
-        [guildId, `%${focusedValue}%`]
-      );
-
-      const choices = result.rows.map(row => ({
-        name: row.nickname,
-        value: row.nickname
-      }));
-
-      await interaction.respond(choices);
-    } catch (error) {
-      console.error('Autocomplete error:', error);
-      await interaction.respond([]);
-    }
-  },
 
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
@@ -43,80 +23,117 @@ module.exports = {
       return sendAccessDeniedMessage(interaction, false);
     }
 
-    const serverOption = interaction.options.getString('server');
+    const page = interaction.options.getInteger('page') || 1;
     const guildId = interaction.guildId;
+    const itemsPerPage = 3; // Show 3 servers per page
 
     try {
-      // Get server info
-      const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverOption]
+      // Get all servers for this guild
+      const serversResult = await pool.query(
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 ORDER BY rs.nickname',
+        [guildId]
       );
 
-      if (serverResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
-        });
-      }
-
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
-
-      // Get all autokit configurations for this server
-      const autokitsResult = await pool.query(
-        'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 ORDER BY kit_name',
-        [serverId]
-      );
-
-      if (autokitsResult.rows.length === 0) {
+      if (serversResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             '📋 Autokit Configurations',
-            `**Server:** ${serverName}\n\nNo autokit configurations found.\n\nUse \`/autokits-setup\` to configure autokits.`
+            'No servers found in this guild.\n\nUse `/setup-server` to add servers first.'
           )]
+        });
+      }
+
+      // Calculate pagination
+      const totalServers = serversResult.rows.length;
+      const totalPages = Math.ceil(totalServers / itemsPerPage);
+      const startIndex = (page - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const serversOnPage = serversResult.rows.slice(startIndex, endIndex);
+
+      if (page > totalPages) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Invalid Page', `Page ${page} does not exist. There are ${totalPages} total pages.`)]
         });
       }
 
       // Create embed
       const embed = orangeEmbed(
         '📋 Autokit Configurations',
-        `**Server:** ${serverName}\n\n**Configured Kits:**`
+        `**Page ${page} of ${totalPages}**\n**Total Servers:** ${totalServers}\n\n**Server Configurations:**`
       );
 
-      // Define expected kit names in order
-      const expectedKits = ['FREEkit1', 'FREEkit2', 'VIPkit', 'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5'];
-      
-      // Create a map of existing configurations
-      const configMap = {};
-      autokitsResult.rows.forEach(row => {
-        configMap[row.kit_name] = row;
-      });
+      // Process each server on this page
+      for (const server of serversOnPage) {
+        // Get all autokit configurations for this server
+        const autokitsResult = await pool.query(
+          'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 ORDER BY kit_name',
+          [server.id]
+        );
 
-      // Show all expected kits, even if not configured
-      for (const kitName of expectedKits) {
-        const config = configMap[kitName];
+        // Define expected kit names in order
+        const expectedKits = ['FREEkit1', 'FREEkit2', 'VIPkit', 'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5'];
         
-        if (config) {
-          const status = config.enabled ? '🟢' : '🔴';
-          const cooldownText = config.cooldown > 0 ? `${config.cooldown}m` : 'No cooldown';
+        // Create a map of existing configurations
+        const configMap = {};
+        autokitsResult.rows.forEach(row => {
+          configMap[row.kit_name] = row;
+        });
+
+        // Count configured kits
+        let configuredCount = 0;
+        let enabledCount = 0;
+        for (const kitName of expectedKits) {
+          if (configMap[kitName]) {
+            configuredCount++;
+            if (configMap[kitName].enabled) {
+              enabledCount++;
+            }
+          }
+        }
+
+        // Add server summary
+        embed.addFields({
+          name: `🏠 ${server.nickname}`,
+          value: `**Configured:** ${configuredCount}/8 kits\n**Enabled:** ${enabledCount} kits\n**Status:** ${configuredCount > 0 ? '🟢 Configured' : '⚪ Not configured'}`,
+          inline: false
+        });
+
+        // Add detailed kit information for this server
+        for (const kitName of expectedKits) {
+          const config = configMap[kitName];
           
+          if (config) {
+            const status = config.enabled ? '🟢' : '🔴';
+            const cooldownText = config.cooldown > 0 ? `${config.cooldown}m` : 'No cooldown';
+            
+            embed.addFields({
+              name: `${status} ${kitName}`,
+              value: `**Server:** ${server.nickname}\n**Status:** ${config.enabled ? 'Enabled' : 'Disabled'}\n**Cooldown:** ${cooldownText}\n**Kit Name:** ${config.game_name}`,
+              inline: true
+            });
+          }
+        }
+
+        // Add separator between servers
+        if (server !== serversOnPage[serversOnPage.length - 1]) {
           embed.addFields({
-            name: `${status} ${kitName}`,
-            value: `**Status:** ${config.enabled ? 'Enabled' : 'Disabled'}\n**Cooldown:** ${cooldownText}\n**Kit Name:** ${config.game_name}`,
-            inline: true
-          });
-        } else {
-          embed.addFields({
-            name: `⚪ ${kitName}`,
-            value: '**Status:** Not configured\n**Cooldown:** N/A\n**Kit Name:** N/A',
-            inline: true
+            name: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            value: '',
+            inline: false
           });
         }
       }
 
+      // Add pagination info
+      embed.addFields({
+        name: '📄 Navigation',
+        value: `Use \`/view-autokits-configs page:${page > 1 ? page - 1 : 1}\` for previous page\nUse \`/view-autokits-configs page:${page < totalPages ? page + 1 : totalPages}\` for next page`,
+        inline: false
+      });
+
       embed.addFields({
         name: '💡 Configuration',
-        value: 'Use `/autokits-setup` to configure these kits.',
+        value: 'Use `/autokits-setup` to configure kits for specific servers.',
         inline: false
       });
 

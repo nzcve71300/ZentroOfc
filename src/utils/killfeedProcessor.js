@@ -222,11 +222,9 @@ class KillfeedProcessor {
         await this.processVictimDeath(sanitizedVictim, serverId);
 
       } else if (isNPCorAnimal) {
-        // NPC/Animal kill - decrease stats (penalty)
-        const newKills = Math.max(0, killerStats.kills - 1); // Don't go below 0
+        // NPC/Animal kill - NO CHANGE to KD (as per requirements)
+        // Only update last kill time, don't affect kills/deaths
         await this.updatePlayerStats(killerPlayerId, {
-          kills: newKills,
-          kill_streak: 0, // Reset streak
           last_kill_time: new Date()
         });
       }
@@ -253,7 +251,7 @@ class KillfeedProcessor {
       const victimPlayerId = victimResult.rows[0].id;
       const victimStats = await this.getOrCreatePlayerStats(victimPlayerId);
 
-      // Update victim stats
+      // Update victim stats (all deaths count)
       await this.updatePlayerStats(victimPlayerId, {
         deaths: victimStats.deaths + 1,
         kill_streak: 0 // Reset streak on death

@@ -22,6 +22,8 @@ module.exports = {
         .setRequired(true)
         .setMinValue(1)),
 
+
+
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
@@ -36,6 +38,12 @@ module.exports = {
         name: row.nickname,
         value: row.nickname
       }));
+
+      // Add "All" option
+      choices.unshift({
+        name: 'All Servers',
+        value: 'ALL'
+      });
 
       await interaction.respond(choices);
     } catch (error) {
@@ -59,7 +67,84 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get server ID
+      // Handle "ALL" servers option
+      if (serverNickname === 'ALL') {
+        // Get all servers for this guild
+        const allServersResult = await pool.query(
+          'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1',
+          [guildId]
+        );
+
+        if (allServersResult.rows.length === 0) {
+          return interaction.editReply({
+            embeds: [errorEmbed('No Servers Found', 'No servers found in this guild.')]
+          });
+        }
+
+        let totalRemoved = 0;
+        const results = [];
+
+        // Process each server
+        for (const server of allServersResult.rows) {
+          try {
+            // Get player record by in-game name
+            const playerResult = await pool.query(
+              'SELECT id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2',
+              [playerName, server.id]
+            );
+
+            if (playerResult.rows.length === 0) {
+              results.push(`${server.nickname}: Player not found`);
+              continue;
+            }
+
+            const playerId = playerResult.rows[0].id;
+
+            // Get current balance
+            const economyResult = await pool.query(
+              'SELECT balance FROM economy WHERE player_id = $1',
+              [playerId]
+            );
+
+            if (economyResult.rows.length === 0) {
+              results.push(`${server.nickname}: No balance`);
+              continue;
+            }
+
+            const currentBalance = parseInt(economyResult.rows[0].balance || 0);
+            const newBalance = Math.max(0, currentBalance - amount);
+
+            // Update balance
+            await pool.query(
+              'UPDATE economy SET balance = $1 WHERE player_id = $2',
+              [newBalance, playerId]
+            );
+
+            // Record transaction
+            await pool.query(
+              'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
+              [playerId, -amount, 'admin_remove']
+            );
+
+            totalRemoved += (currentBalance - newBalance);
+            results.push(`${server.nickname}: ${newBalance} coins`);
+          } catch (error) {
+            console.error(`Error processing server ${server.nickname}:`, error);
+            results.push(`${server.nickname}: Error`);
+          }
+        }
+
+        await interaction.editReply({
+          embeds: [successEmbed(
+            'Currency Removed from All Servers',
+            `Removed **${amount} coins** from **${playerName}** on **${allServersResult.rows.length} servers**.\n\n**Total Removed:** ${totalRemoved} coins\n\n**Results:**\n${results.join('\n')}`
+          )]
+        });
+
+        return;
+      }
+
+      // Single server processing
       const serverResult = await pool.query(
         'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
         [guildId, serverNickname]

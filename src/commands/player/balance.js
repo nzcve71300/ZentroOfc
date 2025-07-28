@@ -14,11 +14,10 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get all servers and balances for this player
-      const balanceResult = await pool.query(
-        `SELECT rs.nickname, e.balance, p.ign
+      // Check if player is linked to any server
+      const linkedResult = await pool.query(
+        `SELECT p.ign, rs.nickname
          FROM players p
-         JOIN economy e ON p.id = e.player_id
          JOIN rust_servers rs ON p.server_id = rs.id
          JOIN guilds g ON rs.guild_id = g.id
          WHERE p.discord_id = $1 AND g.discord_id = $2
@@ -26,7 +25,7 @@ module.exports = {
         [userId, guildId]
       );
 
-      if (balanceResult.rows.length === 0) {
+      if (linkedResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed(
             'Account Not Linked',
@@ -35,26 +34,36 @@ module.exports = {
         });
       }
 
-      // Calculate total balance
-      const totalBalance = balanceResult.rows.reduce((sum, row) => sum + (row.balance || 0), 0);
+      // Get single Discord balance (not per-server)
+      const balanceResult = await pool.query(
+        `SELECT e.balance
+         FROM players p
+         JOIN economy e ON p.id = e.player_id
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2
+         LIMIT 1`,
+        [userId, guildId]
+      );
+
+      const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance || 0 : 0;
 
       // Create embed
       const embed = orangeEmbed(
-        '💰 Balance Overview',
-        `**Total Balance:** ${totalBalance} coins\n\n**Balance by Server:**`
+        'Balance Overview',
+        `**Total Balance:** ${balance} coins\n\n**Linked Servers:**`
       );
 
-      for (const row of balanceResult.rows) {
-        const ign = row.ign || 'Not linked';
+      for (const row of linkedResult.rows) {
         embed.addFields({
-          name: `🏠 ${row.nickname}`,
-          value: `**Balance:** ${row.balance || 0} coins\n**IGN:** ${ign}`,
+          name: `${row.nickname}`,
+          value: `Balance: ${balance} coins`,
           inline: true
         });
       }
 
       embed.addFields({
-        name: '💡 Tips',
+        name: 'Tips',
         value: '• Use `/daily` to claim daily rewards\n• Play `/blackjack` or `/slots` to earn more coins\n• Use `/shop` to spend your coins',
         inline: false
       });
