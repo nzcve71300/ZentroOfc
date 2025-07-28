@@ -27,21 +27,21 @@ module.exports = {
     const ign = interaction.options.getString('in-game-name');
 
     try {
-      // Check if Discord ID is blocked
-      const isBlocked = await isDiscordIdBlocked(guildId, discordId);
-      if (isBlocked) {
-        return await interaction.editReply({
-          embeds: [errorEmbed('Account Blocked', 'Your Discord account is blocked from linking. Contact an admin.')]
-        });
-      }
+      // TEMPORARILY DISABLED: Check if Discord ID is blocked
+      // const isBlocked = await isDiscordIdBlocked(guildId, discordId);
+      // if (isBlocked) {
+      //   return await interaction.editReply({
+      //     embeds: [errorEmbed('Account Blocked', 'Your Discord account is blocked from linking. Contact an admin.')]
+      //   });
+      // }
 
-      // Check if IGN is blocked
-      const isIgnBlockedResult = await isIgnBlocked(guildId, ign);
-      if (isIgnBlockedResult) {
-        return await interaction.editReply({
-          embeds: [errorEmbed('IGN Blocked', 'This in-game name is blocked from linking. Contact an admin.')]
-        });
-      }
+      // TEMPORARILY DISABLED: Check if IGN is blocked
+      // const isIgnBlockedResult = await isIgnBlocked(guildId, ign);
+      // if (isIgnBlockedResult) {
+      //   return await interaction.editReply({
+      //     embeds: [errorEmbed('IGN Blocked', 'This in-game name is blocked from linking. Contact an admin.')]
+      //   });
+      // }
 
       // Get all servers for this guild
       const servers = await getServersForGuild(guildId);

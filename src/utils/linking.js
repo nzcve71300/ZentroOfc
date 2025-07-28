@@ -2,24 +2,30 @@ const pool = require('../db');
 
 /**
  * Check if a Discord ID is blocked from linking
+ * TEMPORARILY DISABLED - returns false
  */
 async function isDiscordIdBlocked(guildId, discordId) {
-  const result = await pool.query(
-    'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND discord_id = $2 AND is_active = true',
-    [guildId, discordId]
-  );
-  return result.rows.length > 0;
+  // TEMPORARILY DISABLED - table doesn't exist
+  // const result = await pool.query(
+  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND discord_id = $2 AND is_active = true',
+  //   [guildId, discordId]
+  // );
+  // return result.rows.length > 0;
+  return false;
 }
 
 /**
  * Check if an IGN is blocked from linking
+ * TEMPORARILY DISABLED - returns false
  */
 async function isIgnBlocked(guildId, ign) {
-  const result = await pool.query(
-    'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND LOWER(ign) = LOWER($2) AND is_active = true',
-    [guildId, ign]
-  );
-  return result.rows.length > 0;
+  // TEMPORARILY DISABLED - table doesn't exist
+  // const result = await pool.query(
+  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND LOWER(ign) = LOWER($2) AND is_active = true',
+  //   [guildId, ign]
+  // );
+  // return result.rows.length > 0;
+  return false;
 }
 
 /**
