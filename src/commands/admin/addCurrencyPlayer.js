@@ -67,7 +67,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get server ID
+      // Single server processing
       const serverResult = await pool.query(
         'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
         [guildId, serverNickname]

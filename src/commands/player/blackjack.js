@@ -38,24 +38,32 @@ module.exports = {
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
     const serverName = interaction.options.getString('server');
-    // Check if player is linked to this server
-    const linkedResult = await pool.query(
-      `SELECT p.id as player_id, rs.id as server_id
+    // Get balance for the selected server
+    const balanceResult = await pool.query(
+      `SELECT e.balance, p.id as player_id
        FROM players p
+       JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
-       JOIN guilds g ON rs.guild_id = g.id
-       WHERE p.discord_id = $1 AND g.discord_id = $2 AND rs.nickname = $3
+       WHERE p.discord_id = $1 AND rs.nickname = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
        LIMIT 1`,
-      [userId, guildId, serverName]
+      [userId, serverName, guildId]
     );
-    if (linkedResult.rows.length === 0) {
-      return interaction.reply({
-        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character on this server first.\n\nUse `/link <in-game-name>` to link your account before using this command.')],
-        ephemeral: true
+
+    if (balanceResult.rows.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed(
+          'Account Not Linked',
+          'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
+        )]
       });
     }
-    const playerId = linkedResult.rows[0].player_id;
-    const serverId = linkedResult.rows[0].server_id;
+
+    const balance = balanceResult.rows[0].balance || 0;
+    const playerId = balanceResult.rows[0].player_id;
+    const serverId = (await pool.query(
+      `SELECT id FROM rust_servers WHERE nickname = $1 AND guild_id = (SELECT id FROM guilds WHERE discord_id = $2)`,
+      [serverName, guildId]
+    )).rows[0].id;
     // Create modal for bet amount, encode serverId in customId
     const modal = new ModalBuilder()
       .setCustomId(`blackjack_bet_${serverId}`)

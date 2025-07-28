@@ -202,16 +202,15 @@ async function handleShopCategorySelect(interaction) {
       kits = kitsResult.rows;
     }
 
-    // Get player balance
+    // Get player balance for the specific server
     const balanceResult = await pool.query(
       `SELECT e.balance
        FROM players p
        JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
-       JOIN guilds g ON rs.guild_id = g.id
-       WHERE p.discord_id = $1 AND g.discord_id = $2
+       WHERE p.discord_id = $1 AND rs.id = $2
        LIMIT 1`,
-      [userId, interaction.guildId]
+      [userId, server_id]
     );
 
     const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;

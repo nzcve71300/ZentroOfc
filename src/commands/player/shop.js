@@ -80,19 +80,27 @@ module.exports = {
         });
       }
 
-      // Get Discord balance (single balance for all servers)
+      // Get balance for the selected server
       const balanceResult = await pool.query(
         `SELECT e.balance
          FROM players p
          JOIN economy e ON p.id = e.player_id
          JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
+         WHERE p.discord_id = $1 AND rs.nickname = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
          LIMIT 1`,
-        [userId, guildId]
+        [userId, serverOption, guildId]
       );
 
-      const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance || 0 : 0;
+      if (balanceResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed(
+            'Account Not Linked',
+            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
+          )]
+        });
+      }
+
+      const balance = balanceResult.rows[0].balance || 0;
       const playerId = linkedResult.rows[0].player_id;
 
       // Get shop categories for this specific server
