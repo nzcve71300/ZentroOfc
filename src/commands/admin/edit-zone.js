@@ -45,7 +45,7 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     try {
       const zoneName = interaction.options.getString('zone_name');
@@ -58,6 +58,13 @@ module.exports = {
       const minTeam = interaction.options.getInteger('min_team');
       const maxTeam = interaction.options.getInteger('max_team');
 
+      // Validate zoneName is provided
+      if (!zoneName || zoneName.trim() === '') {
+        return interaction.editReply({
+          embeds: [errorEmbed('**Error:** Zone name is required.')]
+        });
+      }
+
       // Get zone from database
       const zoneResult = await pool.query(`
         SELECT z.*, rs.ip, rs.port, rs.password, rs.nickname
@@ -69,7 +76,7 @@ module.exports = {
 
       if (zoneResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Zone not found or not accessible in this guild.')]
+          embeds: [errorEmbed(`**Error:** Zone "${zoneName}" not found or missing.`)]
         });
       }
 
@@ -131,8 +138,10 @@ module.exports = {
       if (size !== null) {
         try {
           const position = zone.position;
-          const newZoneCommand = `zones.createcustomzone "${zoneName}" (${position.x},${position.y},${position.z}) 0 Sphere ${size} 0 0 0 0 0`;
-          await sendRconCommand(zone.ip, zone.port, zone.password, newZoneCommand);
+          if (position && position.x !== undefined && position.y !== undefined && position.z !== undefined) {
+            const newZoneCommand = `zones.createcustomzone "${zoneName}" (${position.x},${position.y},${position.z}) 0 Sphere ${size} 0 0 0 0 0`;
+            await sendRconCommand(zone.ip, zone.port, zone.password, newZoneCommand);
+          }
         } catch (rconError) {
           console.error('RCON error updating zone size:', rconError);
           // Continue with the response even if RCON fails
@@ -142,7 +151,7 @@ module.exports = {
       // Update color if changed
       if (colorOnline !== null || colorOffline !== null) {
         try {
-          const newColor = colorOnline || zone.color_online;
+          const newColor = colorOnline || zone.color_online || '0,255,0';
           await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zoneName}" color (${newColor})`);
         } catch (rconError) {
           console.error('RCON error updating zone color:', rconError);

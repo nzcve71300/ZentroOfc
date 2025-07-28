@@ -32,7 +32,7 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     try {
       const size = interaction.options.getInteger('size');

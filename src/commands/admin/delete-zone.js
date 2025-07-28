@@ -13,10 +13,17 @@ module.exports = {
         .setRequired(true)),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     try {
       const zoneName = interaction.options.getString('zone_name');
+
+      // Validate zoneName is provided
+      if (!zoneName || zoneName.trim() === '') {
+        return interaction.editReply({
+          embeds: [errorEmbed('**Error:** Zone name is required.')]
+        });
+      }
 
       // Get zone from database
       const zoneResult = await pool.query(`
@@ -29,7 +36,7 @@ module.exports = {
 
       if (zoneResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Zone not found or not accessible in this guild.')]
+          embeds: [errorEmbed(`**Error:** Zone "${zoneName}" not found or missing.`)]
         });
       }
 
@@ -47,9 +54,14 @@ module.exports = {
       await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
 
       const embed = successEmbed(`**Success:** Zone **${zoneName}** has been deleted.`);
+      
+      // Ensure all values are valid strings before adding to embed
+      const owner = zone.owner || 'Unknown';
+      const createdAt = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
+      
       embed.addFields({
         name: 'Zone Details',
-        value: `**Owner:** ${zone.owner}\n**Created:** <t:${Math.floor(new Date(zone.created_at).getTime() / 1000)}:R>`,
+        value: `**Owner:** ${owner}\n**Created:** <t:${createdAt}:R>`,
         inline: true
       });
 

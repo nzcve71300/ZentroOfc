@@ -8,7 +8,7 @@ module.exports = {
     .setDescription('List all active ZORP zones'),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     try {
       // Get all zones for this guild
@@ -32,23 +32,29 @@ module.exports = {
       // Group zones by server
       const zonesByServer = {};
       for (const zone of zonesResult.rows) {
-        if (!zonesByServer[zone.nickname]) {
-          zonesByServer[zone.nickname] = [];
+        const serverName = zone.nickname || 'Unknown Server';
+        if (!zonesByServer[serverName]) {
+          zonesByServer[serverName] = [];
         }
-        zonesByServer[zone.nickname].push(zone);
+        zonesByServer[serverName].push(zone);
       }
 
       for (const [serverName, zones] of Object.entries(zonesByServer)) {
         let serverZones = `**${serverName}** (${zones.length} zones):\n`;
         
         for (const zone of zones) {
-          const createdTime = Math.floor(new Date(zone.created_at).getTime() / 1000);
-          const expireTime = createdTime + zone.expire;
+          const createdTime = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
+          const expireTime = createdTime + (zone.expire || 115200);
           const teamSize = zone.team ? JSON.parse(zone.team).length : 1;
+          const maxTeam = zone.max_team || 8;
+          const owner = zone.owner || 'Unknown';
+          const size = zone.size || 75;
+          const colorOnline = zone.color_online || '0,255,0';
+          const colorOffline = zone.color_offline || '255,0,0';
           
-          serverZones += `• **${zone.name}** - Owner: ${zone.owner} (Team: ${teamSize}/${zone.max_team})\n`;
+          serverZones += `• **${zone.name}** - Owner: ${owner} (Team: ${teamSize}/${maxTeam})\n`;
           serverZones += `  Created: <t:${createdTime}:R> | Expires: <t:${expireTime}:R>\n`;
-          serverZones += `  Size: ${zone.size} | Colors: ${zone.color_online}/${zone.color_offline}\n\n`;
+          serverZones += `  Size: ${size} | Colors: ${colorOnline}/${colorOffline}\n\n`;
         }
         
         // Split if too long
