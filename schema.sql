@@ -21,6 +21,44 @@ CREATE TABLE players (
     ign TEXT
 );
 
+-- New linking system tables
+CREATE TABLE player_links (
+    id SERIAL PRIMARY KEY,
+    guild_id INT REFERENCES guilds(id) ON DELETE CASCADE,
+    discord_id VARCHAR(32) NOT NULL,
+    ign TEXT NOT NULL,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
+    linked_at TIMESTAMP DEFAULT NOW(),
+    unlinked_at TIMESTAMP NULL,
+    is_active BOOLEAN DEFAULT true,
+    UNIQUE(guild_id, discord_id, server_id)
+);
+
+CREATE TABLE link_requests (
+    id SERIAL PRIMARY KEY,
+    guild_id INT REFERENCES guilds(id) ON DELETE CASCADE,
+    discord_id VARCHAR(32) NOT NULL,
+    ign TEXT NOT NULL,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
+    requested_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '1 hour'),
+    status TEXT DEFAULT 'pending', -- 'pending', 'confirmed', 'expired', 'cancelled'
+    UNIQUE(guild_id, discord_id, server_id)
+);
+
+CREATE TABLE link_blocks (
+    id SERIAL PRIMARY KEY,
+    guild_id INT REFERENCES guilds(id) ON DELETE CASCADE,
+    discord_id VARCHAR(32) NULL,
+    ign TEXT NULL,
+    blocked_at TIMESTAMP DEFAULT NOW(),
+    blocked_by VARCHAR(32) NOT NULL,
+    reason TEXT,
+    is_active BOOLEAN DEFAULT true,
+    -- Either discord_id or ign must be provided, but not both
+    CHECK ((discord_id IS NOT NULL AND ign IS NULL) OR (discord_id IS NULL AND ign IS NOT NULL))
+);
+
 CREATE TABLE economy (
     id SERIAL PRIMARY KEY,
     player_id INT REFERENCES players(id) ON DELETE CASCADE,

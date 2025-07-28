@@ -506,68 +506,41 @@ async function handleLinkConfirm(interaction) {
   const [, , guildId, discordId, ign] = interaction.customId.split('_');
   
   try {
-    // Get guild database ID
-    const guildResult = await pool.query(
-      'SELECT id FROM guilds WHERE discord_id = $1',
-      [guildId]
-    );
-
-    if (guildResult.rows.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Error', 'Guild not found.')],
-        components: []
-      });
-    }
-
-    const guildDbId = guildResult.rows[0].id;
-
-    // Get all servers in this guild
-    const serversResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = $1',
-      [guildDbId]
-    );
-
-    if (serversResult.rows.length === 0) {
+    const { confirmLinkRequest, getServersForGuild } = require('../utils/linking');
+    
+    // Get all servers for this guild
+    const servers = await getServersForGuild(guildId);
+    
+    if (servers.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('No Servers', 'No servers found in this guild.')],
         components: []
       });
     }
 
-    // Create player records for all servers
-    for (const server of serversResult.rows) {
-      // Check if player already exists for this server
-      const existingPlayer = await pool.query(
-        'SELECT id FROM players WHERE discord_id = $1 AND server_id = $2',
-        [discordId, server.id]
-      );
-
-      if (existingPlayer.rows.length === 0) {
-        // Create player record
-        await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ($1, $2, $3, $4)',
-          [guildDbId, server.id, discordId, ign]
-        );
-
-        // Create economy record with 0 balance
-        const playerResult = await pool.query(
-          'SELECT id FROM players WHERE discord_id = $1 AND server_id = $2',
-          [discordId, server.id]
-        );
-
-        if (playerResult.rows.length > 0) {
-          await pool.query(
-            'INSERT INTO economy (player_id, balance) VALUES ($1, 0)',
-            [playerResult.rows[0].id]
-          );
-        }
+    // Confirm link for all servers
+    const linkedServers = [];
+    for (const server of servers) {
+      try {
+        await confirmLinkRequest(guildId, discordId, ign, server.id);
+        linkedServers.push(server.nickname);
+      } catch (error) {
+        console.error(`Failed to link to server ${server.nickname}:`, error);
       }
     }
 
+    if (linkedServers.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Link Failed', 'Failed to link account to any servers. Please try again.')],
+        components: []
+      });
+    }
+
+    const serverList = linkedServers.join(', ');
     await interaction.editReply({
       embeds: [successEmbed(
         'Account Linked',
-        `Your Discord account has been successfully linked to **${ign}**!\n\nYou can now use \`/daily\` to claim your daily rewards and participate in the economy.`
+        `Your Discord account has been successfully linked to **${ign}**!\n\n**Linked to servers:** ${serverList}\n\nYou can now use \`/daily\` to claim your daily rewards and participate in the economy.`
       )],
       components: []
     });
