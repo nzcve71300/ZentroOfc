@@ -956,10 +956,28 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     // Get player's team info
     const teamInfo = await getPlayerTeam(serverId, playerName);
     
+    // Get server defaults for ZORP configuration
+    const defaultsResult = await pool.query(
+      'SELECT size, color_online, color_offline, radiation, delay, expire, min_team, max_team FROM zorp_defaults WHERE server_id = $1',
+      [serverId]
+    );
+
+    // Use defaults if available, otherwise use hardcoded defaults
+    const defaults = defaultsResult.rows.length > 0 ? defaultsResult.rows[0] : {
+      size: 75,
+      color_online: '0,255,0',
+      color_offline: '255,0,0',
+      radiation: 0,
+      delay: 0,
+      expire: 115200,
+      min_team: 1,
+      max_team: 8
+    };
+
     // Check team size limits
     const teamSize = teamInfo ? teamInfo.length : 1;
-    const minTeam = 1; // Default minimum
-    const maxTeam = 8; // Default maximum
+    const minTeam = defaults.min_team;
+    const maxTeam = defaults.max_team;
 
     if (teamSize < minTeam) {
       await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Please create a team</color>`);
@@ -1002,31 +1020,31 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const timestamp = Date.now();
     const zoneName = `ZORP_${timestamp}`;
 
-    // Create zone in-game
-    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere 75 0 0 0 0 0`;
+    // Create zone in-game using server defaults
+    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${defaults.size} 0 0 0 0 0`;
     await sendRconCommand(ip, port, password, zoneCommand);
 
-    // Set zone to green immediately
-    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (0,255,0)`);
+    // Set zone to online color immediately
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (${defaults.color_online})`);
 
     // Set zone enter/leave messages
     await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" showchatmessage 1`);
     await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" entermessage "You entered ${playerName} Zorp"`);
     await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" leavemessage "You left ${playerName} Zorp"`);
 
-    // Save to database
+    // Save to database using server defaults
     const zoneData = {
       server_id: serverId,
       name: zoneName,
       owner: playerName,
       team: teamInfo,
       position: { x: coords[0], y: coords[1], z: coords[2] },
-      size: 75,
-      color_online: '0,255,0',
-      color_offline: '255,0,0',
-      radiation: 0,
-      delay: 0,
-      expire: 115200,
+      size: defaults.size,
+      color_online: defaults.color_online,
+      color_offline: defaults.color_offline,
+      radiation: defaults.radiation,
+      delay: defaults.delay,
+      expire: defaults.expire,
       min_team: minTeam,
       max_team: maxTeam
     };
