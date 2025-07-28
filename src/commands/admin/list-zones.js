@@ -1,0 +1,82 @@
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
+const pool = require('../../db');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('list-zones')
+    .setDescription('List all active ZORP zones'),
+
+  async execute(interaction) {
+    await interaction.deferReply();
+
+    try {
+      // Get all zones for this guild
+      const zonesResult = await pool.query(`
+        SELECT z.*, rs.nickname
+        FROM zones z
+        JOIN rust_servers rs ON z.server_id = rs.id
+        JOIN guilds g ON rs.guild_id = g.id
+        WHERE g.discord_id = $1
+        ORDER BY z.created_at DESC
+      `, [interaction.guildId]);
+
+      if (zonesResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [orangeEmbed('No active ZORP zones found in this guild.')]
+        });
+      }
+
+      const embed = orangeEmbed(`**Active ZORP Zones** (${zonesResult.rows.length} total)`);
+      
+      // Group zones by server
+      const zonesByServer = {};
+      for (const zone of zonesResult.rows) {
+        if (!zonesByServer[zone.nickname]) {
+          zonesByServer[zone.nickname] = [];
+        }
+        zonesByServer[zone.nickname].push(zone);
+      }
+
+      for (const [serverName, zones] of Object.entries(zonesByServer)) {
+        let serverZones = `**${serverName}** (${zones.length} zones):\n`;
+        
+        for (const zone of zones) {
+          const createdTime = Math.floor(new Date(zone.created_at).getTime() / 1000);
+          const expireTime = createdTime + zone.expire;
+          const teamSize = zone.team ? JSON.parse(zone.team).length : 1;
+          
+          serverZones += `• **${zone.name}** - Owner: ${zone.owner} (Team: ${teamSize}/${zone.max_team})\n`;
+          serverZones += `  Created: <t:${createdTime}:R> | Expires: <t:${expireTime}:R>\n`;
+          serverZones += `  Size: ${zone.size} | Colors: ${zone.color_online}/${zone.color_offline}\n\n`;
+        }
+        
+        // Split if too long
+        if (serverZones.length > 1024) {
+          const parts = serverZones.match(/.{1,1024}/g) || [];
+          for (let i = 0; i < parts.length; i++) {
+            embed.addFields({
+              name: i === 0 ? serverName : `${serverName} (continued)`,
+              value: parts[i],
+              inline: false
+            });
+          }
+        } else {
+          embed.addFields({
+            name: serverName,
+            value: serverZones,
+            inline: false
+          });
+        }
+      }
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      console.error('Error listing zones:', error);
+      await interaction.editReply({
+        embeds: [errorEmbed('An error occurred while listing zones.')]
+      });
+    }
+  },
+}; 

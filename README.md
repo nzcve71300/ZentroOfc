@@ -158,6 +158,12 @@ RCON_DEFAULT_PASSWORD=your-rcon-password
 - `/add-shop-category` - Create shop categories
 - `/add-shop-item` - Add items to shop
 - `/set-currency` - Set currency name
+- `/set-events` - Configure Bradley/Helicopter events
+- `/view-events` - View event configurations
+- `/edit-zone` - Edit ZORP zone settings
+- `/delete-zone` - Delete a ZORP zone
+- `/list-zones` - List all active ZORP zones
+- `/zorp-config` - Configure ZORP defaults
 
 ### Player Commands
 - `/balance` - Show balance across servers
@@ -181,6 +187,136 @@ pm2 stop zentro-bot
 # Monitor
 pm2 monit
 ```
+
+## ZORP (Zone Offline Raid Protection) System
+
+### Overview
+The ZORP system allows players to create protected zones using in-game emotes. Zones automatically expire after 32 hours and can be managed through Discord commands.
+
+### In-Game Usage
+Players can create zones by using the emote: `d11_quick_chat_questions_slot_1`
+
+**Zone Creation Process:**
+1. Player uses the ZORP emote in-game
+2. System checks team size (min: 1, max: 8)
+3. Gets player position using `printpos`
+4. Creates sphere zone with 75 unit radius
+5. Sends confirmation message to player
+
+**Zone Properties:**
+- **Size:** 75 units (default)
+- **Shape:** Sphere
+- **Online Color:** Green (0,255,0)
+- **Offline Color:** Red (255,0,0)
+- **Expiration:** 32 hours (115200 seconds)
+- **Team Limits:** 1-8 players
+
+### Discord Admin Commands
+
+#### `/edit-zone <zone_name> [options]`
+Edit zone configuration settings.
+
+**Parameters:**
+- `zone_name`: Name of the zone to edit
+- `size`: Zone size (default: 75)
+- `color_online`: Online color (R,G,B format)
+- `color_offline`: Offline color (R,G,B format)
+- `radiation`: Radiation level (default: 0)
+- `delay`: Delay in seconds (default: 0)
+- `expire`: Expiration time in seconds
+- `min_team`: Minimum team size
+- `max_team`: Maximum team size
+
+**Examples:**
+```
+/edit-zone ZORP_1234567890 size 100
+/edit-zone ZORP_1234567890 color_online "255,255,0"
+/edit-zone ZORP_1234567890 expire 86400
+```
+
+#### `/delete-zone <zone_name>`
+Delete a ZORP zone from both game and database.
+
+**Parameters:**
+- `zone_name`: Name of the zone to delete
+
+**Examples:**
+```
+/delete-zone ZORP_1234567890
+```
+
+#### `/list-zones`
+List all active ZORP zones in the guild.
+
+**Examples:**
+```
+/list-zones
+```
+
+#### `/zorp-config [options]`
+View and configure ZORP default settings.
+
+**Parameters:**
+- `size`: Default zone size
+- `color_online`: Default online color
+- `color_offline`: Default offline color
+- `expire`: Default expiration time
+- `min_team`: Default minimum team size
+- `max_team`: Default maximum team size
+
+**Examples:**
+```
+/zorp-config
+/zorp-config size 100 expire 86400
+```
+
+### Database Schema
+The ZORP system uses the `zones` table:
+
+```sql
+CREATE TABLE zones (
+    id SERIAL PRIMARY KEY,
+    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    team JSONB,
+    position JSONB,
+    size INTEGER DEFAULT 75,
+    color_online TEXT DEFAULT '0,255,0',
+    color_offline TEXT DEFAULT '255,0,0',
+    radiation INTEGER DEFAULT 0,
+    delay INTEGER DEFAULT 0,
+    expire INTEGER DEFAULT 115200,
+    min_team INTEGER DEFAULT 1,
+    max_team INTEGER DEFAULT 8,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Setup Instructions
+
+1. **Database Migration:**
+   ```bash
+   psql -d your_database -f add_zones_table.sql
+   ```
+
+2. **Deploy Commands:**
+   ```bash
+   node deploy-commands.js
+   ```
+
+3. **Configuration:**
+   - Zones are created automatically when players use the ZORP emote
+   - Use Discord commands to manage existing zones
+   - Expired zones are automatically cleaned up every 5 minutes
+
+### Troubleshooting
+
+- **Zone not created:** Check if player has valid team size (1-8 players)
+- **Position errors:** Ensure player is in a valid location
+- **RCON errors:** Verify server connection and permissions
+- **Database errors:** Run the migration script to create the zones table
 
 ## Troubleshooting
 

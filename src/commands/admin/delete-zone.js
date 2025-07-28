@@ -1,0 +1,60 @@
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
+const pool = require('../../db');
+const { sendRconCommand } = require('../../rcon');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('delete-zone')
+    .setDescription('Delete a ZORP zone')
+    .addStringOption(option =>
+      option.setName('zone_name')
+        .setDescription('Name of the zone to delete')
+        .setRequired(true)),
+
+  async execute(interaction) {
+    await interaction.deferReply();
+
+    try {
+      const zoneName = interaction.options.getString('zone_name');
+
+      // Get zone from database
+      const zoneResult = await pool.query(`
+        SELECT z.*, rs.ip, rs.port, rs.password, rs.nickname
+        FROM zones z
+        JOIN rust_servers rs ON z.server_id = rs.id
+        JOIN guilds g ON rs.guild_id = g.id
+        WHERE g.discord_id = $1 AND z.name = $2
+      `, [interaction.guildId, zoneName]);
+
+      if (zoneResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Zone not found or not accessible in this guild.')]
+        });
+      }
+
+      const zone = zoneResult.rows[0];
+
+      // Delete from game
+      await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zoneName}"`);
+      
+      // Delete from database
+      await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
+
+      const embed = successEmbed(`Zone **${zoneName}** deleted successfully from server **${zone.nickname}**!`);
+      embed.addFields({
+        name: 'Zone Details',
+        value: `**Owner:** ${zone.owner}\n**Created:** <t:${Math.floor(new Date(zone.created_at).getTime() / 1000)}:R>`,
+        inline: true
+      });
+
+      await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+      console.error('Error deleting zone:', error);
+      await interaction.editReply({
+        embeds: [errorEmbed('An error occurred while deleting the zone.')]
+      });
+    }
+  },
+}; 

@@ -41,6 +41,9 @@ const BOOKARIDE_CHOICES = {
   rhib: 'd11_quick_chat_responses_slot_1',
 };
 
+// ZORP constants
+const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
+
 function startRconListeners(client) {
   refreshConnections(client);
   setInterval(() => {
@@ -50,6 +53,7 @@ function startRconListeners(client) {
   setInterval(() => flushJoinLeaveBuffers(client), 60000);
   setInterval(() => flushKillFeedBuffers(client), 60000);
   setInterval(() => checkAllEvents(client), 60000); // Check for events every 60 seconds (reduced frequency)
+  setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
 }
 
 async function refreshConnections(client) {
@@ -146,6 +150,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle note panel
       await handleNotePanel(client, guildId, serverName, msg, ip, port, password);
+
+      // Handle ZORP emote
+      await handleZorpEmote(client, guildId, serverName, parsed, ip, port, password);
 
     } catch (err) {
       console.error('RCON listener error:', err);
@@ -875,6 +882,187 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
     }
   } catch (error) {
     console.error(`[EVENT] Error checking Helicopter event on ${serverName}:`, error.message);
+  }
+}
+
+// ZORP System Functions
+async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const msg = parsed.Message;
+    if (!msg) return;
+
+    // Check for ZORP emote
+    if (msg.includes(ZORP_EMOTE)) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        console.log(`[ZORP] Emote detected for player: ${player} on server: ${serverName}`);
+        await createZorpZone(client, guildId, serverName, ip, port, password, player);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling ZORP emote:', error);
+  }
+}
+
+async function createZorpZone(client, guildId, serverName, ip, port, password, playerName) {
+  try {
+    console.log(`[ZORP] Creating zone for player: ${playerName} on server: ${serverName}`);
+
+    // Get server ID
+    const serverResult = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.rows.length === 0) {
+      console.log(`[ZORP] Server not found: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult.rows[0].id;
+
+    // Get player's team info
+    const teamInfo = await getPlayerTeam(serverId, playerName);
+    
+    // Check team size limits
+    const teamSize = teamInfo ? teamInfo.length : 1;
+    const minTeam = 1; // Default minimum
+    const maxTeam = 8; // Default maximum
+
+    if (teamSize < minTeam) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Please create a team</color>`);
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>you are under the minimum team limit</color>`);
+      console.log(`[ZORP] Team size too small for ${playerName}: ${teamSize} < ${minTeam}`);
+      return;
+    }
+
+    if (teamSize > maxTeam) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>you are over the team limit</color>`);
+      console.log(`[ZORP] Team size too large for ${playerName}: ${teamSize} > ${maxTeam}`);
+      return;
+    }
+
+    // Get player position
+    const position = await sendRconCommand(ip, port, password, `printpos ${playerName}`);
+    
+    if (!position || !position.includes(',')) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Failed to get position</color>`);
+      console.log(`[ZORP] Failed to get position for ${playerName}`);
+      return;
+    }
+
+    // Parse position
+    const posMatch = position.match(/\(([^)]+)\)/);
+    if (!posMatch) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Invalid position format</color>`);
+      console.log(`[ZORP] Invalid position format for ${playerName}: ${position}`);
+      return;
+    }
+
+    const coords = posMatch[1].split(',').map(c => parseFloat(c.trim()));
+    if (coords.length !== 3) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Invalid coordinates</color>`);
+      console.log(`[ZORP] Invalid coordinates for ${playerName}: ${coords}`);
+      return;
+    }
+
+    // Create zone name with timestamp
+    const timestamp = Date.now();
+    const zoneName = `ZORP_${timestamp}`;
+
+    // Create zone in-game
+    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere 75 0 0 0 0 0`;
+    await sendRconCommand(ip, port, password, zoneCommand);
+
+    // Save to database
+    const zoneData = {
+      server_id: serverId,
+      name: zoneName,
+      owner: playerName,
+      team: teamInfo,
+      position: { x: coords[0], y: coords[1], z: coords[2] },
+      size: 75,
+      color_online: '0,255,0',
+      color_offline: '255,0,0',
+      radiation: 0,
+      delay: 0,
+      expire: 115200,
+      min_team: minTeam,
+      max_team: maxTeam
+    };
+
+    await pool.query(`
+      INSERT INTO zones (server_id, name, owner, team, position, size, color_online, color_offline, radiation, delay, expire, min_team, max_team)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `, [
+      zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
+      JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline,
+      zoneData.radiation, zoneData.delay, zoneData.expire, zoneData.min_team, zoneData.max_team
+    ]);
+
+    // Send success message
+    await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
+
+    // Log to admin feed
+    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🛡️ **ZORP Zone Created:** ${playerName} created zone ${zoneName}`);
+
+    console.log(`[ZORP] Zone created successfully for ${playerName}: ${zoneName}`);
+
+  } catch (error) {
+    console.error('Error creating ZORP zone:', error);
+  }
+}
+
+async function getPlayerTeam(serverId, playerName) {
+  try {
+    // This is a simplified team lookup - you may need to implement actual team detection
+    // For now, we'll return the player as a single-member team
+    return [playerName];
+  } catch (error) {
+    console.error('Error getting player team:', error);
+    return [playerName];
+  }
+}
+
+async function updateZoneColor(zoneName, color, ip, port, password) {
+  try {
+    const colorCommand = `zones.editcustomzone "${zoneName}" color (${color})`;
+    await sendRconCommand(ip, port, password, colorCommand);
+    console.log(`[ZORP] Updated zone ${zoneName} color to ${color}`);
+  } catch (error) {
+    console.error(`Error updating zone color for ${zoneName}:`, error);
+  }
+}
+
+async function deleteExpiredZones(client) {
+  try {
+    const result = await pool.query(`
+      SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
+      FROM zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.created_at + INTERVAL '1 second' * z.expire < NOW()
+    `);
+
+    for (const zone of result.rows) {
+      try {
+        // Delete from game
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
+        
+        // Delete from database
+        await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
+        
+        console.log(`[ZORP] Deleted expired zone: ${zone.name}`);
+        
+        // Send to admin feed
+        await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'adminfeed', `🗑️ **ZORP Zone Expired:** ${zone.name} (owned by ${zone.owner})`);
+        
+      } catch (error) {
+        console.error(`Error deleting expired zone ${zone.name}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Error checking expired zones:', error);
   }
 }
 
