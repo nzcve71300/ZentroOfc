@@ -82,23 +82,22 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverName = serverResult.rows[0].nickname;
 
-      // Check if player exists by in-game name for this server
+      // Check if player exists by in-game name for this server and is linked
       let playerResult = await pool.query(
-        'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2',
+        'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2 AND discord_id IS NOT NULL',
         [playerName, serverId]
       );
 
-      let playerId;
       if (playerResult.rows.length === 0) {
-        // Create player record with the provided in-game name for this server
-        const newPlayerResult = await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) RETURNING id',
-          [guildId, serverId, null, playerName]
-        );
-        playerId = newPlayerResult.rows[0].id;
-      } else {
-        playerId = playerResult.rows[0].id;
+        return interaction.editReply({
+          embeds: [orangeEmbed(
+            'Player Not Linked',
+            'This player is not linked. They must use /link before currency can be added.'
+          )]
+        });
       }
+
+      const playerId = playerResult.rows[0].id;
 
       // Check if economy record exists
       let economyResult = await pool.query(

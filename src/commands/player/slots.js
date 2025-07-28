@@ -54,7 +54,7 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverNickname = serverResult.rows[0].nickname;
 
-      // Get balance for the selected server
+      // Get balance for the selected server, only for linked players
       const balanceResult = await pool.query(
         `SELECT e.balance, p.id as player_id
          FROM players p
@@ -66,7 +66,7 @@ module.exports = {
 
       if (balanceResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed(
+          embeds: [orangeEmbed(
             'Account Not Linked',
             'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
           )]
