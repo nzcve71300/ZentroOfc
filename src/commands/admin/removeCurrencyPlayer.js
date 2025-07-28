@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economyHelpers');
+const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economy');
 
 module.exports = {
   data: new SlashCommandBuilder()

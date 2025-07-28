@@ -9,6 +9,15 @@ async function getServerByNickname(guildId, nickname) {
   return result.rows[0] || null;
 }
 
+// Get server by ID for a specific guild
+async function getServerById(guildId, serverId) {
+  const result = await pool.query(
+    'SELECT rs.id, rs.nickname, rs.ip, rs.port, rs.password FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.id = $2',
+    [guildId, serverId]
+  );
+  return result.rows[0] || null;
+}
+
 // Get player by IGN for a specific server
 async function getPlayerByIGN(guildId, serverId, ign) {
   const result = await pool.query(
@@ -56,11 +65,49 @@ async function recordTransaction(playerId, amount, type) {
   );
 }
 
+// Get player balance for a specific server
+async function getPlayerBalance(guildId, serverNickname, discordId) {
+  const result = await pool.query(
+    `SELECT e.balance, p.id as player_id
+     FROM players p
+     JOIN economy e ON p.id = e.player_id
+     JOIN rust_servers rs ON p.server_id = rs.id
+     WHERE p.discord_id = $1 AND rs.nickname = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
+     LIMIT 1`,
+    [discordId, serverNickname, guildId]
+  );
+  
+  if (result.rows.length === 0) {
+    return null;
+  }
+  
+  return {
+    balance: parseInt(result.rows[0].balance || 0),
+    playerId: result.rows[0].player_id
+  };
+}
+
+// Get all servers for a guild (for autocomplete)
+async function getServersForGuild(guildId, searchTerm = '') {
+  const result = await pool.query(
+    'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 ORDER BY nickname LIMIT 25',
+    [guildId, `%${searchTerm}%`]
+  );
+  
+  return result.rows.map(row => ({
+    name: row.nickname,
+    value: row.nickname
+  }));
+}
+
 module.exports = {
   getServerByNickname,
+  getServerById,
   getPlayerByIGN,
   getLinkedPlayer,
   ensureEconomyRecord,
   updateBalance,
-  recordTransaction
+  recordTransaction,
+  getPlayerBalance,
+  getServersForGuild
 };
