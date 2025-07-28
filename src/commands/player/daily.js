@@ -40,9 +40,7 @@ module.exports = {
         `SELECT e.balance
          FROM players p
          JOIN economy e ON p.id = e.player_id
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
+         WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
          LIMIT 1`,
         [userId, guildId]
       );

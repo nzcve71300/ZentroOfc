@@ -600,24 +600,27 @@ async function handleBlackjackBet(interaction) {
   try {
     // Check player balance
     const balanceResult = await pool.query(
-      `SELECT rs.nickname, e.balance, p.id as player_id
+      `SELECT e.balance, p.id as player_id
        FROM players p
        JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       JOIN guilds g ON rs.guild_id = g.id
-       WHERE p.discord_id = $1 AND g.discord_id = $2 AND e.balance >= $3
-       ORDER BY e.balance DESC
+       WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
        LIMIT 1`,
-      [userId, guildId, betAmount]
+      [userId, guildId]
     );
 
     if (balanceResult.rows.length === 0) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins.`)]
+        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.')]
       });
     }
 
-    const { nickname, balance, player_id } = balanceResult.rows[0];
+    const { balance, player_id } = balanceResult.rows[0];
+
+    if (balance < betAmount) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins. Your balance: ${balance} coins.`)]
+      });
+    }
 
     // Simple blackjack game logic
     const playerCard1 = Math.floor(Math.random() * 10) + 1;
@@ -691,24 +694,27 @@ async function handleSlotsBet(interaction) {
   try {
     // Check player balance
     const balanceResult = await pool.query(
-      `SELECT rs.nickname, e.balance, p.id as player_id
+      `SELECT e.balance, p.id as player_id
        FROM players p
        JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       JOIN guilds g ON rs.guild_id = g.id
-       WHERE p.discord_id = $1 AND g.discord_id = $2 AND e.balance >= $3
-       ORDER BY e.balance DESC
+       WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
        LIMIT 1`,
-      [userId, guildId, betAmount]
+      [userId, guildId]
     );
 
     if (balanceResult.rows.length === 0) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins.`)]
+        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.')]
       });
     }
 
-    const { nickname, balance, player_id } = balanceResult.rows[0];
+    const { balance, player_id } = balanceResult.rows[0];
+
+    if (balance < betAmount) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins. Your balance: ${balance} coins.`)]
+      });
+    }
 
     // Simple slots game logic
     const symbols = ['🍎', '🍊', '🍇', '🍒', '💎', '7️⃣'];
