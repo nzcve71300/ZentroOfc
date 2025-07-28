@@ -45,7 +45,7 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     try {
       const zoneName = interaction.options.getString('zone_name');
@@ -69,7 +69,7 @@ module.exports = {
 
       if (zoneResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('Zone not found or not accessible in this guild.')]
+          embeds: [errorEmbed('**Error:** Zone not found or not accessible in this guild.')]
         });
       }
 
@@ -115,7 +115,7 @@ module.exports = {
 
       if (updates.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('No changes specified.')]
+          embeds: [errorEmbed('**Error:** No changes specified.')]
         });
       }
 
@@ -129,18 +129,28 @@ module.exports = {
 
       // Update zone in-game if size changed
       if (size !== null) {
-        const position = zone.position;
-        const newZoneCommand = `zones.createcustomzone "${zoneName}" (${position.x},${position.y},${position.z}) 0 Sphere ${size} 0 0 0 0 0`;
-        await sendRconCommand(zone.ip, zone.port, zone.password, newZoneCommand);
+        try {
+          const position = zone.position;
+          const newZoneCommand = `zones.createcustomzone "${zoneName}" (${position.x},${position.y},${position.z}) 0 Sphere ${size} 0 0 0 0 0`;
+          await sendRconCommand(zone.ip, zone.port, zone.password, newZoneCommand);
+        } catch (rconError) {
+          console.error('RCON error updating zone size:', rconError);
+          // Continue with the response even if RCON fails
+        }
       }
 
       // Update color if changed
       if (colorOnline !== null || colorOffline !== null) {
-        const newColor = colorOnline || zone.color_online;
-        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zoneName}" color (${newColor})`);
+        try {
+          const newColor = colorOnline || zone.color_online;
+          await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zoneName}" color (${newColor})`);
+        } catch (rconError) {
+          console.error('RCON error updating zone color:', rconError);
+          // Continue with the response even if RCON fails
+        }
       }
 
-      const embed = successEmbed(`Zone **${zoneName}** updated successfully on server **${zone.nickname}**!`);
+      const embed = successEmbed(`**Success:** Zone **${zoneName}** has been updated.`);
       
       if (updates.length > 0) {
         embed.addFields({
@@ -155,7 +165,7 @@ module.exports = {
     } catch (error) {
       console.error('Error editing zone:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('An error occurred while editing the zone.')]
+        embeds: [errorEmbed('**Error:** Failed to execute this command. Please try again later.')]
       });
     }
   },

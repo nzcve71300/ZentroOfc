@@ -32,7 +32,7 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     try {
       const size = interaction.options.getInteger('size');
@@ -73,7 +73,7 @@ module.exports = {
     } catch (error) {
       console.error('Error configuring ZORP:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('An error occurred while configuring ZORP.')]
+        embeds: [errorEmbed('**Error:** Failed to execute this command. Please try again later.')]
       });
     }
   },

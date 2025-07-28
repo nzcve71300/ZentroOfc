@@ -43,6 +43,7 @@ const BOOKARIDE_CHOICES = {
 
 // ZORP constants
 const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
+const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
 
 function startRconListeners(client) {
   refreshConnections(client);
@@ -151,8 +152,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Handle note panel
       await handleNotePanel(client, guildId, serverName, msg, ip, port, password);
 
-      // Handle ZORP emote
+      // Handle ZORP emotes
       await handleZorpEmote(client, guildId, serverName, parsed, ip, port, password);
+      await handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, port, password);
 
     } catch (err) {
       console.error('RCON listener error:', err);
@@ -904,6 +906,24 @@ async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, pa
   }
 }
 
+async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const msg = parsed.Message;
+    if (!msg) return;
+
+    // Check for ZORP delete emote
+    if (msg.includes(ZORP_DELETE_EMOTE)) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        console.log(`[ZORP] Delete emote detected for player: ${player} on server: ${serverName}`);
+        await deleteZorpZone(client, guildId, serverName, ip, port, password, player);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling ZORP delete emote:', error);
+  }
+}
+
 async function createZorpZone(client, guildId, serverName, ip, port, password, playerName) {
   try {
     console.log(`[ZORP] Creating zone for player: ${playerName} on server: ${serverName}`);
@@ -920,6 +940,18 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     }
     
     const serverId = serverResult.rows[0].id;
+
+    // Check if player already has a zone
+    const existingZone = await pool.query(
+      'SELECT name FROM zones WHERE server_id = $1 AND owner = $2',
+      [serverId, playerName]
+    );
+
+    if (existingZone.rows.length > 0) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You already have an active Zorp zone. Use the delete emote to remove it first.</color>`);
+      console.log(`[ZORP] Player ${playerName} already has a zone`);
+      return;
+    }
 
     // Get player's team info
     const teamInfo = await getPlayerTeam(serverId, playerName);
@@ -974,6 +1006,14 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere 75 0 0 0 0 0`;
     await sendRconCommand(ip, port, password, zoneCommand);
 
+    // Set zone to green immediately
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (0,255,0)`);
+
+    // Set zone enter/leave messages
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" showchatmessage 1`);
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" entermessage "You entered ${playerName} Zorp"`);
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" leavemessage "You left ${playerName} Zorp"`);
+
     // Save to database
     const zoneData = {
       server_id: serverId,
@@ -1010,6 +1050,56 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
   } catch (error) {
     console.error('Error creating ZORP zone:', error);
+  }
+}
+
+async function deleteZorpZone(client, guildId, serverName, ip, port, password, playerName) {
+  try {
+    console.log(`[ZORP] Deleting zone for player: ${playerName} on server: ${serverName}`);
+
+    // Get server ID
+    const serverResult = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.rows.length === 0) {
+      console.log(`[ZORP] Server not found: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult.rows[0].id;
+
+    // Check if player has a zone
+    const zoneResult = await pool.query(
+      'SELECT name FROM zones WHERE server_id = $1 AND owner = $2',
+      [serverId, playerName]
+    );
+
+    if (zoneResult.rows.length === 0) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You don't have a Zorp zone to delete.</color>`);
+      console.log(`[ZORP] Player ${playerName} has no zone to delete`);
+      return;
+    }
+
+    const zoneName = zoneResult.rows[0].name;
+
+    // Delete zone from game
+    await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
+
+    // Delete zone from database
+    await pool.query('DELETE FROM zones WHERE server_id = $1 AND owner = $2', [serverId, playerName]);
+
+    // Send success message
+    await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);
+
+    // Log to admin feed
+    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🗑️ **ZORP Zone Deleted:** ${playerName} deleted zone ${zoneName}`);
+
+    console.log(`[ZORP] Zone deleted successfully for ${playerName}: ${zoneName}`);
+
+  } catch (error) {
+    console.error('Error deleting ZORP zone:', error);
   }
 }
 

@@ -8,7 +8,7 @@ module.exports = {
     .setDescription('List all active ZORP zones'),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     try {
       // Get all zones for this guild
@@ -75,7 +75,7 @@ module.exports = {
     } catch (error) {
       console.error('Error listing zones:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('An error occurred while listing zones.')]
+        embeds: [errorEmbed('**Error:** Failed to execute this command. Please try again later.')]
       });
     }
   },

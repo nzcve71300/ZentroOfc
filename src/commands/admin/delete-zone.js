@@ -13,7 +13,7 @@ module.exports = {
         .setRequired(true)),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     try {
       const zoneName = interaction.options.getString('zone_name');
@@ -29,19 +29,24 @@ module.exports = {
 
       if (zoneResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('Zone not found or not accessible in this guild.')]
+          embeds: [errorEmbed('**Error:** Zone not found or not accessible in this guild.')]
         });
       }
 
       const zone = zoneResult.rows[0];
 
       // Delete from game
-      await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zoneName}"`);
+      try {
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zoneName}"`);
+      } catch (rconError) {
+        console.error('RCON error deleting zone:', rconError);
+        // Continue with database deletion even if RCON fails
+      }
       
       // Delete from database
       await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
 
-      const embed = successEmbed(`Zone **${zoneName}** deleted successfully from server **${zone.nickname}**!`);
+      const embed = successEmbed(`**Success:** Zone **${zoneName}** has been deleted.`);
       embed.addFields({
         name: 'Zone Details',
         value: `**Owner:** ${zone.owner}\n**Created:** <t:${Math.floor(new Date(zone.created_at).getTime() / 1000)}:R>`,
@@ -53,7 +58,7 @@ module.exports = {
     } catch (error) {
       console.error('Error deleting zone:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('An error occurred while deleting the zone.')]
+        embeds: [errorEmbed('**Error:** Failed to execute this command. Please try again later.')]
       });
     }
   },
