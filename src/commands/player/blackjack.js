@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
+const { getLinkedPlayer } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -54,17 +55,9 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverNickname = serverResult.rows[0].nickname;
 
-      // Get balance for the selected server, only for linked players
-      const balanceResult = await pool.query(
-        `SELECT e.balance, p.id as player_id
-         FROM players p
-         JOIN economy e ON p.id = e.player_id
-         WHERE p.discord_id = $1 AND p.server_id = $2
-         LIMIT 1`,
-        [userId, serverId]
-      );
-
-      if (balanceResult.rows.length === 0) {
+      // Use getLinkedPlayer to check if the player is linked
+      const player = await getLinkedPlayer(guildId, serverId, userId);
+      if (!player) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             'Account Not Linked',
@@ -72,9 +65,17 @@ module.exports = {
           )]
         });
       }
+      // Get balance for the selected server
+      const balanceResult = await pool.query(
+        `SELECT e.balance
+         FROM economy e
+         WHERE e.player_id = $1
+         LIMIT 1`,
+        [player.id]
+      );
 
       const balance = balanceResult.rows[0].balance || 0;
-      const playerId = balanceResult.rows[0].player_id;
+      const playerId = player.id;
 
       // Create modal for bet amount, encode serverId in customId
       const modal = new ModalBuilder()

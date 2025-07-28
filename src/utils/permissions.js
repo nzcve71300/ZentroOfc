@@ -120,11 +120,33 @@ async function sendUnauthorizedGuildMessage(interaction) {
   }
 }
 
+/**
+ * Get a linked player by guildId, serverId, and discordId
+ * @param {string} guildId - Discord guild (server) ID
+ * @param {string} serverId - Rust server ID
+ * @param {string} discordId - Discord user ID
+ * @returns {Promise<object|null>} - Player row or null if not found
+ */
+async function getLinkedPlayer(guildId, serverId, discordId) {
+  const pool = require('../db');
+  // Find the player with matching guild, server, and discordId
+  const result = await pool.query(
+    `SELECT p.* FROM players p
+     JOIN rust_servers rs ON p.server_id = rs.id
+     JOIN guilds g ON rs.guild_id = g.id
+     WHERE g.discord_id = $1 AND rs.id = $2 AND p.discord_id = $3
+     LIMIT 1`,
+    [guildId, serverId, discordId]
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   hasZentroAdminRole,
   hasAdminPermissions,
   ensureZentroAdminRole,
   isAuthorizedGuild,
   sendAccessDeniedMessage,
-  sendUnauthorizedGuildMessage
+  sendUnauthorizedGuildMessage,
+  getLinkedPlayer
 }; 

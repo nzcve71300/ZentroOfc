@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -26,55 +26,45 @@ module.exports = {
 
     try {
       // Find player by Discord username or in-game name
-      const playerResult = await pool.query(
-        `SELECT p.id, p.discord_id, p.ign, rs.nickname as server_name
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE g.discord_id = $1 AND (p.ign ILIKE $2 OR p.discord_id = $2)
-         ORDER BY p.ign`,
-        [guildId, playerName]
-      );
-
-      if (playerResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Player Not Found', `No player found with name "${playerName}" in this guild.`)]
-        });
-      }
-
-      if (playerResult.rows.length === 1) {
-        // Unlink single player
-        const player = playerResult.rows[0];
-        await pool.query(
-          'DELETE FROM players WHERE id = $1',
-          [player.id]
+      // (Assume admin provides Discord ID for precision, or fallback to IGN)
+      let player = null;
+      if (/^\d{17,}$/.test(playerName)) { // Discord ID
+        // Find by Discord ID
+        const pool = require('../../db');
+        const serverResult = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
+          [guildId]
         );
-
-        await interaction.editReply({
-          embeds: [successEmbed(
-            'Account Unlinked',
-            `**Player:** ${player.ign || 'Unknown'}\n**Server:** ${player.server_name}\n\nAccount has been unlinked successfully.`
-          )]
-        });
-      } else {
-        // Multiple players found - show options
-        const embed = orangeEmbed(
-          'Multiple Players Found',
-          `Found ${playerResult.rows.length} players matching "${playerName}". Please be more specific:`
-        );
-
-        for (const player of playerResult.rows) {
-          embed.addFields({
-            name: `👤 ${player.ign || 'Unknown'}`,
-            value: `**Server:** ${player.server_name}\n**Discord ID:** ${player.discord_id}`,
-            inline: true
-          });
+        if (serverResult.rows.length > 0) {
+          player = await getLinkedPlayer(guildId, serverResult.rows[0].id, playerName);
         }
-
-        await interaction.editReply({
-          embeds: [embed]
+      }
+      if (!player) {
+        // Fallback: find by IGN (old logic)
+        const playerResult = await pool.query(
+          `SELECT p.id, p.discord_id, p.ign, rs.nickname as server_name, p.server_id
+           FROM players p
+           JOIN rust_servers rs ON p.server_id = rs.id
+           JOIN guilds g ON rs.guild_id = g.id
+           WHERE g.discord_id = $1 AND p.ign ILIKE $2
+           ORDER BY p.ign`,
+          [guildId, playerName]
+        );
+        if (playerResult.rows.length > 0) player = playerResult.rows[0];
+      }
+      if (!player) {
+        return interaction.editReply({
+          embeds: [orangeEmbed('Player Not Found', `No player found with name "${playerName}" in this guild.`)]
         });
       }
+      // Unlink player by clearing discord_id
+      await pool.query('UPDATE players SET discord_id = NULL WHERE id = $1', [player.id]);
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Account Unlinked',
+          `**Player:** ${player.ign || 'Unknown'}\n**Server:** ${player.server_name || 'Unknown'}\n\nAccount has been unlinked successfully.`
+        )]
+      });
 
     } catch (error) {
       console.error('Error unlinking player:', error);

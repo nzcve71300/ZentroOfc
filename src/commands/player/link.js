@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const pool = require('../../db');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
+const { getLinkedPlayer } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -20,13 +21,21 @@ module.exports = {
     const ign = interaction.options.getString('in-game-name');
     
     try {
-      // Check if already linked
-      const existingResult = await pool.query(
-        'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND discord_id = $2',
-        [guildId, discordId]
+      // Find the serverId for this guild (assume only one server per guild for now, or add a server option if needed)
+      const pool = require('../../db');
+      const serverResult = await pool.query(
+        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
+        [guildId]
       );
-      
-      if (existingResult.rows.length > 0) {
+      if (serverResult.rows.length === 0) {
+        return await interaction.editReply({
+          embeds: [orangeEmbed('No Server Found', 'No Rust server found for this Discord. Contact an admin.')]
+        });
+      }
+      const serverId = serverResult.rows[0].id;
+      // Use getLinkedPlayer to check if already linked
+      const existingPlayer = await getLinkedPlayer(guildId, serverId, discordId);
+      if (existingPlayer) {
         return await interaction.editReply({
           embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to an in-game name.')]
         });

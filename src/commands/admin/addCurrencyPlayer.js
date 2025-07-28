@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -82,13 +82,9 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverName = serverResult.rows[0].nickname;
 
-      // Check if player exists by in-game name for this server and is linked
-      let playerResult = await pool.query(
-        'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2 AND discord_id IS NOT NULL',
-        [playerName, serverId]
-      );
-
-      if (playerResult.rows.length === 0) {
+      // Use getLinkedPlayer to check if the player is linked
+      const player = await getLinkedPlayer(guildId, serverId, playerName);
+      if (!player) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             'Player Not Linked',
@@ -96,8 +92,7 @@ module.exports = {
           )]
         });
       }
-
-      const playerId = playerResult.rows[0].id;
+      const playerId = player.id;
 
       // Check if economy record exists
       let economyResult = await pool.query(
