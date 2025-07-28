@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
-const { getServerByNickname, getLinkedPlayer, getServersForGuild } = require('../../utils/economy');
+const { getServerByNickname, getPlayerBalance, getServersForGuild } = require('../../utils/economy');
 const pool = require('../../db');
 
 module.exports = {
@@ -11,83 +11,86 @@ module.exports = {
       option.setName('server')
         .setDescription('Select a server to gamble on')
         .setRequired(true)
-        .setAutocomplete(true)),
+        .setAutocomplete(true)
+    ),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
-    const userId = interaction.user.id;
     const guildId = interaction.guildId;
     try {
-      const result = await pool.query(
-        `SELECT rs.nickname FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2 AND rs.nickname ILIKE $3
-         GROUP BY rs.nickname
-         LIMIT 25`,
-        [userId, guildId, `%${focusedValue}%`]
-      );
-      const choices = result.rows.map(row => ({ name: row.nickname, value: row.nickname }));
+      const choices = await getServersForGuild(guildId, focusedValue);
       await interaction.respond(choices);
-    } catch (error) {
-      console.error('Autocomplete error:', error);
+    } catch (err) {
+      console.error('Autocomplete error:', err);
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
-    const serverName = interaction.options.getString('server');
+    const serverOption = interaction.options.getString('server');
+
     try {
-      // Get server info using shared helper
-      const server = await getServerByNickname(guildId, serverName);
+      // Get server
+      const server = await getServerByNickname(guildId, serverOption);
       if (!server) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      // Use getLinkedPlayer to check if the player is linked
-      const player = await getLinkedPlayer(guildId, server.id, userId);
-      if (!player) {
+      // Get balance
+      const balanceData = await getPlayerBalance(guildId, serverOption, userId);
+      if (!balanceData) {
         return interaction.editReply({
-          embeds: [orangeEmbed('No Linked Player', 'No linked player found for this Discord ID.')]
+          embeds: [errorEmbed(
+            'Account Not Linked',
+            'You must link your account using `/link <in-game-name>` before playing slots.'
+          )]
         });
       }
+      const balance = balanceData.balance;
 
-      // Get balance for the selected server
-      const balanceResult = await pool.query(
-        `SELECT e.balance
-         FROM economy e
-         WHERE e.player_id = $1
-         LIMIT 1`,
-        [player.id]
+      // Get game config (min/max bet)
+      const configResult = await pool.query(
+        `SELECT option_value FROM eco_games WHERE server_id = $1 AND setup = 'slots' AND option = 'min_max_bet'`,
+        [server.id]
       );
+      let minBet = 1;
+      let maxBet = 10000;
+      if (configResult.rows.length > 0) {
+        const [min, max] = configResult.rows[0].option_value.split(',').map(Number);
+        minBet = min || minBet;
+        maxBet = max || maxBet;
+      }
 
-      const balance = balanceResult.rows[0].balance || 0;
-      const playerId = player.id;
-
-      // Create modal for bet amount, encode serverId in customId
+      // Build modal for bet
       const modal = new ModalBuilder()
         .setCustomId(`slots_bet_${server.id}`)
         .setTitle(`Slots - Place Your Bet (${server.nickname})`);
       const betInput = new TextInputBuilder()
         .setCustomId('bet_amount')
-        .setLabel('Bet Amount')
+        .setLabel(`Enter your bet (${minBet}-${maxBet})`)
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter your bet amount')
-        .setRequired(true)
-        .setMinLength(1)
-        .setMaxLength(10);
-      const firstActionRow = new ActionRowBuilder().addComponents(betInput);
-      modal.addComponents(firstActionRow);
-      await interaction.showModal(modal);
-    } catch (error) {
-      console.error('Slots execute error:', error);
+        .setPlaceholder(`Your balance: ${balance}`)
+        .setRequired(true);
+      const row = new ActionRowBuilder().addComponents(betInput);
+      modal.addComponents(row);
+
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'There was an error placing your bet.')]
+        embeds: [orangeEmbed('Slots', `Your balance: **${balance}** coins\nMin bet: **${minBet}** | Max bet: **${maxBet}**`)],
+      });
+
+      await interaction.showModal(modal);
+
+    } catch (err) {
+      console.error('Slots error:', err);
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to start Slots. Please try again.')]
       });
     }
   },
-}; 
+};

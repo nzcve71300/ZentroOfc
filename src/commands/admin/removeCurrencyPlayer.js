@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economy');
+const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economyHelpers');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,74 +25,42 @@ module.exports = {
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
-
     try {
-      const { getServersForGuild } = require('../../utils/economy');
-      const choices = await getServersForGuild(guildId, focusedValue);
-      await interaction.respond(choices);
-    } catch (error) {
-      console.error('Autocomplete error:', error);
+      const servers = await interaction.client.db.query(
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        [guildId, `%${focusedValue}%`]
+      );
+      await interaction.respond(servers.rows.map(row => ({ name: row.nickname, value: row.nickname })));
+    } catch {
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
-    // Defer reply to prevent timeout
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ ephemeral: true });
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
-    // Check if user has admin permissions (Zentro Admin role or Administrator)
-    if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
-    }
-
-    const serverNickname = interaction.options.getString('server');
+    const guildId = interaction.guildId;
+    const serverName = interaction.options.getString('server');
     const playerName = interaction.options.getString('player_name');
     const amount = interaction.options.getInteger('amount');
-    const guildId = interaction.guildId;
 
     try {
-      // Get server info using shared helper
-      const server = await getServerByNickname(guildId, serverNickname);
-      if (!server) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
-        });
-      }
+      const server = await getServerByNickname(guildId, serverName);
+      if (!server) return interaction.editReply({ embeds: [errorEmbed('Server Not Found', 'This server does not exist.')] });
 
-      // Find player by IGN using shared helper
       const player = await getPlayerByIGN(guildId, server.id, playerName);
-      if (!player) {
-        return interaction.editReply({
-          embeds: [orangeEmbed('Player Not Found', `Player **${playerName}** not found on **${server.nickname}**.`)]
-        });
-      }
+      if (!player) return interaction.editReply({ embeds: [errorEmbed('Player Not Found', `No player named **${playerName}** found on **${serverName}**.`)] });
 
-      // Update balance using shared helper (negative amount for removal)
-      const balanceResult = await updateBalance(player.id, -amount);
-      if (!balanceResult.success) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Error', `Failed to update balance: ${balanceResult.error}`)]
-        });
-      }
-
-      // Record transaction using shared helper
+      const newBalance = await updateBalance(player.id, -amount);
       await recordTransaction(player.id, -amount, 'admin_remove');
 
-      // Create success embed with structured format
-      const embed = successEmbed(
-        'Currency Removed',
-        `**Server:** ${server.nickname}\n**Player:** ${playerName}\n**Amount Removed:** -${amount}\n**Previous Balance:** ${balanceResult.oldBalance}\n**New Balance:** ${balanceResult.newBalance}`
-      );
-
       await interaction.editReply({
-        embeds: [embed]
+        embeds: [successEmbed('Currency Removed', `Removed **${amount} coins** from **${player.ign}** on **${server.nickname}**.\n\n**New Balance:** ${newBalance} coins`)]
       });
-
-    } catch (error) {
-      console.error('Error removing currency from player:', error);
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to remove currency from player. Please try again.')]
-      });
+    } catch (err) {
+      console.error('Error in remove-currency-player:', err);
+      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to remove currency. Please try again.')] });
     }
-  },
-}; 
+  }
+};

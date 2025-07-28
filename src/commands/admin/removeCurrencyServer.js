@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getServerByNickname, updateBalance, recordTransaction, getServersForGuild } = require('../../utils/economy');
+const { getServerByNickname, updateBalance, recordTransaction } = require('../../utils/economyHelpers');
 const pool = require('../../db');
 
 module.exports = {
@@ -22,128 +22,57 @@ module.exports = {
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
-
     try {
-      const choices = await getServersForGuild(guildId, focusedValue);
+      const servers = await pool.query(
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        [guildId, `%${focusedValue}%`]
+      );
+      const choices = servers.rows.map(row => ({ name: row.nickname, value: row.nickname }));
+      choices.unshift({ name: 'All Servers', value: 'ALL' });
       await interaction.respond(choices);
-    } catch (error) {
-      console.error('Autocomplete error:', error);
+    } catch {
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ ephemeral: true });
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
-    // Check if user has admin permissions
-    if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
-    }
-
-    const serverOption = interaction.options.getString('server');
-    const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guildId;
+    const serverName = interaction.options.getString('server');
+    const amount = interaction.options.getInteger('amount');
 
     try {
-      // Get server info using shared helper
-      const server = await getServerByNickname(guildId, serverOption);
-      if (!server) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
-        });
-      }
+      const servers = serverName === 'ALL'
+        ? await pool.query('SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)', [guildId])
+        : { rows: [await getServerByNickname(guildId, serverName)] };
 
-      // Get all players on this server
-      const playersResult = await pool.query(
-        `SELECT p.id as player_id, p.ign, p.discord_id, e.balance
-         FROM players p
-         LEFT JOIN economy e ON p.id = e.player_id
-         WHERE p.server_id = $1
-         ORDER BY p.ign`,
-        [server.id]
-      );
-
-      if (playersResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [orangeEmbed(
-            'No Players Found',
-            `No players found on **${server.nickname}**.\n\nPlayers need to use \`/link <in-game-name>\` to create their accounts first.`
-          )]
-        });
-      }
-
-      let updatedPlayers = [];
+      let updatedPlayers = 0;
       let totalRemoved = 0;
-      let playersWithInsufficientFunds = [];
 
-      // Update each player's balance using shared helper
-      for (const player of playersResult.rows) {
-        const balanceResult = await updateBalance(player.player_id, -amount);
-        
-        if (balanceResult.success) {
-          const actualRemoved = balanceResult.oldBalance - balanceResult.newBalance;
-          
-          updatedPlayers.push({
-            ign: player.ign || 'Unknown',
-            discordId: player.discord_id,
-            oldBalance: balanceResult.oldBalance,
-            newBalance: balanceResult.newBalance,
-            removed: actualRemoved
-          });
+      for (const server of servers.rows) {
+        const players = await pool.query('SELECT id, ign FROM players WHERE server_id = $1', [server.id]);
+        for (const player of players.rows) {
+          const current = await pool.query('SELECT balance FROM economy WHERE player_id = $1', [player.id]);
+          const oldBalance = current.rows[0]?.balance || 0;
+          const removeAmt = Math.min(amount, oldBalance);
 
-          totalRemoved += actualRemoved;
+          const newBalance = await updateBalance(player.id, -removeAmt);
+          await recordTransaction(player.id, -removeAmt, 'admin_remove');
 
-          // Record transaction using shared helper
-          await recordTransaction(player.player_id, -actualRemoved, 'admin_remove');
-
-          if (actualRemoved < amount) {
-            playersWithInsufficientFunds.push(player.ign || 'Unknown');
-          }
+          updatedPlayers++;
+          totalRemoved += removeAmt;
         }
       }
 
-      // Create success embed with structured format
-      const embed = successEmbed(
-        'Currency Removed from Server',
-        `**Server:** ${server.nickname}\n**Amount Requested:** -${amount}\n**Players Affected:** ${updatedPlayers.length}\n**Total Removed:** ${totalRemoved}`
-      );
-
-      // Add player details (limit to first 10 to avoid embed field limits)
-      const playersToShow = updatedPlayers.slice(0, 10);
-      for (const player of playersToShow) {
-        const status = player.removed < amount ? ' (Insufficient funds)' : '';
-        embed.addFields({
-          name: `👤 ${player.ign}${status}`,
-          value: `${player.oldBalance} → ${player.newBalance} (-${player.removed})`,
-          inline: true
-        });
-      }
-
-      if (updatedPlayers.length > 10) {
-        embed.addFields({
-          name: '📋 And More...',
-          value: `+${updatedPlayers.length - 10} more players were also updated.`,
-          inline: false
-        });
-      }
-
-      if (playersWithInsufficientFunds.length > 0) {
-        embed.addFields({
-          name: '⚠️ Insufficient Funds',
-          value: `${playersWithInsufficientFunds.length} players had insufficient funds and were reduced to 0.`,
-          inline: false
-        });
-      }
-
       await interaction.editReply({
-        embeds: [embed]
+        embeds: [successEmbed('Currency Removed',
+          `Removed up to **${amount} coins** from **${updatedPlayers} players** on **${serverName === 'ALL' ? 'All Servers' : serverName}**.\n\n**Total Removed:** ${totalRemoved} coins`)]
       });
-
-    } catch (error) {
-      console.error('Error removing currency from server:', error);
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to remove currency from server. Please try again.')]
-      });
+    } catch (err) {
+      console.error('Error in remove-currency-server:', err);
+      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to remove currency. Please try again.')] });
     }
-  },
-}; 
+  }
+};

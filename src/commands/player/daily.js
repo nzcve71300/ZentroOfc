@@ -5,92 +5,73 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('daily')
-    .setDescription('Claim your daily reward on all servers'),
+    .setDescription('Claim your daily reward across all linked servers'),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
-    const dailyAmount = 100; // Default daily reward amount
+    const dailyAmount = 100;
 
     try {
-      // Check if player is linked to any server
-      const linkedResult = await pool.query(
-        `SELECT p.id as player_id, p.ign
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
-         LIMIT 1`,
+      // Check last claim
+      const cooldownResult = await pool.query(
+        `SELECT MAX(timestamp) as last_claim 
+         FROM transactions 
+         WHERE player_id IN (
+           SELECT p.id FROM players p 
+           JOIN rust_servers rs ON p.server_id = rs.id 
+           JOIN guilds g ON rs.guild_id = g.id 
+           WHERE p.discord_id = $1 AND g.discord_id = $2
+         ) AND type = 'daily_reward'`,
         [userId, guildId]
       );
 
-      if (linkedResult.rows.length === 0) {
+      const lastClaim = cooldownResult.rows[0].last_claim;
+      if (lastClaim && Date.now() - new Date(lastClaim).getTime() < 24 * 60 * 60 * 1000) {
         return interaction.editReply({
-          embeds: [errorEmbed(
-            'Account Not Linked',
-            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
-          )]
+          embeds: [orangeEmbed('Cooldown', 'You can only claim your daily reward once every 24 hours.')]
         });
       }
 
-      // Get Discord balance (single balance for all servers)
-      const balanceResult = await pool.query(
-        `SELECT e.balance
+      // Get all linked players
+      const players = await pool.query(
+        `SELECT p.id, p.ign, rs.nickname 
          FROM players p
-         JOIN economy e ON p.id = e.player_id
-         WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
-         LIMIT 1`,
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2`,
         [userId, guildId]
       );
 
-      const currentBalance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance || 0 : 0;
-      const newBalance = currentBalance + dailyAmount;
-      const playerId = linkedResult.rows[0].player_id;
+      if (players.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Account Not Linked', 'Use `/link <in-game-name>` to link your account first.')]
+        });
+      }
 
-      // Update Discord balance (single balance for all servers)
-      if (balanceResult.rows.length === 0) {
-        // Create economy record
+      for (const player of players.rows) {
         await pool.query(
-          'INSERT INTO economy (player_id, balance) VALUES ($1, $2)',
-          [playerId, dailyAmount]
+          `INSERT INTO economy (player_id, balance) VALUES ($1, $2)
+           ON CONFLICT (player_id) DO UPDATE SET balance = economy.balance + $2`,
+          [player.id, dailyAmount]
         );
-      } else {
-        // Update existing balance
         await pool.query(
-          'UPDATE economy SET balance = $1 WHERE player_id = $2',
-          [newBalance, playerId]
+          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
+          [player.id, dailyAmount, 'daily_reward']
         );
       }
 
-      // Record transaction
-      await pool.query(
-        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-        [playerId, dailyAmount, 'daily_reward']
-      );
-
-      // Create success embed
-      const embed = successEmbed(
-        'Daily Reward Claimed!',
-        `**Reward:** +${dailyAmount} coins\n**New Balance:** ${newBalance} coins`
-      );
-
-      embed.addFields({
-        name: 'Come Back Tomorrow!',
-        value: 'You can claim your daily reward again in 24 hours.',
-        inline: false
+      await interaction.editReply({
+        embeds: [successEmbed('Daily Reward Claimed', `+${dailyAmount} coins added to **${players.rows.length} servers**.`)]
       });
 
+    } catch (err) {
+      console.error('Daily error:', err);
       await interaction.editReply({
-        embeds: [embed]
-      });
-
-    } catch (error) {
-      console.error('Error claiming daily reward:', error);
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to claim daily reward. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to claim daily reward.')]
       });
     }
-  },
-}; 
+  }
+};

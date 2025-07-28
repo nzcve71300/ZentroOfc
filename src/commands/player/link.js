@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const pool = require('../../db');
-const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { getLinkedPlayer, getPlayerByIGN } = require('../../utils/permissions');
 
 module.exports = {
@@ -13,44 +13,56 @@ module.exports = {
         .setRequired(true)
     ),
   async execute(interaction) {
-    // Defer reply to prevent timeout
     await interaction.deferReply({ ephemeral: true });
 
     const guildId = interaction.guildId;
     const discordId = interaction.user.id;
     const ign = interaction.options.getString('in-game-name');
-    
+
     try {
-      // Find the serverId for this guild (assume only one server per guild for now, or add a server option if needed)
-      const pool = require('../../db');
+      // Get server for this guild
       const serverResult = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
+        'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
         [guildId]
       );
       if (serverResult.rows.length === 0) {
-        return await interaction.editReply({
+        return interaction.editReply({
           embeds: [orangeEmbed('No Server Found', 'No Rust server found for this Discord. Contact an admin.')]
         });
       }
       const serverId = serverResult.rows[0].id;
-      // Check if this Discord ID is already linked to this IGN/server
+      const serverName = serverResult.rows[0].nickname;
+
+      // Check if Discord ID is already linked
       const existingPlayer = await getLinkedPlayer(guildId, serverId, discordId);
-      if (existingPlayer && existingPlayer.ign.toLowerCase() === ign.toLowerCase()) {
-        // Allow relinking to the same IGN/server
-      } else if (existingPlayer) {
-        return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to a different in-game name on this server.')]
+      if (existingPlayer && existingPlayer.ign.toLowerCase() !== ign.toLowerCase()) {
+        return interaction.editReply({
+          embeds: [orangeEmbed('Already Linked', `Your Discord account is already linked to **${existingPlayer.ign}** on **${serverName}**.`)]
         });
       }
-      // Check if IGN is already linked to a different Discord ID
+
+      // Check if IGN is linked to a different Discord ID
       const ignPlayer = await getPlayerByIGN(guildId, serverId, ign);
       if (ignPlayer && ignPlayer.discord_id && ignPlayer.discord_id !== discordId) {
-        return await interaction.editReply({
-          embeds: [orangeEmbed('IGN Already Linked', 'This in-game name is already linked to a different Discord account.')]
+        return interaction.editReply({
+          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on **${serverName}**.`)]
         });
       }
-      
-      // Create confirmation buttons
+
+      // If player doesn't exist, create a new row
+      let playerId = ignPlayer ? ignPlayer.id : null;
+      if (!playerId) {
+        const insertResult = await pool.query(
+          'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) RETURNING id',
+          [guildId, serverId, discordId, ign]
+        );
+        playerId = insertResult.rows[0].id;
+      } else {
+        // Update existing record with Discord ID
+        await pool.query('UPDATE players SET discord_id = $1 WHERE id = $2', [discordId, playerId]);
+      }
+
+      // Send confirmation buttons
       const row = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
@@ -62,14 +74,14 @@ module.exports = {
             .setLabel('Cancel')
             .setStyle(ButtonStyle.Danger)
         );
-      
-      const confirmEmbed = orangeEmbed('Confirm Link', `Are you sure you want to link your Discord account to **${ign}**?\n\n**Discord User:** ${interaction.user.tag}\n**In-Game Name:** ${ign}`);
-      
-      await interaction.editReply({
-        embeds: [confirmEmbed],
-        components: [row]
-      });
-      
+
+      const confirmEmbed = orangeEmbed(
+        'Confirm Link',
+        `Are you sure you want to link your Discord account to **${ign}**?\n\n**Discord User:** ${interaction.user.tag}\n**In-Game Name:** ${ign}\n**Server:** ${serverName}`
+      );
+
+      await interaction.editReply({ embeds: [confirmEmbed], components: [row] });
+
     } catch (error) {
       console.error('Error in /link command:', error);
       await interaction.editReply({
@@ -77,4 +89,4 @@ module.exports = {
       });
     }
   }
-}; 
+};

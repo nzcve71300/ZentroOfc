@@ -8,14 +8,13 @@ module.exports = {
     .setDescription('View your balance across all servers'),
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ ephemeral: true });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
 
     try {
-      // Get all servers and balances for this player
-      const balanceResult = await pool.query(
+      const balances = await pool.query(
         `SELECT rs.nickname, e.balance
          FROM players p
          JOIN economy e ON p.id = e.player_id
@@ -26,44 +25,17 @@ module.exports = {
         [userId, guildId]
       );
 
-      if (balanceResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed(
-            'Account Not Linked',
-            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
-          )]
-        });
+      if (balances.rows.length === 0) {
+        return interaction.editReply({ embeds: [errorEmbed('Account Not Linked', 'Use `/link <in-game-name>` before checking your balance.')] });
       }
 
-      // Create embed with structured format
-      const embed = orangeEmbed(
-        'Balance Overview',
-        `**Your Balances by Server:**`
-      );
+      const embed = orangeEmbed('Balance Overview', '**Your Balances by Server:**');
+      balances.rows.forEach(row => embed.addFields({ name: row.nickname, value: `${row.balance || 0} coins`, inline: true }));
 
-      for (const row of balanceResult.rows) {
-        embed.addFields({
-          name: `${row.nickname}`,
-          value: `Balance: ${row.balance || 0}`,
-          inline: true
-        });
-      }
-
-      embed.addFields({
-        name: 'Tips',
-        value: '• Use `/daily` to claim daily rewards\n• Play `/blackjack` or `/slots` to earn more coins\n• Use `/shop` to spend your coins',
-        inline: false
-      });
-
-      await interaction.editReply({
-        embeds: [embed]
-      });
-
-    } catch (error) {
-      console.error('Error fetching balance:', error);
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to fetch balance. Please try again.')]
-      });
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('Error in balance:', err);
+      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to fetch balances. Please try again.')] });
     }
-  },
-}; 
+  }
+};

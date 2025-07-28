@@ -11,23 +11,22 @@ module.exports = {
       option.setName('server')
         .setDescription('Select a server to browse')
         .setRequired(true)
-        .setAutocomplete(true)),
+        .setAutocomplete(true)
+    ),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
-
     try {
       const choices = await getServersForGuild(guildId, focusedValue);
       await interaction.respond(choices);
-    } catch (error) {
-      console.error('Autocomplete error:', error);
+    } catch (err) {
+      console.error('Autocomplete error:', err);
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
-    // Defer reply to prevent timeout
     await interaction.deferReply({ flags: 64 });
 
     const userId = interaction.user.id;
@@ -35,49 +34,27 @@ module.exports = {
     const serverOption = interaction.options.getString('server');
 
     try {
-      // Get the specific server using shared helper
+      // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
       if (!server) {
         return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
+          embeds: [errorEmbed('Server Not Found', 'The specified server does not exist.')]
         });
       }
 
-      // Check if player is linked to any server
-      const linkedResult = await pool.query(
-        `SELECT p.id as player_id, p.ign
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
-         LIMIT 1`,
-        [userId, guildId]
-      );
-
-      if (linkedResult.rows.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed(
-            'Account Not Linked',
-            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
-          )]
-        });
-      }
-
-      // Get balance for the selected server using shared helper
+      // Get player's balance using helper
       const balanceData = await getPlayerBalance(guildId, serverOption, userId);
       if (!balanceData) {
         return interaction.editReply({
           embeds: [errorEmbed(
             'Account Not Linked',
-            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
+            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account.'
           )]
         });
       }
-
       const balance = balanceData.balance;
-      const playerId = linkedResult.rows[0].player_id;
 
-      // Get shop categories for this specific server
+      // Fetch categories for the shop
       const categoriesResult = await pool.query(
         `SELECT sc.id, sc.name, sc.type
          FROM shop_categories sc
@@ -90,29 +67,28 @@ module.exports = {
         return interaction.editReply({
           embeds: [orangeEmbed(
             'Shop',
-            `No shop categories available on **${server.nickname}**.\n\nAdmins need to create categories using \`/add-shop-category\`.`
+            `No shop categories are available on **${server.nickname}**.\nAdmins need to create categories using \`/add-shop-category\`.`
           )]
         });
       }
 
-      // Create category selection dropdown
+      // Build dropdown
       const categoryOptions = categoriesResult.rows.map(category => ({
         label: category.name,
         description: `${category.type} category`,
         value: category.id.toString()
       }));
 
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('shop_category_select')
-            .setPlaceholder('Select a category to browse')
-            .addOptions(categoryOptions)
-        );
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('shop_category_select')
+          .setPlaceholder('Select a category to browse')
+          .addOptions(categoryOptions)
+      );
 
       const embed = orangeEmbed(
         'Shop',
-        `**Server:** ${server.nickname}\n**Your Balance:** ${balance}\n\nSelect a category to browse items and kits!`
+        `**Server:** ${server.nickname}\n**Your Balance:** ${balance} coins\n\nSelect a category below to browse items and kits!`
       );
 
       await interaction.editReply({
@@ -123,8 +99,8 @@ module.exports = {
     } catch (error) {
       console.error('Error opening shop:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to open shop. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to open the shop. Please try again.')]
       });
     }
   },
-}; 
+};
