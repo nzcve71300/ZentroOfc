@@ -98,6 +98,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle admin loot spawns
       if (msg.match(/\[ServerVar\] giving .* x /)) {
+
+      // Handle Bradley and Helicopter events
+      await handleEventDetection(client, guildId, serverName, msg, ip, port, password);
         const match = msg.match(/\[ServerVar\] giving (.*?) (\d+) x (.*)/);
         if (match) {
           const player = match[1];
@@ -713,6 +716,107 @@ async function flushKillFeedBuffers(client) {
     const desc = messages.join('\n');
     await sendFeedEmbed(client, guildId, serverName, 'killfeed', desc);
     killFeedBuffer[key] = [];
+  }
+}
+
+// Event detection state tracking
+const eventFlags = new Map(); // Track event states per server
+
+async function handleEventDetection(client, guildId, serverName, msg, ip, port, password) {
+  try {
+    // Get server ID
+    const serverResult = await pool.query(
+      'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+      [guildId, serverName]
+    );
+
+    if (serverResult.rows.length === 0) return;
+    const serverId = serverResult.rows[0].id;
+
+    // Get event configurations
+    const configsResult = await pool.query(
+      'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = $1',
+      [serverId]
+    );
+
+    if (configsResult.rows.length === 0) return;
+
+    const key = `${guildId}_${serverName}`;
+    if (!eventFlags.has(key)) {
+      eventFlags.set(key, new Set());
+    }
+    const serverFlags = eventFlags.get(key);
+
+    // Check for Bradley events
+    const bradleyConfig = configsResult.rows.find(c => c.event_type === 'bradley');
+    if (bradleyConfig && bradleyConfig.enabled) {
+      await checkBradleyEvent(client, guildId, serverName, ip, port, password, bradleyConfig, serverFlags);
+    }
+
+    // Check for Helicopter events
+    const helicopterConfig = configsResult.rows.find(c => c.event_type === 'helicopter');
+    if (helicopterConfig && helicopterConfig.enabled) {
+      await checkHelicopterEvent(client, guildId, serverName, ip, port, password, helicopterConfig, serverFlags);
+    }
+
+  } catch (error) {
+    console.error('Error in event detection:', error);
+  }
+}
+
+async function checkBradleyEvent(client, guildId, serverName, ip, port, password, config, serverFlags) {
+  try {
+    const bradley = await sendRconCommand(ip, port, password, "find_entity servergibs_bradley");
+    
+    if (bradley && bradley.includes("servergibs_bradley") && !serverFlags.has("BRADLEY")) {
+      serverFlags.add("BRADLEY");
+      
+      // Send kill message
+      await sendRconCommand(ip, port, password, `say "${config.kill_message}"`);
+      
+      // Send to Discord feed
+      await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🎯 **Bradley APC Event Started!**\n${config.kill_message}`);
+      
+      // Clear flag after 10 minutes
+      setTimeout(() => {
+        const flags = eventFlags.get(`${guildId}_${serverName}`);
+        if (flags) {
+          flags.delete("BRADLEY");
+        }
+      }, 60_000 * 10);
+      
+      console.log(`[EVENT] Bradley event started on ${serverName}`);
+    }
+  } catch (error) {
+    console.error('Error checking Bradley event:', error);
+  }
+}
+
+async function checkHelicopterEvent(client, guildId, serverName, ip, port, password, config, serverFlags) {
+  try {
+    const helicopter = await sendRconCommand(ip, port, password, "find_entity servergibs_patrolhelicopter");
+    
+    if (helicopter && helicopter.includes("servergibs_patrolhelicopter") && !serverFlags.has("HELICOPTER")) {
+      serverFlags.add("HELICOPTER");
+      
+      // Send kill message
+      await sendRconCommand(ip, port, password, `say "${config.kill_message}"`);
+      
+      // Send to Discord feed
+      await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🚁 **Patrol Helicopter Event Started!**\n${config.kill_message}`);
+      
+      // Clear flag after 10 minutes
+      setTimeout(() => {
+        const flags = eventFlags.get(`${guildId}_${serverName}`);
+        if (flags) {
+          flags.delete("HELICOPTER");
+        }
+      }, 60_000 * 10);
+      
+      console.log(`[EVENT] Helicopter event started on ${serverName}`);
+    }
+  } catch (error) {
+    console.error('Error checking Helicopter event:', error);
   }
 }
 
