@@ -3,30 +3,23 @@ const authConfig = require('../config/authorization');
 
 /**
  * Check if a user has the "Zentro Admin" role
- * @param {GuildMember} member - The guild member to check
- * @returns {boolean} - True if user has the role, false otherwise
  */
 function hasZentroAdminRole(member) {
   return member.roles.cache.some(role => role.name === 'Zentro Admin');
 }
 
 /**
- * Check if a user has admin permissions (either Discord Administrator or Zentro Admin role)
- * @param {GuildMember} member - The guild member to check
- * @returns {boolean} - True if user has admin permissions, false otherwise
+ * Check if a user has admin permissions
  */
 function hasAdminPermissions(member) {
   return member.permissions.has('ADMINISTRATOR') || hasZentroAdminRole(member);
 }
 
 /**
- * Create the "Zentro Admin" role if it doesn't exist
- * @param {Guild} guild - The guild to create the role in
- * @returns {Promise<Role>} - The created or existing role
+ * Ensure "Zentro Admin" role exists
  */
 async function ensureZentroAdminRole(guild) {
   let role = guild.roles.cache.find(r => r.name === 'Zentro Admin');
-  
   if (!role) {
     try {
       role = await guild.roles.create({
@@ -40,58 +33,43 @@ async function ensureZentroAdminRole(guild) {
       return null;
     }
   }
-  
   return role;
 }
 
 /**
- * Check if guild was added through authorized invite
- * @param {Guild} guild - The guild to check
- * @returns {Promise<boolean>} - True if authorized, false otherwise
+ * Check if guild is authorized
  */
 async function isAuthorizedGuild(guild) {
-  // Option 1: Allow all guilds (current behavior)
-  if (authConfig.allowAllGuilds) {
-    return true;
-  }
-  
-  // Option 2: Check against hardcoded guild IDs
-  if (authConfig.authorizedGuildIds.includes(guild.id)) {
-    return true;
-  }
-  
-  // Option 3: Check environment variable
+  if (authConfig.allowAllGuilds) return true;
+  if (authConfig.authorizedGuildIds.includes(guild.id)) return true;
+
   const envGuildIds = process.env.AUTHORIZED_GUILD_IDS?.split(',') || [];
-  if (envGuildIds.includes(guild.id)) {
-    return true;
-  }
-  
-  // Option 4: Check database table
+  if (envGuildIds.includes(guild.id)) return true;
+
   if (authConfig.useDatabase) {
     try {
       const pool = require('../db');
-      const result = await pool.query('SELECT id FROM authorized_guilds WHERE discord_id = $1', [guild.id]);
+      const result = await pool.query(
+        'SELECT id FROM authorized_guilds WHERE discord_id = $1',
+        [guild.id]
+      );
       return result.rows.length > 0;
     } catch (error) {
       console.error('Error checking database authorization:', error);
       return false;
     }
   }
-  
   return false;
 }
 
 /**
- * Send an access denied message for admin commands
- * @param {CommandInteraction} interaction - The interaction to reply to
- * @param {boolean} ephemeral - Whether the message should be ephemeral
+ * Send access denied message
  */
 async function sendAccessDeniedMessage(interaction, ephemeral = true) {
   const embed = errorEmbed(
     'Access Denied',
     'You need the **Zentro Admin** role or **Administrator** permission to use this command.'
   );
-  
   if (interaction.deferred) {
     await interaction.editReply({ embeds: [embed] });
   } else if (interaction.replied) {
@@ -102,15 +80,13 @@ async function sendAccessDeniedMessage(interaction, ephemeral = true) {
 }
 
 /**
- * Send an unauthorized guild message
- * @param {CommandInteraction} interaction - The interaction to reply to
+ * Send unauthorized guild message
  */
 async function sendUnauthorizedGuildMessage(interaction) {
   const embed = errorEmbed(
     'Unauthorized Server',
     'This server is not authorized to use Zentro Bot. Please contact the bot owner for access.'
   );
-  
   if (interaction.deferred) {
     await interaction.editReply({ embeds: [embed] });
   } else if (interaction.replied) {
@@ -121,33 +97,25 @@ async function sendUnauthorizedGuildMessage(interaction) {
 }
 
 /**
- * Get a linked player by guildId, serverId, and discordId (direct from players table)
- * @param {string} guildId
- * @param {string} serverId
- * @param {string} discordId
- * @returns {Promise<object|null>}
+ * Get linked player by guildId, serverId, and discordId
  */
 async function getLinkedPlayer(guildId, serverId, discordId) {
   const pool = require('../db');
   const result = await pool.query(
-    'SELECT * FROM players WHERE guild_id = $1 AND server_id = $2 AND discord_id = $3 LIMIT 1',
-    [guildId, serverId, discordId]
+    'SELECT * FROM players WHERE guild_id::text = $1 AND server_id::text = $2 AND discord_id::text = $3 LIMIT 1',
+    [guildId.toString(), serverId.toString(), discordId.toString()]
   );
   return result.rows[0] || null;
 }
 
 /**
- * Get a player by guildId, serverId, and IGN (case-insensitive)
- * @param {string} guildId
- * @param {string} serverId
- * @param {string} ign
- * @returns {Promise<object|null>}
+ * Get player by IGN
  */
 async function getPlayerByIGN(guildId, serverId, ign) {
   const pool = require('../db');
   const result = await pool.query(
-    'SELECT * FROM players WHERE guild_id = $1 AND server_id = $2 AND LOWER(ign) = LOWER($3) LIMIT 1',
-    [guildId, serverId, ign]
+    'SELECT * FROM players WHERE guild_id::text = $1 AND server_id::text = $2 AND LOWER(ign) = LOWER($3) LIMIT 1',
+    [guildId.toString(), serverId.toString(), ign]
   );
   return result.rows[0] || null;
 }
@@ -161,4 +129,4 @@ module.exports = {
   sendUnauthorizedGuildMessage,
   getLinkedPlayer,
   getPlayerByIGN
-}; 
+};
