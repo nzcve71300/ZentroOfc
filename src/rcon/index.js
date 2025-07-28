@@ -45,6 +45,24 @@ const BOOKARIDE_CHOICES = {
 const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
 const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
 
+// Helper function to calculate 3D distance between two points
+function calculateDistance(x1, y1, z1, x2, y2, z2) {
+  return Math.sqrt(
+    Math.pow(x1 - x2, 2) +
+    Math.pow(y1 - y2, 2) +
+    Math.pow(z1 - z2, 2)
+  );
+}
+
+// Helper function to check if two zones overlap
+function zonesOverlap(zone1Pos, zone1Size, zone2Pos, zone2Size) {
+  const distance = calculateDistance(
+    zone1Pos.x, zone1Pos.y, zone1Pos.z,
+    zone2Pos.x, zone2Pos.y, zone2Pos.z
+  );
+  return distance < (zone1Size + zone2Size);
+}
+
 function startRconListeners(client) {
   refreshConnections(client);
   setInterval(() => {
@@ -1014,6 +1032,28 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Invalid coordinates</color>`);
       console.log(`[ZORP] Invalid coordinates for ${playerName}: ${coords}`);
       return;
+    }
+
+    // Check for overlapping zones
+    const existingZones = await pool.query(
+      'SELECT name, position, size FROM zones WHERE server_id = $1',
+      [serverId]
+    );
+
+    const newZonePos = { x: coords[0], y: coords[1], z: coords[2] };
+    const newZoneSize = defaults.size;
+
+    for (const zone of existingZones.rows) {
+      if (zone.position) {
+        const existingPos = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
+        const existingSize = zone.size || 75; // Default size if not set
+
+        if (zonesOverlap(newZonePos, newZoneSize, existingPos, existingSize)) {
+          await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are too close to another ZORP!</color>`);
+          console.log(`[ZORP] Zone overlap detected for ${playerName} - too close to zone ${zone.name}`);
+          return;
+        }
+      }
     }
 
     // Create zone name with timestamp
