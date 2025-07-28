@@ -616,10 +616,31 @@ function extractPlayerName(logLine) {
 }
 
 function sendRconCommand(ip, port, password, command) {
-  const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
-  ws.on('open', () => {
-    ws.send(JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' }));
-    setTimeout(() => ws.close(), 500);
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
+    
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' }));
+      setTimeout(() => {
+        ws.close();
+        resolve('Command sent');
+      }, 500);
+    });
+    
+    ws.on('error', (error) => {
+      reject(error);
+    });
+    
+    ws.on('message', (data) => {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.Message) {
+          resolve(parsed.Message);
+        }
+      } catch (err) {
+        // Ignore parsing errors
+      }
+    });
   });
 }
 
@@ -736,6 +757,11 @@ async function checkAllEvents(client) {
       WHERE ec.enabled = true
     `);
 
+    if (result.rows.length === 0) {
+      console.log('[EVENT] No servers with enabled events found');
+      return;
+    }
+
     // Group by server to avoid duplicate queries
     const servers = new Map();
     for (const row of result.rows) {
@@ -758,23 +784,29 @@ async function checkAllEvents(client) {
       });
     }
 
+    console.log(`[EVENT] Checking events for ${servers.size} servers`);
+
     // Process each server
     for (const [key, server] of servers) {
-      if (!eventFlags.has(key)) {
-        eventFlags.set(key, new Set());
-      }
-      const serverFlags = eventFlags.get(key);
+      try {
+        if (!eventFlags.has(key)) {
+          eventFlags.set(key, new Set());
+        }
+        const serverFlags = eventFlags.get(key);
 
-      // Check for Bradley events
-      const bradleyConfig = server.configs.find(c => c.event_type === 'bradley');
-      if (bradleyConfig) {
-        await checkBradleyEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, bradleyConfig, serverFlags);
-      }
+        // Check for Bradley events
+        const bradleyConfig = server.configs.find(c => c.event_type === 'bradley');
+        if (bradleyConfig) {
+          await checkBradleyEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, bradleyConfig, serverFlags);
+        }
 
-      // Check for Helicopter events
-      const helicopterConfig = server.configs.find(c => c.event_type === 'helicopter');
-      if (helicopterConfig) {
-        await checkHelicopterEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, helicopterConfig, serverFlags);
+        // Check for Helicopter events
+        const helicopterConfig = server.configs.find(c => c.event_type === 'helicopter');
+        if (helicopterConfig) {
+          await checkHelicopterEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, helicopterConfig, serverFlags);
+        }
+      } catch (serverError) {
+        console.error(`[EVENT] Error checking events for server ${server.nickname}:`, serverError);
       }
     }
   } catch (error) {
@@ -813,7 +845,7 @@ async function checkBradleyEvent(client, guildId, serverName, ip, port, password
       console.log(`[EVENT] Bradley event started on ${serverName}`);
     }
   } catch (error) {
-    console.error('Error checking Bradley event:', error);
+    console.error(`[EVENT] Error checking Bradley event on ${serverName}:`, error.message);
   }
 }
 
@@ -843,7 +875,7 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
       console.log(`[EVENT] Helicopter event started on ${serverName}`);
     }
   } catch (error) {
-    console.error('Error checking Helicopter event:', error);
+    console.error(`[EVENT] Error checking Helicopter event on ${serverName}:`, error.message);
   }
 }
 
