@@ -169,7 +169,7 @@ CREATE TABLE zones (
     color_offline TEXT DEFAULT '255,0,0',
     radiation INTEGER DEFAULT 0,
     delay INTEGER DEFAULT 0,
-    expire INTEGER DEFAULT 115200,
+    expire INTEGER DEFAULT 126000,
     min_team INTEGER DEFAULT 1,
     max_team INTEGER DEFAULT 8,
     created_at TIMESTAMP DEFAULT NOW(),

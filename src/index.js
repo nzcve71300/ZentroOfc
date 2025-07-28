@@ -35,7 +35,7 @@ function loadCommands(dir) {
 
 loadCommands(path.join(__dirname, 'commands'));
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Zentro Bot is online as ${client.user.tag}`);
   console.log('🚀 Bot startup complete - Latest code version loaded');
   
@@ -50,6 +50,16 @@ client.once('ready', () => {
   
   // Start RCON listeners after bot is ready
   startRconListeners(client);
+  
+  // Restore zones after a short delay to ensure RCON connections are established
+  setTimeout(async () => {
+    try {
+      const { restoreZonesOnStartup } = require('./rcon');
+      await restoreZonesOnStartup(client);
+    } catch (error) {
+      console.error('Error during zone restoration:', error);
+    }
+  }, 10000); // 10 second delay
 });
 
 client.on('interactionCreate', async interaction => {

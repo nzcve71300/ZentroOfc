@@ -987,7 +987,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       color_offline: '255,0,0',
       radiation: 0,
       delay: 0,
-      expire: 115200,
+      expire: 126000, // 35 hours in seconds
       min_team: 1,
       max_team: 8
     };
@@ -1182,6 +1182,59 @@ async function updateZoneColor(zoneName, color, ip, port, password) {
   }
 }
 
+async function restoreZonesOnStartup(client) {
+  try {
+    console.log('🔄 Restoring zones on bot startup...');
+    
+    const result = await pool.query(`
+      SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
+      FROM zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.created_at + INTERVAL '1 second' * z.expire > NOW()
+    `);
+
+    let restoredCount = 0;
+    let errorCount = 0;
+
+    for (const zone of result.rows) {
+      try {
+        // Parse position
+        const position = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
+        
+        if (!position || !position.x || !position.y || !position.z) {
+          console.log(`[ZORP] Skipping zone ${zone.name} - invalid position data`);
+          continue;
+        }
+
+        // Recreate zone in-game
+        const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${zone.size} 0 0 0 0 0`;
+        await sendRconCommand(zone.ip, zone.port, zone.password, zoneCommand);
+
+        // Set zone color
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+
+        // Set zone enter/leave messages
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" showchatmessage 1`);
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" entermessage "You entered ${zone.owner} Zorp"`);
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" leavemessage "You left ${zone.owner} Zorp"`);
+
+        console.log(`[ZORP] Restored zone: ${zone.name} (owned by ${zone.owner}) on ${zone.nickname}`);
+        restoredCount++;
+        
+      } catch (error) {
+        console.error(`[ZORP] Error restoring zone ${zone.name}:`, error);
+        errorCount++;
+      }
+    }
+
+    console.log(`[ZORP] Zone restoration complete: ${restoredCount} zones restored, ${errorCount} errors`);
+    
+  } catch (error) {
+    console.error('Error restoring zones on startup:', error);
+  }
+}
+
 async function deleteExpiredZones(client) {
   try {
     const result = await pool.query(`
@@ -1219,5 +1272,6 @@ module.exports = {
   startRconListeners,
   sendRconCommand,
   getServerInfo,
-  activeConnections
+  activeConnections,
+  restoreZonesOnStartup
 }; 

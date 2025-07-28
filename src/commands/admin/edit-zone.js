@@ -34,7 +34,7 @@ module.exports = {
         .setRequired(false))
     .addIntegerOption(option =>
       option.setName('expire')
-        .setDescription('Expiration time in seconds (default: 115200)')
+        .setDescription('Expiration time in seconds (default: 126000 = 35 hours)')
         .setRequired(false))
     .addIntegerOption(option =>
       option.setName('min_team')
