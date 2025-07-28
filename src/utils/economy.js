@@ -51,10 +51,15 @@ async function ensureEconomyRecord(playerId) {
 
 // Update balance safely
 async function updateBalance(playerId, amount) {
-  const economy = await ensureEconomyRecord(playerId);
-  const newBalance = Math.max(0, parseInt(economy.balance || 0) + amount);
-  await pool.query('UPDATE economy SET balance = $1 WHERE player_id = $2', [newBalance, playerId]);
-  return newBalance;
+  try {
+    const economy = await ensureEconomyRecord(playerId);
+    const newBalance = Math.max(0, parseInt(economy.balance || 0) + amount);
+    await pool.query('UPDATE economy SET balance = $1 WHERE player_id = $2', [newBalance, playerId]);
+    return { success: true, newBalance };
+  } catch (error) {
+    console.error('Error updating balance:', error);
+    return { success: false, newBalance: 0 };
+  }
 }
 
 // Record a transaction

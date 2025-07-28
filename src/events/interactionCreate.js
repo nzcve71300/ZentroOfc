@@ -798,7 +798,7 @@ async function handleSlotsBet(interaction) {
 } 
 
 async function handleEditItemModal(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
   
   const itemId = interaction.customId.split('_')[3];
   const displayName = interaction.fields.getTextInputValue('display_name');
@@ -845,7 +845,7 @@ async function handleEditItemModal(interaction) {
 }
 
 async function handleEditKitModal(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
   
   const kitId = interaction.customId.split('_')[3];
   const displayName = interaction.fields.getTextInputValue('display_name');
