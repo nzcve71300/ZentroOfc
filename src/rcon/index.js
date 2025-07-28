@@ -741,7 +741,6 @@ async function flushKillFeedBuffers(client) {
 }
 
 // Event detection state tracking
-const eventFlags = new Map(); // Track event states per server
 
 async function checkAllEvents(client) {
   try {
