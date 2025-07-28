@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const pool = require('../../db');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { getLinkedPlayer } = require('../../utils/permissions');
+const { getLinkedPlayer, getPlayerByIGN } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -33,11 +33,20 @@ module.exports = {
         });
       }
       const serverId = serverResult.rows[0].id;
-      // Use getLinkedPlayer to check if already linked
+      // Check if this Discord ID is already linked to this IGN/server
       const existingPlayer = await getLinkedPlayer(guildId, serverId, discordId);
-      if (existingPlayer) {
+      if (existingPlayer && existingPlayer.ign.toLowerCase() === ign.toLowerCase()) {
+        // Allow relinking to the same IGN/server
+      } else if (existingPlayer) {
         return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to an in-game name.')]
+          embeds: [orangeEmbed('Already Linked', 'Your Discord account is already linked to a different in-game name on this server.')]
+        });
+      }
+      // Check if IGN is already linked to a different Discord ID
+      const ignPlayer = await getPlayerByIGN(guildId, serverId, ign);
+      if (ignPlayer && ignPlayer.discord_id && ignPlayer.discord_id !== discordId) {
+        return await interaction.editReply({
+          embeds: [orangeEmbed('IGN Already Linked', 'This in-game name is already linked to a different Discord account.')]
         });
       }
       

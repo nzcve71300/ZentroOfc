@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer } = require('../../utils/permissions');
+const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer, getPlayerByIGN } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -82,14 +82,23 @@ module.exports = {
       const serverId = serverResult.rows[0].id;
       const serverName = serverResult.rows[0].nickname;
 
-      // Use getLinkedPlayer to check if the player is linked
-      const player = await getLinkedPlayer(guildId, serverId, playerName);
+      // Find player by IGN
+      const player = await getPlayerByIGN(guildId, serverId, playerName);
       if (!player) {
         return interaction.editReply({
-          embeds: [orangeEmbed(
-            'Player Not Linked',
-            'This player is not linked. They must use /link before currency can be added.'
-          )]
+          embeds: [orangeEmbed('IGN Not Linked', 'IGN is not linked to any account in this guild/server.')]
+        });
+      }
+      if (!player.discord_id) {
+        return interaction.editReply({
+          embeds: [orangeEmbed('Player Not Linked', 'This player is not linked. They must use /link before currency can be added.')]
+        });
+      }
+      // Cross-check that the Discord ID is linked
+      const linkedPlayer = await getLinkedPlayer(guildId, serverId, player.discord_id);
+      if (!linkedPlayer) {
+        return interaction.editReply({
+          embeds: [orangeEmbed('No Linked Player', 'No linked player found for this Discord ID.')]
         });
       }
       const playerId = player.id;

@@ -59,10 +59,7 @@ module.exports = {
       const player = await getLinkedPlayer(guildId, serverId, userId);
       if (!player) {
         return interaction.editReply({
-          embeds: [orangeEmbed(
-            'Account Not Linked',
-            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
-          )]
+          embeds: [orangeEmbed('No Linked Player', 'No linked player found for this Discord ID.')]
         });
       }
       // Get balance for the selected server

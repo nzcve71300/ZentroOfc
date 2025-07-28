@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer } = require('../../utils/permissions');
+const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer, getPlayerByIGN } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -29,7 +29,6 @@ module.exports = {
       // (Assume admin provides Discord ID for precision, or fallback to IGN)
       let player = null;
       if (/^\d{17,}$/.test(playerName)) { // Discord ID
-        // Find by Discord ID
         const pool = require('../../db');
         const serverResult = await pool.query(
           'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
@@ -41,16 +40,14 @@ module.exports = {
       }
       if (!player) {
         // Fallback: find by IGN (old logic)
-        const playerResult = await pool.query(
-          `SELECT p.id, p.discord_id, p.ign, rs.nickname as server_name, p.server_id
-           FROM players p
-           JOIN rust_servers rs ON p.server_id = rs.id
-           JOIN guilds g ON rs.guild_id = g.id
-           WHERE g.discord_id = $1 AND p.ign ILIKE $2
-           ORDER BY p.ign`,
-          [guildId, playerName]
+        const pool = require('../../db');
+        const serverResult = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
+          [guildId]
         );
-        if (playerResult.rows.length > 0) player = playerResult.rows[0];
+        if (serverResult.rows.length > 0) {
+          player = await getPlayerByIGN(guildId, serverResult.rows[0].id, playerName);
+        }
       }
       if (!player) {
         return interaction.editReply({
@@ -59,10 +56,18 @@ module.exports = {
       }
       // Unlink player by clearing discord_id
       await pool.query('UPDATE players SET discord_id = NULL WHERE id = $1', [player.id]);
+      // If player has no IGN and no Discord ID, delete the row
+      const updatedPlayer = await pool.query('SELECT * FROM players WHERE id = $1', [player.id]);
+      if (updatedPlayer.rows.length > 0) {
+        const p = updatedPlayer.rows[0];
+        if (!p.ign && !p.discord_id) {
+          await pool.query('DELETE FROM players WHERE id = $1', [player.id]);
+        }
+      }
       await interaction.editReply({
         embeds: [successEmbed(
           'Account Unlinked',
-          `**Player:** ${player.ign || 'Unknown'}\n**Server:** ${player.server_name || 'Unknown'}\n\nAccount has been unlinked successfully.`
+          `**Player:** ${player.ign || 'Unknown'}\n**Server:** ${player.server_id || 'Unknown'}\n\nAccount has been unlinked successfully.`
         )]
       });
 
