@@ -217,72 +217,84 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
 
 /**
  * Block a Discord ID from linking
+ * TEMPORARILY DISABLED - returns null
  */
 async function blockDiscordId(guildId, discordId, blockedBy, reason = null) {
-  const result = await pool.query(
-    `INSERT INTO link_blocks (guild_id, discord_id, blocked_by, reason) 
-     VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) 
-     ON CONFLICT (guild_id, discord_id) 
-     DO UPDATE SET 
-       blocked_at = NOW(),
-       blocked_by = EXCLUDED.blocked_by,
-       reason = EXCLUDED.reason,
-       is_active = true
-     RETURNING *`,
-    [guildId, discordId, blockedBy, reason]
-  );
-  return result.rows[0];
+  // TEMPORARILY DISABLED - table doesn't exist
+  // const result = await pool.query(
+  //   `INSERT INTO link_blocks (guild_id, discord_id, blocked_by, reason) 
+  //    VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) 
+  //    ON CONFLICT (guild_id, discord_id) 
+  //    DO UPDATE SET 
+  //      blocked_at = NOW(),
+  //      blocked_by = EXCLUDED.blocked_by,
+  //      reason = EXCLUDED.reason,
+  //      is_active = true
+  //    RETURNING *`,
+  //   [guildId, discordId, blockedBy, reason]
+  // );
+  // return result.rows[0];
+  return null;
 }
 
 /**
  * Block an IGN from linking
+ * TEMPORARILY DISABLED - returns null
  */
 async function blockIgn(guildId, ign, blockedBy, reason = null) {
-  const result = await pool.query(
-    `INSERT INTO link_blocks (guild_id, ign, blocked_by, reason) 
-     VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) 
-     ON CONFLICT (guild_id, ign) 
-     DO UPDATE SET 
-       blocked_at = NOW(),
-       blocked_by = EXCLUDED.blocked_by,
-       reason = EXCLUDED.reason,
-       is_active = true
-     RETURNING *`,
-    [guildId, ign, blockedBy, reason]
-  );
-  return result.rows[0];
+  // TEMPORARILY DISABLED - table doesn't exist
+  // const result = await pool.query(
+  //   `INSERT INTO link_blocks (guild_id, ign, blocked_by, reason) 
+  //   VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) 
+  //   ON CONFLICT (guild_id, ign) 
+  //   DO UPDATE SET 
+  //     blocked_at = NOW(),
+  //     blocked_by = EXCLUDED.blocked_by,
+  //     reason = EXCLUDED.reason,
+  //     is_active = true
+  //   RETURNING *`,
+  //   [guildId, ign, blockedBy, reason]
+  // );
+  // return result.rows[0];
+  return null;
 }
 
 /**
  * Unblock a Discord ID
+ * TEMPORARILY DISABLED - returns null
  */
 async function unblockDiscordId(guildId, discordId) {
-  const result = await pool.query(
-    `UPDATE link_blocks 
-     SET is_active = false 
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-     AND discord_id = $2 
-     AND is_active = true
-     RETURNING *`,
-    [guildId, discordId]
-  );
-  return result.rows[0];
+  // TEMPORARILY DISABLED - table doesn't exist
+  // const result = await pool.query(
+  //   `UPDATE link_blocks 
+  //    SET is_active = false 
+  //    WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
+  //    AND discord_id = $2 
+  //    AND is_active = true
+  //    RETURNING *`,
+  //   [guildId, discordId]
+  // );
+  // return result.rows[0];
+  return null;
 }
 
 /**
  * Unblock an IGN
+ * TEMPORARILY DISABLED - returns null
  */
 async function unblockIgn(guildId, ign) {
-  const result = await pool.query(
-    `UPDATE link_blocks 
-     SET is_active = false 
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-     AND LOWER(ign) = LOWER($2) 
-     AND is_active = true
-     RETURNING *`,
-    [guildId, ign]
-  );
-  return result.rows[0];
+  // TEMPORARILY DISABLED - table doesn't exist
+  // const result = await pool.query(
+  //   `UPDATE link_blocks 
+  //    SET is_active = false 
+  //    WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
+  //    AND LOWER(ign) = LOWER($2) 
+  //    AND is_active = true
+  //    RETURNING *`,
+  //   [guildId, ign]
+  // );
+  // return result.rows[0];
+  return null;
 }
 
 /**
