@@ -67,78 +67,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Handle "ALL" servers option
-      if (serverNickname === 'ALL') {
-        // Get all servers for this guild
-        const allServersResult = await pool.query(
-          'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1',
-          [guildId]
-        );
-
-        if (allServersResult.rows.length === 0) {
-          return interaction.editReply({
-            embeds: [errorEmbed('No Servers Found', 'No servers found in this guild.')]
-          });
-        }
-
-        // Find or create player record for Discord balance
-        let playerResult = await pool.query(
-          'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND guild_id = (SELECT id FROM guilds WHERE discord_id = $2) LIMIT 1',
-          [playerName, guildId]
-        );
-
-        let playerId;
-        if (playerResult.rows.length === 0) {
-          // Create player record for Discord balance
-          const newPlayerResult = await pool.query(
-            'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) RETURNING id',
-            [guildId, allServersResult.rows[0].id, null, playerName]
-          );
-          playerId = newPlayerResult.rows[0].id;
-        } else {
-          playerId = playerResult.rows[0].id;
-        }
-
-        // Update Discord balance (single balance for all servers)
-        let economyResult = await pool.query(
-          'SELECT id, balance FROM economy WHERE player_id = $1',
-          [playerId]
-        );
-
-        let newBalance;
-        if (economyResult.rows.length === 0) {
-          // Create economy record with the amount
-          await pool.query(
-            'INSERT INTO economy (player_id, balance) VALUES ($1, $2)',
-            [playerId, amount]
-          );
-          newBalance = amount;
-        } else {
-          // Update existing balance
-          newBalance = parseInt(economyResult.rows[0].balance || 0) + amount;
-          await pool.query(
-            'UPDATE economy SET balance = $1 WHERE player_id = $2',
-            [newBalance, playerId]
-          );
-        }
-
-        // Record transaction
-        await pool.query(
-          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-          [playerId, amount, 'admin_add']
-        );
-
-        await interaction.editReply({
-          embeds: [successEmbed(
-            'Currency Added to All Servers',
-            `Added **${amount} coins** to **${playerName}** on all servers.\n\n**New Discord Balance:** ${newBalance} coins`
-          )]
-        });
-
-        return;
-      }
-
-      // Single server processing - still updates Discord balance
+      // Get server ID
       const serverResult = await pool.query(
         'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
         [guildId, serverNickname]
@@ -152,15 +81,15 @@ module.exports = {
 
       const serverId = serverResult.rows[0].id;
 
-      // Find or create player record for Discord balance
+      // Check if player exists by in-game name for this server
       let playerResult = await pool.query(
-        'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND guild_id = (SELECT id FROM guilds WHERE discord_id = $2) LIMIT 1',
-        [playerName, guildId]
+        'SELECT id, discord_id, ign FROM players WHERE ign ILIKE $1 AND server_id = $2',
+        [playerName, serverId]
       );
 
       let playerId;
       if (playerResult.rows.length === 0) {
-        // Create player record for Discord balance
+        // Create player record with the provided in-game name for this server
         const newPlayerResult = await pool.query(
           'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4) RETURNING id',
           [guildId, serverId, null, playerName]
@@ -170,7 +99,7 @@ module.exports = {
         playerId = playerResult.rows[0].id;
       }
 
-      // Update Discord balance (single balance for all servers)
+      // Check if economy record exists
       let economyResult = await pool.query(
         'SELECT id, balance FROM economy WHERE player_id = $1',
         [playerId]
@@ -202,7 +131,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Currency Added',
-          `Added **${amount} coins** to **${playerName}**.\n\n**New Discord Balance:** ${newBalance} coins`
+          `Added **${amount} coins** to **${playerName}** on **${serverNickname}**.\n\n**New Balance:** ${newBalance} coins`
         )]
       });
 

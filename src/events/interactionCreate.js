@@ -18,9 +18,9 @@ module.exports = {
 
       // Handle modals
       if (interaction.isModalSubmit()) {
-        if (interaction.customId === 'blackjack_bet') {
+        if (interaction.customId.startsWith('blackjack_bet')) {
           await handleBlackjackBet(interaction);
-        } else if (interaction.customId === 'slots_bet') {
+        } else if (interaction.customId.startsWith('slots_bet')) {
           await handleSlotsBet(interaction);
         } else if (interaction.customId.startsWith('edit_item_modal_')) {
           await handleEditItemModal(interaction);
