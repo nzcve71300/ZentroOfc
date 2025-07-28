@@ -10,7 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('zone_name')
         .setDescription('Name of the zone to delete')
-        .setRequired(true)),
+        .setRequired(true)
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
@@ -18,21 +19,20 @@ module.exports = {
     try {
       const zoneName = interaction.options.getString('zone_name');
 
-      // Validate zoneName is provided and not empty
-      if (!zoneName || zoneName.trim() === '') {
+      // Validate zoneName
+      if (!zoneName || typeof zoneName !== 'string' || zoneName.trim() === '') {
         return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Zone name is required.')]
+          embeds: [errorEmbed('Error', 'Please provide a valid zone name.')]
         });
       }
 
-      // Validate zoneName length and format
       if (zoneName.length > 50) {
         return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Zone name is too long. Maximum 50 characters allowed.')]
+          embeds: [errorEmbed('Error', 'Zone name is too long (max 50 characters).')]
         });
       }
 
-      // Get zone from database with proper error handling
+      // Get zone
       let zoneResult;
       try {
         zoneResult = await pool.query(`
@@ -45,27 +45,19 @@ module.exports = {
       } catch (dbError) {
         console.error('Database error fetching zone:', dbError);
         return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Failed to access database. Please try again later.')]
+          embeds: [errorEmbed('Error', 'Failed to access database. Please try again later.')]
         });
       }
 
-      // Validate that zone exists
       if (!zoneResult || zoneResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed(`**Error:** Zone "${zoneName}" not found or missing.`)]
+          embeds: [errorEmbed('Error', `Zone "${zoneName}" was not found.`)]
         });
       }
 
       const zone = zoneResult.rows[0];
 
-      // Validate zone data integrity
-      if (!zone.id || !zone.name) {
-        return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Invalid zone data. Please try again later.')]
-        });
-      }
-
-      // Delete from game with proper error handling
+      // Delete from game via RCON
       let rconSuccess = false;
       try {
         if (zone.ip && zone.port && zone.password) {
@@ -76,37 +68,35 @@ module.exports = {
         }
       } catch (rconError) {
         console.error('RCON error deleting zone:', rconError);
-        // Continue with database deletion even if RCON fails
+        // Still proceed to DB deletion
       }
-      
-      // Delete from database with proper error handling
+
+      // Delete from database
       try {
         await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
       } catch (dbDeleteError) {
         console.error('Database error deleting zone:', dbDeleteError);
         return interaction.editReply({
-          embeds: [errorEmbed('**Error:** Failed to delete zone from database. Please try again later.')]
+          embeds: [errorEmbed('Error', 'Failed to delete zone from database. Please try again later.')]
         });
       }
 
-      // Create success embed
-      const embed = successEmbed(`**Success:** Zone **${zoneName}** has been deleted.`);
-      
-      // Ensure all values are valid strings before adding to embed
+      // Build success embed
       const owner = zone.owner || 'Unknown';
       const createdAt = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
       const serverName = zone.nickname || 'Unknown Server';
-      
+
+      const embed = successEmbed('Success', `Zone **${zoneName}** has been deleted.`);
       embed.addFields({
         name: 'Zone Details',
         value: `**Owner:** ${owner}\n**Server:** ${serverName}\n**Created:** <t:${createdAt}:R>`,
-        inline: true
+        inline: false
       });
 
       if (!rconSuccess) {
         embed.addFields({
           name: 'Note',
-          value: 'Zone was deleted from database but RCON command failed. Zone may still exist in-game.',
+          value: 'Zone was deleted from the database but the RCON command failed. Zone may still exist in-game.',
           inline: false
         });
       }
@@ -116,8 +106,8 @@ module.exports = {
     } catch (error) {
       console.error('Unexpected error in delete-zone command:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('**Error:** Failed to execute this command. Please try again later.')]
+        embeds: [errorEmbed('Error', 'An unexpected error occurred while deleting the zone.')]
       });
     }
   },
-}; 
+};
