@@ -1,11 +1,11 @@
 CREATE TABLE guilds (
     id SERIAL PRIMARY KEY,
-    discord_id TEXT NOT NULL UNIQUE,
+    discord_id VARCHAR(32) NOT NULL UNIQUE,
     name TEXT
 );
 
 CREATE TABLE rust_servers (
-    id SERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     guild_id INT REFERENCES guilds(id) ON DELETE CASCADE,
     nickname TEXT NOT NULL,
     ip TEXT NOT NULL,
@@ -16,8 +16,8 @@ CREATE TABLE rust_servers (
 CREATE TABLE players (
     id SERIAL PRIMARY KEY,
     guild_id INT REFERENCES guilds(id) ON DELETE CASCADE,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
-    discord_id TEXT,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
+    discord_id VARCHAR(32),
     ign TEXT
 );
 
@@ -37,7 +37,7 @@ CREATE TABLE transactions (
 
 CREATE TABLE shop_categories (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     role TEXT
@@ -65,7 +65,7 @@ CREATE TABLE shop_kits (
 
 CREATE TABLE autokits (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
     kit_name TEXT NOT NULL,
     enabled BOOLEAN DEFAULT false,
     cooldown INT,
@@ -74,14 +74,14 @@ CREATE TABLE autokits (
 
 CREATE TABLE kit_auth (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
-    discord_id TEXT NOT NULL,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
+    discord_id VARCHAR(32) NOT NULL,
     kitlist TEXT NOT NULL
 );
 
 CREATE TABLE killfeed_configs (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
     enabled BOOLEAN DEFAULT false,
     format_string TEXT,
     randomizer_enabled BOOLEAN DEFAULT false
@@ -99,9 +99,9 @@ CREATE TABLE player_stats (
 
 CREATE TABLE channel_settings (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
     channel_type TEXT NOT NULL,
-    channel_id TEXT NOT NULL,
+    channel_id VARCHAR(32) NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(server_id, channel_type)
@@ -109,7 +109,7 @@ CREATE TABLE channel_settings (
 
 CREATE TABLE position_coordinates (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
     position_type TEXT NOT NULL,
     x_pos TEXT,
     y_pos TEXT,
@@ -121,7 +121,7 @@ CREATE TABLE position_coordinates (
 
 CREATE TABLE zones (
     id SERIAL PRIMARY KEY,
-    server_id INT REFERENCES rust_servers(id) ON DELETE CASCADE,
+    server_id VARCHAR(32) REFERENCES rust_servers(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     owner TEXT NOT NULL,
     team JSONB,
