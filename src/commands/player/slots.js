@@ -38,46 +38,64 @@ module.exports = {
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
     const serverName = interaction.options.getString('server');
-    // Get balance for the selected server
-    const balanceResult = await pool.query(
-      `SELECT e.balance, p.id as player_id
-       FROM players p
-       JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = $1 AND rs.nickname = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
-       LIMIT 1`,
-      [userId, serverName, guildId]
-    );
+    try {
+      // Get server info
+      const serverResult = await pool.query(
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        [guildId, serverName]
+      );
 
-    if (balanceResult.rows.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed(
-          'Account Not Linked',
-          'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
-        )]
+      if (serverResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
+        });
+      }
+
+      const serverId = serverResult.rows[0].id;
+      const serverNickname = serverResult.rows[0].nickname;
+
+      // Get balance for the selected server
+      const balanceResult = await pool.query(
+        `SELECT e.balance, p.id as player_id
+         FROM players p
+         JOIN economy e ON p.id = e.player_id
+         WHERE p.discord_id = $1 AND p.server_id = $2
+         LIMIT 1`,
+        [userId, serverId]
+      );
+
+      if (balanceResult.rows.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed(
+            'Account Not Linked',
+            'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.'
+          )]
+        });
+      }
+
+      const balance = balanceResult.rows[0].balance || 0;
+      const playerId = balanceResult.rows[0].player_id;
+
+      // Create modal for bet amount, encode serverId in customId
+      const modal = new ModalBuilder()
+        .setCustomId(`slots_bet_${serverId}`)
+        .setTitle(`Slots - Place Your Bet (${serverNickname})`);
+      const betInput = new TextInputBuilder()
+        .setCustomId('bet_amount')
+        .setLabel('Bet Amount')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Enter your bet amount')
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(10);
+      const firstActionRow = new ActionRowBuilder().addComponents(betInput);
+      modal.addComponents(firstActionRow);
+      await interaction.showModal(modal);
+    } catch (error) {
+      console.error('Slots execute error:', error);
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'There was an error placing your bet.')]
       });
     }
-
-    const balance = balanceResult.rows[0].balance || 0;
-    const playerId = balanceResult.rows[0].player_id;
-    const serverId = (await pool.query(
-      `SELECT id FROM rust_servers WHERE nickname = $1 AND guild_id = (SELECT id FROM guilds WHERE discord_id = $2)`,
-      [serverName, guildId]
-    )).rows[0].id;
-    // Create modal for bet amount, encode serverId in customId
-    const modal = new ModalBuilder()
-      .setCustomId(`slots_bet_${serverId}`)
-      .setTitle(`Slots - Place Your Bet (${serverName})`);
-    const betInput = new TextInputBuilder()
-      .setCustomId('bet_amount')
-      .setLabel('Bet Amount')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter your bet amount')
-      .setRequired(true)
-      .setMinLength(1)
-      .setMaxLength(10);
-    const firstActionRow = new ActionRowBuilder().addComponents(betInput);
-    modal.addComponents(firstActionRow);
-    await interaction.showModal(modal);
   },
 }; 

@@ -67,9 +67,9 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Single server processing
+      // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
         [guildId, serverNickname]
       );
 
@@ -80,6 +80,7 @@ module.exports = {
       }
 
       const serverId = serverResult.rows[0].id;
+      const serverName = serverResult.rows[0].nickname;
 
       // Check if player exists by in-game name for this server
       let playerResult = await pool.query(
@@ -131,7 +132,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Currency Added',
-          `Added **${amount} coins** to **${playerName}** on **${serverNickname}**.\n\n**New Balance:** ${newBalance} coins`
+          `Added **${amount} coins** to **${playerName}** on **${serverName}**.\n\n**New Balance:** ${newBalance} coins`
         )]
       });
 
