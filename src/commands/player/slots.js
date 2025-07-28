@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
+const { getServerByNickname, getLinkedPlayer, getServersForGuild } = require('../../utils/economy');
 const pool = require('../../db');
-const { getLinkedPlayer } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -40,28 +40,22 @@ module.exports = {
     const guildId = interaction.guildId;
     const serverName = interaction.options.getString('server');
     try {
-      // Get server info
-      const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverName]
-      );
-
-      if (serverResult.rows.length === 0) {
+      // Get server info using shared helper
+      const server = await getServerByNickname(guildId, serverName);
+      if (!server) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverNickname = serverResult.rows[0].nickname;
-
       // Use getLinkedPlayer to check if the player is linked
-      const player = await getLinkedPlayer(guildId, serverId, userId);
+      const player = await getLinkedPlayer(guildId, server.id, userId);
       if (!player) {
         return interaction.editReply({
           embeds: [orangeEmbed('No Linked Player', 'No linked player found for this Discord ID.')]
         });
       }
+
       // Get balance for the selected server
       const balanceResult = await pool.query(
         `SELECT e.balance
@@ -76,8 +70,8 @@ module.exports = {
 
       // Create modal for bet amount, encode serverId in customId
       const modal = new ModalBuilder()
-        .setCustomId(`slots_bet_${serverId}`)
-        .setTitle(`Slots - Place Your Bet (${serverNickname})`);
+        .setCustomId(`slots_bet_${server.id}`)
+        .setTitle(`Slots - Place Your Bet (${server.nickname})`);
       const betInput = new TextInputBuilder()
         .setCustomId('bet_amount')
         .setLabel('Bet Amount')

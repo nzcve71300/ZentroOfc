@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { hasAdminPermissions, sendAccessDeniedMessage, getLinkedPlayer, getPlayerByIGN } = require('../../utils/permissions');
-const pool = require('../../db');
+const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economy');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,29 +22,13 @@ module.exports = {
         .setRequired(true)
         .setMinValue(1)),
 
-
-
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
-        [guildId, `%${focusedValue}%`]
-      );
-
-      const choices = result.rows.map(row => ({
-        name: row.nickname,
-        value: row.nickname
-      }));
-
-      // Add "All" option
-      choices.unshift({
-        name: 'All Servers',
-        value: 'ALL'
-      });
-
+      const { getServersForGuild } = require('../../utils/economy');
+      const choices = await getServersForGuild(guildId, focusedValue);
       await interaction.respond(choices);
     } catch (error) {
       console.error('Autocomplete error:', error);
@@ -54,7 +38,7 @@ module.exports = {
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
@@ -67,76 +51,47 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get server info
-      const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverNickname]
-      );
-
-      if (serverResult.rows.length === 0) {
+      // Get server info using shared helper
+      const server = await getServerByNickname(guildId, serverNickname);
+      if (!server) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
-
-      // Find player by IGN
-      const player = await getPlayerByIGN(guildId, serverId, playerName);
+      // Find player by IGN using shared helper
+      const player = await getPlayerByIGN(guildId, server.id, playerName);
       if (!player) {
         return interaction.editReply({
-          embeds: [orangeEmbed('IGN Not Linked', 'IGN is not linked to any account in this guild/server.')]
+          embeds: [orangeEmbed('Player Not Found', `Player **${playerName}** not found on **${server.nickname}**.`)]
         });
       }
+
       if (!player.discord_id) {
         return interaction.editReply({
-          embeds: [orangeEmbed('Player Not Linked', 'This player is not linked. They must use /link before currency can be added.')]
+          embeds: [orangeEmbed('Player Not Linked', 'This player is not linked. They must use `/link` before currency can be added.')]
         });
       }
-      // Cross-check that the Discord ID is linked
-      const linkedPlayer = await getLinkedPlayer(guildId, serverId, player.discord_id);
-      if (!linkedPlayer) {
+
+      // Update balance using shared helper
+      const balanceResult = await updateBalance(player.id, amount);
+      if (!balanceResult.success) {
         return interaction.editReply({
-          embeds: [orangeEmbed('No Linked Player', 'No linked player found for this Discord ID.')]
+          embeds: [errorEmbed('Error', `Failed to update balance: ${balanceResult.error}`)]
         });
       }
-      const playerId = player.id;
 
-      // Check if economy record exists
-      let economyResult = await pool.query(
-        'SELECT id, balance FROM economy WHERE player_id = $1',
-        [playerId]
-      );
+      // Record transaction using shared helper
+      await recordTransaction(player.id, amount, 'admin_add');
 
-      let newBalance;
-      if (economyResult.rows.length === 0) {
-        // Create economy record with the amount
-        await pool.query(
-          'INSERT INTO economy (player_id, balance) VALUES ($1, $2)',
-          [playerId, amount]
-        );
-        newBalance = amount;
-      } else {
-        // Update existing balance
-        newBalance = parseInt(economyResult.rows[0].balance || 0) + amount;
-        await pool.query(
-          'UPDATE economy SET balance = $1 WHERE player_id = $2',
-          [newBalance, playerId]
-        );
-      }
-
-      // Record transaction
-      await pool.query(
-        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-        [playerId, amount, 'admin_add']
+      // Create success embed with structured format
+      const embed = successEmbed(
+        'Currency Added',
+        `**Server:** ${server.nickname}\n**Player:** ${playerName}\n**Amount Added:** +${amount}\n**New Balance:** ${balanceResult.newBalance}`
       );
 
       await interaction.editReply({
-        embeds: [successEmbed(
-          'Currency Added',
-          `Added **${amount} coins** to **${playerName}** on **${serverName}**.\n\n**New Balance:** ${newBalance} coins`
-        )]
+        embeds: [embed]
       });
 
     } catch (error) {

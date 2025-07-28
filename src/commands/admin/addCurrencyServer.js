@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { getServerByNickname, updateBalance, recordTransaction, getServersForGuild } = require('../../utils/economy');
 const pool = require('../../db');
 
 module.exports = {
@@ -23,16 +24,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
-        [guildId, `%${focusedValue}%`]
-      );
-
-      const choices = result.rows.map(row => ({
-        name: row.nickname,
-        value: row.nickname
-      }));
-
+      const choices = await getServersForGuild(guildId, focusedValue);
       await interaction.respond(choices);
     } catch (error) {
       console.error('Autocomplete error:', error);
@@ -41,7 +33,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
@@ -53,20 +45,13 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get server info
-      const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
-        [guildId, serverOption]
-      );
-
-      if (serverResult.rows.length === 0) {
+      // Get server info using shared helper
+      const server = await getServerByNickname(guildId, serverOption);
+      if (!server) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
-
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
 
       // Get all players on this server
       const playersResult = await pool.query(
@@ -75,14 +60,14 @@ module.exports = {
          LEFT JOIN economy e ON p.id = e.player_id
          WHERE p.server_id = $1
          ORDER BY p.ign`,
-        [serverId]
+        [server.id]
       );
 
       if (playersResult.rows.length === 0) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             'No Players Found',
-            `No players found on **${serverName}**.\n\nPlayers need to use \`/link <in-game-name>\` to create their accounts first.`
+            `No players found on **${server.nickname}**.\n\nPlayers need to use \`/link <in-game-name>\` to create their accounts first.`
           )]
         });
       }
@@ -90,37 +75,29 @@ module.exports = {
       let updatedPlayers = [];
       let totalAdded = 0;
 
-      // Update each player's balance
+      // Update each player's balance using shared helper
       for (const player of playersResult.rows) {
-        const currentBalance = player.balance || 0;
-        const newBalance = currentBalance + amount;
+        const balanceResult = await updateBalance(player.player_id, amount);
+        
+        if (balanceResult.success) {
+          updatedPlayers.push({
+            ign: player.ign || 'Unknown',
+            discordId: player.discord_id,
+            oldBalance: balanceResult.oldBalance,
+            newBalance: balanceResult.newBalance
+          });
 
-        // Update balance
-        await pool.query(
-          'UPDATE economy SET balance = $1 WHERE player_id = $2',
-          [newBalance, player.player_id]
-        );
+          totalAdded += amount;
 
-        // Record transaction
-        await pool.query(
-          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-          [player.player_id, amount, 'admin_add']
-        );
-
-        updatedPlayers.push({
-          ign: player.ign || 'Unknown',
-          discordId: player.discord_id,
-          oldBalance: currentBalance,
-          newBalance: newBalance
-        });
-
-        totalAdded += amount;
+          // Record transaction using shared helper
+          await recordTransaction(player.player_id, amount, 'admin_add');
+        }
       }
 
-      // Create success embed
+      // Create success embed with structured format
       const embed = successEmbed(
-        '💰 Currency Added to Server',
-        `**Server:** ${serverName}\n**Amount Added:** ${amount} coins\n**Players Affected:** ${updatedPlayers.length}\n**Total Added:** ${totalAdded} coins`
+        'Currency Added to Server',
+        `**Server:** ${server.nickname}\n**Amount Added:** +${amount}\n**Players Affected:** ${updatedPlayers.length}\n**Total Added:** ${totalAdded}`
       );
 
       // Add player details (limit to first 10 to avoid embed field limits)
@@ -128,7 +105,7 @@ module.exports = {
       for (const player of playersToShow) {
         embed.addFields({
           name: `👤 ${player.ign}`,
-          value: `${player.oldBalance} → ${player.newBalance} coins (+${amount})`,
+          value: `${player.oldBalance} → ${player.newBalance} (+${amount})`,
           inline: true
         });
       }
@@ -136,7 +113,7 @@ module.exports = {
       if (updatedPlayers.length > 10) {
         embed.addFields({
           name: '📋 And More...',
-          value: `${updatedPlayers.length - 10} more players were also updated.`,
+          value: `+${updatedPlayers.length - 10} more players were also updated.`,
           inline: false
         });
       }

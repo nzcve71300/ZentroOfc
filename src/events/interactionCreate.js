@@ -1,5 +1,6 @@
 const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const { orangeEmbed, errorEmbed, successEmbed } = require('../embeds/format');
+const { errorEmbed, orangeEmbed, successEmbed } = require('../embeds/format');
+const { getServerByNickname, getServerById, getLinkedPlayer, updateBalance, recordTransaction } = require('../utils/economy');
 const pool = require('../db');
 const { sendRconCommand } = require('../rcon');
 
@@ -589,7 +590,7 @@ async function handleLinkCancel(interaction) {
 }
 
 async function handleBlackjackBet(interaction) {
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: 64 });
   // Extract serverId from customId
   const customIdParts = interaction.customId.split('_');
   const serverId = customIdParts[2];
@@ -604,6 +605,14 @@ async function handleBlackjackBet(interaction) {
   }
 
   try {
+    // Get server info using shared helper
+    const server = await getServerById(guildId, serverId);
+    if (!server) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
+      });
+    }
+
     // Check player balance for this server
     const balanceResult = await pool.query(
       `SELECT e.balance, p.id as player_id, rs.nickname
@@ -625,7 +634,7 @@ async function handleBlackjackBet(interaction) {
 
     if (balance < betAmount) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins on ${nickname}. Your balance: ${balance} coins.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} on ${nickname}. Your balance: ${balance}.`)]
       });
     }
 
@@ -654,25 +663,23 @@ async function handleBlackjackBet(interaction) {
       winnings = 0;
     }
 
-    // Update balance for this server
-    const newBalance = balance - betAmount + winnings;
-    await pool.query(
-      'UPDATE economy SET balance = $1 WHERE player_id = $2',
-      [newBalance, player_id]
-    );
+    // Update balance using shared helper
+    const balanceResult2 = await updateBalance(player_id, winnings - betAmount);
+    if (!balanceResult2.success) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to update balance. Please try again.')]
+      });
+    }
 
-    // Record transaction
-    await pool.query(
-      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-      [player_id, winnings - betAmount, 'blackjack']
-    );
+    // Record transaction using shared helper
+    await recordTransaction(player_id, winnings - betAmount, 'blackjack');
 
     const gameText = `**Your cards:** ${playerCard1}, ${playerCard2} (${playerTotal})\n**Dealer's cards:** ${dealerCard1}, ${dealerCard2} (${dealerTotal})\n\n**Result:** ${result}`;
-    const balanceText = winnings > 0 ? `**Winnings:** +${winnings} coins\n**New Balance:** ${newBalance} coins` : `**Loss:** -${betAmount} coins\n**New Balance:** ${newBalance} coins`;
+    const balanceText = winnings > 0 ? `**Winnings:** +${winnings}\n**New Balance:** ${balanceResult2.newBalance}` : `**Loss:** -${betAmount}\n**New Balance:** ${balanceResult2.newBalance}`;
 
     await interaction.editReply({
       embeds: [orangeEmbed(
-        `🎰 Blackjack (${nickname})`,
+        `Blackjack (${nickname})`,
         `${gameText}\n\n${balanceText}`
       )]
     });
@@ -686,7 +693,7 @@ async function handleBlackjackBet(interaction) {
 }
 
 async function handleSlotsBet(interaction) {
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: 64 });
   // Extract serverId from customId
   const customIdParts = interaction.customId.split('_');
   const serverId = customIdParts[2];
@@ -701,6 +708,14 @@ async function handleSlotsBet(interaction) {
   }
 
   try {
+    // Get server info using shared helper
+    const server = await getServerById(guildId, serverId);
+    if (!server) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
+      });
+    }
+
     // Check player balance for this server
     const balanceResult = await pool.query(
       `SELECT e.balance, p.id as player_id, rs.nickname
@@ -722,7 +737,7 @@ async function handleSlotsBet(interaction) {
 
     if (balance < betAmount) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins on ${nickname}. Your balance: ${balance} coins.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} on ${nickname}. Your balance: ${balance}.`)]
       });
     }
 
@@ -753,25 +768,23 @@ async function handleSlotsBet(interaction) {
       winnings = 0;
     }
 
-    // Update balance for this server
-    const newBalance = balance - betAmount + winnings;
-    await pool.query(
-      'UPDATE economy SET balance = $1 WHERE player_id = $2',
-      [newBalance, player_id]
-    );
+    // Update balance using shared helper
+    const balanceResult2 = await updateBalance(player_id, winnings - betAmount);
+    if (!balanceResult2.success) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to update balance. Please try again.')]
+      });
+    }
 
-    // Record transaction
-    await pool.query(
-      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-      [player_id, winnings - betAmount, 'slots']
-    );
+    // Record transaction using shared helper
+    await recordTransaction(player_id, winnings - betAmount, 'slots');
 
     const gameText = `**Reels:** ${reel1} | ${reel2} | ${reel3}\n\n**Result:** ${result}`;
-    const balanceText = winnings > 0 ? `**Winnings:** +${winnings} coins\n**New Balance:** ${newBalance} coins` : `**Loss:** -${betAmount} coins\n**New Balance:** ${newBalance} coins`;
+    const balanceText = winnings > 0 ? `**Winnings:** +${winnings}\n**New Balance:** ${balanceResult2.newBalance}` : `**Loss:** -${betAmount}\n**New Balance:** ${balanceResult2.newBalance}`;
 
     await interaction.editReply({
       embeds: [orangeEmbed(
-        `🎰 Slots (${nickname})`,
+        `Slots (${nickname})`,
         `${gameText}\n\n${balanceText}`
       )]
     });

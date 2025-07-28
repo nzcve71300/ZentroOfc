@@ -8,7 +8,7 @@ module.exports = {
     .setDescription('View your balance across all servers'),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -35,7 +35,7 @@ module.exports = {
         });
       }
 
-      // Create embed
+      // Create embed with structured format
       const embed = orangeEmbed(
         'Balance Overview',
         `**Your Balances by Server:**`
@@ -44,7 +44,7 @@ module.exports = {
       for (const row of balanceResult.rows) {
         embed.addFields({
           name: `${row.nickname}`,
-          value: `Balance: ${row.balance || 0} coins`,
+          value: `Balance: ${row.balance || 0}`,
           inline: true
         });
       }
