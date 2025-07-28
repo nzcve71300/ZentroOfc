@@ -73,9 +73,9 @@ async function sendAccessDeniedMessage(interaction, ephemeral = true) {
   if (interaction.deferred) {
     await interaction.editReply({ embeds: [embed] });
   } else if (interaction.replied) {
-    await interaction.followUp({ embeds: [embed], ephemeral });
+    await interaction.followUp({ embeds: [embed], flags: ephemeral ? 64 : 0 });
   } else {
-    await interaction.reply({ embeds: [embed], ephemeral });
+    await interaction.reply({ embeds: [embed], flags: ephemeral ? 64 : 0 });
   }
 }
 
@@ -90,9 +90,9 @@ async function sendUnauthorizedGuildMessage(interaction) {
   if (interaction.deferred) {
     await interaction.editReply({ embeds: [embed] });
   } else if (interaction.replied) {
-    await interaction.followUp({ embeds: [embed], ephemeral: true });
+    await interaction.followUp({ embeds: [embed], flags: 64 });
   } else {
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: 64 });
   }
 }
 
@@ -102,8 +102,8 @@ async function sendUnauthorizedGuildMessage(interaction) {
 async function getLinkedPlayer(guildId, serverId, discordId) {
   const pool = require('../db');
   const result = await pool.query(
-    'SELECT * FROM players WHERE guild_id::text = $1 AND server_id::text = $2 AND discord_id::text = $3 LIMIT 1',
-    [guildId.toString(), serverId.toString(), discordId.toString()]
+    'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND server_id = $2 AND discord_id = $3 LIMIT 1',
+    [guildId, serverId, discordId]
   );
   return result.rows[0] || null;
 }
@@ -114,8 +114,8 @@ async function getLinkedPlayer(guildId, serverId, discordId) {
 async function getPlayerByIGN(guildId, serverId, ign) {
   const pool = require('../db');
   const result = await pool.query(
-    'SELECT * FROM players WHERE guild_id::text = $1 AND server_id::text = $2 AND LOWER(ign) = LOWER($3) LIMIT 1',
-    [guildId.toString(), serverId.toString(), ign]
+    'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND server_id = $2 AND LOWER(ign) = LOWER($3) LIMIT 1',
+    [guildId, serverId, ign]
   );
   return result.rows[0] || null;
 }

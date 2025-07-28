@@ -24,29 +24,51 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
+      // Get all servers for this guild
       const serverResult = await pool.query(
         'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)',
         [guildId]
       );
 
-      let player = null;
-      for (const server of serverResult.rows) {
-        player = /^\d{17,}$/.test(playerName)
-          ? await getLinkedPlayer(guildId, server.id, playerName)
-          : await getPlayerByIGN(guildId, server.id, playerName);
-        if (player) break;
-      }
-
-      if (!player) {
+      if (serverResult.rows.length === 0) {
         return interaction.editReply({
-          embeds: [orangeEmbed('Player Not Found', `No player found with name "${playerName}".`)]
+          embeds: [orangeEmbed('No Servers Found', 'No Rust servers found for this Discord.')]
         });
       }
 
-      await pool.query('UPDATE players SET discord_id = NULL WHERE id = $1', [player.id]);
+      let unlinkedCount = 0;
+      let playerNames = [];
 
+      // Check if input is a Discord ID
+      const isDiscordId = /^\d{17,}$/.test(playerName);
+
+      for (const server of serverResult.rows) {
+        let player = null;
+        
+        if (isDiscordId) {
+          // Search by Discord ID across all servers
+          player = await getLinkedPlayer(guildId, server.id, playerName);
+        } else {
+          // Search by IGN across all servers
+          player = await getPlayerByIGN(guildId, server.id, playerName);
+        }
+
+        if (player && player.discord_id) {
+          await pool.query('UPDATE players SET discord_id = NULL WHERE id = $1', [player.id]);
+          unlinkedCount++;
+          playerNames.push(player.ign || 'Unknown');
+        }
+      }
+
+      if (unlinkedCount === 0) {
+        return interaction.editReply({
+          embeds: [orangeEmbed('Player Not Found', `No linked player found with name "${playerName}".`)]
+        });
+      }
+
+      const playerList = playerNames.join(', ');
       await interaction.editReply({
-        embeds: [successEmbed('Unlinked', `**${player.ign || 'Unknown'}** has been unlinked.`)]
+        embeds: [successEmbed('Unlinked', `**${unlinkedCount} account(s)** unlinked: **${playerList}**`)]
       });
 
     } catch (err) {

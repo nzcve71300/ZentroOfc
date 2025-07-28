@@ -22,8 +22,8 @@ module.exports = {
     try {
       // Get first server for this guild
       const serverResult = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id::text = (SELECT id::text FROM guilds WHERE discord_id::text = $1) LIMIT 1',
-        [guildId.toString()]
+        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) LIMIT 1',
+        [guildId]
       );
       if (serverResult.rows.length === 0) {
         return await interaction.editReply({
@@ -36,13 +36,16 @@ module.exports = {
       // Prevent duplicate links
       const existingPlayer = await getLinkedPlayer(guildId, serverId, discordId);
       if (existingPlayer && existingPlayer.ign.toLowerCase() === ign.toLowerCase()) {
-        // Already linked to same IGN
+        return await interaction.editReply({
+          embeds: [orangeEmbed('Already Linked', 'Your Discord is already linked to this in-game name.')]
+        });
       } else if (existingPlayer) {
         return await interaction.editReply({
           embeds: [orangeEmbed('Already Linked', 'Your Discord is already linked to a different in-game name on this server.')]
         });
       }
 
+      // Check if IGN is already linked to another Discord account
       const ignPlayer = await getPlayerByIGN(guildId, serverId, ign);
       if (ignPlayer && ignPlayer.discord_id && ignPlayer.discord_id !== discordId) {
         return await interaction.editReply({

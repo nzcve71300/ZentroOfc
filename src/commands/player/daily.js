@@ -15,7 +15,7 @@ module.exports = {
     const dailyAmount = 100;
 
     try {
-      // Check last claim
+      // Check last claim across all servers
       const cooldownResult = await pool.query(
         `SELECT MAX(timestamp) as last_claim 
          FROM transactions 
@@ -35,7 +35,7 @@ module.exports = {
         });
       }
 
-      // Get all linked players
+      // Get all linked players across all servers
       const players = await pool.query(
         `SELECT p.id, p.ign, rs.nickname 
          FROM players p
@@ -51,20 +51,30 @@ module.exports = {
         });
       }
 
+      let totalAdded = 0;
+      const serverList = [];
+
       for (const player of players.rows) {
+        // Ensure economy record exists
         await pool.query(
-          `INSERT INTO economy (player_id, balance) VALUES ($1, $2)
-           ON CONFLICT (player_id) DO UPDATE SET balance = economy.balance + $2`,
+          'INSERT INTO economy (player_id, balance) VALUES ($1, $2) ON CONFLICT (player_id) DO UPDATE SET balance = economy.balance + $2',
           [player.id, dailyAmount]
         );
+        
+        // Record transaction
         await pool.query(
           'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
           [player.id, dailyAmount, 'daily_reward']
         );
+        
+        totalAdded += dailyAmount;
+        serverList.push(player.nickname);
       }
 
+      const uniqueServers = [...new Set(serverList)];
       await interaction.editReply({
-        embeds: [successEmbed('Daily Reward Claimed', `+${dailyAmount} coins added to **${players.rows.length} servers**.`)]
+        embeds: [successEmbed('Daily Reward Claimed', 
+          `+${dailyAmount} coins added to **${players.rows.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} coins\n**Servers:** ${uniqueServers.join(', ')}`)]
       });
 
     } catch (err) {

@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economy');
+const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -26,7 +27,7 @@ module.exports = {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
     try {
-      const servers = await interaction.client.db.query(
+      const servers = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -37,7 +38,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
     if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;

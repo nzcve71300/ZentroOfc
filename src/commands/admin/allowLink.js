@@ -24,18 +24,41 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
-        `UPDATE players 
-         SET discord_id = NULL 
-         WHERE id IN (
-           SELECT p.id 
-           FROM players p 
-           JOIN rust_servers rs ON p.server_id = rs.id 
-           JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND (p.ign ILIKE $2 OR p.discord_id = $2)
-         ) RETURNING ign`,
-        [guildId, playerName]
-      );
+      // Check if input is a Discord ID
+      const isDiscordId = /^\d{17,}$/.test(playerName);
+      
+      let query;
+      let params;
+      
+      if (isDiscordId) {
+        // Allow relink by Discord ID
+        query = `
+          UPDATE players 
+          SET discord_id = NULL 
+          WHERE id IN (
+            SELECT p.id 
+            FROM players p 
+            JOIN rust_servers rs ON p.server_id = rs.id 
+            JOIN guilds g ON rs.guild_id = g.id 
+            WHERE g.discord_id = $1 AND p.discord_id = $2
+          ) RETURNING ign`;
+        params = [guildId, playerName];
+      } else {
+        // Allow relink by IGN
+        query = `
+          UPDATE players 
+          SET discord_id = NULL 
+          WHERE id IN (
+            SELECT p.id 
+            FROM players p 
+            JOIN rust_servers rs ON p.server_id = rs.id 
+            JOIN guilds g ON rs.guild_id = g.id 
+            WHERE g.discord_id = $1 AND p.ign ILIKE $2
+          ) RETURNING ign`;
+        params = [guildId, playerName];
+      }
+
+      const result = await pool.query(query, params);
 
       if (result.rows.length === 0) {
         return interaction.editReply({
@@ -43,8 +66,9 @@ module.exports = {
         });
       }
 
+      const playerList = result.rows.map(row => row.ign).join(', ');
       await interaction.editReply({
-        embeds: [successEmbed('Relink Enabled', `**${result.rows[0].ign || playerName}** can now relink.`)]
+        embeds: [successEmbed('Relink Enabled', `**${result.rows.length} player(s)** can now relink: **${playerList}**`)]
       });
 
     } catch (err) {
