@@ -26,7 +26,7 @@ module.exports = {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
-
+        }
         return;
       }
 
@@ -167,7 +167,7 @@ async function handleShopCategorySelect(interaction) {
   try {
     // Get category info
     const categoryResult = await pool.query(
-      `SELECT sc.name, sc.type, rs.nickname
+      `SELECT sc.name, sc.type, rs.nickname, sc.server_id
        FROM shop_categories sc
        JOIN rust_servers rs ON sc.server_id = rs.id
        WHERE sc.id = $1`,
@@ -180,7 +180,7 @@ async function handleShopCategorySelect(interaction) {
       });
     }
 
-    const { name, type, nickname } = categoryResult.rows[0];
+    const { name, type, nickname, server_id } = categoryResult.rows[0];
 
     // Get items and kits
     let items = [];
@@ -204,16 +204,18 @@ async function handleShopCategorySelect(interaction) {
 
     // Get player balance
     const balanceResult = await pool.query(
-      `SELECT e.balance, rs.id as server_id FROM players p
+      `SELECT e.balance
+       FROM players p
        JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
-       JOIN shop_categories sc ON rs.id = sc.server_id
-       WHERE p.discord_id = $1 AND sc.id = $2`,
-      [userId, categoryId]
+       JOIN guilds g ON rs.guild_id = g.id
+       WHERE p.discord_id = $1 AND g.discord_id = $2
+       LIMIT 1`,
+      [userId, interaction.guildId]
     );
 
     const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;
-    const serverId = balanceResult.rows.length > 0 ? balanceResult.rows[0].server_id : null;
+    const serverId = server_id;
 
     // Create embed
     const embed = orangeEmbed(
@@ -337,13 +339,16 @@ async function handleShopItemSelect(interaction) {
      const serverId = serverResult.rows[0].server_id;
      const nickname = serverResult.rows[0].nickname;
 
-     // Now get player balance for this specific server (requires linking)
+     // Now get player balance (single Discord balance)
      const balanceResult = await pool.query(
        `SELECT e.balance, p.id as player_id
         FROM players p
         JOIN economy e ON p.id = e.player_id
-        WHERE p.discord_id = $1 AND p.server_id = $2`,
-       [userId, serverId]
+        JOIN rust_servers rs ON p.server_id = rs.id
+        JOIN guilds g ON rs.guild_id = g.id
+        WHERE p.discord_id = $1 AND g.discord_id = $2
+        LIMIT 1`,
+       [userId, interaction.guildId]
      );
      
      console.log('Balance result:', balanceResult.rows);
@@ -586,7 +591,9 @@ async function handleLinkCancel(interaction) {
 
 async function handleBlackjackBet(interaction) {
   await interaction.deferReply();
-  
+  // Extract serverId from customId
+  const customIdParts = interaction.customId.split('_');
+  const serverId = customIdParts[2];
   const betAmount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
   const userId = interaction.user.id;
   const guildId = interaction.guildId;
@@ -598,27 +605,28 @@ async function handleBlackjackBet(interaction) {
   }
 
   try {
-    // Check player balance
+    // Check player balance for this server
     const balanceResult = await pool.query(
-      `SELECT e.balance, p.id as player_id
+      `SELECT e.balance, p.id as player_id, rs.nickname
        FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.discord_id = $1 AND rs.id = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
        LIMIT 1`,
-      [userId, guildId]
+      [userId, serverId, guildId]
     );
 
     if (balanceResult.rows.length === 0) {
       return interaction.editReply({
-        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.')]
+        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character on this server first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    const { balance, player_id } = balanceResult.rows[0];
+    const { balance, player_id, nickname } = balanceResult.rows[0];
 
     if (balance < betAmount) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins. Your balance: ${balance} coins.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins on ${nickname}. Your balance: ${balance} coins.`)]
       });
     }
 
@@ -647,7 +655,7 @@ async function handleBlackjackBet(interaction) {
       winnings = 0;
     }
 
-    // Update balance
+    // Update balance for this server
     const newBalance = balance - betAmount + winnings;
     await pool.query(
       'UPDATE economy SET balance = $1 WHERE player_id = $2',
@@ -665,7 +673,7 @@ async function handleBlackjackBet(interaction) {
 
     await interaction.editReply({
       embeds: [orangeEmbed(
-        '🎰 Blackjack',
+        `🎰 Blackjack (${nickname})`,
         `${gameText}\n\n${balanceText}`
       )]
     });
@@ -680,7 +688,9 @@ async function handleBlackjackBet(interaction) {
 
 async function handleSlotsBet(interaction) {
   await interaction.deferReply();
-  
+  // Extract serverId from customId
+  const customIdParts = interaction.customId.split('_');
+  const serverId = customIdParts[2];
   const betAmount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
   const userId = interaction.user.id;
   const guildId = interaction.guildId;
@@ -692,27 +702,28 @@ async function handleSlotsBet(interaction) {
   }
 
   try {
-    // Check player balance
+    // Check player balance for this server
     const balanceResult = await pool.query(
-      `SELECT e.balance, p.id as player_id
+      `SELECT e.balance, p.id as player_id, rs.nickname
        FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.discord_id = $1 AND rs.id = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
        LIMIT 1`,
-      [userId, guildId]
+      [userId, serverId, guildId]
     );
 
     if (balanceResult.rows.length === 0) {
       return interaction.editReply({
-        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.')]
+        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character on this server first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    const { balance, player_id } = balanceResult.rows[0];
+    const { balance, player_id, nickname } = balanceResult.rows[0];
 
     if (balance < betAmount) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins. Your balance: ${balance} coins.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} coins on ${nickname}. Your balance: ${balance} coins.`)]
       });
     }
 
@@ -743,7 +754,7 @@ async function handleSlotsBet(interaction) {
       winnings = 0;
     }
 
-    // Update balance
+    // Update balance for this server
     const newBalance = balance - betAmount + winnings;
     await pool.query(
       'UPDATE economy SET balance = $1 WHERE player_id = $2',
@@ -761,7 +772,7 @@ async function handleSlotsBet(interaction) {
 
     await interaction.editReply({
       embeds: [orangeEmbed(
-        '🎰 Slots',
+        `🎰 Slots (${nickname})`,
         `${gameText}\n\n${balanceText}`
       )]
     });

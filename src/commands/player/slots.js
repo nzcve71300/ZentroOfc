@@ -5,68 +5,71 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('slots')
-    .setDescription('Play slots for currency'),
+    .setDescription('Play slots for currency')
+    .addStringOption(option =>
+      option.setName('server')
+        .setDescription('Select a server to gamble on')
+        .setRequired(true)
+        .setAutocomplete(true)),
+
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused();
+    const userId = interaction.user.id;
+    const guildId = interaction.guildId;
+    try {
+      const result = await pool.query(
+        `SELECT rs.nickname FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE p.discord_id = $1 AND g.discord_id = $2 AND rs.nickname ILIKE $3
+         GROUP BY rs.nickname
+         LIMIT 25`,
+        [userId, guildId, `%${focusedValue}%`]
+      );
+      const choices = result.rows.map(row => ({ name: row.nickname, value: row.nickname }));
+      await interaction.respond(choices);
+    } catch (error) {
+      console.error('Autocomplete error:', error);
+      await interaction.respond([]);
+    }
+  },
 
   async execute(interaction) {
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
-
-    try {
-      // Check if player is linked to any server
-      const linkedResult = await pool.query(
-        `SELECT p.id as player_id
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
-         LIMIT 1`,
-        [userId, guildId]
-      );
-
-      if (linkedResult.rows.length === 0) {
-        return interaction.reply({
-          embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')],
-          ephemeral: true
-        });
-      }
-
-      // Get Discord balance (single balance for all servers)
-      const balanceResult = await pool.query(
-        `SELECT e.balance
-         FROM players p
-         JOIN economy e ON p.id = e.player_id
-         WHERE p.discord_id = $1 AND p.guild_id = (SELECT id FROM guilds WHERE discord_id = $2)
-         LIMIT 1`,
-        [userId, guildId]
-      );
-
-      const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance || 0 : 0;
-
-      // Create modal for bet amount
-      const modal = new ModalBuilder()
-        .setCustomId('slots_bet')
-        .setTitle('Slots - Place Your Bet');
-
-      const betInput = new TextInputBuilder()
-        .setCustomId('bet_amount')
-        .setLabel(`Bet Amount (Max: ${balance} coins)`)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter your bet amount')
-        .setRequired(true)
-        .setMinLength(1)
-        .setMaxLength(10);
-
-      const firstActionRow = new ActionRowBuilder().addComponents(betInput);
-      modal.addComponents(firstActionRow);
-
-      await interaction.showModal(modal);
-
-    } catch (error) {
-      console.error('Error starting slots:', error);
-      await interaction.reply({
-        embeds: [errorEmbed('Error', 'Failed to start slots game.')],
+    const serverName = interaction.options.getString('server');
+    // Check if player is linked to this server
+    const linkedResult = await pool.query(
+      `SELECT p.id as player_id, rs.id as server_id
+       FROM players p
+       JOIN rust_servers rs ON p.server_id = rs.id
+       JOIN guilds g ON rs.guild_id = g.id
+       WHERE p.discord_id = $1 AND g.discord_id = $2 AND rs.nickname = $3
+       LIMIT 1`,
+      [userId, guildId, serverName]
+    );
+    if (linkedResult.rows.length === 0) {
+      return interaction.reply({
+        embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character on this server first.\n\nUse `/link <in-game-name>` to link your account before using this command.')],
         ephemeral: true
       });
     }
+    const playerId = linkedResult.rows[0].player_id;
+    const serverId = linkedResult.rows[0].server_id;
+    // Create modal for bet amount, encode serverId in customId
+    const modal = new ModalBuilder()
+      .setCustomId(`slots_bet_${serverId}`)
+      .setTitle(`Slots - Place Your Bet (${serverName})`);
+    const betInput = new TextInputBuilder()
+      .setCustomId('bet_amount')
+      .setLabel('Bet Amount')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter your bet amount')
+      .setRequired(true)
+      .setMinLength(1)
+      .setMaxLength(10);
+    const firstActionRow = new ActionRowBuilder().addComponents(betInput);
+    modal.addComponents(firstActionRow);
+    await interaction.showModal(modal);
   },
 }; 
