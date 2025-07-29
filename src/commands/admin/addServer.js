@@ -70,10 +70,13 @@ module.exports = {
         });
       }
 
+      // Generate a unique server ID
+      const serverId = `${guildId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       // Add the server
       await pool.query(
-        'INSERT INTO rust_servers (guild_id, nickname, ip, port, password) VALUES (?, ?, ?, ?, ?)',
-        [guildDbId, nickname, ip, port, rconPassword]
+        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password) VALUES (?, ?, ?, ?, ?, ?)',
+        [serverId, guildDbId, nickname, ip, port, rconPassword]
       );
 
       const successEmbedObj = successEmbed(
