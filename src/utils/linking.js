@@ -121,6 +121,20 @@ async function createLinkRequest(guildId, discordId, ign, serverId) {
 async function confirmLinkRequest(guildId, discordId, ign, serverId) {
   console.log(`Confirming link request: ${discordId} -> ${ign} on server ${serverId}`);
 
+  // Check if the IGN is already linked to another Discord ID
+  const existingLink = await pool.query(
+    `SELECT 1 FROM players 
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
+     AND server_id = $2 
+     AND LOWER(ign) = LOWER($3) 
+     AND is_active = true`,
+    [guildId, serverId, ign]
+  );
+
+  if (existingLink.rows.length > 0) {
+    throw new Error(`This in-game name (${ign}) is already linked to another Discord account. Please contact an admin to unlink it first.`);
+  }
+
   // Update request status
   await pool.query(
     `UPDATE link_requests 

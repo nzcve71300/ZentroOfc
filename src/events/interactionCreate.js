@@ -520,13 +520,27 @@ async function handleLinkConfirm(interaction) {
 
     // Confirm link for all servers
     const linkedServers = [];
+    let errorMessage = null;
+    
     for (const server of servers) {
       try {
         await confirmLinkRequest(guildId, discordId, ign, server.id);
         linkedServers.push(server.nickname);
       } catch (error) {
         console.error(`Failed to link to server ${server.nickname}:`, error);
+        // If it's our custom error about IGN already linked, show it
+        if (error.message.includes('already linked')) {
+          errorMessage = error.message;
+          break; // Stop trying other servers
+        }
       }
+    }
+
+    if (errorMessage) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Link Failed', errorMessage)],
+        components: []
+      });
     }
 
     if (linkedServers.length === 0) {
