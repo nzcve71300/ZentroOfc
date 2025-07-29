@@ -1,6 +1,13 @@
 const pool = require('../db');
 
 /**
+ * Check if input is a numeric Discord ID
+ */
+function isDiscordId(input) {
+  return /^\d+$/.test(input);
+}
+
+/**
  * Get active player by Discord ID and server
  */
 async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
@@ -66,6 +73,17 @@ async function getAllActivePlayersByIgn(guildId, ign) {
     [guildId, ign]
   );
   return result.rows;
+}
+
+/**
+ * Get all active players by identifier (Discord ID or IGN) across all servers
+ */
+async function getAllActivePlayersByIdentifier(guildId, identifier) {
+  if (isDiscordId(identifier)) {
+    return getAllActivePlayersByDiscordId(guildId, identifier);
+  } else {
+    return getAllActivePlayersByIgn(guildId, identifier);
+  }
 }
 
 /**
@@ -144,6 +162,17 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
     [guildId, ign]
   );
   return result.rows;
+}
+
+/**
+ * Unlink all players by identifier (Discord ID or IGN) across all servers
+ */
+async function unlinkAllPlayersByIdentifier(guildId, identifier) {
+  if (isDiscordId(identifier)) {
+    return unlinkAllPlayersByDiscordId(guildId, identifier);
+  } else {
+    return unlinkAllPlayersByIgn(guildId, identifier);
+  }
 }
 
 /**
@@ -238,15 +267,18 @@ module.exports = {
   getActivePlayerByIgn,
   getAllActivePlayersByDiscordId,
   getAllActivePlayersByIgn,
+  getAllActivePlayersByIdentifier,
   createOrUpdatePlayerLink,
   unlinkPlayer,
   unlinkAllPlayersByDiscordId,
   unlinkAllPlayersByIgn,
+  unlinkAllPlayersByIdentifier,
   isDiscordIdLinkedToDifferentIgn,
   isIgnLinkedToDifferentDiscordId,
   getPlayerBalance,
   updatePlayerBalance,
   recordTransaction,
   getServersForGuild,
-  getServerByNickname
+  getServerByNickname,
+  isDiscordId
 };

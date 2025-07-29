@@ -1,15 +1,15 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { unlinkAllPlayersByDiscordId, unlinkAllPlayersByIgn } = require('../../utils/unifiedPlayerSystem');
+const { unlinkAllPlayersByIdentifier } = require('../../utils/unifiedPlayerSystem');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('unlink')
-    .setDescription('Unlink a Discord account or in-game name')
+    .setDescription('Unlink a player from all servers')
     .addStringOption(option =>
       option.setName('name')
-        .setDescription('Discord username or in-game name')
+        .setDescription('Discord ID or in-game name of the player to unlink')
         .setRequired(true)),
 
   async execute(interaction) {
@@ -17,36 +17,31 @@ module.exports = {
     if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;
-    const name = interaction.options.getString('name');
+    const identifier = interaction.options.getString('name');
 
     try {
-      // Try to unlink by Discord ID first (if it's a Discord ID)
-      let unlinkedPlayers = await unlinkAllPlayersByDiscordId(guildId, name);
-      
-      // If no players found by Discord ID, try by IGN
-      if (unlinkedPlayers.length === 0) {
-        unlinkedPlayers = await unlinkAllPlayersByIgn(guildId, name);
-      }
+      // Unlink all players for this identifier
+      const unlinkedPlayers = await unlinkAllPlayersByIdentifier(guildId, identifier);
 
       if (unlinkedPlayers.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('Not Found', `No active links found for **${name}**.`)]
+          embeds: [errorEmbed('No Players Found', `No active players found for **${identifier}**.`)]
         });
       }
 
       const embed = successEmbed(
-        'Account Unlinked', 
-        `Successfully unlinked **${name}** from **${unlinkedPlayers.length} server(s)**.`
+        'Players Unlinked', 
+        `Successfully unlinked **${unlinkedPlayers.length} player(s)** for **${identifier}**.`
       );
 
-      // Show which servers were unlinked
+      // Show which servers were affected
       const serverNames = [...new Set(unlinkedPlayers.map(p => p.nickname))];
       embed.addFields({ name: 'Servers Affected', value: serverNames.join(', ') });
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('Error in unlink:', err);
-      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to unlink account. Please try again.')] });
+      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to unlink player. Please try again.')] });
     }
   }
 };
