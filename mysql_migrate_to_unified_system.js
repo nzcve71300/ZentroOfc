@@ -56,7 +56,8 @@ async function migrateToUnifiedSystem() {
         linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         unlinked_at TIMESTAMP NULL,
         is_active BOOLEAN DEFAULT TRUE,
-        UNIQUE KEY unique_guild_server_discord (guild_id, server_id, discord_id)
+        UNIQUE KEY unique_guild_server_discord (guild_id, server_id, discord_id),
+        UNIQUE KEY unique_guild_server_ign (guild_id, server_id, ign(191))
       )
     `);
     
@@ -138,7 +139,7 @@ async function migrateToUnifiedSystem() {
     console.log('Step 6: Creating indexes...');
     
     await pool.query('CREATE INDEX idx_players_guild_discord ON players(guild_id, discord_id)');
-    await pool.query('CREATE INDEX idx_players_guild_ign ON players(guild_id, ign)');
+    await pool.query('CREATE INDEX idx_players_guild_ign ON players(guild_id, ign(191))');
     await pool.query('CREATE INDEX idx_players_active ON players(is_active)');
     await pool.query('CREATE INDEX idx_players_server ON players(server_id)');
     await pool.query('CREATE INDEX idx_economy_player ON economy(player_id)');

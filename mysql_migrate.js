@@ -63,12 +63,12 @@ async function migrate() {
     await addConstraintIfNotExists(
       'players',
       'players_unique_guild_server_ign',
-      'UNIQUE (guild_id, server_id, ign)'
+      'UNIQUE (guild_id, server_id, ign(191))'
     );
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign);
+      CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign(191));
       CREATE INDEX IF NOT EXISTS idx_players_active ON players(is_active);
       CREATE INDEX IF NOT EXISTS idx_players_server ON players(server_id);
     `);
@@ -157,7 +157,7 @@ async function migrate() {
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign);
+      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191));
       CREATE INDEX IF NOT EXISTS idx_link_blocks_active ON link_blocks(is_active);
     `);
 
@@ -184,7 +184,7 @@ async function migrate() {
     await addConstraintIfNotExists(
       'player_links',
       'player_links_unique_guild_server_ign',
-      'UNIQUE (guild_id, server_id, ign)'
+      'UNIQUE (guild_id, server_id, ign(191))'
     );
 
     /** ------------------------

@@ -218,7 +218,7 @@ CREATE TABLE link_blocks (
 
 -- Create indexes for better performance
 CREATE INDEX idx_players_guild_discord ON players(guild_id, discord_id);
-CREATE INDEX idx_players_guild_ign ON players(guild_id, ign);
+CREATE INDEX idx_players_guild_ign ON players(guild_id, ign(191));
 CREATE INDEX idx_players_active ON players(is_active);
 CREATE INDEX idx_players_server ON players(server_id);
 
@@ -229,7 +229,7 @@ CREATE INDEX idx_link_requests_status ON link_requests(status);
 CREATE INDEX idx_link_requests_expires ON link_requests(expires_at);
 
 CREATE INDEX idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
-CREATE INDEX idx_link_blocks_guild_ign ON link_blocks(guild_id, ign);
+CREATE INDEX idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191));
 CREATE INDEX idx_link_blocks_active ON link_blocks(is_active);
 
 -- Clean up expired link requests
