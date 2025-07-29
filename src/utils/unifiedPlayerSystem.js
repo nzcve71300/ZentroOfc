@@ -180,19 +180,34 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
 
 /**
  * Unlink all players by identifier (Discord ID or IGN) across all servers
- * This function handles both Discord IDs and IGNs with a single query
+ * This function handles both Discord IDs and IGNs with separate queries
  */
 async function unlinkAllPlayersByIdentifier(guildId, identifier) {
-  const result = await pool.query(
-    `UPDATE players 
-     SET is_active = false, unlinked_at = NOW(), ign = NULL
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
-     AND (discord_id = $2 OR LOWER(ign) = LOWER($2))
-     AND is_active = true
-     RETURNING *`,
-    [guildId, identifier]
-  );
-  return result.rows;
+  if (isDiscordId(identifier)) {
+    // Handle Discord ID (numeric) - direct comparison
+    const result = await pool.query(
+      `UPDATE players 
+       SET is_active = false, unlinked_at = NOW(), ign = NULL
+       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+       AND discord_id = $2
+       AND is_active = true
+       RETURNING *`,
+      [guildId, identifier]
+    );
+    return result.rows;
+  } else {
+    // Handle IGN (text) - case-insensitive match
+    const result = await pool.query(
+      `UPDATE players 
+       SET is_active = false, unlinked_at = NOW(), ign = NULL
+       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+       AND LOWER(ign) = LOWER($2)
+       AND is_active = true
+       RETURNING *`,
+      [guildId, identifier]
+    );
+    return result.rows;
+  }
 }
 
 /**
