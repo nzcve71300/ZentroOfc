@@ -8,12 +8,8 @@ module.exports = {
     .setName('allow-link')
     .setDescription('Allow a player to link their Discord account')
     .addStringOption(option =>
-      option.setName('discord_id')
-        .setDescription('Discord ID of the player')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('in-game-name')
-        .setDescription('In-game name of the player')
+      option.setName('name')
+        .setDescription('Name of the player (Discord ID or in-game name)')
         .setRequired(true)),
 
   async execute(interaction) {
@@ -21,8 +17,7 @@ module.exports = {
     if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;
-    const discordId = interaction.options.getString('discord_id');
-    const ign = interaction.options.getString('in-game-name');
+    const name = interaction.options.getString('name');
 
     try {
       // Get all servers for this guild
@@ -35,6 +30,11 @@ module.exports = {
 
       const linkedPlayers = [];
       
+      // For now, we'll assume the name is a Discord ID
+      // You can enhance this to detect if it's a Discord ID or IGN
+      const discordId = name;
+      const ign = 'Unknown'; // You might want to make this configurable
+
       // Link the player to all servers
       for (const server of servers) {
         const player = await createOrUpdatePlayerLink(guildId, server.id, discordId, ign);
