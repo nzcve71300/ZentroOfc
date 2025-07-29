@@ -232,5 +232,38 @@ CREATE INDEX idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
 CREATE INDEX idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191));
 CREATE INDEX idx_link_blocks_active ON link_blocks(is_active);
 
+-- Events configuration table
+CREATE TABLE event_configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    server_id VARCHAR(32),
+    event_type TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT FALSE,
+    kill_message TEXT,
+    respawn_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_server_event (server_id, event_type(191)),
+    FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE
+);
+
+-- Insert default configurations for existing servers
+INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message)
+SELECT 
+    rs.id,
+    'bradley',
+    FALSE,
+    '<color=#00ffff>Brad got taken</color>',
+    '<color=#00ffff>Bradley APC has respawned</color>'
+FROM rust_servers rs;
+
+INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message)
+SELECT 
+    rs.id,
+    'helicopter',
+    FALSE,
+    '<color=#00ffff>Heli got taken</color>',
+    '<color=#00ffff>Patrol Helicopter has respawned</color>'
+FROM rust_servers rs;
+
 -- Clean up expired link requests
 DELETE FROM link_requests WHERE expires_at < CURRENT_TIMESTAMP AND status = 'pending'; 

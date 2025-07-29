@@ -154,6 +154,22 @@ async function initializeDatabase() {
       UPDATE players SET is_active = TRUE WHERE is_active IS NULL
     `);
 
+    // Ensure event_configs table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS event_configs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        server_id VARCHAR(32),
+        event_type TEXT NOT NULL,
+        enabled BOOLEAN DEFAULT FALSE,
+        kill_message TEXT,
+        respawn_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_server_event (server_id, event_type(191)),
+        FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE
+      )
+    `);
+
     // Note: MySQL permissions are user-level, not schema-level like PostgreSQL
     console.log('✅ Database initialization completed successfully!');
   } catch (error) {
