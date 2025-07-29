@@ -14,6 +14,7 @@ const { discordToken } = require('./config');
 const { startRconListeners } = require('./rcon');
 const { ensureZentroAdminRole, isAuthorizedGuild, sendUnauthorizedGuildMessage } = require('./utils/permissions');
 const { initializeDatabase } = require('./utils/databaseInit');
+const pool = require('./db');
 const fs = require('fs');
 const path = require('path');
 
@@ -56,6 +57,21 @@ client.once('ready', async () => {
     console.log('✅ Database initialization completed');
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
+  }
+  
+  // Pre-insert all connected guilds into the database
+  try {
+    console.log('📋 Ensuring all connected guilds exist in database...');
+    for (const [id, guild] of client.guilds.cache) {
+      await pool.query(`
+        INSERT INTO guilds (discord_id, name)
+        VALUES ($1::BIGINT, $2)
+        ON CONFLICT (discord_id) DO NOTHING;
+      `, [id, guild.name]);
+    }
+    console.log(`✅ Ensured ${client.guilds.cache.size} guild(s) exist in database`);
+  } catch (error) {
+    console.error('❌ Failed to pre-insert guilds:', error);
   }
   
   // Create Zentro Admin role in all guilds the bot is in

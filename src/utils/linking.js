@@ -133,11 +133,25 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
 
   console.log(`Confirming link request: ${discordIdBigInt} -> ${ign} on server ${serverIdBigInt}`);
 
+  // Ensure guild exists in guilds table
+  await pool.query(`
+    INSERT INTO guilds (discord_id, name)
+    VALUES ($1::BIGINT, $2)
+    ON CONFLICT (discord_id) DO NOTHING;
+  `, [guildIdBigInt, 'Unknown Guild']);
+
+  // Ensure server exists in rust_servers table
+  await pool.query(`
+    INSERT INTO rust_servers (id, guild_id, nickname)
+    VALUES ($1::BIGINT, (SELECT id FROM guilds WHERE discord_id = $2::BIGINT), $3)
+    ON CONFLICT (id) DO NOTHING;
+  `, [serverIdBigInt, guildIdBigInt, 'Unknown Server']);
+
   // Update request status
   await pool.query(
     `UPDATE link_requests 
      SET status = 'confirmed' 
-     WHERE guild_id = $1::BIGINT 
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
      AND discord_id = $2::BIGINT 
      AND server_id = $3::BIGINT`,
     [guildIdBigInt, discordIdBigInt, serverIdBigInt]
@@ -146,7 +160,7 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
   // Step 1: Check if the IGN exists
   const existing = await pool.query(
     `SELECT id, is_active FROM players 
-     WHERE guild_id = $1::BIGINT 
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
      AND server_id = $2::BIGINT 
      AND LOWER(ign) = LOWER($3)`,
     [guildIdBigInt, serverIdBigInt, ign]
@@ -181,7 +195,7 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
   console.log(`Creating new player link: ${discordIdBigInt} -> ${ign}`);
   const result = await pool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
-     VALUES ($1::BIGINT, $2::BIGINT, $3::BIGINT, $4, NOW(), true)
+     VALUES ((SELECT id FROM guilds WHERE discord_id = $1::BIGINT), $2::BIGINT, $3::BIGINT, $4, NOW(), true)
      RETURNING *`,
     [guildIdBigInt, serverIdBigInt, discordIdBigInt, ign]
   );
