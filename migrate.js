@@ -5,7 +5,7 @@ const pool = new Pool({
   port: 5432,
   database: 'zentro_bot',
   user: 'postgres',
-  password: 'YOUR_POSTGRES_PASSWORD', // <- replace
+  password: 'zander123', // <- replace
 });
 
 async function migrate() {
