@@ -19,16 +19,34 @@ async function migrate() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS link_requests (
       id SERIAL PRIMARY KEY,
-      guild_id BIGINT NOT NULL,
+      guild_id INT NOT NULL,
       server_id VARCHAR(32) NOT NULL,
       discord_id BIGINT NOT NULL,
       ign TEXT NOT NULL,
       requested_at TIMESTAMP DEFAULT NOW(),
       expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '10 minutes'),
-      status TEXT DEFAULT 'pending'
+      status TEXT DEFAULT 'pending',
+      UNIQUE(guild_id, discord_id, server_id)
     );
   `);
-  console.log('link_requests table ensured');
+  console.log('✅ link_requests table ensured');
+
+  // Ensure link_blocks table exists
+  console.log('\n--- Creating link_blocks table if it doesn\'t exist ---');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS link_blocks (
+      id SERIAL PRIMARY KEY,
+      guild_id INT NOT NULL,
+      discord_id BIGINT NULL,
+      ign TEXT NULL,
+      blocked_at TIMESTAMP DEFAULT NOW(),
+      blocked_by BIGINT NOT NULL,
+      reason TEXT,
+      is_active BOOLEAN DEFAULT true,
+      CHECK ((discord_id IS NOT NULL AND ign IS NULL) OR (discord_id IS NULL AND ign IS NOT NULL))
+    );
+  `);
+  console.log('✅ link_blocks table ensured');
 
   for (const table of tables) {
     console.log(`\n--- Processing table: ${table} ---`);
@@ -84,13 +102,64 @@ async function migrate() {
     console.log(`Finished processing ${table}`);
   }
 
+  // Ensure unique constraints for players table
+  console.log('\n--- Setting up unique constraints for players table ---');
+  await pool.query(`
+    ALTER TABLE players 
+    ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_discord 
+    UNIQUE (guild_id, server_id, discord_id);
+  `);
+
+  await pool.query(`
+    ALTER TABLE players 
+    ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_ign 
+    UNIQUE (guild_id, server_id, ign);
+  `);
+  console.log('✅ Unique constraints ensured');
+
+  // Create performance indexes
+  console.log('\n--- Creating performance indexes ---');
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id);
+    CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign);
+    CREATE INDEX IF NOT EXISTS idx_players_active ON players(is_active);
+    CREATE INDEX IF NOT EXISTS idx_players_server ON players(server_id);
+    CREATE INDEX IF NOT EXISTS idx_economy_player ON economy(player_id);
+    CREATE INDEX IF NOT EXISTS idx_link_requests_guild_discord ON link_requests(guild_id, discord_id);
+    CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_link_requests_expires ON link_requests(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
+    CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign);
+    CREATE INDEX IF NOT EXISTS idx_link_blocks_active ON link_blocks(is_active);
+  `);
+  console.log('✅ Performance indexes created');
+
+  // Grant permissions to zentro_user
+  console.log('\n--- Granting permissions to zentro_user ---');
+  try {
+    await pool.query(`
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO zentro_user;
+      GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO zentro_user;
+    `);
+    console.log('✅ Permissions granted to zentro_user');
+  } catch (permError) {
+    console.log('⚠️ Could not grant permissions to zentro_user (user may not exist):', permError.message);
+  }
+
+  // Update existing players to be active
+  console.log('\n--- Updating existing players to be active ---');
+  await pool.query(`
+    UPDATE players SET is_active = true WHERE is_active IS NULL;
+  `);
+  console.log('✅ Existing players updated to active');
+
   // Save deleted rows log
   fs.writeFileSync('migration-log.json', JSON.stringify(deletedLogs, null, 2));
-  console.log('\nMigration complete! Deleted rows logged to migration-log.json');
+  console.log('\n✅ Migration complete! Deleted rows logged to migration-log.json');
   await pool.end();
 }
 
 migrate().catch(err => {
-  console.error('Migration failed:', err);
+  console.error('❌ Migration failed:', err);
   process.exit(1);
 });

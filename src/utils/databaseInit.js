@@ -52,6 +52,19 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS player_id INT REFERENCES players(id) ON DELETE CASCADE;
     `);
 
+    // Ensure unique constraints exist for players table
+    await pool.query(`
+      ALTER TABLE players 
+      ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_discord 
+      UNIQUE (guild_id, server_id, discord_id);
+    `);
+
+    await pool.query(`
+      ALTER TABLE players 
+      ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_ign 
+      UNIQUE (guild_id, server_id, ign);
+    `);
+
     // Create indexes for better performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id);
@@ -72,9 +85,20 @@ async function initializeDatabase() {
       UPDATE players SET is_active = true WHERE is_active IS NULL;
     `);
 
-    console.log('Database initialization completed successfully!');
+    // Grant permissions to zentro_user (if it exists)
+    try {
+      await pool.query(`
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO zentro_user;
+        GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO zentro_user;
+      `);
+      console.log('✅ Permissions granted to zentro_user');
+    } catch (permError) {
+      console.log('⚠️ Could not grant permissions to zentro_user (user may not exist):', permError.message);
+    }
+
+    console.log('✅ Database initialization completed successfully!');
   } catch (error) {
-    console.error('Database initialization failed:', error);
+    console.error('❌ Database initialization failed:', error);
     throw error;
   }
 }
