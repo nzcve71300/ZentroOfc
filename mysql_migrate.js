@@ -63,12 +63,10 @@ async function migrate() {
       'UNIQUE (guild_id, server_id, ign(191))'
     );
 
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign(191));
-      CREATE INDEX IF NOT EXISTS idx_players_active ON players(is_active);
-      CREATE INDEX IF NOT EXISTS idx_players_server ON players(server_id);
-    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign(191))`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_players_active ON players(is_active)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_players_server ON players(server_id)`);
 
     /** ------------------------
      * ECONOMY TABLE
@@ -130,11 +128,9 @@ async function migrate() {
       'link_requests_unique_guild_server_discord',
       'UNIQUE (guild_id, server_id, discord_id)'
     );
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_link_requests_guild_discord ON link_requests(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status);
-      CREATE INDEX IF NOT EXISTS idx_link_requests_expires ON link_requests(expires_at);
-    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_requests_guild_discord ON link_requests(guild_id, discord_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_requests_expires ON link_requests(expires_at)`);
 
     /** ------------------------
      * LINK BLOCKS TABLE
@@ -152,11 +148,9 @@ async function migrate() {
         CHECK ((discord_id IS NOT NULL AND ign IS NULL) OR (discord_id IS NULL AND ign IS NOT NULL))
       )
     `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191));
-      CREATE INDEX IF NOT EXISTS idx_link_blocks_active ON link_blocks(is_active);
-    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191))`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_link_blocks_active ON link_blocks(is_active)`);
 
     /** ------------------------
      * PLAYER LINKS TABLE
@@ -183,6 +177,24 @@ async function migrate() {
       'player_links_unique_guild_server_ign',
       'UNIQUE (guild_id, server_id, ign(191))'
     );
+
+    /** ------------------------
+     * EVENT CONFIGS TABLE
+     ------------------------ */
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS event_configs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        server_id VARCHAR(32),
+        event_type TEXT NOT NULL,
+        enabled BOOLEAN DEFAULT FALSE,
+        kill_message TEXT,
+        respawn_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_server_event (server_id, event_type(191)),
+        FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE
+      )
+    `);
 
     /** ------------------------
      * PERMISSIONS
