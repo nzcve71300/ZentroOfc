@@ -6,7 +6,7 @@ const pool = require('../db');
 async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
   const result = await pool.query(
     `SELECT p.*, rs.nickname 
-     FROM players p
+     FROM players_new p
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND p.server_id = $2
@@ -23,7 +23,7 @@ async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
 async function getActivePlayerByIgn(guildId, serverId, ign) {
   const result = await pool.query(
     `SELECT p.*, rs.nickname 
-     FROM players p
+     FROM players_new p
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND p.server_id = $2
@@ -40,7 +40,7 @@ async function getActivePlayerByIgn(guildId, serverId, ign) {
 async function getAllActivePlayersByDiscordId(guildId, discordId) {
   const result = await pool.query(
     `SELECT p.*, rs.nickname 
-     FROM players p
+     FROM players_new p
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND p.discord_id = $2
@@ -57,7 +57,7 @@ async function getAllActivePlayersByDiscordId(guildId, discordId) {
 async function getAllActivePlayersByIgn(guildId, ign) {
   const result = await pool.query(
     `SELECT p.*, rs.nickname 
-     FROM players p
+     FROM players_new p
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND LOWER(p.ign) = LOWER($2)
@@ -74,7 +74,7 @@ async function getAllActivePlayersByIgn(guildId, ign) {
 async function createOrUpdatePlayerLink(guildId, serverId, discordId, ign) {
   // First, ensure the player record exists
   const playerResult = await pool.query(
-    `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
+    `INSERT INTO players_new (guild_id, server_id, discord_id, ign, linked_at, is_active)
      VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4, NOW(), true)
      ON CONFLICT (guild_id, discord_id, server_id)
      DO UPDATE SET 
@@ -90,7 +90,7 @@ async function createOrUpdatePlayerLink(guildId, serverId, discordId, ign) {
 
   // Ensure economy record exists
   await pool.query(
-    'INSERT INTO economy (player_id, balance) VALUES ($1, 0) ON CONFLICT (player_id) DO NOTHING',
+    'INSERT INTO economy_new (player_id, balance) VALUES ($1, 0) ON CONFLICT (player_id) DO NOTHING',
     [player.id]
   );
 
@@ -102,7 +102,7 @@ async function createOrUpdatePlayerLink(guildId, serverId, discordId, ign) {
  */
 async function unlinkPlayer(guildId, serverId, discordId) {
   const result = await pool.query(
-    `UPDATE players 
+    `UPDATE players_new 
      SET is_active = false, unlinked_at = NOW() 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND server_id = $2
@@ -119,7 +119,7 @@ async function unlinkPlayer(guildId, serverId, discordId) {
  */
 async function unlinkAllPlayersByDiscordId(guildId, discordId) {
   const result = await pool.query(
-    `UPDATE players 
+    `UPDATE players_new 
      SET is_active = false, unlinked_at = NOW() 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND discord_id = $2
@@ -135,7 +135,7 @@ async function unlinkAllPlayersByDiscordId(guildId, discordId) {
  */
 async function unlinkAllPlayersByIgn(guildId, ign) {
   const result = await pool.query(
-    `UPDATE players 
+    `UPDATE players_new 
      SET is_active = false, unlinked_at = NOW() 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND LOWER(ign) = LOWER($2)
@@ -151,7 +151,7 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
  */
 async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
   const result = await pool.query(
-    `SELECT * FROM players 
+    `SELECT * FROM players_new 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND discord_id = $2
      AND LOWER(ign) != LOWER($3)
@@ -166,7 +166,7 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
  */
 async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
   const result = await pool.query(
-    `SELECT * FROM players 
+    `SELECT * FROM players_new 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND LOWER(ign) = LOWER($2)
      AND discord_id != $3
@@ -181,7 +181,7 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
  */
 async function getPlayerBalance(playerId) {
   const result = await pool.query(
-    'SELECT balance FROM economy WHERE player_id = $1',
+    'SELECT balance FROM economy_new WHERE player_id = $1',
     [playerId]
   );
   return result.rows[0]?.balance || 0;
@@ -192,7 +192,7 @@ async function getPlayerBalance(playerId) {
  */
 async function updatePlayerBalance(playerId, amount) {
   const result = await pool.query(
-    `UPDATE economy 
+    `UPDATE economy_new 
      SET balance = balance + $2 
      WHERE player_id = $1 
      RETURNING balance`,
