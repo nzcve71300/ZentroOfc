@@ -1,12 +1,15 @@
-const { Pool } = require('pg');
+const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-const pool = new Pool({
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 5432,
+  port: process.env.DB_PORT || 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
 async function setupLinkingTables() {
@@ -17,15 +20,17 @@ async function setupLinkingTables() {
     console.log('Creating player_links table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS player_links (
-        id SERIAL PRIMARY KEY,
-        guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
-        discord_id TEXT NOT NULL,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        guild_id INT NOT NULL,
+        discord_id BIGINT NOT NULL,
         ign TEXT NOT NULL,
-        server_id INTEGER NOT NULL REFERENCES rust_servers(id) ON DELETE CASCADE,
-        linked_at TIMESTAMP DEFAULT NOW(),
+        server_id VARCHAR(32) NOT NULL,
+        linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         unlinked_at TIMESTAMP NULL,
-        is_active BOOLEAN DEFAULT true,
-        UNIQUE(guild_id, discord_id, server_id)
+        is_active BOOLEAN DEFAULT TRUE,
+        UNIQUE KEY unique_guild_discord_server (guild_id, discord_id, server_id),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
+        FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE
       )
     `);
     console.log('✅ player_links table created');
@@ -33,7 +38,7 @@ async function setupLinkingTables() {
     // Create indexes for player_links
     console.log('Creating indexes for player_links...');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_player_links_guild_discord ON player_links(guild_id, discord_id)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_player_links_guild_ign ON player_links(guild_id, ign)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_player_links_guild_ign ON player_links(guild_id, ign(191))');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_player_links_active ON player_links(is_active)');
     console.log('✅ player_links indexes created');
 
@@ -41,15 +46,17 @@ async function setupLinkingTables() {
     console.log('Creating link_requests table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS link_requests (
-        id SERIAL PRIMARY KEY,
-        guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
-        discord_id TEXT NOT NULL,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        guild_id INT NOT NULL,
+        discord_id BIGINT NOT NULL,
         ign TEXT NOT NULL,
-        server_id INTEGER NOT NULL REFERENCES rust_servers(id) ON DELETE CASCADE,
+        server_id VARCHAR(32) NOT NULL,
         status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT NOW(),
-        expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '1 hour'),
-        UNIQUE(guild_id, discord_id, server_id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL 1 HOUR),
+        UNIQUE KEY unique_guild_discord_server (guild_id, discord_id, server_id),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
+        FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE
       )
     `);
     console.log('✅ link_requests table created');
@@ -65,17 +72,18 @@ async function setupLinkingTables() {
     console.log('Creating link_blocks table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS link_blocks (
-        id SERIAL PRIMARY KEY,
-        guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
-        discord_id TEXT NULL,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        guild_id INT NOT NULL,
+        discord_id BIGINT NULL,
         ign TEXT NULL,
-        blocked_by TEXT NOT NULL,
+        blocked_by BIGINT NOT NULL,
         reason TEXT NULL,
-        blocked_at TIMESTAMP DEFAULT NOW(),
-        is_active BOOLEAN DEFAULT true,
+        blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE,
         CHECK (discord_id IS NOT NULL OR ign IS NOT NULL),
-        UNIQUE(guild_id, discord_id),
-        UNIQUE(guild_id, ign)
+        UNIQUE KEY unique_guild_discord (guild_id, discord_id),
+        UNIQUE KEY unique_guild_ign (guild_id, ign(191)),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
       )
     `);
     console.log('✅ link_blocks table created');
@@ -83,24 +91,23 @@ async function setupLinkingTables() {
     // Create indexes for link_blocks
     console.log('Creating indexes for link_blocks...');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191))');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_link_blocks_active ON link_blocks(is_active)');
     console.log('✅ link_blocks indexes created');
 
     // Migrate existing data
     console.log('Migrating existing player data...');
     await pool.query(`
-      INSERT INTO player_links (guild_id, discord_id, ign, server_id, linked_at, is_active)
-      SELECT p.guild_id, p.discord_id, p.ign, p.server_id, NOW(), true
+      INSERT IGNORE INTO player_links (guild_id, discord_id, ign, server_id, linked_at, is_active)
+      SELECT p.guild_id, p.discord_id, p.ign, p.server_id, CURRENT_TIMESTAMP, TRUE
       FROM players p
       WHERE p.discord_id IS NOT NULL
-      ON CONFLICT DO NOTHING
     `);
     console.log('✅ Existing data migrated');
 
     // Clean up expired requests
     console.log('Cleaning up expired requests...');
-    await pool.query('DELETE FROM link_requests WHERE expires_at < NOW() AND status = \'pending\'');
+    await pool.query('DELETE FROM link_requests WHERE expires_at < CURRENT_TIMESTAMP AND status = \'pending\'');
     console.log('✅ Expired requests cleaned up');
 
     console.log('🎉 All linking tables set up successfully!');
