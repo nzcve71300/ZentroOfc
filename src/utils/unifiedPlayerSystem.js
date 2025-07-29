@@ -182,22 +182,38 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
 
 /**
  * Unlink all players by identifier (Discord ID or IGN) across all servers
- * This function handles both Discord IDs and IGNs with a single query
+ * This function handles both Discord IDs and IGNs with separate queries to avoid BIGINT LOWER() error
  */
 async function unlinkAllPlayersByIdentifier(guildId, identifier) {
-  // Deactivate any matching player by Discord ID or IGN (case-insensitive)
-  const result = await pool.query(
-    `UPDATE players 
-     SET is_active = false, unlinked_at = NOW()
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
-     AND (discord_id = $2 OR LOWER(ign) = LOWER($2))
-     AND is_active = true
-     RETURNING *`,
-    [guildId, identifier]
-  );
-  
-  console.log(`Unlinked ${result.rows.length} player(s) for identifier: ${identifier}`);
-  return result.rows;
+  if (isDiscordId(identifier)) {
+    // Handle Discord ID (numeric) - direct comparison
+    const result = await pool.query(
+      `UPDATE players 
+       SET is_active = false, unlinked_at = NOW()
+       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+       AND discord_id = $2
+       AND is_active = true
+       RETURNING *`,
+      [guildId, identifier]
+    );
+    
+    console.log(`Unlinked ${result.rows.length} player(s) for Discord ID: ${identifier}`);
+    return result.rows;
+  } else {
+    // Handle IGN (text) - case-insensitive match
+    const result = await pool.query(
+      `UPDATE players 
+       SET is_active = false, unlinked_at = NOW()
+       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+       AND LOWER(ign) = LOWER($2)
+       AND is_active = true
+       RETURNING *`,
+      [guildId, identifier]
+    );
+    
+    console.log(`Unlinked ${result.rows.length} player(s) for IGN: ${identifier}`);
+    return result.rows;
+  }
 }
 
 /**

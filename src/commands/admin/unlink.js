@@ -25,7 +25,7 @@ module.exports = {
 
       if (unlinkedPlayers.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('No Players Found', `No active players found for **${identifier}**.`)]
+          embeds: [errorEmbed('No Players Found', `No active players found matching that Discord ID or IGN: **${identifier}**.\n\nMake sure you're using the correct Discord ID or in-game name.`)]
         });
       }
 

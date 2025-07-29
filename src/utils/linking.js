@@ -163,16 +163,10 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
     }
   }
 
-  // Create or update active player link using unified players table
+  // Create new player link (strict mode - no ON CONFLICT)
   const result = await pool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) 
-     VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4, NOW(), true) 
-     ON CONFLICT (guild_id, discord_id, server_id) 
-     DO UPDATE SET 
-       ign = EXCLUDED.ign,
-       linked_at = NOW(),
-       unlinked_at = NULL,
-       is_active = true
+     VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4, NOW(), true)
      RETURNING *`,
     [guildId, serverId, discordId, ign]
   );
