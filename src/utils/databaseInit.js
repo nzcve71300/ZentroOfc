@@ -66,10 +66,15 @@ async function initializeDatabase() {
         FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
       `);
     } catch (error) {
-      if (!error.message.includes('Duplicate key name')) {
+      // Check for various MySQL constraint already exists errors
+      if (!error.message.includes('Duplicate key name') && 
+          !error.message.includes('Duplicate key on write or update') &&
+          !error.message.includes('Duplicate entry') &&
+          !error.message.includes('already exists')) {
         throw error;
       }
       // Constraint already exists, ignore
+      console.log('ℹ️ Foreign key constraint fk_economy_player already exists');
     }
 
     // Ensure unique constraints exist for players table
@@ -80,10 +85,15 @@ async function initializeDatabase() {
         UNIQUE (guild_id, server_id, discord_id)
       `);
     } catch (error) {
-      if (!error.message.includes('Duplicate key name')) {
+      // Check for various MySQL constraint already exists errors
+      if (!error.message.includes('Duplicate key name') && 
+          !error.message.includes('Duplicate key on write or update') &&
+          !error.message.includes('Duplicate entry') &&
+          !error.message.includes('already exists')) {
         throw error;
       }
       // Constraint already exists, ignore
+      console.log('ℹ️ Unique constraint players_unique_guild_server_discord already exists');
     }
 
     try {
@@ -93,10 +103,15 @@ async function initializeDatabase() {
         UNIQUE (guild_id, server_id, ign(191))
       `);
     } catch (error) {
-      if (!error.message.includes('Duplicate key name')) {
+      // Check for various MySQL constraint already exists errors
+      if (!error.message.includes('Duplicate key name') && 
+          !error.message.includes('Duplicate key on write or update') &&
+          !error.message.includes('Duplicate entry') &&
+          !error.message.includes('already exists')) {
         throw error;
       }
       // Constraint already exists, ignore
+      console.log('ℹ️ Unique constraint players_unique_guild_server_ign already exists');
     }
 
     // Create indexes for better performance
