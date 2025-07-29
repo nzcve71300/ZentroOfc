@@ -41,44 +41,96 @@ async function initializeDatabase() {
     // Ensure all required columns exist in players table
     await pool.query(`
       ALTER TABLE players 
-      ADD COLUMN IF NOT EXISTS linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS unlinked_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+    await pool.query(`
+      ALTER TABLE players 
+      ADD COLUMN IF NOT EXISTS unlinked_at TIMESTAMP NULL
+    `);
+    await pool.query(`
+      ALTER TABLE players 
       ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
     `);
 
     // Ensure all required columns exist in economy table
     await pool.query(`
       ALTER TABLE economy 
-      ADD COLUMN IF NOT EXISTS player_id INT,
-      ADD CONSTRAINT IF NOT EXISTS fk_economy_player 
-      FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+      ADD COLUMN IF NOT EXISTS player_id INT
     `);
+
+    // Add foreign key constraint if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE economy 
+        ADD CONSTRAINT fk_economy_player 
+        FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate key name')) {
+        throw error;
+      }
+      // Constraint already exists, ignore
+    }
 
     // Ensure unique constraints exist for players table
-    await pool.query(`
-      ALTER TABLE players 
-      ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_discord 
-      UNIQUE (guild_id, server_id, discord_id)
-    `);
+    try {
+      await pool.query(`
+        ALTER TABLE players 
+        ADD CONSTRAINT players_unique_guild_server_discord 
+        UNIQUE (guild_id, server_id, discord_id)
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate key name')) {
+        throw error;
+      }
+      // Constraint already exists, ignore
+    }
 
-    await pool.query(`
-      ALTER TABLE players 
-      ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_ign 
-      UNIQUE (guild_id, server_id, ign(191))
-    `);
+    try {
+      await pool.query(`
+        ALTER TABLE players 
+        ADD CONSTRAINT players_unique_guild_server_ign 
+        UNIQUE (guild_id, server_id, ign(191))
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate key name')) {
+        throw error;
+      }
+      // Constraint already exists, ignore
+    }
 
     // Create indexes for better performance
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign(191));
-      CREATE INDEX IF NOT EXISTS idx_players_active ON players(is_active);
-      CREATE INDEX IF NOT EXISTS idx_players_server ON players(server_id);
-      CREATE INDEX IF NOT EXISTS idx_economy_player ON economy(player_id);
-      CREATE INDEX IF NOT EXISTS idx_link_requests_guild_discord ON link_requests(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status);
-      CREATE INDEX IF NOT EXISTS idx_link_requests_expires ON link_requests(expires_at);
-      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
-      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191));
+      CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_players_guild_ign ON players(guild_id, ign(191))
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_players_active ON players(is_active)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_players_server ON players(server_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_economy_player ON economy(player_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_link_requests_guild_discord ON link_requests(guild_id, discord_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_link_requests_expires ON link_requests(expires_at)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign(191))
+    `);
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_link_blocks_active ON link_blocks(is_active)
     `);
 
