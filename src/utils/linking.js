@@ -153,17 +153,19 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
 
     // Ensure server exists - guild_id subquery now uses TEXT for discord_id
     const serverInsertQuery = `
-      INSERT INTO rust_servers (id, guild_id, nickname, ip)
+      INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password)
       VALUES (
         $1::BIGINT,
         (SELECT id FROM guilds WHERE discord_id = $2::TEXT),
         $3::TEXT,
-        $4::TEXT
+        $4::TEXT,
+        $5::INT,
+        $6::TEXT
       )
       ON CONFLICT (id) DO NOTHING;
     `;
-    console.log('🟧 Query:', serverInsertQuery, [serverIdBigInt, guildIdText, serverName, '0.0.0.0']);
-    await pool.query(serverInsertQuery, [serverIdBigInt, guildIdText, serverName, '0.0.0.0']);
+    console.log('🟧 Query:', serverInsertQuery, [serverIdBigInt, guildIdText, serverName, '0.0.0.0', 0, '']);
+    await pool.query(serverInsertQuery, [serverIdBigInt, guildIdText, serverName, '0.0.0.0', 0, '']);
     console.log('✅ Server ensured:', serverIdBigInt.toString());
 
     // Update link request status - guild_id subquery uses TEXT for discord_id
