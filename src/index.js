@@ -65,8 +65,8 @@ client.once('ready', async () => {
     for (const [id, guild] of client.guilds.cache) {
       await pool.query(`
         INSERT INTO guilds (discord_id, name)
-        VALUES ($1::BIGINT, $2)
-        ON CONFLICT (discord_id) DO NOTHING;
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE name = VALUES(name);
       `, [id, guild.name]);
     }
     console.log(`✅ Ensured ${client.guilds.cache.size} guild(s) exist in database`);

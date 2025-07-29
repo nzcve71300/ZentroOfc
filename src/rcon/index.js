@@ -77,11 +77,11 @@ function startRconListeners(client) {
 
 async function refreshConnections(client) {
   try {
-    const result = await pool.query('SELECT * FROM rust_servers');
-    for (const server of result.rows) {
-      const guildResult = await pool.query('SELECT discord_id FROM guilds WHERE id = $1', [server.guild_id]);
-      if (guildResult.rows.length > 0) {
-        const guildId = guildResult.rows[0].discord_id;
+    const [result] = await pool.query('SELECT * FROM rust_servers');
+    for (const server of result) {
+      const [guildResult] = await pool.query('SELECT discord_id FROM guilds WHERE id = ?', [server.guild_id]);
+      if (guildResult.length > 0) {
+        const guildId = guildResult[0].discord_id;
         const key = `${guildId}_${server.nickname}`;
         if (!activeConnections[key]) {
           connectRcon(client, guildId, server.nickname, server.ip, server.port, server.password);
@@ -1186,18 +1186,18 @@ async function restoreZonesOnStartup(client) {
   try {
     console.log('🔄 Restoring zones on bot startup...');
     
-    const result = await pool.query(`
+    const [result] = await pool.query(`
       SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
       FROM zones z
       JOIN rust_servers rs ON z.server_id = rs.id
       JOIN guilds g ON rs.guild_id = g.id
-      WHERE z.created_at + INTERVAL '1 second' * z.expire > NOW()
+      WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
     `);
 
     let restoredCount = 0;
     let errorCount = 0;
 
-    for (const zone of result.rows) {
+    for (const zone of result) {
       try {
         // Parse position
         const position = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
@@ -1237,21 +1237,21 @@ async function restoreZonesOnStartup(client) {
 
 async function deleteExpiredZones(client) {
   try {
-    const result = await pool.query(`
+    const [result] = await pool.query(`
       SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
       FROM zones z
       JOIN rust_servers rs ON z.server_id = rs.id
       JOIN guilds g ON rs.guild_id = g.id
-      WHERE z.created_at + INTERVAL '1 second' * z.expire < NOW()
+      WHERE z.created_at + INTERVAL z.expire SECOND < CURRENT_TIMESTAMP
     `);
 
-    for (const zone of result.rows) {
+    for (const zone of result) {
       try {
         // Delete from game
         await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
         
         // Delete from database
-        await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
+        await pool.query('DELETE FROM zones WHERE id = ?', [zone.id]);
         
         console.log(`[ZORP] Deleted expired zone: ${zone.name}`);
         
