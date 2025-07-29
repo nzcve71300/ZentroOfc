@@ -124,8 +124,9 @@ async function createLinkRequest(guildId, discordId, ign, serverId) {
  * Confirm a link request - Fully robust implementation
  */
 async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName = 'Unknown Server', interaction = null) {
-  console.log('🔗 confirmLinkRequest called with params:', { guildId, discordId, ign, serverId });
+  console.log('🔗 Starting link confirmation:', { guildId, discordId, ign, serverId, serverName });
 
+  // Validate required parameters
   if (!guildId || !discordId || !ign || !serverId) {
     console.error('❌ Missing required parameters:', { guildId, discordId, ign, serverId });
     throw new Error("❌ Linking failed: Missing required parameters. Please try again or contact an admin.");
@@ -134,13 +135,13 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
   // Handle guildId as TEXT (since guilds.discord_id is BIGINT in database)
   const guildIdText = String(guildId);
   const discordIdBigInt = BigInt(discordId);
-  const serverIdBigInt = BigInt(serverId);
+  const serverIdText = String(serverId); // Keep serverId as string since it's VARCHAR(32)
   const ignText = String(ign);
 
   console.log('✅ Type-cast params:', { 
     guildIdText, 
     discordIdBigInt: discordIdBigInt.toString(), 
-    serverIdBigInt: serverIdBigInt.toString(), 
+    serverIdText, 
     ignText 
   });
 
@@ -166,9 +167,9 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         port = VALUES(port),
         password = VALUES(password);
     `;
-    console.log('🟧 Query:', serverInsertQuery, [serverIdBigInt, guildIdText, serverName, '0.0.0.0', 0, '']);
-    await pool.query(serverInsertQuery, [serverIdBigInt, guildIdText, serverName, '0.0.0.0', 0, '']);
-    console.log('✅ Server ensured:', serverIdBigInt.toString());
+    console.log('🟧 Query:', serverInsertQuery, [serverIdText, guildIdText, serverName, '0.0.0.0', 0, '']);
+    await pool.query(serverInsertQuery, [serverIdText, guildIdText, serverName, '0.0.0.0', 0, '']);
+    console.log('✅ Server ensured:', serverIdText);
 
     // Update link request status - guild_id subquery uses BIGINT for discord_id
     const linkRequestUpdateQuery = `
@@ -179,8 +180,8 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         AND server_id = ?
     `;
     try {
-      console.log('🟧 Query:', linkRequestUpdateQuery, [guildIdText, discordIdBigInt, serverIdBigInt]);
-      await pool.query(linkRequestUpdateQuery, [guildIdText, discordIdBigInt, serverIdBigInt]);
+      console.log('🟧 Query:', linkRequestUpdateQuery, [guildIdText, discordIdBigInt, serverIdText]);
+      await pool.query(linkRequestUpdateQuery, [guildIdText, discordIdBigInt, serverIdText]);
       console.log('✅ Link request status updated');
     } catch (e) {
       console.warn('⚠️ Could not update link request status:', e.message);
@@ -193,8 +194,8 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         AND server_id = ?
         AND LOWER(ign) = LOWER(?)
     `;
-    console.log('🟧 Query:', playerSelectQuery, [guildIdText, serverIdBigInt, ignText]);
-    const [existingPlayers] = await pool.query(playerSelectQuery, [guildIdText, serverIdBigInt, ignText]);
+    console.log('🟧 Query:', playerSelectQuery, [guildIdText, serverIdText, ignText]);
+    const [existingPlayers] = await pool.query(playerSelectQuery, [guildIdText, serverIdText, ignText]);
 
     if (existingPlayers.length > 0) {
       const existing = existingPlayers[0];
@@ -238,12 +239,12 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         is_active = true,
         unlinked_at = NULL
     `;
-    console.log('🟧 Query:', playerInsertQuery, [guildIdText, serverIdBigInt, discordIdBigInt, ignText]);
-    const [result] = await pool.query(playerInsertQuery, [guildIdText, serverIdBigInt, discordIdBigInt, ignText]);
+    console.log('🟧 Query:', playerInsertQuery, [guildIdText, serverIdText, discordIdBigInt, ignText]);
+    const [playerResult] = await pool.query(playerInsertQuery, [guildIdText, serverIdText, discordIdBigInt, ignText]);
+    console.log('✅ Player linked:', ignText);
 
-    const playerId = result.insertId || existingPlayers[0]?.id;
-
-    // Ensure economy record
+    // Ensure economy record exists
+    const playerId = playerResult.insertId || playerResult.id;
     const economyInsertQuery = `
       INSERT INTO economy (player_id, balance)
       VALUES (?, 0)
@@ -251,13 +252,9 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
     `;
     console.log('🟧 Query:', economyInsertQuery, [playerId]);
     await pool.query(economyInsertQuery, [playerId]);
+    console.log('✅ Economy record ensured for player:', playerId);
 
-    // Get the player record
-    const [playerResult] = await pool.query('SELECT * FROM players WHERE id = ?', [playerId]);
-    const player = playerResult[0];
-
-    console.log('✅ Successfully linked player:', player);
-    return player;
+    return { id: playerId };
   } catch (error) {
     console.error('❌ Error in confirmLinkRequest:', error);
     throw error;
