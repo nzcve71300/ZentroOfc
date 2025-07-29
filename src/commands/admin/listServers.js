@@ -18,12 +18,12 @@ module.exports = {
 
     try {
       // Get all servers for this guild
-      const serversResult = await pool.query(
+      const [serversResult] = await pool.query(
         'SELECT rs.nickname, rs.ip, rs.port, rs.password FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? ORDER BY rs.nickname',
         [guildId]
       );
 
-      if (serversResult.rows.length === 0) {
+      if (serversResult.length === 0) {
         return interaction.reply({
           embeds: [orangeEmbed(
             '🖥️ Servers',

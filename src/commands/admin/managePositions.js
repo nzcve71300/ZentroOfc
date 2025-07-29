@@ -30,7 +30,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -65,7 +65,7 @@ module.exports = {
 
     try {
       // Verify server exists and belongs to this guild
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         `SELECT rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -73,14 +73,14 @@ module.exports = {
         [serverId, guildId]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Server Not Found', 'The selected server was not found in this guild.')],
           ephemeral: true
         });
       }
 
-      const serverName = serverResult.rows[0].nickname;
+      const serverName = serverResult[0].nickname;
 
       // Parse coordinates
       const coordParts = coordinates.split(',').map(coord => coord.trim());
@@ -106,12 +106,12 @@ module.exports = {
       }
 
       // Check if position coordinates exist
-      const existingResult = await pool.query(
+      const [existingResult] = await pool.query(
         'SELECT * FROM position_coordinates WHERE server_id = ? AND position_type = ?',
         [serverId, positionType]
       );
 
-      if (existingResult.rows.length > 0) {
+      if (existingResult.length > 0) {
         // Update existing coordinates
         await pool.query(
           'UPDATE position_coordinates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?',

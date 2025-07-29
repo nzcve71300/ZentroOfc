@@ -32,7 +32,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -69,7 +69,7 @@ module.exports = {
 
     try {
       // Verify server exists and belongs to this guild
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         `SELECT rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -77,13 +77,13 @@ module.exports = {
         [serverId, guildId]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The selected server was not found in this guild.')]
         });
       }
 
-      const serverName = serverResult.rows[0].nickname;
+      const serverName = serverResult[0].nickname;
 
       // Validate channel type requirements
       if (channelType === 'playercount' && channel.type !== 2) { // 2 = voice channel
@@ -99,12 +99,12 @@ module.exports = {
       }
 
       // Check if channel setting already exists for this server and type
-      const existingResult = await pool.query(
+      const [existingResult] = await pool.query(
         'SELECT * FROM channel_settings WHERE server_id = ? AND channel_type = ?',
         [serverId, channelType]
       );
 
-      if (existingResult.rows.length > 0) {
+      if (existingResult.length > 0) {
         // Update existing setting
         await pool.query(
           'UPDATE channel_settings SET channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?',

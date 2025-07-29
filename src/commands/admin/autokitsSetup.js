@@ -45,7 +45,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -78,19 +78,19 @@ module.exports = {
 
     try {
       // Get server info
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
+      const serverId = serverResult[0].id;
+      const serverName = serverResult[0].nickname;
 
       // Check if autokit exists
       let autokitResult = await pool.query(
@@ -98,7 +98,7 @@ module.exports = {
         [serverId, setup]
       );
 
-      if (autokitResult.rows.length === 0) {
+      if (autokitResult.length === 0) {
         // Create new autokit
         await pool.query(
           'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, false, 0, ?)',
@@ -110,7 +110,7 @@ module.exports = {
         );
       }
 
-      const autokit = autokitResult.rows[0];
+      const autokit = autokitResult[0];
 
       // Handle different options
       let updateField = '';
@@ -161,12 +161,12 @@ module.exports = {
       );
 
       // Get updated autokit info
-      const updatedResult = await pool.query(
+      const [updatedResult] = await pool.query(
         'SELECT enabled, cooldown, game_name FROM autokits WHERE id = ?',
         [autokit.id]
       );
 
-      const updated = updatedResult.rows[0];
+      const updated = updatedResult[0];
 
       const embed = successEmbed(
         'Autokit Configured',

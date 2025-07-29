@@ -23,7 +23,7 @@ module.exports = {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
     try {
-      const servers = await pool.query(
+      const [servers] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -48,7 +48,7 @@ module.exports = {
       }
 
       // Get all active players on this server
-      const players = await pool.query(
+      const [players] = await pool.query(
         `SELECT p.*, e.balance 
          FROM players p
          LEFT JOIN economy e ON p.id = e.player_id
@@ -58,7 +58,7 @@ module.exports = {
         [guildId, server.id]
       );
 
-      if (players.rows.length === 0) {
+      if (players.length === 0) {
         return interaction.editReply({ embeds: [errorEmbed('No Players Found', `No active players found on **${serverName}**.`)] });
       }
 

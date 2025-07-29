@@ -124,13 +124,13 @@ class KillfeedProcessor {
 
     async getKillfeedConfig(serverId) {
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = $1',
         [serverId]
       );
       
-      if (result.rows.length > 0) {
-        return result.rows[0];
+      if (result.length > 0) {
+        return result[0];
       } else {
         // Return default config if none exists
         return {
@@ -158,14 +158,14 @@ class KillfeedProcessor {
       }
       
       // Check if victim is a linked player
-      const result = await pool.query(
+      const [result] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
         [serverId, sanitizedName]
       );
       
-      return result.rows.length > 0;
+      return result.length > 0;
     } catch (error) {
       console.error('Error checking if victim is player:', error);
       return false;
@@ -189,20 +189,20 @@ class KillfeedProcessor {
       }
       
       // Get killer player record
-      const killerResult = await pool.query(
+      const [killerResult] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
         [serverId, sanitizedKiller]
       );
 
-      if (killerResult.rows.length === 0) {
+      if (killerResult.length === 0) {
         console.log('Killer not found in database:', killerName);
         console.log('Searching for killer in server:', serverId);
         return;
       }
 
-      const killerPlayerId = killerResult.rows[0].id;
+      const killerPlayerId = killerResult[0].id;
       const isPlayerKill = await this.isPlayerKill(sanitizedVictim, serverId);
       const isNPCorAnimal = this.isNPCorAnimal(sanitizedVictim);
 
@@ -237,18 +237,18 @@ class KillfeedProcessor {
   async processVictimDeath(victimName, serverId) {
     try {
       // Get victim player record
-      const victimResult = await pool.query(
+      const [victimResult] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
         [serverId, victimName]
       );
 
-      if (victimResult.rows.length === 0) {
+      if (victimResult.length === 0) {
         return; // Not a linked player
       }
 
-      const victimPlayerId = victimResult.rows[0].id;
+      const victimPlayerId = victimResult[0].id;
       const victimStats = await this.getOrCreatePlayerStats(victimPlayerId);
 
       // Update victim stats (all deaths count)
@@ -269,7 +269,7 @@ class KillfeedProcessor {
         [playerId]
       );
 
-      if (result.rows.length === 0) {
+      if (result.length === 0) {
         // Create new stats record
         await pool.query(
           'INSERT INTO player_stats (player_id) VALUES ($1)',
@@ -284,7 +284,7 @@ class KillfeedProcessor {
         };
       }
 
-      return result.rows[0];
+      return result[0];
     } catch (error) {
       console.error('Error getting/creating player stats:', error);
       return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0 };
@@ -319,7 +319,7 @@ class KillfeedProcessor {
         return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0, kd_ratio: '0' };
       }
       
-      const result = await pool.query(
+      const [result] = await pool.query(
         `SELECT ps.* FROM player_stats ps
          JOIN players p ON ps.player_id = p.id
          JOIN rust_servers rs ON p.server_id = rs.id
@@ -327,11 +327,11 @@ class KillfeedProcessor {
         [serverId, sanitizedName]
       );
 
-      if (result.rows.length === 0) {
+      if (result.length === 0) {
         return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0 };
       }
 
-      const stats = result.rows[0];
+      const stats = result[0];
       const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(2) : stats.kills.toString();
       
       return {

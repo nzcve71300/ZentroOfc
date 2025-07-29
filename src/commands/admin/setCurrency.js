@@ -23,7 +23,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -54,19 +54,19 @@ module.exports = {
 
     try {
       // Get server info
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
+      const serverId = serverResult[0].id;
+      const serverName = serverResult[0].nickname;
 
       // For now, we'll store currency name in a comment or note
       // In a full implementation, you might want to add a currency_name column to rust_servers table

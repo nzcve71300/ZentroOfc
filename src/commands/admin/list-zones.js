@@ -12,7 +12,7 @@ module.exports = {
 
     try {
       // Get all zones for this guild
-      const zonesResult = await pool.query(`
+      const [zonesResult] = await pool.query(`
         SELECT z.*, rs.nickname
         FROM zones z
         JOIN rust_servers rs ON z.server_id = rs.id
@@ -21,7 +21,7 @@ module.exports = {
         ORDER BY z.created_at DESC
       `, [interaction.guildId]);
 
-      if (!zonesResult || zonesResult.rows.length === 0) {
+      if (!zonesResult || zonesResult.length === 0) {
         return interaction.editReply({
           embeds: [orangeEmbed('Active ZORP Zones', 'No active ZORP zones found in this guild.')]
         });
@@ -29,7 +29,7 @@ module.exports = {
 
       const embed = orangeEmbed(
         'Active ZORP Zones',
-        `Total zones: **${zonesResult.rows.length}**`
+        `Total zones: **${zonesResult.length}**`
       );
 
       // Group zones by server

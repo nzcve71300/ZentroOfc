@@ -35,7 +35,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -69,26 +69,26 @@ module.exports = {
 
     try {
       // Get server ID
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverNickname]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
+      const serverId = serverResult[0].id;
 
       // Check if category already exists
-      const existingResult = await pool.query(
+      const [existingResult] = await pool.query(
         'SELECT id FROM shop_categories WHERE server_id = ? AND name LIKE ?',
         [serverId, categoryName]
       );
 
-      if (existingResult.rows.length > 0) {
+      if (existingResult.length > 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Category Exists', `Category **${categoryName}** already exists for this server.`)]
         });

@@ -17,7 +17,7 @@ module.exports = {
 
     try {
       // Check last claim across all servers
-      const cooldownResult = await pool.query(
+      const [cooldownResult] = await pool.query(
         `SELECT MAX(timestamp) as last_claim 
          FROM transactions 
          WHERE player_id IN (
@@ -29,7 +29,7 @@ module.exports = {
         [userId, guildId]
       );
 
-      const lastClaim = cooldownResult.rows[0].last_claim;
+      const lastClaim = cooldownResult[0].last_claim;
       if (lastClaim && Date.now() - new Date(lastClaim).getTime() < 24 * 60 * 60 * 1000) {
         return interaction.editReply({
           embeds: [orangeEmbed('Cooldown', 'You can only claim your daily reward once every 24 hours.')]

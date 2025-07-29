@@ -26,7 +26,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -57,19 +57,19 @@ module.exports = {
 
     try {
       // Get server info
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
+      const serverId = serverResult[0].id;
+      const serverName = serverResult[0].nickname;
 
       // Check if killfeed config exists
       let killfeedResult = await pool.query(
@@ -77,7 +77,7 @@ module.exports = {
         [serverId]
       );
 
-      if (killfeedResult.rows.length === 0) {
+      if (killfeedResult.length === 0) {
         // Create new killfeed config with default format
         const defaultFormat = '{Killer} killed {Victim} ({VictimKD} K/D)';
         await pool.query(
@@ -90,7 +90,7 @@ module.exports = {
         );
       }
 
-      const killfeed = killfeedResult.rows[0];
+      const killfeed = killfeedResult[0];
       const enabled = option === 'on';
 
       // Update killfeed status

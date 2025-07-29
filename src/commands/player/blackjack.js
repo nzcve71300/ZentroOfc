@@ -58,14 +58,14 @@ module.exports = {
       const balance = await getPlayerBalance(player.id);
 
       // Get game config (min/max bet)
-      const configResult = await pool.query(
+      const [configResult] = await pool.query(
         `SELECT option_value FROM eco_games WHERE server_id = ? AND setup = 'blackjack' AND option = 'min_max_bet'`,
         [server.id]
       );
       let minBet = 1;
       let maxBet = 10000;
-      if (configResult.rows.length > 0) {
-        const [min, max] = configResult.rows[0].option_value.split(',').map(Number);
+      if (configResult.length > 0) {
+        const [min, max] = configResult[0].option_value.split(',').map(Number);
         minBet = min || minBet;
         maxBet = max || maxBet;
       }

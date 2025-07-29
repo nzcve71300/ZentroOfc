@@ -23,7 +23,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -51,19 +51,19 @@ module.exports = {
 
     try {
       // Get server ID
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverNickname]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.reply({
           embeds: [orangeEmbed('Error', `Server **${serverNickname}** not found in this guild.`)],
           ephemeral: true
         });
       }
 
-      const serverId = serverResult.rows[0].id;
+      const serverId = serverResult[0].id;
 
       // Delete the server (this will cascade to related data)
       await pool.query('DELETE FROM rust_servers WHERE id = ?', [serverId]);

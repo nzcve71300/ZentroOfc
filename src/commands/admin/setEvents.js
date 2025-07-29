@@ -43,7 +43,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -83,12 +83,12 @@ module.exports = {
     try {
       // Handle "ALL" servers option
       if (serverOption === 'ALL') {
-        const allServersResult = await pool.query(
+        const [allServersResult] = await pool.query(
           'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
           [guildId]
         );
 
-        if (allServersResult.rows.length === 0) {
+        if (allServersResult.length === 0) {
           return interaction.editReply({
             embeds: [errorEmbed('No Servers Found', 'No servers found in this guild.')]
           });
@@ -106,25 +106,25 @@ module.exports = {
         return interaction.editReply({
           embeds: [successEmbed(
             'Events Configuration Updated',
-            `Updated **${totalUpdated}** out of **${allServersResult.rows.length}** servers.\n\n**Results:**\n${results.join('\n')}`
+            `Updated **${totalUpdated}** out of **${allServersResult.length}** servers.\n\n**Results:**\n${results.join('\n')}`
           )]
         });
       }
 
       // Single server
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
+      const serverId = serverResult[0].id;
+      const serverName = serverResult[0].nickname;
 
       const result = await updateEventConfig(serverId, eventType, option, value);
 
@@ -151,7 +151,7 @@ async function updateEventConfig(serverId, eventType, option, value) {
     [serverId, eventType]
   );
 
-  if (configResult.rows.length === 0) {
+  if (configResult.length === 0) {
     // Create default config
     await pool.query(
       'INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message) VALUES (?, ?, ?, ?, ?)',

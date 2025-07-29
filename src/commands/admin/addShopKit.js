@@ -50,7 +50,7 @@ module.exports = {
         const value = focusedOption.value.toLowerCase();
         
         // Get servers for this guild
-        const result = await pool.query(
+        const [result] = await pool.query(
           `SELECT rs.id, rs.nickname 
            FROM rust_servers rs 
            JOIN guilds g ON rs.guild_id = g.id 
@@ -76,7 +76,7 @@ module.exports = {
         }
 
         // Get categories for the selected server
-        const result = await pool.query(
+        const [result] = await pool.query(
           `SELECT sc.id, sc.name 
            FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -119,7 +119,7 @@ module.exports = {
 
     try {
       // Verify server exists and belongs to this guild
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -127,16 +127,16 @@ module.exports = {
         [guildId, serverId]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The selected server was not found.')]
         });
       }
 
-      const { nickname } = serverResult.rows[0];
+      const { nickname } = serverResult[0];
 
       // Verify category exists and belongs to the selected server
-      const categoryResult = await pool.query(
+      const [categoryResult] = await pool.query(
         `SELECT sc.id, sc.name, sc.type 
          FROM shop_categories sc 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -144,13 +144,13 @@ module.exports = {
         [serverId, categoryId]
       );
 
-      if (categoryResult.rows.length === 0) {
+      if (categoryResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Category Not Found', 'The selected category was not found.')]
         });
       }
 
-      const { name: categoryName, type: categoryType } = categoryResult.rows[0];
+      const { name: categoryName, type: categoryType } = categoryResult[0];
 
       // Check if category supports kits
       if (categoryType !== 'kits' && categoryType !== 'both') {
@@ -160,26 +160,26 @@ module.exports = {
       }
 
       // Check if kit name already exists in this category
-      const existingKitResult = await pool.query(
+      const [existingKitResult] = await pool.query(
         'SELECT id FROM shop_kits WHERE category_id = ? AND kit_name = ?',
         [categoryId, kitName]
       );
 
-      if (existingKitResult.rows.length > 0) {
+      if (existingKitResult.length > 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Kit Already Exists', `A kit with the name "${kitName}" already exists in the "${categoryName}" category.`)]
         });
       }
 
       // Add the kit to the database
-      const insertResult = await pool.query(
+      const [insertResult] = await pool.query(
         `INSERT INTO shop_kits (category_id, display_name, kit_name, price, quantity, timer) 
          VALUES (?, ?, ?, ?, ?, ?) 
          RETURNING id`,
         [categoryId, displayName, kitName, price, quantity, timer]
       );
 
-      const kitId = insertResult.rows[0].id;
+      const kitId = insertResult[0].id;
 
       // Create success embed
       const embed = successEmbed(

@@ -34,7 +34,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -66,22 +66,22 @@ module.exports = {
 
     try {
       // Get server info
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
+      const serverId = serverResult[0].id;
+      const serverName = serverResult[0].nickname;
 
       // Find player by Discord username or in-game name
-      const playerResult = await pool.query(
+      const [playerResult] = await pool.query(
         `SELECT p.id, p.discord_id, p.ign
          FROM players p
          JOIN rust_servers rs ON p.server_id = rs.id
@@ -91,17 +91,17 @@ module.exports = {
         [guildId, serverId, playerName]
       );
 
-      if (playerResult.rows.length === 0) {
+      if (playerResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Player Not Found', `No player found with name "${playerName}" on ${serverName}.`)]
         });
       }
 
-      if (playerResult.rows.length > 1) {
+      if (playerResult.length > 1) {
         // Multiple players found - show options
         const embed = orangeEmbed(
           'Multiple Players Found',
-          `Found ${playerResult.rows.length} players matching "${playerName}". Please be more specific:`
+          `Found ${playerResult.length} players matching "${playerName}". Please be more specific:`
         );
 
         for (const player of playerResult.rows) {
@@ -117,15 +117,15 @@ module.exports = {
         });
       }
 
-      const player = playerResult.rows[0];
+      const player = playerResult[0];
 
       // Check if player is already in this kit list
-      const existingResult = await pool.query(
+      const [existingResult] = await pool.query(
         'SELECT id FROM kit_auth WHERE server_id = ? AND discord_id = ? AND kitlist = ?',
         [serverId, player.discord_id, kitlist]
       );
 
-      if (existingResult.rows.length > 0) {
+      if (existingResult.length > 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Already in List', `${player.ign || 'Player'} is already in ${kitlist} on ${serverName}.`)]
         });

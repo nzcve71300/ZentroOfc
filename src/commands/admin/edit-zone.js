@@ -50,7 +50,7 @@ module.exports = {
     
     try {
       // Get servers for this guild
-      const serversResult = await pool.query(`
+      const [serversResult] = await pool.query(`
         SELECT rs.id, rs.nickname
         FROM rust_servers rs
         JOIN guilds g ON rs.guild_id = g.id
@@ -113,13 +113,13 @@ module.exports = {
         });
       }
 
-      if (!serverResult || serverResult.rows.length === 0) {
+      if (!serverResult || serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Error', 'Server not found or not accessible in this guild.')]
         });
       }
 
-      const server = serverResult.rows[0];
+      const server = serverResult[0];
 
       // Check if any parameters were provided
       const hasUpdates = size !== null || colorOnline !== null || colorOffline !== null || 
@@ -277,11 +277,11 @@ module.exports = {
 
         if (defaultsUpdates.length > 0) {
           // Check if defaults exist for this server
-          const existingDefaults = await pool.query(`
+          const [existingDefaults] = await pool.query(`
             SELECT id FROM zorp_defaults WHERE server_id = ?
           `, [serverId]);
 
-          if (existingDefaults.rows.length > 0) {
+          if (existingDefaults.length > 0) {
             // Update existing defaults
             defaultsValues.push(serverId);
             await pool.query(`

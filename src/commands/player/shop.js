@@ -58,7 +58,7 @@ module.exports = {
       const balance = await getPlayerBalance(player.id);
 
       // Fetch categories for the shop
-      const categoriesResult = await pool.query(
+      const [categoriesResult] = await pool.query(
         `SELECT sc.id, sc.name, sc.type
          FROM shop_categories sc
          WHERE sc.server_id = ?
@@ -66,7 +66,7 @@ module.exports = {
         [server.id]
       );
 
-      if (categoriesResult.rows.length === 0) {
+      if (categoriesResult.length === 0) {
         return interaction.editReply({
           embeds: [orangeEmbed(
             'Shop',

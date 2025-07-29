@@ -49,13 +49,13 @@ module.exports = {
         });
       }
 
-      if (!zoneResult || zoneResult.rows.length === 0) {
+      if (!zoneResult || zoneResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Error', `Zone "${zoneName}" was not found.`)]
         });
       }
 
-      const zone = zoneResult.rows[0];
+      const zone = zoneResult[0];
 
       // Delete from game via RCON
       let rconSuccess = FALSE;

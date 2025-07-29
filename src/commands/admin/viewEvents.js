@@ -18,7 +18,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -55,12 +55,12 @@ module.exports = {
     try {
       // Handle "ALL" servers option
       if (serverOption === 'ALL') {
-        const allServersResult = await pool.query(
+        const [allServersResult] = await pool.query(
           'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
           [guildId]
         );
 
-        if (allServersResult.rows.length === 0) {
+        if (allServersResult.length === 0) {
           return interaction.editReply({
             embeds: [errorEmbed('No Servers Found', 'No servers found in this guild.')]
           });
@@ -68,18 +68,18 @@ module.exports = {
 
         const embed = orangeEmbed(
           '🎯 Event Configurations Overview',
-          `**Total Servers:** ${allServersResult.rows.length}\n\n**Server Configurations:**`
+          `**Total Servers:** ${allServersResult.length}\n\n**Server Configurations:**`
         );
 
         for (const server of allServersResult.rows) {
-          const configsResult = await pool.query(
+          const [configsResult] = await pool.query(
             'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? ORDER BY event_type',
             [server.id]
           );
 
           let serverConfig = `**${server.nickname}**:\n`;
           
-          if (configsResult.rows.length === 0) {
+          if (configsResult.length === 0) {
             serverConfig += 'No event configurations found.\n';
           } else {
             for (const config of configsResult.rows) {
@@ -111,22 +111,22 @@ module.exports = {
       }
 
       // Single server
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
-      const serverId = serverResult.rows[0].id;
-      const serverName = serverResult.rows[0].nickname;
+      const serverId = serverResult[0].id;
+      const serverName = serverResult[0].nickname;
 
       // Get event configurations
-      const configsResult = await pool.query(
+      const [configsResult] = await pool.query(
         'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? ORDER BY event_type',
         [serverId]
       );
@@ -136,7 +136,7 @@ module.exports = {
         `**Server:** ${serverName}\n\n**Current Settings:**`
       );
 
-      if (configsResult.rows.length === 0) {
+      if (configsResult.length === 0) {
         embed.addFields({
           name: 'No Configurations',
           value: 'No event configurations found for this server. Use `/set-events` to create configurations.',

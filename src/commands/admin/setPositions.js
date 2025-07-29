@@ -34,7 +34,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const result = await pool.query(
+      const [result] = await pool.query(
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -71,7 +71,7 @@ module.exports = {
 
     try {
       // Verify server exists and belongs to this guild
-      const serverResult = await pool.query(
+      const [serverResult] = await pool.query(
         `SELECT rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -79,13 +79,13 @@ module.exports = {
         [serverId, guildId]
       );
 
-      if (serverResult.rows.length === 0) {
+      if (serverResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Not Found', 'The selected server was not found in this guild.')]
         });
       }
 
-      const serverName = serverResult.rows[0].nickname;
+      const serverName = serverResult[0].nickname;
 
       // Parse the config type and setting
       const [positionType, setting] = configs.split('_');
@@ -110,12 +110,12 @@ module.exports = {
       }
 
       // Check if position config exists for this server
-      const existingResult = await pool.query(
+      const [existingResult] = await pool.query(
         'SELECT * FROM position_configs WHERE server_id = ? AND position_type = ?',
         [serverId, positionType]
       );
 
-      if (existingResult.rows.length > 0) {
+      if (existingResult.length > 0) {
         // Update existing config
         let updateQuery;
         let updateValue;

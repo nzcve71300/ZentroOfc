@@ -29,7 +29,7 @@ module.exports = {
 
     try {
       if (focusedOption.name === 'server') {
-        const result = await pool.query(
+        const [result] = await pool.query(
           'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
         );
@@ -43,7 +43,7 @@ module.exports = {
       } else if (focusedOption.name === 'category') {
         const serverOption = interaction.options.getString('server');
         
-        const result = await pool.query(
+        const [result] = await pool.query(
           `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
@@ -62,7 +62,7 @@ module.exports = {
         const serverOption = interaction.options.getString('server');
         const categoryOption = interaction.options.getString('category');
         
-        const result = await pool.query(
+        const [result] = await pool.query(
           `SELECT sk.kit_name FROM shop_kits sk 
            JOIN shop_categories sc ON sk.category_id = sc.id 
            JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -98,7 +98,7 @@ module.exports = {
 
     try {
       // Get the kit details
-      const kitResult = await pool.query(
+      const [kitResult] = await pool.query(
         `SELECT sk.id, sk.display_name, sk.kit_name, sk.price, sk.quantity, sk.timer 
          FROM shop_kits sk 
          JOIN shop_categories sc ON sk.category_id = sc.id 
@@ -108,14 +108,14 @@ module.exports = {
         [guildId, serverOption, categoryOption, kitNameOption]
       );
 
-      if (kitResult.rows.length === 0) {
+      if (kitResult.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Kit Not Found', 'The specified kit was not found.')],
           ephemeral: true
         });
       }
 
-      const kit = kitResult.rows[0];
+      const kit = kitResult[0];
 
       // Create modal for editing
       const modal = new ModalBuilder()

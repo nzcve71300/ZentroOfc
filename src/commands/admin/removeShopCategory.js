@@ -24,7 +24,7 @@ module.exports = {
 
     try {
       if (focusedOption.name === 'server') {
-        const result = await pool.query(
+        const [result] = await pool.query(
           'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
         );
@@ -38,7 +38,7 @@ module.exports = {
       } else if (focusedOption.name === 'category') {
         const serverOption = interaction.options.getString('server');
         
-        const result = await pool.query(
+        const [result] = await pool.query(
           `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
@@ -74,7 +74,7 @@ module.exports = {
 
     try {
       // Get the category details and count items/kits
-      const categoryResult = await pool.query(
+      const [categoryResult] = await pool.query(
         `SELECT sc.id, sc.name, sc.type, rs.nickname as server_name,
          (SELECT COUNT(*) FROM shop_items WHERE category_id = sc.id) as item_count,
          (SELECT COUNT(*) FROM shop_kits WHERE category_id = sc.id) as kit_count
@@ -85,13 +85,13 @@ module.exports = {
         [guildId, serverOption, categoryOption]
       );
 
-      if (categoryResult.rows.length === 0) {
+      if (categoryResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Category Not Found', 'The specified category was not found.')]
         });
       }
 
-      const category = categoryResult.rows[0];
+      const category = categoryResult[0];
       const totalItems = parseInt(category.item_count) + parseInt(category.kit_count);
 
       if (totalItems > 0) {
