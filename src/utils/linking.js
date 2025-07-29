@@ -119,25 +119,37 @@ async function createLinkRequest(guildId, discordId, ign, serverId) {
  * Confirm a link request
  */
 async function confirmLinkRequest(guildId, discordId, ign, serverId) {
-  console.log(`Confirming link request: ${discordId} -> ${ign} on server ${serverId}`);
+  console.log('confirmLinkRequest params:', { guildId, discordId, ign, serverId });
+
+  // Validate parameters
+  if (!guildId || !discordId || !ign || !serverId) {
+    throw new Error("❌ Linking failed: Missing required parameters. Please try again or contact an admin.");
+  }
+
+  // Ensure parameters are properly typed
+  const guildIdBigInt = BigInt(guildId);
+  const discordIdBigInt = BigInt(discordId);
+  const serverIdBigInt = BigInt(serverId);
+
+  console.log(`Confirming link request: ${discordIdBigInt} -> ${ign} on server ${serverIdBigInt}`);
 
   // Update request status
   await pool.query(
     `UPDATE link_requests 
      SET status = 'confirmed' 
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-     AND discord_id = $2 
-     AND server_id = $3`,
-    [guildId, discordId, serverId]
+     WHERE guild_id = $1::BIGINT 
+     AND discord_id = $2::BIGINT 
+     AND server_id = $3::BIGINT`,
+    [guildIdBigInt, discordIdBigInt, serverIdBigInt]
   );
 
   // Step 1: Check if the IGN exists
   const existing = await pool.query(
     `SELECT id, is_active FROM players 
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-     AND server_id = $2 
+     WHERE guild_id = $1::BIGINT 
+     AND server_id = $2::BIGINT 
      AND LOWER(ign) = LOWER($3)`,
-    [guildId, serverId, ign]
+    [guildIdBigInt, serverIdBigInt, ign]
   );
 
   if (existing.rows.length > 0) {
@@ -146,12 +158,12 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
       throw new Error("❌ This IGN is already linked. Please contact an admin to unlink it first.");
     } else {
       // Reactivate existing row
-      console.log(`Reactivating existing inactive player: ${discordId} -> ${ign}`);
+      console.log(`Reactivating existing inactive player: ${discordIdBigInt} -> ${ign}`);
       await pool.query(
         `UPDATE players 
-         SET discord_id = $3, linked_at = NOW(), is_active = true, unlinked_at = NULL
+         SET discord_id = $3::BIGINT, linked_at = NOW(), is_active = true, unlinked_at = NULL
          WHERE id = $4`,
-        [guildId, serverId, discordId, existing.rows[0].id]
+        [guildIdBigInt, serverIdBigInt, discordIdBigInt, existing.rows[0].id]
       );
       
       // Ensure economy record exists
@@ -160,18 +172,18 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
         [existing.rows[0].id]
       );
       
-      console.log(`✅ Successfully reactivated user: ${discordId} -> ${ign}`);
+      console.log(`✅ Successfully reactivated user: ${discordIdBigInt} -> ${ign}`);
       return { id: existing.rows[0].id };
     }
   }
 
   // Step 2: If no existing record, insert a new one
-  console.log(`Creating new player link: ${discordId} -> ${ign}`);
+  console.log(`Creating new player link: ${discordIdBigInt} -> ${ign}`);
   const result = await pool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
-     VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4, NOW(), true)
+     VALUES ($1::BIGINT, $2::BIGINT, $3::BIGINT, $4, NOW(), true)
      RETURNING *`,
-    [guildId, serverId, discordId, ign]
+    [guildIdBigInt, serverIdBigInt, discordIdBigInt, ign]
   );
 
   const player = result.rows[0];
@@ -182,7 +194,7 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
     [player.id]
   );
 
-  console.log(`✅ Successfully linked new user: ${discordId} -> ${ign}`);
+  console.log(`✅ Successfully linked new user: ${discordIdBigInt} -> ${ign}`);
   return player;
 }
 
