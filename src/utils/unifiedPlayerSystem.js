@@ -106,13 +106,13 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
     finalIgn = identifier;
   }
 
-  // First, ensure the player record exists
+  // First, ensure the player record exists with proper conflict resolution
   const playerResult = await pool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
      VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4, NOW(), true)
-     ON CONFLICT (guild_id, discord_id, server_id)
+     ON CONFLICT (guild_id, server_id, ign)
      DO UPDATE SET 
-       ign = EXCLUDED.ign,
+       discord_id = EXCLUDED.discord_id,
        linked_at = NOW(),
        unlinked_at = NULL,
        is_active = true
@@ -186,7 +186,7 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
  */
 async function unlinkAllPlayersByIdentifier(guildId, identifier) {
   if (isDiscordId(identifier)) {
-    // Handle Discord ID (numeric) - direct comparison
+    // Handle Discord ID (numeric) - deactivate by Discord ID across all servers
     const result = await pool.query(
       `UPDATE players 
        SET is_active = false, unlinked_at = NOW(), ign = NULL
@@ -198,7 +198,7 @@ async function unlinkAllPlayersByIdentifier(guildId, identifier) {
     );
     return result.rows;
   } else {
-    // Handle IGN (text) - case-insensitive match
+    // Handle IGN (text) - deactivate by IGN across all servers
     const result = await pool.query(
       `UPDATE players 
        SET is_active = false, unlinked_at = NOW(), ign = NULL
