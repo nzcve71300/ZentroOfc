@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to gamble on')
-        .setRequired(true)
-        .setAutocomplete(true)
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE)
     ),
 
   async autocomplete(interaction) {
@@ -59,7 +59,7 @@ module.exports = {
 
       // Get game config (min/max bet)
       const configResult = await pool.query(
-        `SELECT option_value FROM eco_games WHERE server_id = $1 AND setup = 'blackjack' AND option = 'min_max_bet'`,
+        `SELECT option_value FROM eco_games WHERE server_id = ? AND setup = 'blackjack' AND option = 'min_max_bet'`,
         [server.id]
       );
       let minBet = 1;
@@ -79,7 +79,7 @@ module.exports = {
         .setLabel(`Enter your bet (${minBet}-${maxBet})`)
         .setStyle(TextInputStyle.Short)
         .setPlaceholder(`Your balance: ${balance}`)
-        .setRequired(true);
+        .setRequired(TRUE);
       const row = new ActionRowBuilder().addComponents(betInput);
       modal.addComponents(row);
 

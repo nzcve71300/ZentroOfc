@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('format_string')
         .setDescription('Killfeed format string with placeholders')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(500)),
 
   async autocomplete(interaction) {
@@ -24,11 +24,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -41,11 +41,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -55,7 +55,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -70,18 +70,18 @@ module.exports = {
 
       // Check if killfeed config exists
       let killfeedResult = await pool.query(
-        'SELECT id, enabled FROM killfeed_configs WHERE server_id = $1',
+        'SELECT id, enabled FROM killfeed_configs WHERE server_id = ?',
         [serverId]
       );
 
       if (killfeedResult.rows.length === 0) {
         // Create new killfeed config
         await pool.query(
-          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES ($1, false, $2)',
+          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES (?, FALSE, ?)',
           [serverId, formatString]
         );
         killfeedResult = await pool.query(
-          'SELECT id, enabled FROM killfeed_configs WHERE server_id = $1',
+          'SELECT id, enabled FROM killfeed_configs WHERE server_id = ?',
           [serverId]
         );
       }
@@ -90,7 +90,7 @@ module.exports = {
 
       // Update format string
       await pool.query(
-        'UPDATE killfeed_configs SET format_string = $1 WHERE id = $2',
+        'UPDATE killfeed_configs SET format_string = ? WHERE id = ?',
         [formatString, killfeed.id]
       );
 
@@ -113,19 +113,19 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Configuration',
         value: `**Status:** ${killfeed.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${formatString}`,
-        inline: false
+        inline: FALSE
       });
 
       embed.addFields({
         name: '👀 Preview',
         value: preview,
-        inline: false
+        inline: FALSE
       });
 
       embed.addFields({
         name: '🔧 Available Placeholders',
         value: '`{Killer}` - Killer name\n`{Victim}` - Victim name\n`{KillerKD}` - Killer K/D ratio\n`{VictimKD}` - Victim K/D ratio\n`{KillerStreak}` - Killer kill streak\n`{VictimStreak}` - Victim kill streak\n`{KillerHighest}` - Killer highest streak\n`{VictimHighest}` - Victim highest streak',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

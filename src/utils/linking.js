@@ -2,7 +2,7 @@ const pool = require('../db');
 
 /**
  * Check if a Discord ID is blocked from linking
- * TEMPORARILY DISABLED - returns false
+ * TEMPORARILY DISABLED - returns FALSE
  */
 async function isDiscordIdBlocked(guildId, discordId) {
   // TEMPORARILY DISABLED - table doesn't exist
@@ -11,12 +11,12 @@ async function isDiscordIdBlocked(guildId, discordId) {
   //   [guildId, discordId]
   // );
   // return result.length > 0;
-  return false;
+  return FALSE;
 }
 
 /**
  * Check if an IGN is blocked from linking
- * TEMPORARILY DISABLED - returns false
+ * TEMPORARILY DISABLED - returns FALSE
  */
 async function isIgnBlocked(guildId, ign) {
   // TEMPORARILY DISABLED - table doesn't exist
@@ -25,7 +25,7 @@ async function isIgnBlocked(guildId, ign) {
   //   [guildId, ign]
   // );
   // return result.length > 0;
-  return false;
+  return FALSE;
 }
 
 /**

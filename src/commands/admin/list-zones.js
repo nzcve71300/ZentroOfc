@@ -17,7 +17,7 @@ module.exports = {
         FROM zones z
         JOIN rust_servers rs ON z.server_id = rs.id
         JOIN guilds g ON rs.guild_id = g.id
-        WHERE g.discord_id = $1
+        WHERE g.discord_id = ?
         ORDER BY z.created_at DESC
       `, [interaction.guildId]);
 
@@ -70,7 +70,7 @@ module.exports = {
           embed.addFields({
             name: i === 0 ? serverName : `${serverName} (continued)`,
             value: part,
-            inline: false
+            inline: FALSE
           });
         });
       }

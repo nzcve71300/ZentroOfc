@@ -10,26 +10,26 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category to remove')
-        .setRequired(true)
-        .setAutocomplete(true)),
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(true);
+    const focusedOption = interaction.options.getFocused(TRUE);
     const guildId = interaction.guildId;
 
     try {
       if (focusedOption.name === 'server') {
         const result = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.nickname,
           value: row.nickname
         }));
@@ -42,12 +42,12 @@ module.exports = {
           `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name ILIKE $3 
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name LIKE ? 
            LIMIT 25`,
           [guildId, serverOption, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.name,
           value: row.name
         }));
@@ -61,11 +61,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -81,7 +81,7 @@ module.exports = {
          FROM shop_categories sc 
          JOIN rust_servers rs ON sc.server_id = rs.id 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name = $3`,
+         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
         [guildId, serverOption, categoryOption]
       );
 
@@ -105,7 +105,7 @@ module.exports = {
 
       // Remove the category
       await pool.query(
-        'DELETE FROM shop_categories WHERE id = $1',
+        'DELETE FROM shop_categories WHERE id = ?',
         [category.id]
       );
 

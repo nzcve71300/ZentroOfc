@@ -14,15 +14,15 @@ module.exports = {
     .addStringOption(option =>
       option.setName('identifier')
         .setDescription('Discord ID or in-game name of the player')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addStringOption(option =>
       option.setName('ign')
         .setDescription('In-game name (if linking by Discord ID)')
-        .setRequired(false)),
+        .setRequired(FALSE)),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
-    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, FALSE);
 
     const guildId = interaction.guildId;
     const identifier = interaction.options.getString('identifier');

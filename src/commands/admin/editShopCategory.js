@@ -10,22 +10,22 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category to edit')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('new_name')
         .setDescription('New category name')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(100))
     .addStringOption(option =>
       option.setName('new_type')
         .setDescription('New category type')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Items Only', value: 'items' },
           { name: 'Kits Only', value: 'kits' },
@@ -34,21 +34,21 @@ module.exports = {
     .addStringOption(option =>
       option.setName('new_role')
         .setDescription('New role requirement (optional)')
-        .setRequired(false)
+        .setRequired(FALSE)
         .setMaxLength(100)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(true);
+    const focusedOption = interaction.options.getFocused(TRUE);
     const guildId = interaction.guildId;
 
     try {
       if (focusedOption.name === 'server') {
         const result = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.nickname,
           value: row.nickname
         }));
@@ -61,12 +61,12 @@ module.exports = {
           `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name ILIKE $3 
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name LIKE ? 
            LIMIT 25`,
           [guildId, serverOption, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.name,
           value: row.name
         }));
@@ -80,11 +80,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -101,7 +101,7 @@ module.exports = {
          FROM shop_categories sc 
          JOIN rust_servers rs ON sc.server_id = rs.id 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name = $3`,
+         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
         [guildId, serverOption, categoryOption]
       );
 
@@ -119,7 +119,7 @@ module.exports = {
           `SELECT id FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name = $3`,
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
           [guildId, serverOption, newName]
         );
 
@@ -132,7 +132,7 @@ module.exports = {
 
       // Update the category
       await pool.query(
-        'UPDATE shop_categories SET name = $1, type = $2, role = $3 WHERE id = $4',
+        'UPDATE shop_categories SET name = ?, type = ?, role = ? WHERE id = ?',
         [newName, newType, newRole || null, category.id]
       );
 
@@ -144,13 +144,13 @@ module.exports = {
       embed.addFields({
         name: '📋 Changes Made',
         value: `**Name:** ${category.name} → ${newName}\n**Type:** ${category.type} → ${newType}\n**Role:** ${category.role || 'None'} → ${newRole || 'None'}`,
-        inline: false
+        inline: FALSE
       });
 
       embed.addFields({
         name: '💡 Category Types',
         value: '• **Items Only** - Only shop items\n• **Kits Only** - Only shop kits\n• **Both Items & Kits** - Both items and kits',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

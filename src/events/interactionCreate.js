@@ -70,7 +70,7 @@ module.exports = {
         } else {
           await interaction.reply({
             embeds: [errorEmbed('Error', 'An error occurred while processing your request.')],
-            ephemeral: true
+            ephemeral: TRUE
           });
         }
       } catch (replyError) {
@@ -91,21 +91,21 @@ async function handleShopServerSelect(interaction) {
     const result = await pool.query(
       `SELECT rs.nickname, rs.id as server_id
        FROM rust_servers rs
-       WHERE rs.id = $1`,
+       WHERE rs.id = ?`,
       [serverId]
     );
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Server Not Found', 'The selected server was not found.')]
       });
     }
 
-    const { nickname, server_id } = result.rows[0];
+    const { nickname, server_id } = result[0];
 
     // Get categories for this server
     const categoriesResult = await pool.query(
-      'SELECT id, name, type FROM shop_categories WHERE server_id = $1 ORDER BY name',
+      'SELECT id, name, type FROM shop_categories WHERE server_id = ? ORDER BY name',
       [server_id]
     );
 
@@ -122,7 +122,7 @@ async function handleShopServerSelect(interaction) {
     const balanceResult = await pool.query(
       `SELECT e.balance FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = $1 AND p.server_id = $2`,
+       WHERE p.discord_id = ? AND p.server_id = ?`,
       [userId, server_id]
     );
 
@@ -171,7 +171,7 @@ async function handleShopCategorySelect(interaction) {
       `SELECT sc.name, sc.type, rs.nickname, sc.server_id
        FROM shop_categories sc
        JOIN rust_servers rs ON sc.server_id = rs.id
-       WHERE sc.id = $1`,
+       WHERE sc.id = ?`,
       [categoryId]
     );
 
@@ -189,7 +189,7 @@ async function handleShopCategorySelect(interaction) {
 
     if (type === 'items' || type === 'both') {
       const itemsResult = await pool.query(
-        'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE category_id = $1 ORDER BY display_name',
+        'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE category_id = ? ORDER BY display_name',
         [categoryId]
       );
       items = itemsResult.rows;
@@ -197,7 +197,7 @@ async function handleShopCategorySelect(interaction) {
 
     if (type === 'kits' || type === 'both') {
       const kitsResult = await pool.query(
-        'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE category_id = $1 ORDER BY display_name',
+        'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE category_id = ? ORDER BY display_name',
         [categoryId]
       );
       kits = kitsResult.rows;
@@ -209,7 +209,7 @@ async function handleShopCategorySelect(interaction) {
        FROM players p
        JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = $1 AND rs.id = $2
+       WHERE p.discord_id = ? AND rs.id = ?
        LIMIT 1`,
       [userId, server_id]
     );
@@ -228,7 +228,7 @@ async function handleShopCategorySelect(interaction) {
       const itemsList = items.map(item => 
         `**${item.display_name}** - ${item.price} coins (${item.quantity}x)${item.timer ? ` - ${item.timer}m cooldown` : ''}`
       ).join('\n');
-      embed.addFields({ name: '📦 Items', value: itemsList, inline: false });
+      embed.addFields({ name: '📦 Items', value: itemsList, inline: FALSE });
     }
 
     // Add kits to embed
@@ -236,7 +236,7 @@ async function handleShopCategorySelect(interaction) {
       const kitsList = kits.map(kit => 
         `**${kit.display_name}** - ${kit.price} coins (${kit.quantity}x)${kit.timer ? ` - ${kit.timer}m cooldown` : ''}`
       ).join('\n');
-      embed.addFields({ name: '🎒 Kits', value: kitsList, inline: false });
+      embed.addFields({ name: '🎒 Kits', value: kitsList, inline: FALSE });
     }
 
     if (items.length === 0 && kits.length === 0) {
@@ -302,19 +302,19 @@ async function handleShopItemSelect(interaction) {
 
     if (type === 'item') {
       const result = await pool.query(
-        'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE id = $1',
+        'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE id = ?',
         [itemId]
       );
-      console.log('Item query result:', result.rows);
-      itemData = result.rows[0];
+      console.log('Item query result:', result);
+      itemData = result[0];
       itemType = 'item';
     } else if (type === 'kit') {
       const result = await pool.query(
-        'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE id = $1',
+        'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE id = ?',
         [itemId]
       );
-      console.log('Kit query result:', result.rows);
-      itemData = result.rows[0];
+      console.log('Kit query result:', result);
+      itemData = result[0];
       itemType = 'kit';
     }
 
@@ -326,7 +326,7 @@ async function handleShopItemSelect(interaction) {
 
          // Get player balance - first get the server_id from the category
      const serverResult = await pool.query(
-       'SELECT rs.id as server_id, rs.nickname FROM shop_categories sc JOIN rust_servers rs ON sc.server_id = rs.id WHERE sc.id = $1',
+       'SELECT rs.id as server_id, rs.nickname FROM shop_categories sc JOIN rust_servers rs ON sc.server_id = rs.id WHERE sc.id = ?',
        [categoryId]
      );
 
@@ -346,7 +346,7 @@ async function handleShopItemSelect(interaction) {
         JOIN economy e ON p.id = e.player_id
         JOIN rust_servers rs ON p.server_id = rs.id
         JOIN guilds g ON rs.guild_id = g.id
-        WHERE p.discord_id = $1 AND g.discord_id = $2
+        WHERE p.discord_id = ? AND g.discord_id = ?
         LIMIT 1`,
        [userId, interaction.guildId]
      );
@@ -422,20 +422,20 @@ async function handleConfirmPurchase(interaction) {
     if (type === 'item') {
       console.log('Confirm purchase - querying item with ID:', itemId);
       const result = await pool.query(
-        'SELECT si.display_name, si.short_name, si.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = $1',
+        'SELECT si.display_name, si.short_name, si.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
         [itemId]
       );
-      console.log('Confirm purchase - item query result:', result.rows);
-      itemData = result.rows[0];
+      console.log('Confirm purchase - item query result:', result);
+      itemData = result[0];
       command = `inventory.giveto "${interaction.user.username}" "${itemData.short_name}" 1`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
-        'SELECT sk.display_name, sk.kit_name, sk.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = $1',
+        'SELECT sk.display_name, sk.kit_name, sk.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
         [itemId]
       );
-      console.log('Confirm purchase - kit query result:', result.rows);
-      itemData = result.rows[0];
+      console.log('Confirm purchase - kit query result:', result);
+      itemData = result[0];
       command = `kit givetoplayer ${itemData.kit_name} ${interaction.user.username}`;
     }
 
@@ -447,13 +447,13 @@ async function handleConfirmPurchase(interaction) {
 
     // Deduct balance
     await pool.query(
-      'UPDATE economy SET balance = balance - $1 WHERE player_id = $2',
+      'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
       [itemData.price, playerId]
     );
 
     // Record transaction
     await pool.query(
-      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
+      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
       [playerId, -itemData.price, 'shop_purchase']
     );
 
@@ -606,7 +606,7 @@ async function handleBlackjackBet(interaction) {
        FROM players p
        JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = $1 AND rs.id = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
+       WHERE p.discord_id = ? AND rs.id = ? AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
        LIMIT 1`,
       [userId, serverId, guildId]
     );
@@ -709,7 +709,7 @@ async function handleSlotsBet(interaction) {
        FROM players p
        JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = $1 AND rs.id = $2 AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = $3)
+       WHERE p.discord_id = ? AND rs.id = ? AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
        LIMIT 1`,
       [userId, serverId, guildId]
     );
@@ -812,7 +812,7 @@ async function handleEditItemModal(interaction) {
   try {
     // Update the item
     await pool.query(
-      'UPDATE shop_items SET display_name = $1, short_name = $2, price = $3, quantity = $4, timer = $5 WHERE id = $6',
+      'UPDATE shop_items SET display_name = ?, short_name = ?, price = ?, quantity = ?, timer = ? WHERE id = ?',
       [displayName, shortName, price, quantity, timerValue, itemId]
     );
 
@@ -859,7 +859,7 @@ async function handleEditKitModal(interaction) {
   try {
     // Update the kit
     await pool.query(
-      'UPDATE shop_kits SET display_name = $1, kit_name = $2, price = $3, quantity = $4, timer = $5 WHERE id = $6',
+      'UPDATE shop_kits SET display_name = ?, kit_name = ?, price = ?, quantity = ?, timer = ? WHERE id = ?',
       [displayName, kitName, price, quantity, timerValue, kitId]
     );
 

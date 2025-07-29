@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to browse')
-        .setRequired(true)
-        .setAutocomplete(true)
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE)
     ),
 
   async autocomplete(interaction) {
@@ -61,7 +61,7 @@ module.exports = {
       const categoriesResult = await pool.query(
         `SELECT sc.id, sc.name, sc.type
          FROM shop_categories sc
-         WHERE sc.server_id = $1
+         WHERE sc.server_id = ?
          ORDER BY sc.name`,
         [server.id]
       );

@@ -9,27 +9,27 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('size')
         .setDescription('Default zone size (default: 75)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addStringOption(option =>
       option.setName('color_online')
         .setDescription('Default online color (R,G,B format, default: 0,255,0)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addStringOption(option =>
       option.setName('color_offline')
         .setDescription('Default offline color (R,G,B format, default: 255,0,0)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('expire')
         .setDescription('Default expiration time in seconds (default: 115200)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('min_team')
         .setDescription('Default minimum team size (default: 1)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('max_team')
         .setDescription('Default maximum team size (default: 8)')
-        .setRequired(false)),
+        .setRequired(FALSE)),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
@@ -51,12 +51,12 @@ module.exports = {
         {
           name: 'Current Defaults',
           value: `**Size:** 75\n**Online Color:** 0,255,0 (Green)\n**Offline Color:** 255,0,0 (Red)\n**Expire:** 115200 seconds (32 hours)\n**Min Team:** 1\n**Max Team:** 8`,
-          inline: true
+          inline: TRUE
         },
         {
           name: 'Usage',
           value: 'Use `/edit-zone <zone_name>` to modify individual zones.\n\nZones are created automatically when players use the ZORP emote in-game.',
-          inline: true
+          inline: TRUE
         }
       );
 
@@ -64,7 +64,7 @@ module.exports = {
         embed.addFields({
           name: 'Note',
           value: 'Configuration changes would be applied to new zones only. Use `/edit-zone` to modify existing zones.',
-          inline: false
+          inline: FALSE
         });
       }
 

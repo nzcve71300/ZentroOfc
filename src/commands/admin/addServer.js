@@ -10,27 +10,27 @@ module.exports = {
     .addStringOption(option =>
       option.setName('nickname')
         .setDescription('Server nickname (e.g., Main Server, PvP Server)')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addStringOption(option =>
       option.setName('server_ip')
         .setDescription('Server IP address')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addIntegerOption(option =>
       option.setName('rcon_port')
         .setDescription('RCON port (default: 28016)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addStringOption(option =>
       option.setName('rcon_password')
         .setDescription('RCON password')
-        .setRequired(false)),
+        .setRequired(FALSE)),
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const nickname = interaction.options.getString('nickname');
@@ -42,14 +42,14 @@ module.exports = {
     try {
       // Check if guild exists, if not create it
       let guildResult = await pool.query(
-        'SELECT id FROM guilds WHERE discord_id = $1',
+        'SELECT id FROM guilds WHERE discord_id = ?',
         [guildId]
       );
 
       if (guildResult.rows.length === 0) {
         // Create guild with explicit ID to avoid sequence permission issues
         const newGuildResult = await pool.query(
-          'INSERT INTO guilds (discord_id, name) VALUES ($1, $2) RETURNING id',
+          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) RETURNING id',
           [guildId, interaction.guild.name]
         );
         guildResult = newGuildResult;
@@ -59,7 +59,7 @@ module.exports = {
 
       // Check if server already exists
       const existingServer = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = $1 AND nickname = $2',
+        'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
         [guildDbId, nickname]
       );
 
@@ -71,7 +71,7 @@ module.exports = {
 
       // Add the server
       await pool.query(
-        'INSERT INTO rust_servers (guild_id, nickname, ip, port, password) VALUES ($1, $2, $3, $4, $5)',
+        'INSERT INTO rust_servers (guild_id, nickname, ip, port, password) VALUES (?, ?, ?, ?, ?)',
         [guildDbId, nickname, ip, port, rconPassword]
       );
 

@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true)),
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -19,11 +19,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -42,11 +42,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -56,7 +56,7 @@ module.exports = {
       // Handle "ALL" servers option
       if (serverOption === 'ALL') {
         const allServersResult = await pool.query(
-          'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1',
+          'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
           [guildId]
         );
 
@@ -73,7 +73,7 @@ module.exports = {
 
         for (const server of allServersResult.rows) {
           const configsResult = await pool.query(
-            'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = $1 ORDER BY event_type',
+            'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? ORDER BY event_type',
             [server.id]
           );
 
@@ -94,14 +94,14 @@ module.exports = {
           embed.addFields({
             name: server.nickname,
             value: serverConfig,
-            inline: false
+            inline: FALSE
           });
         }
 
         embed.addFields({
           name: '📋 Instructions',
           value: 'Use `/set-events` to configure event settings for each server.',
-          inline: false
+          inline: FALSE
         });
 
         await interaction.editReply({
@@ -112,7 +112,7 @@ module.exports = {
 
       // Single server
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -127,7 +127,7 @@ module.exports = {
 
       // Get event configurations
       const configsResult = await pool.query(
-        'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = $1 ORDER BY event_type',
+        'SELECT event_type, enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? ORDER BY event_type',
         [serverId]
       );
 
@@ -140,7 +140,7 @@ module.exports = {
         embed.addFields({
           name: 'No Configurations',
           value: 'No event configurations found for this server. Use `/set-events` to create configurations.',
-          inline: false
+          inline: FALSE
         });
       } else {
         for (const config of configsResult.rows) {
@@ -150,7 +150,7 @@ module.exports = {
           embed.addFields({
             name: `${eventName} (${status})`,
             value: `**Kill Message:** \`${config.kill_message}\`\n**Respawn Message:** \`${config.respawn_message}\``,
-            inline: false
+            inline: FALSE
           });
         }
       }
@@ -158,7 +158,7 @@ module.exports = {
       embed.addFields({
         name: '📋 Configuration Options',
         value: '• **bradscout/heliscout**: `on` or `off`\n• **bradkillmsg/helikillmsg**: Custom kill message\n• **bradrespawnmsg/helirespawnmsg**: Custom respawn message',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

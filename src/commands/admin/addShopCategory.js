@@ -10,16 +10,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Category name')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addStringOption(option =>
       option.setName('type')
         .setDescription('Category type')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Items', value: 'items' },
           { name: 'Kits', value: 'kits' },
@@ -28,7 +28,7 @@ module.exports = {
     .addRoleOption(option =>
       option.setName('role')
         .setDescription('Required role to access this category (optional)')
-        .setRequired(false)),
+        .setRequired(FALSE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -36,11 +36,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -54,11 +54,11 @@ module.exports = {
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverNickname = interaction.options.getString('server');
@@ -70,7 +70,7 @@ module.exports = {
     try {
       // Get server ID
       const serverResult = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverNickname]
       );
 
@@ -84,7 +84,7 @@ module.exports = {
 
       // Check if category already exists
       const existingResult = await pool.query(
-        'SELECT id FROM shop_categories WHERE server_id = $1 AND name ILIKE $2',
+        'SELECT id FROM shop_categories WHERE server_id = ? AND name LIKE ?',
         [serverId, categoryName]
       );
 
@@ -96,7 +96,7 @@ module.exports = {
 
       // Insert new category
       await pool.query(
-        'INSERT INTO shop_categories (server_id, name, type, role) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO shop_categories (server_id, name, type, role) VALUES (?, ?, ?, ?)',
         [serverId, categoryName, categoryType, role ? role.id : null]
       );
 

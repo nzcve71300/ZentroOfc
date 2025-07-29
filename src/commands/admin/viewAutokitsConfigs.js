@@ -10,17 +10,17 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('page')
         .setDescription('Page number to view (default: 1)')
-        .setRequired(false)
+        .setRequired(FALSE)
         .setMinValue(1)),
 
 
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const page = interaction.options.getInteger('page') || 1;
@@ -30,7 +30,7 @@ module.exports = {
     try {
       // Get all servers for this guild
       const serversResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 ORDER BY rs.nickname',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? ORDER BY rs.nickname',
         [guildId]
       );
 
@@ -66,7 +66,7 @@ module.exports = {
       for (const server of serversOnPage) {
         // Get all autokit configurations for this server
         const autokitsResult = await pool.query(
-          'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 ORDER BY kit_name',
+          'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = ? ORDER BY kit_name',
           [server.id]
         );
 
@@ -95,7 +95,7 @@ module.exports = {
         embed.addFields({
           name: `🏠 ${server.nickname}`,
           value: `**Configured:** ${configuredCount}/8 kits\n**Enabled:** ${enabledCount} kits\n**Status:** ${configuredCount > 0 ? '🟢 Configured' : '⚪ Not configured'}`,
-          inline: false
+          inline: FALSE
         });
 
         // Add detailed kit information for this server
@@ -109,7 +109,7 @@ module.exports = {
             embed.addFields({
               name: `${status} ${kitName}`,
               value: `**Server:** ${server.nickname}\n**Status:** ${config.enabled ? 'Enabled' : 'Disabled'}\n**Cooldown:** ${cooldownText}\n**Kit Name:** ${config.game_name}`,
-              inline: true
+              inline: TRUE
             });
           }
         }
@@ -119,7 +119,7 @@ module.exports = {
           embed.addFields({
             name: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
             value: '',
-            inline: false
+            inline: FALSE
           });
         }
       }
@@ -128,13 +128,13 @@ module.exports = {
       embed.addFields({
         name: '📄 Navigation',
         value: `Use \`/view-autokits-configs page:${page > 1 ? page - 1 : 1}\` for previous page\nUse \`/view-autokits-configs page:${page < totalPages ? page + 1 : totalPages}\` for next page`,
-        inline: false
+        inline: FALSE
       });
 
       embed.addFields({
         name: '💡 Configuration',
         value: 'Use `/autokits-setup` to configure kits for specific servers.',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

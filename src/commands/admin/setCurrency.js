@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Currency name (e.g., coins, credits, tokens)')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(20)),
 
   async autocomplete(interaction) {
@@ -24,11 +24,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -41,11 +41,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -55,7 +55,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 

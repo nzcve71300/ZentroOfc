@@ -10,11 +10,11 @@ module.exports = {
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Discord ID or in-game name of the player to unlink')
-        .setRequired(true)),
+        .setRequired(TRUE)),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
-    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, FALSE);
 
     const guildId = interaction.guildId;
     const identifier = interaction.options.getString('name');
@@ -23,7 +23,7 @@ module.exports = {
       // Unlink all players for this identifier
       const result = await unlinkAllPlayersByIdentifier(guildId, identifier);
 
-      if (result.rowCount === 0) {
+      if (result.affectedRows === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('No Players Found', `❌ No matching player found to unlink for **${identifier}**.\n\nMake sure you're using the correct Discord ID or in-game name.`)]
         });
@@ -31,11 +31,11 @@ module.exports = {
 
       const embed = successEmbed(
         'Players Unlinked', 
-        `✅ Successfully unlinked **${result.rowCount} player(s)** for **${identifier}**.`
+        `✅ Successfully unlinked **${result.affectedRows} player(s)** for **${identifier}**.`
       );
 
       // Show which servers were affected
-      const serverNames = [...new Set(result.rows.map(p => p.nickname))];
+      const serverNames = [...new Set(result.map(p => p.nickname))];
       if (serverNames.length > 0) {
         embed.addFields({ name: 'Servers Affected', value: serverNames.join(', ') });
       }

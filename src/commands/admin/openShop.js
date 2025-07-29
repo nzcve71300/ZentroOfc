@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to open shop for')
-        .setRequired(true)
-        .setAutocomplete(true)),
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -19,11 +19,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -36,11 +36,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -49,7 +49,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -64,7 +64,7 @@ module.exports = {
 
       // Get shop categories for this server
       const categoriesResult = await pool.query(
-        'SELECT id, name, type FROM shop_categories WHERE server_id = $1 ORDER BY name',
+        'SELECT id, name, type FROM shop_categories WHERE server_id = ? ORDER BY name',
         [serverId]
       );
 
@@ -86,12 +86,12 @@ module.exports = {
       for (const category of categoriesResult.rows) {
         // Count items and kits in this category
         const itemsResult = await pool.query(
-          'SELECT COUNT(*) as count FROM shop_items WHERE category_id = $1',
+          'SELECT COUNT(*) as count FROM shop_items WHERE category_id = ?',
           [category.id]
         );
         
         const kitsResult = await pool.query(
-          'SELECT COUNT(*) as count FROM shop_kits WHERE category_id = $1',
+          'SELECT COUNT(*) as count FROM shop_kits WHERE category_id = ?',
           [category.id]
         );
 
@@ -101,14 +101,14 @@ module.exports = {
         embed.addFields({
           name: `📁 ${category.name}`,
           value: `**Type:** ${category.type}\n**Items:** ${itemCount} | **Kits:** ${kitCount}`,
-          inline: true
+          inline: TRUE
         });
       }
 
       embed.addFields({
         name: '📋 Instructions',
         value: 'Players can use `/shop` to browse and purchase items from this server.',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

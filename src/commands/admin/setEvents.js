@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('event')
         .setDescription('Select an event type')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Bradley APC', value: 'bradley' },
           { name: 'Patrol Helicopter', value: 'helicopter' }
@@ -23,7 +23,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Select configuration option')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Brad Scout (On/Off)', value: 'bradscout' },
           { name: 'Brad Kill Message', value: 'bradkillmsg' },
@@ -35,7 +35,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('value')
         .setDescription('Value for the option (on/off for scouts, text for messages)')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(200)),
 
   async autocomplete(interaction) {
@@ -44,11 +44,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -67,11 +67,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -84,7 +84,7 @@ module.exports = {
       // Handle "ALL" servers option
       if (serverOption === 'ALL') {
         const allServersResult = await pool.query(
-          'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1',
+          'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
           [guildId]
         );
 
@@ -113,7 +113,7 @@ module.exports = {
 
       // Single server
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -147,18 +147,18 @@ module.exports = {
 async function updateEventConfig(serverId, eventType, option, value) {
   // Check if event config exists
   let configResult = await pool.query(
-    'SELECT id FROM event_configs WHERE server_id = $1 AND event_type = $2',
+    'SELECT id FROM event_configs WHERE server_id = ? AND event_type = ?',
     [serverId, eventType]
   );
 
   if (configResult.rows.length === 0) {
     // Create default config
     await pool.query(
-      'INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message) VALUES ($1, $2, $3, $4, $5)',
+      'INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message) VALUES (?, ?, ?, ?, ?)',
       [
         serverId,
         eventType,
-        false,
+        FALSE,
         eventType === 'bradley' ? '<color=#00ffff>Brad got taken</color>' : '<color=#00ffff>Heli got taken</color>',
         eventType === 'bradley' ? '<color=#00ffff>Bradley APC has respawned</color>' : '<color=#00ffff>Patrol Helicopter has respawned</color>'
       ]
@@ -169,9 +169,9 @@ async function updateEventConfig(serverId, eventType, option, value) {
   switch (option) {
     case 'bradscout':
     case 'heliscout':
-      const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'true' || value === '1';
+      const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'TRUE' || value === '1';
       await pool.query(
-        'UPDATE event_configs SET enabled = $1, updated_at = NOW() WHERE server_id = $2 AND event_type = $3',
+        'UPDATE event_configs SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND event_type = ?',
         [enabled, serverId, eventType]
       );
       return `Scout ${enabled ? 'enabled' : 'disabled'} successfully.`;
@@ -179,7 +179,7 @@ async function updateEventConfig(serverId, eventType, option, value) {
     case 'bradkillmsg':
     case 'helikillmsg':
       await pool.query(
-        'UPDATE event_configs SET kill_message = $1, updated_at = NOW() WHERE server_id = $2 AND event_type = $3',
+        'UPDATE event_configs SET kill_message = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND event_type = ?',
         [value, serverId, eventType]
       );
       return `Kill message updated successfully.`;
@@ -187,7 +187,7 @@ async function updateEventConfig(serverId, eventType, option, value) {
     case 'bradrespawnmsg':
     case 'helirespawnmsg':
       await pool.query(
-        'UPDATE event_configs SET respawn_message = $1, updated_at = NOW() WHERE server_id = $2 AND event_type = $3',
+        'UPDATE event_configs SET respawn_message = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND event_type = ?',
         [value, serverId, eventType]
       );
       return `Respawn message updated successfully.`;

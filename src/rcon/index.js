@@ -195,7 +195,7 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
   try {
     // Get server ID
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
@@ -215,7 +215,7 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       
       // Handle coin rewards for kills (only for player kills)
       if (killData.isPlayerKill) {
-        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
+        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, FALSE);
       }
     }
 
@@ -229,7 +229,7 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
   try {
     // Get guild and server IDs
     const guildResult = await pool.query(
-      'SELECT id FROM guilds WHERE discord_id = $1',
+      'SELECT id FROM guilds WHERE discord_id = ?',
       [guildId]
     );
     
@@ -238,7 +238,7 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
     const guildId_db = guildResult.rows[0].id;
     
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = $1 AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
       [guildId_db, serverName]
     );
     
@@ -248,20 +248,20 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
 
     // Check if player already exists
     const existingPlayer = await pool.query(
-      'SELECT id FROM players WHERE guild_id = $1 AND server_id = $2 AND ign = $3',
+      'SELECT id FROM players WHERE guild_id = ? AND server_id = ? AND ign = ?',
       [guildId_db, serverId, playerName]
     );
 
     if (existingPlayer.rows.length === 0) {
       // Create new player record
       const newPlayer = await pool.query(
-        'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES ($1, $2, $3, $4) RETURNING id',
+        'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?) RETURNING id',
         [guildId_db, serverId, null, playerName]
       );
 
       // Create player stats record
       await pool.query(
-        'INSERT INTO player_stats (player_id, kills, deaths, kill_streak, highest_streak) VALUES ($1, 0, 0, 0, 0)',
+        'INSERT INTO player_stats (player_id, kills, deaths, kill_streak, highest_streak) VALUES (?, 0, 0, 0, 0)',
         [newPlayer.rows[0].id]
       );
 
@@ -279,7 +279,7 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
     const sanitizedVictim = victim.replace(/\0/g, '').trim();
     
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
@@ -290,7 +290,7 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
 
     // Find player by IGN
     const playerResult = await pool.query(
-      'SELECT id FROM players WHERE server_id = $1 AND ign = $2',
+      'SELECT id FROM players WHERE server_id = ? AND ign = ?',
       [serverId, sanitizedKiller]
     );
 
@@ -299,13 +299,13 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
       
       // Update economy
       await pool.query(
-        'UPDATE economy SET balance = balance + $1 WHERE player_id = $2',
+        'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
         [reward, playerId]
       );
 
       // Record transaction
       await pool.query(
-        'INSERT INTO transactions (player_id, amount, type) VALUES ($1, $2, $3)',
+        'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
         [playerId, reward, isScientist ? 'scientist_kill' : 'player_kill']
       );
     }
@@ -349,7 +349,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     
     // Get server ID
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
@@ -362,7 +362,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
 
     // Check if kit is enabled
     const autokitResult = await pool.query(
-      'SELECT enabled, cooldown, game_name FROM autokits WHERE server_id = $1 AND kit_name = $2',
+      'SELECT enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
       [serverId, kitKey]
     );
 
@@ -401,7 +401,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       
       // First check if player is linked
       const playerResult = await pool.query(
-        'SELECT discord_id FROM players WHERE server_id = $1 AND ign = $2',
+        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
       
@@ -415,7 +415,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       const authResult = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
-         WHERE ka.server_id = $1 AND p.ign = $2 AND ka.kitlist = $3`,
+         WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
         [serverId, player, kitKey]
       );
       
@@ -449,7 +449,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
 
     // Get server ID
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
@@ -482,7 +482,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
   try {
     // Get position configuration
     const configResult = await pool.query(
-      'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = $1 AND position_type = $2',
+      'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = ? AND position_type = ?',
       [serverId, positionType]
     );
 
@@ -506,7 +506,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
 
     // Get position coordinates
     const coordResult = await pool.query(
-      'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
+      'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
       [serverId, positionType]
     );
 
@@ -602,7 +602,7 @@ async function pollPlayerCounts(client) {
       FROM rust_servers rs 
       JOIN guilds g ON rs.guild_id = g.id
     `);
-    for (const server of result.rows) {
+    for (const server of result) {
       try {
         const info = await getServerInfo(server.ip, server.port, server.password);
         if (info && info.Players !== undefined) {
@@ -679,16 +679,16 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
        FROM channel_settings cs 
        JOIN rust_servers rs ON cs.server_id = rs.id 
        JOIN guilds g ON rs.guild_id = g.id 
-       WHERE g.discord_id = $1 AND rs.nickname = $2 AND cs.channel_type = $3`,
+       WHERE g.discord_id = ? AND rs.nickname = ? AND cs.channel_type = ?`,
       [guildId, serverName, channelType]
     );
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       console.log(`[${channelType.toUpperCase()}] No channel configured for ${serverName}: ${message}`);
       return;
     }
 
-    const channelId = result.rows[0].channel_id;
+    const channelId = result[0].channel_id;
     const channel = await client.channels.fetch(channelId);
     
     if (!channel) {
@@ -718,16 +718,16 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
        FROM channel_settings cs 
        JOIN rust_servers rs ON cs.server_id = rs.id 
        JOIN guilds g ON rs.guild_id = g.id 
-       WHERE g.discord_id = $1 AND rs.nickname = $2 AND cs.channel_type = 'playercount'`,
+       WHERE g.discord_id = ? AND rs.nickname = ? AND cs.channel_type = 'playercount'`,
       [guildId, serverName]
     );
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       console.log(`[PLAYER COUNT] No channel configured for ${serverName}: ${online} online, ${queued} queued`);
       return;
     }
 
-    const channelId = result.rows[0].channel_id;
+    const channelId = result[0].channel_id;
     const channel = await client.channels.fetch(channelId);
     
     if (!channel) {
@@ -780,17 +780,17 @@ async function checkAllEvents(client) {
       FROM rust_servers rs 
       JOIN guilds g ON rs.guild_id = g.id 
       JOIN event_configs ec ON rs.id = ec.server_id 
-      WHERE ec.enabled = true
+      WHERE ec.enabled = TRUE
     `);
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       console.log('[EVENT] No servers with enabled events found');
       return;
     }
 
     // Group by server to avoid duplicate queries
     const servers = new Map();
-    for (const row of result.rows) {
+    for (const row of result) {
       const key = `${row.guild_id}_${row.nickname}`;
       if (!servers.has(key)) {
         servers.set(key, {
@@ -948,7 +948,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Get server ID
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
@@ -961,7 +961,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check if player already has a zone
     const existingZone = await pool.query(
-      'SELECT name FROM zones WHERE server_id = $1 AND owner = $2',
+      'SELECT name FROM zones WHERE server_id = ? AND owner = ?',
       [serverId, playerName]
     );
 
@@ -976,7 +976,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     
     // Get server defaults for ZORP configuration
     const defaultsResult = await pool.query(
-      'SELECT size, color_online, color_offline, radiation, delay, expire, min_team, max_team FROM zorp_defaults WHERE server_id = $1',
+      'SELECT size, color_online, color_offline, radiation, delay, expire, min_team, max_team FROM zorp_defaults WHERE server_id = ?',
       [serverId]
     );
 
@@ -1036,7 +1036,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check for overlapping zones
     const existingZones = await pool.query(
-      'SELECT name, position, size FROM zones WHERE server_id = $1',
+      'SELECT name, position, size FROM zones WHERE server_id = ?',
       [serverId]
     );
 
@@ -1091,7 +1091,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     await pool.query(`
       INSERT INTO zones (server_id, name, owner, team, position, size, color_online, color_offline, radiation, delay, expire, min_team, max_team)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
       JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline,
@@ -1117,7 +1117,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Get server ID
     const serverResult = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname = $2',
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
@@ -1130,7 +1130,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check if player has a zone
     const zoneResult = await pool.query(
-      'SELECT name FROM zones WHERE server_id = $1 AND owner = $2',
+      'SELECT name FROM zones WHERE server_id = ? AND owner = ?',
       [serverId, playerName]
     );
 
@@ -1146,7 +1146,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
 
     // Delete zone from database
-    await pool.query('DELETE FROM zones WHERE server_id = $1 AND owner = $2', [serverId, playerName]);
+    await pool.query('DELETE FROM zones WHERE server_id = ? AND owner = ?', [serverId, playerName]);
 
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);

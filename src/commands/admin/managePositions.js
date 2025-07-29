@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('position')
         .setDescription('Select position type')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Outpost', value: 'outpost' },
           { name: 'BanditCamp', value: 'banditcamp' }
@@ -23,7 +23,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('coordinates')
         .setDescription('Enter coordinates (format: X,Y,Z)')
-        .setRequired(true)),
+        .setRequired(TRUE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -34,13 +34,13 @@ module.exports = {
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
+         WHERE g.discord_id = ? AND rs.nickname LIKE ? 
          ORDER BY rs.nickname 
          LIMIT 25`,
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.id.toString()
       }));
@@ -55,7 +55,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, true);
+      return sendAccessDeniedMessage(interaction, TRUE);
     }
 
     const serverId = parseInt(interaction.options.getString('server'));
@@ -69,14 +69,14 @@ module.exports = {
         `SELECT rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE rs.id = $1 AND g.discord_id = $2`,
+         WHERE rs.id = ? AND g.discord_id = ?`,
         [serverId, guildId]
       );
 
       if (serverResult.rows.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Server Not Found', 'The selected server was not found in this guild.')],
-          ephemeral: true
+          ephemeral: TRUE
         });
       }
 
@@ -87,7 +87,7 @@ module.exports = {
       if (coordParts.length !== 3) {
         return interaction.reply({
           embeds: [errorEmbed('Invalid Coordinates', 'Coordinates must be in format: X,Y,Z (e.g., 100.5,200.3,300.7)')],
-          ephemeral: true
+          ephemeral: TRUE
         });
       }
 
@@ -101,26 +101,26 @@ module.exports = {
       if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
         return interaction.reply({
           embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')],
-          ephemeral: true
+          ephemeral: TRUE
         });
       }
 
       // Check if position coordinates exist
       const existingResult = await pool.query(
-        'SELECT * FROM position_coordinates WHERE server_id = $1 AND position_type = $2',
+        'SELECT * FROM position_coordinates WHERE server_id = ? AND position_type = ?',
         [serverId, positionType]
       );
 
       if (existingResult.rows.length > 0) {
         // Update existing coordinates
         await pool.query(
-          'UPDATE position_coordinates SET x_pos = $1, y_pos = $2, z_pos = $3, updated_at = NOW() WHERE server_id = $4 AND position_type = $5',
+          'UPDATE position_coordinates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?',
           [xPos, yPos, zPos, serverId, positionType]
         );
       } else {
         // Create new coordinates
         await pool.query(
-          'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
+          'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
           [serverId, positionType, xPos, yPos, zPos]
         );
       }
@@ -133,14 +133,14 @@ module.exports = {
           'Coordinates Updated',
           `**${positionDisplayName}** coordinates have been set for **${serverName}**!\n\n**Coordinates:** X: ${xPos} | Y: ${yPos} | Z: ${zPos}\n\nCoordinates are now saved and will be used when players teleport to this position.`
         )],
-        ephemeral: true
+        ephemeral: TRUE
       });
 
     } catch (error) {
       console.error('Error in manage-positions command:', error);
       await interaction.reply({
         embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')],
-        ephemeral: true
+        ephemeral: TRUE
       });
     }
   }

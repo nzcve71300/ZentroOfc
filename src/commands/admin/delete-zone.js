@@ -10,7 +10,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('zone_name')
         .setDescription('Name of the zone to delete')
-        .setRequired(true)
+        .setRequired(TRUE)
     ),
 
   async execute(interaction) {
@@ -40,7 +40,7 @@ module.exports = {
           FROM zones z
           JOIN rust_servers rs ON z.server_id = rs.id
           JOIN guilds g ON rs.guild_id = g.id
-          WHERE g.discord_id = $1 AND z.name = $2
+          WHERE g.discord_id = ? AND z.name = ?
         `, [interaction.guildId, zoneName]);
       } catch (dbError) {
         console.error('Database error fetching zone:', dbError);
@@ -58,11 +58,11 @@ module.exports = {
       const zone = zoneResult.rows[0];
 
       // Delete from game via RCON
-      let rconSuccess = false;
+      let rconSuccess = FALSE;
       try {
         if (zone.ip && zone.port && zone.password) {
           await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zoneName}"`);
-          rconSuccess = true;
+          rconSuccess = TRUE;
         } else {
           console.warn('Missing RCON credentials for zone deletion:', zoneName);
         }
@@ -73,7 +73,7 @@ module.exports = {
 
       // Delete from database
       try {
-        await pool.query('DELETE FROM zones WHERE id = $1', [zone.id]);
+        await pool.query('DELETE FROM zones WHERE id = ?', [zone.id]);
       } catch (dbDeleteError) {
         console.error('Database error deleting zone:', dbDeleteError);
         return interaction.editReply({
@@ -90,14 +90,14 @@ module.exports = {
       embed.addFields({
         name: 'Zone Details',
         value: `**Owner:** ${owner}\n**Server:** ${serverName}\n**Created:** <t:${createdAt}:R>`,
-        inline: false
+        inline: FALSE
       });
 
       if (!rconSuccess) {
         embed.addFields({
           name: 'Note',
           value: 'Zone was deleted from the database but the RCON command failed. Zone may still exist in-game.',
-          inline: false
+          inline: FALSE
         });
       }
 

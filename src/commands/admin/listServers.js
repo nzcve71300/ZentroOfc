@@ -11,7 +11,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, true);
+      return sendAccessDeniedMessage(interaction, TRUE);
     }
 
     const guildId = interaction.guildId;
@@ -19,7 +19,7 @@ module.exports = {
     try {
       // Get all servers for this guild
       const serversResult = await pool.query(
-        'SELECT rs.nickname, rs.ip, rs.port, rs.password FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 ORDER BY rs.nickname',
+        'SELECT rs.nickname, rs.ip, rs.port, rs.password FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? ORDER BY rs.nickname',
         [guildId]
       );
 
@@ -29,7 +29,7 @@ module.exports = {
             '🖥️ Servers',
             'No servers found in this guild.\n\nUse `/add-server` to add your first server!'
           )],
-          ephemeral: true
+          ephemeral: TRUE
         });
       }
 
@@ -45,14 +45,14 @@ module.exports = {
           '🖥️ Servers',
           serverList
         )],
-        ephemeral: true
+        ephemeral: TRUE
       });
 
     } catch (error) {
       console.error('Error listing servers:', error);
       await interaction.reply({
         embeds: [orangeEmbed('Error', 'Failed to list servers. Please try again.')],
-        ephemeral: true
+        ephemeral: TRUE
       });
     }
   },

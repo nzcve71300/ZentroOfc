@@ -11,16 +11,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('player_name')
         .setDescription('Player\'s in-game name')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addIntegerOption(option =>
       option.setName('amount')
         .setDescription('Amount of currency to add')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMinValue(1)),
 
   async autocomplete(interaction) {
@@ -28,7 +28,7 @@ module.exports = {
     const guildId = interaction.guildId;
     try {
       const servers = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
       await interaction.respond(servers.rows.map(row => ({ name: row.nickname, value: row.nickname })));
@@ -39,7 +39,7 @@ module.exports = {
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
-    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, FALSE);
 
     const guildId = interaction.guildId;
     const serverName = interaction.options.getString('server');

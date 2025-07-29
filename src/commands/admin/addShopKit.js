@@ -10,39 +10,39 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('display_name')
         .setDescription('Display name for the kit (shown in shop)')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addStringOption(option =>
       option.setName('kit_name')
         .setDescription('Kit name (must match kit name on server)')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addIntegerOption(option =>
       option.setName('quantity')
         .setDescription('Quantity of items in the kit')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMinValue(1))
     .addIntegerOption(option =>
       option.setName('price')
         .setDescription('Price in coins')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMinValue(1))
     .addIntegerOption(option =>
       option.setName('timer')
         .setDescription('Cooldown timer in minutes (0 for no cooldown)')
-        .setRequired(false)
+        .setRequired(FALSE)
         .setMinValue(0)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(true);
+    const focusedOption = interaction.options.getFocused(TRUE);
     const guildId = interaction.guildId;
 
     try {
@@ -54,13 +54,13 @@ module.exports = {
           `SELECT rs.id, rs.nickname 
            FROM rust_servers rs 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
+           WHERE g.discord_id = ? AND rs.nickname LIKE ? 
            ORDER BY rs.nickname 
            LIMIT 25`,
           [guildId, `%${value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.nickname,
           value: row.id.toString()
         }));
@@ -81,13 +81,13 @@ module.exports = {
            FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.id = $2 AND sc.name ILIKE $3 
+           WHERE g.discord_id = ? AND rs.id = ? AND sc.name LIKE ? 
            ORDER BY sc.name 
            LIMIT 25`,
           [guildId, serverId, `%${value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.name,
           value: row.id.toString()
         }));
@@ -105,7 +105,7 @@ module.exports = {
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverId = interaction.options.getString('server');
@@ -123,7 +123,7 @@ module.exports = {
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.id = $2`,
+         WHERE g.discord_id = ? AND rs.id = ?`,
         [guildId, serverId]
       );
 
@@ -140,7 +140,7 @@ module.exports = {
         `SELECT sc.id, sc.name, sc.type 
          FROM shop_categories sc 
          JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE rs.id = $1 AND sc.id = $2`,
+         WHERE rs.id = ? AND sc.id = ?`,
         [serverId, categoryId]
       );
 
@@ -161,7 +161,7 @@ module.exports = {
 
       // Check if kit name already exists in this category
       const existingKitResult = await pool.query(
-        'SELECT id FROM shop_kits WHERE category_id = $1 AND kit_name = $2',
+        'SELECT id FROM shop_kits WHERE category_id = ? AND kit_name = ?',
         [categoryId, kitName]
       );
 
@@ -174,7 +174,7 @@ module.exports = {
       // Add the kit to the database
       const insertResult = await pool.query(
         `INSERT INTO shop_kits (category_id, display_name, kit_name, price, quantity, timer) 
-         VALUES ($1, $2, $3, $4, $5, $6) 
+         VALUES (?, ?, ?, ?, ?, ?) 
          RETURNING id`,
         [categoryId, displayName, kitName, price, quantity, timer]
       );

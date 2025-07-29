@@ -10,40 +10,40 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server to update zones for')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addIntegerOption(option =>
       option.setName('size')
         .setDescription('Zone size (default: 75)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addStringOption(option =>
       option.setName('color_online')
         .setDescription('Online color (R,G,B format, default: 0,255,0)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addStringOption(option =>
       option.setName('color_offline')
         .setDescription('Offline color (R,G,B format, default: 255,0,0)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('radiation')
         .setDescription('Radiation level (default: 0)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('delay')
         .setDescription('Delay in seconds (default: 0)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('expire')
         .setDescription('Expiration time in seconds (default: 126000 = 35 hours)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('min_team')
         .setDescription('Minimum team size (default: 1)')
-        .setRequired(false))
+        .setRequired(FALSE))
     .addIntegerOption(option =>
       option.setName('max_team')
         .setDescription('Maximum team size (default: 8)')
-        .setRequired(false)),
+        .setRequired(FALSE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -54,7 +54,7 @@ module.exports = {
         SELECT rs.id, rs.nickname
         FROM rust_servers rs
         JOIN guilds g ON rs.guild_id = g.id
-        WHERE g.discord_id = $1
+        WHERE g.discord_id = ?
         ORDER BY rs.nickname
       `, [interaction.guildId]);
 
@@ -104,7 +104,7 @@ module.exports = {
           SELECT rs.*, g.discord_id
           FROM rust_servers rs
           JOIN guilds g ON rs.guild_id = g.id
-          WHERE g.discord_id = $1 AND rs.id = $2
+          WHERE g.discord_id = ? AND rs.id = ?
         `, [interaction.guildId, serverId]);
       } catch (dbError) {
         console.error('Database error fetching server:', dbError);
@@ -136,7 +136,7 @@ module.exports = {
       let zonesResult;
       try {
         zonesResult = await pool.query(`
-          SELECT * FROM zones WHERE server_id = $1
+          SELECT * FROM zones WHERE server_id = ?
         `, [serverId]);
       } catch (dbError) {
         console.error('Database error fetching zones:', dbError);
@@ -202,7 +202,7 @@ module.exports = {
           try {
             await pool.query(`
               UPDATE zones 
-              SET ${updates.join(', ')}, updated_at = NOW()
+              SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
               WHERE id = $${paramCount}
             `, values);
           } catch (dbUpdateError) {
@@ -278,7 +278,7 @@ module.exports = {
         if (defaultsUpdates.length > 0) {
           // Check if defaults exist for this server
           const existingDefaults = await pool.query(`
-            SELECT id FROM zorp_defaults WHERE server_id = $1
+            SELECT id FROM zorp_defaults WHERE server_id = ?
           `, [serverId]);
 
           if (existingDefaults.rows.length > 0) {
@@ -286,7 +286,7 @@ module.exports = {
             defaultsValues.push(serverId);
             await pool.query(`
               UPDATE zorp_defaults 
-              SET ${defaultsUpdates.join(', ')}, updated_at = NOW()
+              SET ${defaultsUpdates.join(', ')}, updated_at = CURRENT_TIMESTAMP
               WHERE server_id = $${paramCount}
             `, defaultsValues);
           } else {
@@ -294,7 +294,7 @@ module.exports = {
             defaultsValues.push(serverId);
             await pool.query(`
               INSERT INTO zorp_defaults (server_id, ${defaultsUpdates.map(u => u.split(' = ')[0]).join(', ')}, created_at, updated_at)
-              VALUES ($${paramCount}, ${defaultsValues.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, NOW(), NOW())
+              VALUES ($${paramCount}, ${defaultsValues.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `, defaultsValues);
           }
         }
@@ -310,20 +310,20 @@ module.exports = {
       embed.addFields({
         name: 'Updated Fields',
         value: uniqueUpdatedFields.map(field => `• ${field}`).join('\n'),
-        inline: true
+        inline: TRUE
       });
 
       embed.addFields({
         name: 'Server Defaults',
         value: 'These settings will now apply to new ZORP zones created on this server.',
-        inline: false
+        inline: FALSE
       });
 
       if (rconErrors.length > 0) {
         embed.addFields({
           name: 'Warnings',
           value: rconErrors.slice(0, 5).join('\n') + (rconErrors.length > 5 ? '\n... and more' : ''),
-          inline: false
+          inline: FALSE
         });
       }
 

@@ -25,7 +25,7 @@ module.exports = {
       
       for (const player of players) {
         const balance = await getPlayerBalance(player.id);
-        embed.addFields({ name: player.nickname, value: `${balance} coins`, inline: true });
+        embed.addFields({ name: player.nickname, value: `${balance} coins`, inline: TRUE });
       }
 
       await interaction.editReply({ embeds: [embed] });

@@ -10,17 +10,17 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Player name (Discord username or in-game name)')
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(50))
     .addStringOption(option =>
       option.setName('kitlist')
         .setDescription('Select which elite list to add to')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Elite List 1', value: 'Elite1' },
           { name: 'Elite List 2', value: 'Elite2' },
@@ -35,11 +35,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -52,11 +52,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -67,7 +67,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -86,7 +86,7 @@ module.exports = {
          FROM players p
          JOIN rust_servers rs ON p.server_id = rs.id
          JOIN guilds g ON rs.guild_id = g.id
-         WHERE g.discord_id = $1 AND rs.id = $2 AND (p.ign ILIKE $3 OR p.discord_id = $3 OR p.discord_id IS NULL)
+         WHERE g.discord_id = ? AND rs.id = ? AND (p.ign LIKE ? OR p.discord_id = ? OR p.discord_id IS NULL)
          ORDER BY p.ign`,
         [guildId, serverId, playerName]
       );
@@ -108,7 +108,7 @@ module.exports = {
           embed.addFields({
             name: `👤 ${player.ign || 'Unknown'}`,
             value: `**Discord ID:** ${player.discord_id}`,
-            inline: true
+            inline: TRUE
           });
         }
 
@@ -121,7 +121,7 @@ module.exports = {
 
       // Check if player is already in this kit list
       const existingResult = await pool.query(
-        'SELECT id FROM kit_auth WHERE server_id = $1 AND discord_id = $2 AND kitlist = $3',
+        'SELECT id FROM kit_auth WHERE server_id = ? AND discord_id = ? AND kitlist = ?',
         [serverId, player.discord_id, kitlist]
       );
 
@@ -140,7 +140,7 @@ module.exports = {
 
       // Add player to kit list
       await pool.query(
-        'INSERT INTO kit_auth (server_id, discord_id, kitlist) VALUES ($1, $2, $3)',
+        'INSERT INTO kit_auth (server_id, discord_id, kitlist) VALUES (?, ?, ?)',
         [serverId, player.discord_id, kitlist]
       );
 

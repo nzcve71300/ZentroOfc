@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Enable or disable killfeed')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'On', value: 'on' },
           { name: 'Off', value: 'off' }
@@ -27,11 +27,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -44,11 +44,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -58,7 +58,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -73,7 +73,7 @@ module.exports = {
 
       // Check if killfeed config exists
       let killfeedResult = await pool.query(
-        'SELECT id, enabled, format_string FROM killfeed_configs WHERE server_id = $1',
+        'SELECT id, enabled, format_string FROM killfeed_configs WHERE server_id = ?',
         [serverId]
       );
 
@@ -81,11 +81,11 @@ module.exports = {
         // Create new killfeed config with default format
         const defaultFormat = '{Killer} killed {Victim} ({VictimKD} K/D)';
         await pool.query(
-          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES ($1, $2, $3)',
+          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES (?, ?, ?)',
           [serverId, option === 'on', defaultFormat]
         );
         killfeedResult = await pool.query(
-          'SELECT id, enabled, format_string FROM killfeed_configs WHERE server_id = $1',
+          'SELECT id, enabled, format_string FROM killfeed_configs WHERE server_id = ?',
           [serverId]
         );
       }
@@ -95,7 +95,7 @@ module.exports = {
 
       // Update killfeed status
       await pool.query(
-        'UPDATE killfeed_configs SET enabled = $1 WHERE id = $2',
+        'UPDATE killfeed_configs SET enabled = ? WHERE id = ?',
         [enabled, killfeed.id]
       );
 
@@ -107,13 +107,13 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Configuration',
         value: `**Status:** ${enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${killfeed.format_string}`,
-        inline: false
+        inline: FALSE
       });
 
       embed.addFields({
         name: '💡 Configuration',
         value: 'Use `/killfeed-setup` to customize the killfeed format.',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

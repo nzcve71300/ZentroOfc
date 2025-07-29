@@ -10,31 +10,31 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('kit_name')
         .setDescription('Select a kit to edit')
-        .setRequired(true)
-        .setAutocomplete(true)),
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(true);
+    const focusedOption = interaction.options.getFocused(TRUE);
     const guildId = interaction.guildId;
 
     try {
       if (focusedOption.name === 'server') {
         const result = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.nickname,
           value: row.nickname
         }));
@@ -47,12 +47,12 @@ module.exports = {
           `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name ILIKE $3 
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name LIKE ? 
            LIMIT 25`,
           [guildId, serverOption, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.name,
           value: row.name
         }));
@@ -67,12 +67,12 @@ module.exports = {
            JOIN shop_categories sc ON sk.category_id = sc.id 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name = $3 AND sk.kit_name ILIKE $4 
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ? AND sk.kit_name LIKE ? 
            LIMIT 25`,
           [guildId, serverOption, categoryOption, `%${focusedOption.value}%`]
         );
 
-        const choices = result.rows.map(row => ({
+        const choices = result.map(row => ({
           name: row.kit_name,
           value: row.kit_name
         }));
@@ -88,7 +88,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, true);
+      return sendAccessDeniedMessage(interaction, TRUE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -104,14 +104,14 @@ module.exports = {
          JOIN shop_categories sc ON sk.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.nickname = $2 AND sc.name = $3 AND sk.kit_name = $4`,
+         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ? AND sk.kit_name = ?`,
         [guildId, serverOption, categoryOption, kitNameOption]
       );
 
       if (kitResult.rows.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Kit Not Found', 'The specified kit was not found.')],
-          ephemeral: true
+          ephemeral: TRUE
         });
       }
 
@@ -127,7 +127,7 @@ module.exports = {
         .setLabel('Display Name')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.display_name)
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(100);
 
       const kitNameInput = new TextInputBuilder()
@@ -135,7 +135,7 @@ module.exports = {
         .setLabel('Kit Name (in-game kit name)')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.kit_name)
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(50);
 
       const priceInput = new TextInputBuilder()
@@ -143,7 +143,7 @@ module.exports = {
         .setLabel('Price (coins)')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.price.toString())
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(10);
 
       const quantityInput = new TextInputBuilder()
@@ -151,7 +151,7 @@ module.exports = {
         .setLabel('Quantity')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.quantity.toString())
-        .setRequired(true)
+        .setRequired(TRUE)
         .setMaxLength(5);
 
       const timerInput = new TextInputBuilder()
@@ -159,7 +159,7 @@ module.exports = {
         .setLabel('Cooldown Timer (minutes, optional)')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.timer ? kit.timer.toString() : '')
-        .setRequired(false)
+        .setRequired(FALSE)
         .setMaxLength(5);
 
       const firstActionRow = new ActionRowBuilder().addComponents(displayNameInput);
@@ -176,7 +176,7 @@ module.exports = {
       console.error('Error creating edit modal:', error);
       await interaction.reply({
         embeds: [errorEmbed('Error', 'Failed to create edit modal. Please try again.')],
-        ephemeral: true
+        ephemeral: TRUE
       });
     }
   },

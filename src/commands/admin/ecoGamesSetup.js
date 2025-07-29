@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('setup')
         .setDescription('Select a setting to configure')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Blackjack On/Off', value: 'blackjack_toggle' },
           { name: 'Slots On/Off', value: 'slots_toggle' },
@@ -28,7 +28,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Value for the setting (on/off, amount, or bet limit)')
-        .setRequired(true)),
+        .setRequired(TRUE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -36,11 +36,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -53,11 +53,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -68,7 +68,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -89,13 +89,13 @@ module.exports = {
 
       switch (setup) {
         case 'blackjack_toggle':
-          const blackjackEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          const blackjackEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'TRUE' || option === '1';
           message = `Blackjack has been ${blackjackEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
           value = blackjackEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
 
         case 'slots_toggle':
-          const slotsEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          const slotsEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'TRUE' || option === '1';
           message = `Slots has been ${slotsEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
           value = slotsEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
@@ -141,13 +141,13 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Setting',
         value: `**${setup.replace(/_/g, ' ').toUpperCase()}:** ${value}`,
-        inline: false
+        inline: FALSE
       });
 
       embed.addFields({
         name: '💡 Available Settings',
         value: '• Blackjack On/Off\n• Slots On/Off\n• Daily Rewards Amount\n• Blackjack Min/Max Bet\n• Slots Min/Max Bet',
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

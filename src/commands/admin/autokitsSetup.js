@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addStringOption(option =>
       option.setName('setup')
         .setDescription('Select a kit to configure')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'FREEkit1', value: 'FREEkit1' },
           { name: 'FREEkit2', value: 'FREEkit2' },
@@ -29,7 +29,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('option')
         .setDescription('What to configure')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Toggle On/Off', value: 'toggle' },
           { name: 'Set Cooldown (minutes)', value: 'cooldown' },
@@ -38,7 +38,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('value')
         .setDescription('Value for the option (on/off, minutes, or kit name)')
-        .setRequired(true)),
+        .setRequired(TRUE)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -46,11 +46,11 @@ module.exports = {
 
     try {
       const result = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.nickname
       }));
@@ -63,11 +63,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: TRUE });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -79,7 +79,7 @@ module.exports = {
     try {
       // Get server info
       const serverResult = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = $1 AND rs.nickname = $2',
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
 
@@ -94,18 +94,18 @@ module.exports = {
 
       // Check if autokit exists
       let autokitResult = await pool.query(
-        'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 AND kit_name = $2',
+        'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
         [serverId, setup]
       );
 
       if (autokitResult.rows.length === 0) {
         // Create new autokit
         await pool.query(
-          'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES ($1, $2, false, 0, $2)',
+          'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, FALSE, 0, ?)',
           [serverId, setup]
         );
         autokitResult = await pool.query(
-          'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = $1 AND kit_name = $2',
+          'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
           [serverId, setup]
         );
       }
@@ -119,7 +119,7 @@ module.exports = {
 
       switch (option) {
         case 'toggle':
-          const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'true' || value === '1';
+          const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'TRUE' || value === '1';
           updateField = 'enabled';
           updateValue = enabled;
           message = `**${setup}** has been ${enabled ? 'enabled' : 'disabled'} on **${serverName}**.`;
@@ -156,13 +156,13 @@ module.exports = {
 
       // Update the autokit
       await pool.query(
-        `UPDATE autokits SET ${updateField} = $1 WHERE id = $2`,
+        `UPDATE autokits SET ${updateField} = ? WHERE id = ?`,
         [updateValue, autokit.id]
       );
 
       // Get updated autokit info
       const updatedResult = await pool.query(
-        'SELECT enabled, cooldown, game_name FROM autokits WHERE id = $1',
+        'SELECT enabled, cooldown, game_name FROM autokits WHERE id = ?',
         [autokit.id]
       );
 
@@ -176,7 +176,7 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Configuration',
         value: `**Status:** ${updated.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Cooldown:** ${updated.cooldown} minutes\n**Kit Name:** ${updated.game_name}`,
-        inline: false
+        inline: FALSE
       });
 
       await interaction.editReply({

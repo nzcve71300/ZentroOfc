@@ -10,16 +10,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server')
-        .setRequired(true)
-        .setAutocomplete(true))
+        .setRequired(TRUE)
+        .setAutocomplete(TRUE))
     .addChannelOption(option =>
       option.setName('channel')
         .setDescription('Select the Discord channel')
-        .setRequired(true))
+        .setRequired(TRUE))
     .addStringOption(option =>
       option.setName('channel_type')
         .setDescription('Select the channel type')
-        .setRequired(true)
+        .setRequired(TRUE)
         .addChoices(
           { name: 'Playercount (Voice Channel)', value: 'playercount' },
           { name: 'Playerfeed (Text Channel)', value: 'playerfeed' },
@@ -36,13 +36,13 @@ module.exports = {
         `SELECT rs.id, rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = $1 AND rs.nickname ILIKE $2 
+         WHERE g.discord_id = ? AND rs.nickname LIKE ? 
          ORDER BY rs.nickname 
          LIMIT 25`,
         [guildId, `%${focusedValue}%`]
       );
 
-      const choices = result.rows.map(row => ({
+      const choices = result.map(row => ({
         name: row.nickname,
         value: row.id.toString()
       }));
@@ -59,7 +59,7 @@ module.exports = {
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
+      return sendAccessDeniedMessage(interaction, FALSE);
     }
 
     const serverId = parseInt(interaction.options.getString('server'));
@@ -73,7 +73,7 @@ module.exports = {
         `SELECT rs.nickname 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE rs.id = $1 AND g.discord_id = $2`,
+         WHERE rs.id = ? AND g.discord_id = ?`,
         [serverId, guildId]
       );
 
@@ -100,14 +100,14 @@ module.exports = {
 
       // Check if channel setting already exists for this server and type
       const existingResult = await pool.query(
-        'SELECT * FROM channel_settings WHERE server_id = $1 AND channel_type = $2',
+        'SELECT * FROM channel_settings WHERE server_id = ? AND channel_type = ?',
         [serverId, channelType]
       );
 
       if (existingResult.rows.length > 0) {
         // Update existing setting
         await pool.query(
-          'UPDATE channel_settings SET channel_id = $1, updated_at = NOW() WHERE server_id = $2 AND channel_type = $3',
+          'UPDATE channel_settings SET channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?',
           [channel.id, serverId, channelType]
         );
 
@@ -120,7 +120,7 @@ module.exports = {
       } else {
         // Create new setting
         await pool.query(
-          'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())',
+          'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
           [serverId, channelType, channel.id]
         );
 
