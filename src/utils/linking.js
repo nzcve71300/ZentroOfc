@@ -126,69 +126,70 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
     throw new Error("❌ Linking failed: Missing required parameters. Please try again or contact an admin.");
   }
 
-  const guildIdBigInt = BigInt(guildId);
+  // Handle guildId as TEXT (since guilds.discord_id is TEXT in database)
+  const guildIdText = String(guildId);
   const discordIdBigInt = BigInt(discordId);
   const serverIdBigInt = BigInt(serverId);
   const ignText = String(ign);
 
   console.log('✅ Type-cast params:', { 
-    guildIdBigInt: guildIdBigInt.toString(), 
+    guildIdText, 
     discordIdBigInt: discordIdBigInt.toString(), 
     serverIdBigInt: serverIdBigInt.toString(), 
     ignText 
   });
 
   try {
-    // Ensure guild exists
+    // Ensure guild exists - guilds.discord_id is TEXT, so cast as TEXT
     const guildName = interaction?.guild?.name || 'Unknown Guild';
     const guildInsertQuery = `
       INSERT INTO guilds (discord_id, name)
-      VALUES ($1::BIGINT, $2::TEXT)
+      VALUES ($1::TEXT, $2::TEXT)
       ON CONFLICT (discord_id) DO NOTHING;
     `;
-    console.log('🟧 Query:', guildInsertQuery, [guildIdBigInt, guildName]);
-    await pool.query(guildInsertQuery, [guildIdBigInt, guildName]);
-    console.log('✅ Guild ensured:', guildIdBigInt.toString());
+    console.log('🟧 Query:', guildInsertQuery, [guildIdText, guildName]);
+    await pool.query(guildInsertQuery, [guildIdText, guildName]);
+    console.log('✅ Guild ensured:', guildIdText);
 
-    // Ensure server exists with correct casting and subquery for guild ID
+    // Ensure server exists - guild_id subquery now uses TEXT for discord_id
     const serverInsertQuery = `
       INSERT INTO rust_servers (id, guild_id, nickname)
       VALUES (
         $1::BIGINT,
-        (SELECT id FROM guilds WHERE discord_id = $2::BIGINT),
+        (SELECT id FROM guilds WHERE discord_id = $2::TEXT),
         $3::TEXT
       )
       ON CONFLICT (id) DO NOTHING;
     `;
-    console.log('🟧 Query:', serverInsertQuery, [serverIdBigInt, guildIdBigInt, serverName]);
-    await pool.query(serverInsertQuery, [serverIdBigInt, guildIdBigInt, serverName]);
+    console.log('🟧 Query:', serverInsertQuery, [serverIdBigInt, guildIdText, serverName]);
+    await pool.query(serverInsertQuery, [serverIdBigInt, guildIdText, serverName]);
     console.log('✅ Server ensured:', serverIdBigInt.toString());
 
-    // Update link request status (non-critical failure logs)
+    // Update link request status - guild_id subquery uses TEXT for discord_id
     const linkRequestUpdateQuery = `
       UPDATE link_requests
       SET status = 'confirmed'
-      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
+      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::TEXT)
         AND discord_id = $2::BIGINT
         AND server_id = $3::BIGINT
     `;
     try {
-      console.log('🟧 Query:', linkRequestUpdateQuery, [guildIdBigInt, discordIdBigInt, serverIdBigInt]);
-      await pool.query(linkRequestUpdateQuery, [guildIdBigInt, discordIdBigInt, serverIdBigInt]);
+      console.log('🟧 Query:', linkRequestUpdateQuery, [guildIdText, discordIdBigInt, serverIdBigInt]);
+      await pool.query(linkRequestUpdateQuery, [guildIdText, discordIdBigInt, serverIdBigInt]);
       console.log('✅ Link request status updated');
     } catch (e) {
       console.warn('⚠️ Could not update link request status:', e.message);
     }
 
-    // Check for existing active player link by ign
+    // Check for existing active player link by ign - guild_id subquery uses TEXT for discord_id
     const playerSelectQuery = `
       SELECT id, is_active FROM players
-      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
+      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::TEXT)
         AND server_id = $2::BIGINT
         AND LOWER(ign) = LOWER($3::TEXT)
     `;
-    console.log('🟧 Query:', playerSelectQuery, [guildIdBigInt, serverIdBigInt, ignText]);
-    const { rows: existingPlayers } = await pool.query(playerSelectQuery, [guildIdBigInt, serverIdBigInt, ignText]);
+    console.log('🟧 Query:', playerSelectQuery, [guildIdText, serverIdBigInt, ignText]);
+    const { rows: existingPlayers } = await pool.query(playerSelectQuery, [guildIdText, serverIdBigInt, ignText]);
 
     if (existingPlayers.length > 0) {
       const existing = existingPlayers[0];
@@ -201,8 +202,8 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         SET discord_id = $3::BIGINT, linked_at = NOW(), is_active = true, unlinked_at = NULL
         WHERE id = $4
       `;
-      console.log('🟧 Query:', playerUpdateQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, existing.id]);
-      await pool.query(playerUpdateQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, existing.id]);
+      console.log('🟧 Query:', playerUpdateQuery, [guildIdText, serverIdBigInt, discordIdBigInt, existing.id]);
+      await pool.query(playerUpdateQuery, [guildIdText, serverIdBigInt, discordIdBigInt, existing.id]);
       // Ensure economy record
       const economyInsertQuery = `
         INSERT INTO economy (player_id, balance)
@@ -215,11 +216,11 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
       return { id: existing.id };
     }
 
-    // Insert new player or update existing discord_id (upsert)
+    // Insert new player or update existing discord_id (upsert) - guild_id subquery uses TEXT for discord_id
     const playerInsertQuery = `
       INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
       VALUES (
-        (SELECT id FROM guilds WHERE discord_id = $1::BIGINT),
+        (SELECT id FROM guilds WHERE discord_id = $1::TEXT),
         $2::BIGINT,
         $3::BIGINT,
         $4::TEXT,
@@ -234,8 +235,8 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         unlinked_at = NULL
       RETURNING *;
     `;
-    console.log('🟧 Query:', playerInsertQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, ignText]);
-    const { rows } = await pool.query(playerInsertQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, ignText]);
+    console.log('🟧 Query:', playerInsertQuery, [guildIdText, serverIdBigInt, discordIdBigInt, ignText]);
+    const { rows } = await pool.query(playerInsertQuery, [guildIdText, serverIdBigInt, discordIdBigInt, ignText]);
 
     const player = rows[0];
 
