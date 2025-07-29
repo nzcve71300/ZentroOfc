@@ -194,14 +194,14 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 async function handleKillEvent(client, guildId, serverName, msg, ip, port, password) {
   try {
     // Get server ID
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) return;
+    if (serverResult.length === 0) return;
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
 
     // Process kill with new killfeed processor
     const killData = await killfeedProcessor.processKill(msg, serverId);
@@ -215,7 +215,7 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       
       // Handle coin rewards for kills (only for player kills)
       if (killData.isPlayerKill) {
-        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, FALSE);
+        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
       }
     }
 
@@ -228,41 +228,41 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
 async function ensurePlayerExists(guildId, serverName, playerName) {
   try {
     // Get guild and server IDs
-    const guildResult = await pool.query(
+    const [guildResult] = await pool.query(
       'SELECT id FROM guilds WHERE discord_id = ?',
       [guildId]
     );
     
-    if (guildResult.rows.length === 0) return;
+    if (guildResult.length === 0) return;
     
-    const guildId_db = guildResult.rows[0].id;
+    const guildId_db = guildResult[0].id;
     
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
       [guildId_db, serverName]
     );
     
-    if (serverResult.rows.length === 0) return;
+    if (serverResult.length === 0) return;
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
 
     // Check if player already exists
-    const existingPlayer = await pool.query(
+    const [existingPlayer] = await pool.query(
       'SELECT id FROM players WHERE guild_id = ? AND server_id = ? AND ign = ?',
       [guildId_db, serverId, playerName]
     );
 
-    if (existingPlayer.rows.length === 0) {
+    if (existingPlayer.length === 0) {
       // Create new player record
-      const newPlayer = await pool.query(
-        'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?) RETURNING id',
+      const [newPlayer] = await pool.query(
+        'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?)',
         [guildId_db, serverId, null, playerName]
       );
 
       // Create player stats record
       await pool.query(
         'INSERT INTO player_stats (player_id, kills, deaths, kill_streak, highest_streak) VALUES (?, 0, 0, 0, 0)',
-        [newPlayer.rows[0].id]
+        [newPlayer.insertId]
       );
 
       console.log(`✅ Created player record for ${playerName} on server ${serverName}`);
@@ -278,36 +278,38 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
     const sanitizedKiller = killer.replace(/\0/g, '').trim();
     const sanitizedVictim = victim.replace(/\0/g, '').trim();
     
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) return;
+    if (serverResult.length === 0) return;
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
     const reward = isScientist ? 50 : 25; // Default rewards, could be configurable
 
     // Find player by IGN
-    const playerResult = await pool.query(
+    const [playerResult] = await pool.query(
       'SELECT id FROM players WHERE server_id = ? AND ign = ?',
       [serverId, sanitizedKiller]
     );
 
-    if (playerResult.rows.length > 0) {
-      const playerId = playerResult.rows[0].id;
+    if (playerResult.length > 0) {
+      const playerId = playerResult[0].id;
       
-      // Update economy
+      // Update player balance
       await pool.query(
         'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
         [reward, playerId]
       );
-
+      
       // Record transaction
       await pool.query(
         'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
-        [playerId, reward, isScientist ? 'scientist_kill' : 'player_kill']
+        [playerId, reward, 'kill_reward']
       );
+      
+      console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} coins for killing ${sanitizedVictim}`);
     }
   } catch (error) {
     console.error('Error handling kill rewards:', error);
@@ -448,14 +450,14 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     if (!msg) return;
 
     // Get server ID
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) return;
+    if (serverResult.length === 0) return;
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
 
     // Check for Outpost emote
     if (msg.includes('d11_quick_chat_combat_slot_2')) {
