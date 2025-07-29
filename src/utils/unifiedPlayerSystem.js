@@ -34,6 +34,7 @@ async function getActivePlayerByIgn(guildId, serverId, ign) {
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND p.server_id = $2
+     AND p.ign IS NOT NULL
      AND LOWER(p.ign) = LOWER($3)
      AND p.is_active = true`,
     [guildId, serverId, ign]
@@ -67,6 +68,7 @@ async function getAllActivePlayersByIgn(guildId, ign) {
      FROM players p
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+     AND p.ign IS NOT NULL
      AND LOWER(p.ign) = LOWER($2)
      AND p.is_active = true
      ORDER BY rs.nickname`,
@@ -218,6 +220,7 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND discord_id = $2
+     AND ign IS NOT NULL
      AND LOWER(ign) != LOWER($3)
      AND is_active = true`,
     [guildId, discordId, ign]
@@ -232,6 +235,7 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
   const result = await pool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+     AND ign IS NOT NULL
      AND LOWER(ign) = LOWER($2)
      AND discord_id != $3
      AND is_active = true`,

@@ -114,7 +114,7 @@ async function getLinkedPlayer(guildId, serverId, discordId) {
 async function getPlayerByIGN(guildId, serverId, ign) {
   const pool = require('../db');
   const result = await pool.query(
-    'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND server_id = $2 AND LOWER(ign) = LOWER($3) LIMIT 1',
+    'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND server_id = $2 AND ign IS NOT NULL AND LOWER(ign) = LOWER($3) AND is_active = true LIMIT 1',
     [guildId, serverId, ign]
   );
   return result.rows[0] || null;
