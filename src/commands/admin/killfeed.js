@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Enable or disable killfeed')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'On', value: 'on' },
           { name: 'Off', value: 'off' }
@@ -44,11 +44,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -107,13 +107,13 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Configuration',
         value: `**Status:** ${enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${killfeed.format_string}`,
-        inline: FALSE
+        inline: false
       });
 
       embed.addFields({
         name: '💡 Configuration',
         value: 'Use `/killfeed-setup` to customize the killfeed format.',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

@@ -10,7 +10,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('zone_name')
         .setDescription('Name of the zone to delete')
-        .setRequired(TRUE)
+        .setRequired(true)
     ),
 
   async execute(interaction) {
@@ -90,14 +90,14 @@ module.exports = {
       embed.addFields({
         name: 'Zone Details',
         value: `**Owner:** ${owner}\n**Server:** ${serverName}\n**Created:** <t:${createdAt}:R>`,
-        inline: FALSE
+        inline: false
       });
 
       if (!rconSuccess) {
         embed.addFields({
           name: 'Note',
           value: 'Zone was deleted from the database but the RCON command failed. Zone may still exist in-game.',
-          inline: FALSE
+          inline: false
         });
       }
 

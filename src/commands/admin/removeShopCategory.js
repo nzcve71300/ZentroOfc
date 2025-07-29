@@ -10,16 +10,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category to remove')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)),
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(TRUE);
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
@@ -61,11 +61,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');

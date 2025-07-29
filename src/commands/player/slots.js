@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to gamble on')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)
+        .setRequired(true)
+        .setAutocomplete(true)
     ),
 
   async autocomplete(interaction) {
@@ -79,7 +79,7 @@ module.exports = {
         .setLabel(`Enter your bet (${minBet}-${maxBet})`)
         .setStyle(TextInputStyle.Short)
         .setPlaceholder(`Your balance: ${balance}`)
-        .setRequired(TRUE);
+        .setRequired(true);
       const row = new ActionRowBuilder().addComponents(betInput);
       modal.addComponents(row);
 

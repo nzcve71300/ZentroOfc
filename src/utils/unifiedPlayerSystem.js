@@ -16,7 +16,7 @@ async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND p.server_id = ?
      AND p.discord_id = ?
-     AND p.is_active = TRUE`,
+     AND p.is_active = true`,
     [guildId, serverId, discordId]
   );
   return result[0] || null;
@@ -32,7 +32,7 @@ async function getActivePlayerByIgn(guildId, serverId, ign) {
      AND p.server_id = ?
      AND p.ign IS NOT NULL
      AND LOWER(p.ign) = LOWER(?)
-     AND p.is_active = TRUE`,
+     AND p.is_active = true`,
     [guildId, serverId, ign]
   );
   return result[0] || null;
@@ -46,7 +46,7 @@ async function getAllActivePlayersByDiscordId(guildId, discordId) {
     `SELECT * FROM players 
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND p.discord_id = ?
-     AND p.is_active = TRUE`,
+     AND p.is_active = true`,
     [guildId, discordId]
   );
   return result;
@@ -61,7 +61,7 @@ async function getAllActivePlayersByIgn(guildId, ign) {
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND p.ign IS NOT NULL
      AND LOWER(p.ign) = LOWER(?)
-     AND p.is_active = TRUE`,
+     AND p.is_active = true`,
     [guildId, ign]
   );
   return result;
@@ -87,11 +87,11 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
 
   const [result] = await pool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
-     VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, TRUE)
+     VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)
      ON DUPLICATE KEY UPDATE 
        ign = VALUES(ign),
        linked_at = CURRENT_TIMESTAMP,
-       is_active = TRUE`,
+       is_active = true`,
     [guildId, serverId, discordId, playerIgn]
   );
 
@@ -109,11 +109,11 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
 async function unlinkPlayer(guildId, serverId, discordId) {
   const [result] = await pool.query(
     `UPDATE players 
-     SET unlinked_at = CURRENT_TIMESTAMP, is_active = FALSE
+     SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND server_id = ?
      AND discord_id = ?
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, serverId, discordId]
   );
   return result.affectedRows > 0;
@@ -125,10 +125,10 @@ async function unlinkPlayer(guildId, serverId, discordId) {
 async function unlinkAllPlayersByDiscordId(guildId, discordId) {
   const [result] = await pool.query(
     `UPDATE players 
-     SET unlinked_at = CURRENT_TIMESTAMP, is_active = FALSE
+     SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND discord_id = ?
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, discordId]
   );
   return result.affectedRows;
@@ -140,11 +140,11 @@ async function unlinkAllPlayersByDiscordId(guildId, discordId) {
 async function unlinkAllPlayersByIgn(guildId, ign) {
   const [result] = await pool.query(
     `UPDATE players 
-     SET unlinked_at = CURRENT_TIMESTAMP, is_active = FALSE
+     SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND ign IS NOT NULL
      AND LOWER(ign) = LOWER(?)
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, ign]
   );
   return result.affectedRows;
@@ -159,7 +159,7 @@ async function unlinkAllPlayersByIdentifier(guildId, identifier) {
     // Handle Discord ID (numeric) - direct comparison, always deactivate regardless of current status
     const [result] = await pool.query(
       `UPDATE players 
-       SET unlinked_at = CURRENT_TIMESTAMP, is_active = FALSE
+       SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
        AND discord_id = ?`,
       [guildId, identifier]
@@ -171,7 +171,7 @@ async function unlinkAllPlayersByIdentifier(guildId, identifier) {
     // Handle IGN (text) - case-insensitive match, always deactivate regardless of current status
     const [result] = await pool.query(
       `UPDATE players 
-       SET unlinked_at = CURRENT_TIMESTAMP, is_active = FALSE
+       SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
        AND ign IS NOT NULL
        AND LOWER(ign) = LOWER(?)`,
@@ -193,7 +193,7 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
      AND discord_id = ?
      AND ign IS NOT NULL
      AND LOWER(ign) != LOWER(?)
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, discordId, ign]
   );
   return result.length > 0;
@@ -209,7 +209,7 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
      AND ign IS NOT NULL
      AND LOWER(ign) = LOWER(?)
      AND discord_id != ?
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, ign, discordId]
   );
   return result.length > 0;

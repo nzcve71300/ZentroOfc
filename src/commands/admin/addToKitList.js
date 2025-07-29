@@ -10,17 +10,17 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Player name (Discord username or in-game name)')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(50))
     .addStringOption(option =>
       option.setName('kitlist')
         .setDescription('Select which elite list to add to')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Elite List 1', value: 'Elite1' },
           { name: 'Elite List 2', value: 'Elite2' },
@@ -52,11 +52,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -108,7 +108,7 @@ module.exports = {
           embed.addFields({
             name: `👤 ${player.ign || 'Unknown'}`,
             value: `**Discord ID:** ${player.discord_id}`,
-            inline: TRUE
+            inline: true
           });
         }
 

@@ -11,16 +11,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('player_name')
         .setDescription('Player\'s in-game name')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addIntegerOption(option =>
       option.setName('amount')
         .setDescription('Amount of currency to remove')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMinValue(1)),
 
   async autocomplete(interaction) {
@@ -39,7 +39,7 @@ module.exports = {
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
-    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, FALSE);
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;
     const serverName = interaction.options.getString('server');

@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to remove')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)),
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
     // Check if user has admin permissions (Zentro Admin role or Administrator)
@@ -43,7 +43,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, TRUE);
+      return sendAccessDeniedMessage(interaction, true);
     }
 
     const serverNickname = interaction.options.getString('server');
@@ -59,7 +59,7 @@ module.exports = {
       if (serverResult.rows.length === 0) {
         return interaction.reply({
           embeds: [orangeEmbed('Error', `Server **${serverNickname}** not found in this guild.`)],
-          ephemeral: TRUE
+          ephemeral: true
         });
       }
 
@@ -73,14 +73,14 @@ module.exports = {
           '🗑️ Server Removed',
           `**${serverNickname}** has been removed from the bot.\n\nAll associated data (players, economy, shop items, etc.) has been deleted.`
         )],
-        ephemeral: TRUE
+        ephemeral: true
       });
 
     } catch (error) {
       console.error('Error removing server:', error);
       await interaction.reply({
         embeds: [orangeEmbed('Error', 'Failed to remove server. Please try again.')],
-        ephemeral: TRUE
+        ephemeral: true
       });
     }
   },

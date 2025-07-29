@@ -10,39 +10,39 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('display_name')
         .setDescription('Display name for the kit (shown in shop)')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('kit_name')
         .setDescription('Kit name (must match kit name on server)')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addIntegerOption(option =>
       option.setName('quantity')
         .setDescription('Quantity of items in the kit')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMinValue(1))
     .addIntegerOption(option =>
       option.setName('price')
         .setDescription('Price in coins')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMinValue(1))
     .addIntegerOption(option =>
       option.setName('timer')
         .setDescription('Cooldown timer in minutes (0 for no cooldown)')
-        .setRequired(FALSE)
+        .setRequired(false)
         .setMinValue(0)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(TRUE);
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
@@ -105,7 +105,7 @@ module.exports = {
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverId = interaction.options.getString('server');

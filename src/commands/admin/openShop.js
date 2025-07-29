@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to open shop for')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)),
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -36,11 +36,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -101,14 +101,14 @@ module.exports = {
         embed.addFields({
           name: `📁 ${category.name}`,
           value: `**Type:** ${category.type}\n**Items:** ${itemCount} | **Kits:** ${kitCount}`,
-          inline: TRUE
+          inline: true
         });
       }
 
       embed.addFields({
         name: '📋 Instructions',
         value: 'Players can use `/shop` to browse and purchase items from this server.',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

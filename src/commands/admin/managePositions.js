@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('position')
         .setDescription('Select position type')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Outpost', value: 'outpost' },
           { name: 'BanditCamp', value: 'banditcamp' }
@@ -23,7 +23,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('coordinates')
         .setDescription('Enter coordinates (format: X,Y,Z)')
-        .setRequired(TRUE)),
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -55,7 +55,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, TRUE);
+      return sendAccessDeniedMessage(interaction, true);
     }
 
     const serverId = parseInt(interaction.options.getString('server'));
@@ -76,7 +76,7 @@ module.exports = {
       if (serverResult.rows.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Server Not Found', 'The selected server was not found in this guild.')],
-          ephemeral: TRUE
+          ephemeral: true
         });
       }
 
@@ -87,7 +87,7 @@ module.exports = {
       if (coordParts.length !== 3) {
         return interaction.reply({
           embeds: [errorEmbed('Invalid Coordinates', 'Coordinates must be in format: X,Y,Z (e.g., 100.5,200.3,300.7)')],
-          ephemeral: TRUE
+          ephemeral: true
         });
       }
 
@@ -101,7 +101,7 @@ module.exports = {
       if (isNaN(xNum) || isNaN(yNum) || isNaN(zNum)) {
         return interaction.reply({
           embeds: [errorEmbed('Invalid Coordinates', 'All coordinates must be valid numbers (can include decimals).')],
-          ephemeral: TRUE
+          ephemeral: true
         });
       }
 
@@ -133,14 +133,14 @@ module.exports = {
           'Coordinates Updated',
           `**${positionDisplayName}** coordinates have been set for **${serverName}**!\n\n**Coordinates:** X: ${xPos} | Y: ${yPos} | Z: ${zPos}\n\nCoordinates are now saved and will be used when players teleport to this position.`
         )],
-        ephemeral: TRUE
+        ephemeral: true
       });
 
     } catch (error) {
       console.error('Error in manage-positions command:', error);
       await interaction.reply({
         embeds: [errorEmbed('Error', 'Failed to save coordinates. Please try again.')],
-        ephemeral: TRUE
+        ephemeral: true
       });
     }
   }

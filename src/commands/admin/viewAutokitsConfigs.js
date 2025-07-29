@@ -10,17 +10,17 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('page')
         .setDescription('Page number to view (default: 1)')
-        .setRequired(FALSE)
+        .setRequired(false)
         .setMinValue(1)),
 
 
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const page = interaction.options.getInteger('page') || 1;
@@ -95,7 +95,7 @@ module.exports = {
         embed.addFields({
           name: `🏠 ${server.nickname}`,
           value: `**Configured:** ${configuredCount}/8 kits\n**Enabled:** ${enabledCount} kits\n**Status:** ${configuredCount > 0 ? '🟢 Configured' : '⚪ Not configured'}`,
-          inline: FALSE
+          inline: false
         });
 
         // Add detailed kit information for this server
@@ -109,7 +109,7 @@ module.exports = {
             embed.addFields({
               name: `${status} ${kitName}`,
               value: `**Server:** ${server.nickname}\n**Status:** ${config.enabled ? 'Enabled' : 'Disabled'}\n**Cooldown:** ${cooldownText}\n**Kit Name:** ${config.game_name}`,
-              inline: TRUE
+              inline: true
             });
           }
         }
@@ -119,7 +119,7 @@ module.exports = {
           embed.addFields({
             name: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
             value: '',
-            inline: FALSE
+            inline: false
           });
         }
       }
@@ -128,13 +128,13 @@ module.exports = {
       embed.addFields({
         name: '📄 Navigation',
         value: `Use \`/view-autokits-configs page:${page > 1 ? page - 1 : 1}\` for previous page\nUse \`/view-autokits-configs page:${page < totalPages ? page + 1 : totalPages}\` for next page`,
-        inline: FALSE
+        inline: false
       });
 
       embed.addFields({
         name: '💡 Configuration',
         value: 'Use `/autokits-setup` to configure kits for specific servers.',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

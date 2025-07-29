@@ -70,7 +70,7 @@ module.exports = {
         } else {
           await interaction.reply({
             embeds: [errorEmbed('Error', 'An error occurred while processing your request.')],
-            ephemeral: TRUE
+            ephemeral: true
           });
         }
       } catch (replyError) {
@@ -228,7 +228,7 @@ async function handleShopCategorySelect(interaction) {
       const itemsList = items.map(item => 
         `**${item.display_name}** - ${item.price} coins (${item.quantity}x)${item.timer ? ` - ${item.timer}m cooldown` : ''}`
       ).join('\n');
-      embed.addFields({ name: '📦 Items', value: itemsList, inline: FALSE });
+      embed.addFields({ name: '📦 Items', value: itemsList, inline: false });
     }
 
     // Add kits to embed
@@ -236,7 +236,7 @@ async function handleShopCategorySelect(interaction) {
       const kitsList = kits.map(kit => 
         `**${kit.display_name}** - ${kit.price} coins (${kit.quantity}x)${kit.timer ? ` - ${kit.timer}m cooldown` : ''}`
       ).join('\n');
-      embed.addFields({ name: '🎒 Kits', value: kitsList, inline: FALSE });
+      embed.addFields({ name: '🎒 Kits', value: kitsList, inline: false });
     }
 
     if (items.length === 0 && kits.length === 0) {

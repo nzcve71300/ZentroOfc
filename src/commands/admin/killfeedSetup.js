@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('format_string')
         .setDescription('Killfeed format string with placeholders')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(500)),
 
   async autocomplete(interaction) {
@@ -41,11 +41,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -77,7 +77,7 @@ module.exports = {
       if (killfeedResult.rows.length === 0) {
         // Create new killfeed config
         await pool.query(
-          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES (?, FALSE, ?)',
+          'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES (?, false, ?)',
           [serverId, formatString]
         );
         killfeedResult = await pool.query(
@@ -113,19 +113,19 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Configuration',
         value: `**Status:** ${killfeed.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${formatString}`,
-        inline: FALSE
+        inline: false
       });
 
       embed.addFields({
         name: '👀 Preview',
         value: preview,
-        inline: FALSE
+        inline: false
       });
 
       embed.addFields({
         name: '🔧 Available Placeholders',
         value: '`{Killer}` - Killer name\n`{Victim}` - Victim name\n`{KillerKD}` - Killer K/D ratio\n`{VictimKD}` - Victim K/D ratio\n`{KillerStreak}` - Killer kill streak\n`{VictimStreak}` - Victim kill streak\n`{KillerHighest}` - Killer highest streak\n`{VictimHighest}` - Victim highest streak',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

@@ -10,11 +10,11 @@ module.exports = {
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Discord ID or in-game name of the player to unlink')
-        .setRequired(TRUE)),
+        .setRequired(true)),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
-    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, FALSE);
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;
     const identifier = interaction.options.getString('name');

@@ -10,40 +10,40 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server to update zones for')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addIntegerOption(option =>
       option.setName('size')
         .setDescription('Zone size (default: 75)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addStringOption(option =>
       option.setName('color_online')
         .setDescription('Online color (R,G,B format, default: 0,255,0)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addStringOption(option =>
       option.setName('color_offline')
         .setDescription('Offline color (R,G,B format, default: 255,0,0)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addIntegerOption(option =>
       option.setName('radiation')
         .setDescription('Radiation level (default: 0)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addIntegerOption(option =>
       option.setName('delay')
         .setDescription('Delay in seconds (default: 0)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addIntegerOption(option =>
       option.setName('expire')
         .setDescription('Expiration time in seconds (default: 126000 = 35 hours)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addIntegerOption(option =>
       option.setName('min_team')
         .setDescription('Minimum team size (default: 1)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addIntegerOption(option =>
       option.setName('max_team')
         .setDescription('Maximum team size (default: 8)')
-        .setRequired(FALSE)),
+        .setRequired(false)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -310,20 +310,20 @@ module.exports = {
       embed.addFields({
         name: 'Updated Fields',
         value: uniqueUpdatedFields.map(field => `• ${field}`).join('\n'),
-        inline: TRUE
+        inline: true
       });
 
       embed.addFields({
         name: 'Server Defaults',
         value: 'These settings will now apply to new ZORP zones created on this server.',
-        inline: FALSE
+        inline: false
       });
 
       if (rconErrors.length > 0) {
         embed.addFields({
           name: 'Warnings',
           value: rconErrors.slice(0, 5).join('\n') + (rconErrors.length > 5 ? '\n... and more' : ''),
-          inline: FALSE
+          inline: false
         });
       }
 

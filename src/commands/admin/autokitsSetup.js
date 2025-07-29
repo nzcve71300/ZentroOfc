@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('setup')
         .setDescription('Select a kit to configure')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'FREEkit1', value: 'FREEkit1' },
           { name: 'FREEkit2', value: 'FREEkit2' },
@@ -29,7 +29,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('option')
         .setDescription('What to configure')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Toggle On/Off', value: 'toggle' },
           { name: 'Set Cooldown (minutes)', value: 'cooldown' },
@@ -38,7 +38,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('value')
         .setDescription('Value for the option (on/off, minutes, or kit name)')
-        .setRequired(TRUE)),
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -63,11 +63,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -101,7 +101,7 @@ module.exports = {
       if (autokitResult.rows.length === 0) {
         // Create new autokit
         await pool.query(
-          'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, FALSE, 0, ?)',
+          'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, false, 0, ?)',
           [serverId, setup]
         );
         autokitResult = await pool.query(
@@ -119,7 +119,7 @@ module.exports = {
 
       switch (option) {
         case 'toggle':
-          const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'TRUE' || value === '1';
+          const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'true' || value === '1';
           updateField = 'enabled';
           updateValue = enabled;
           message = `**${setup}** has been ${enabled ? 'enabled' : 'disabled'} on **${serverName}**.`;
@@ -176,7 +176,7 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Configuration',
         value: `**Status:** ${updated.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Cooldown:** ${updated.cooldown} minutes\n**Kit Name:** ${updated.game_name}`,
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

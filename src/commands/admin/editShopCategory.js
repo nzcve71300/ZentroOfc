@@ -10,22 +10,22 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category to edit')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('new_name')
         .setDescription('New category name')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(100))
     .addStringOption(option =>
       option.setName('new_type')
         .setDescription('New category type')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Items Only', value: 'items' },
           { name: 'Kits Only', value: 'kits' },
@@ -34,11 +34,11 @@ module.exports = {
     .addStringOption(option =>
       option.setName('new_role')
         .setDescription('New role requirement (optional)')
-        .setRequired(FALSE)
+        .setRequired(false)
         .setMaxLength(100)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(TRUE);
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
@@ -80,11 +80,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -144,13 +144,13 @@ module.exports = {
       embed.addFields({
         name: '📋 Changes Made',
         value: `**Name:** ${category.name} → ${newName}\n**Type:** ${category.type} → ${newType}\n**Role:** ${category.role || 'None'} → ${newRole || 'None'}`,
-        inline: FALSE
+        inline: false
       });
 
       embed.addFields({
         name: '💡 Category Types',
         value: '• **Items Only** - Only shop items\n• **Kits Only** - Only shop kits\n• **Both Items & Kits** - Both items and kits',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('event')
         .setDescription('Select an event type')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Bradley APC', value: 'bradley' },
           { name: 'Patrol Helicopter', value: 'helicopter' }
@@ -23,7 +23,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Select configuration option')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Brad Scout (On/Off)', value: 'bradscout' },
           { name: 'Brad Kill Message', value: 'bradkillmsg' },
@@ -35,7 +35,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('value')
         .setDescription('Value for the option (on/off for scouts, text for messages)')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(200)),
 
   async autocomplete(interaction) {
@@ -67,11 +67,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -158,7 +158,7 @@ async function updateEventConfig(serverId, eventType, option, value) {
       [
         serverId,
         eventType,
-        FALSE,
+        false,
         eventType === 'bradley' ? '<color=#00ffff>Brad got taken</color>' : '<color=#00ffff>Heli got taken</color>',
         eventType === 'bradley' ? '<color=#00ffff>Bradley APC has respawned</color>' : '<color=#00ffff>Patrol Helicopter has respawned</color>'
       ]
@@ -169,7 +169,7 @@ async function updateEventConfig(serverId, eventType, option, value) {
   switch (option) {
     case 'bradscout':
     case 'heliscout':
-      const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'TRUE' || value === '1';
+      const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'true' || value === '1';
       await pool.query(
         'UPDATE event_configs SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND event_type = ?',
         [enabled, serverId, eventType]

@@ -2,30 +2,30 @@ const pool = require('../db');
 
 /**
  * Check if a Discord ID is blocked from linking
- * TEMPORARILY DISABLED - returns FALSE
+ * TEMPORARILY DISABLED - returns false
  */
 async function isDiscordIdBlocked(guildId, discordId) {
   // TEMPORARILY DISABLED - table doesn't exist
   // const [result] = await pool.query(
-  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND discord_id = ? AND is_active = TRUE',
+  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND discord_id = ? AND is_active = true',
   //   [guildId, discordId]
   // );
   // return result.length > 0;
-  return FALSE;
+  return false;
 }
 
 /**
  * Check if an IGN is blocked from linking
- * TEMPORARILY DISABLED - returns FALSE
+ * TEMPORARILY DISABLED - returns false
  */
 async function isIgnBlocked(guildId, ign) {
   // TEMPORARILY DISABLED - table doesn't exist
   // const [result] = await pool.query(
-  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND LOWER(ign) = LOWER(?) AND is_active = TRUE',
+  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND LOWER(ign) = LOWER(?) AND is_active = true',
   //   [guildId, ign]
   // );
   // return result.length > 0;
-  return FALSE;
+  return false;
 }
 
 /**
@@ -38,7 +38,7 @@ async function getActivePlayerLinks(guildId, discordId) {
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND p.discord_id = ? 
-     AND p.is_active = TRUE`,
+     AND p.is_active = true`,
     [guildId, discordId]
   );
   return result;
@@ -54,7 +54,7 @@ async function getActivePlayerLinksByIgn(guildId, ign) {
      JOIN rust_servers rs ON p.server_id = rs.id
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND LOWER(p.ign) = LOWER(?) 
-     AND p.is_active = TRUE`,
+     AND p.is_active = true`,
     [guildId, ign]
   );
   return result;
@@ -70,7 +70,7 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
      AND discord_id = ? 
      AND ign IS NOT NULL
      AND LOWER(ign) != LOWER(?) 
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, discordId, ign]
   );
   return result.length > 0;
@@ -86,7 +86,7 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
      AND ign IS NOT NULL
      AND LOWER(ign) = LOWER(?) 
      AND discord_id != ? 
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, ign, discordId]
   );
   return result.length > 0;
@@ -204,7 +204,7 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
       // Reactivate inactive player
       const playerUpdateQuery = `
         UPDATE players
-        SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = TRUE, unlinked_at = NULL
+        SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL
         WHERE id = ?
       `;
       console.log('🟧 Query:', playerUpdateQuery, [discordIdBigInt, existing.id]);
@@ -230,12 +230,12 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         ?,
         ?,
         CURRENT_TIMESTAMP,
-        TRUE
+        true
       )
       ON DUPLICATE KEY UPDATE
         discord_id = VALUES(discord_id),
         linked_at = CURRENT_TIMESTAMP,
-        is_active = TRUE,
+        is_active = true,
         unlinked_at = NULL
     `;
     console.log('🟧 Query:', playerInsertQuery, [guildIdText, serverIdBigInt, discordIdBigInt, ignText]);
@@ -270,11 +270,11 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
 async function unlinkPlayer(guildId, discordId, serverId) {
   const [result] = await pool.query(
     `UPDATE players 
-     SET is_active = FALSE, unlinked_at = CURRENT_TIMESTAMP 
+     SET is_active = false, unlinked_at = CURRENT_TIMESTAMP 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND discord_id = ? 
      AND server_id = ? 
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, discordId, serverId]
   );
   
@@ -295,10 +295,10 @@ async function unlinkPlayer(guildId, discordId, serverId) {
 async function unlinkAllPlayers(guildId, discordId) {
   const [result] = await pool.query(
     `UPDATE players 
-     SET is_active = FALSE, unlinked_at = CURRENT_TIMESTAMP 
+     SET is_active = false, unlinked_at = CURRENT_TIMESTAMP 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND discord_id = ? 
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, discordId]
   );
   
@@ -319,10 +319,10 @@ async function unlinkAllPlayers(guildId, discordId) {
 async function unlinkAllPlayersByIgn(guildId, ign) {
   const [result] = await pool.query(
     `UPDATE players 
-     SET is_active = FALSE, unlinked_at = CURRENT_TIMESTAMP 
+     SET is_active = false, unlinked_at = CURRENT_TIMESTAMP 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND LOWER(ign) = LOWER(?) 
-     AND is_active = TRUE`,
+     AND is_active = true`,
     [guildId, ign]
   );
   
@@ -350,7 +350,7 @@ async function blockDiscordId(guildId, discordId, blockedBy, reason = null) {
   //      blocked_at = CURRENT_TIMESTAMP,
   //      blocked_by = VALUES(blocked_by),
   //      reason = VALUES(reason),
-  //      is_active = TRUE`,
+  //      is_active = true`,
   //   [guildId, discordId, blockedBy, reason]
   // );
   // return result[0];
@@ -370,7 +370,7 @@ async function blockIgn(guildId, ign, blockedBy, reason = null) {
   //     blocked_at = CURRENT_TIMESTAMP,
   //     blocked_by = VALUES(blocked_by),
   //     reason = VALUES(reason),
-  //     is_active = TRUE`,
+  //     is_active = true`,
   //   [guildId, ign, blockedBy, reason]
   // );
   // return result[0];
@@ -385,10 +385,10 @@ async function unblockDiscordId(guildId, discordId) {
   // TEMPORARILY DISABLED - table doesn't exist
   // const [result] = await pool.query(
   //   `UPDATE link_blocks 
-  //    SET is_active = FALSE 
+  //    SET is_active = false 
   //    WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
   //    AND discord_id = ? 
-  //    AND is_active = TRUE`,
+  //    AND is_active = true`,
   //   [guildId, discordId]
   // );
   // return result[0];
@@ -403,10 +403,10 @@ async function unblockIgn(guildId, ign) {
   // TEMPORARILY DISABLED - table doesn't exist
   // const [result] = await pool.query(
   //   `UPDATE link_blocks 
-  //    SET is_active = FALSE 
+  //    SET is_active = false 
   //    WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
   //    AND LOWER(ign) = LOWER(?) 
-  //    AND is_active = TRUE`,
+  //    AND is_active = true`,
   //   [guildId, ign]
   // );
   // return result[0];

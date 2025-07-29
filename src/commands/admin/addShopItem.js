@@ -10,39 +10,39 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('display_name')
         .setDescription('Display name for the item')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('short_name')
         .setDescription('Short name/ID for the item')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addIntegerOption(option =>
       option.setName('price')
         .setDescription('Price in currency')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMinValue(1))
     .addIntegerOption(option =>
       option.setName('quantity')
         .setDescription('Quantity to give')
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMinValue(1))
     .addIntegerOption(option =>
       option.setName('timer')
         .setDescription('Cooldown timer in minutes (optional)')
-        .setRequired(FALSE)
+        .setRequired(false)
         .setMinValue(1)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(TRUE);
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
@@ -91,11 +91,11 @@ module.exports = {
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverNickname = interaction.options.getString('server');

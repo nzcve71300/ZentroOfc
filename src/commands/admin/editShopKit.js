@@ -10,21 +10,21 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('kit_name')
         .setDescription('Select a kit to edit')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)),
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(TRUE);
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
@@ -88,7 +88,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, TRUE);
+      return sendAccessDeniedMessage(interaction, true);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -111,7 +111,7 @@ module.exports = {
       if (kitResult.rows.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Kit Not Found', 'The specified kit was not found.')],
-          ephemeral: TRUE
+          ephemeral: true
         });
       }
 
@@ -127,7 +127,7 @@ module.exports = {
         .setLabel('Display Name')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.display_name)
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(100);
 
       const kitNameInput = new TextInputBuilder()
@@ -135,7 +135,7 @@ module.exports = {
         .setLabel('Kit Name (in-game kit name)')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.kit_name)
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(50);
 
       const priceInput = new TextInputBuilder()
@@ -143,7 +143,7 @@ module.exports = {
         .setLabel('Price (coins)')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.price.toString())
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(10);
 
       const quantityInput = new TextInputBuilder()
@@ -151,7 +151,7 @@ module.exports = {
         .setLabel('Quantity')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.quantity.toString())
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(5);
 
       const timerInput = new TextInputBuilder()
@@ -159,7 +159,7 @@ module.exports = {
         .setLabel('Cooldown Timer (minutes, optional)')
         .setStyle(TextInputStyle.Short)
         .setValue(kit.timer ? kit.timer.toString() : '')
-        .setRequired(FALSE)
+        .setRequired(false)
         .setMaxLength(5);
 
       const firstActionRow = new ActionRowBuilder().addComponents(displayNameInput);
@@ -176,7 +176,7 @@ module.exports = {
       console.error('Error creating edit modal:', error);
       await interaction.reply({
         embeds: [errorEmbed('Error', 'Failed to create edit modal. Please try again.')],
-        ephemeral: TRUE
+        ephemeral: true
       });
     }
   },

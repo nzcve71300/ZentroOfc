@@ -70,7 +70,7 @@ module.exports = {
           embed.addFields({
             name: i === 0 ? serverName : `${serverName} (continued)`,
             value: part,
-            inline: FALSE
+            inline: false
           });
         });
       }

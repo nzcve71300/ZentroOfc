@@ -10,27 +10,27 @@ module.exports = {
     .addStringOption(option =>
       option.setName('nickname')
         .setDescription('Server nickname (e.g., Main Server, PvP Server)')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('server_ip')
         .setDescription('Server IP address')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addIntegerOption(option =>
       option.setName('rcon_port')
         .setDescription('RCON port (default: 28016)')
-        .setRequired(FALSE))
+        .setRequired(false))
     .addStringOption(option =>
       option.setName('rcon_password')
         .setDescription('RCON password')
-        .setRequired(FALSE)),
+        .setRequired(false)),
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const nickname = interaction.options.getString('nickname');

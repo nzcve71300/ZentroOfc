@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server to browse')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)
+        .setRequired(true)
+        .setAutocomplete(true)
     ),
 
   async autocomplete(interaction) {

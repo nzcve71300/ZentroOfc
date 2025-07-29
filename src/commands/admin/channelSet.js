@@ -10,16 +10,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addChannelOption(option =>
       option.setName('channel')
         .setDescription('Select the Discord channel')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('channel_type')
         .setDescription('Select the channel type')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Playercount (Voice Channel)', value: 'playercount' },
           { name: 'Playerfeed (Text Channel)', value: 'playerfeed' },
@@ -59,7 +59,7 @@ module.exports = {
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverId = parseInt(interaction.options.getString('server'));

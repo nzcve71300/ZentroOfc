@@ -46,11 +46,11 @@ async function ensureZentroAdminRole(guild) {
  * Check if guild is authorized
  */
 async function isAuthorizedGuild(guild) {
-  if (authConfig.allowAllGuilds) return TRUE;
-  if (authConfig.authorizedGuildIds.includes(guild.id)) return TRUE;
+  if (authConfig.allowAllGuilds) return true;
+  if (authConfig.authorizedGuildIds.includes(guild.id)) return true;
 
   const envGuildIds = process.env.AUTHORIZED_GUILD_IDS?.split(',') || [];
-  if (envGuildIds.includes(guild.id)) return TRUE;
+  if (envGuildIds.includes(guild.id)) return true;
 
   if (authConfig.useDatabase) {
     try {
@@ -61,16 +61,16 @@ async function isAuthorizedGuild(guild) {
       return result.length > 0;
     } catch (error) {
       console.error('Error checking database authorization:', error);
-      return FALSE;
+      return false;
     }
   }
-  return FALSE;
+  return false;
 }
 
 /**
  * Send access denied message
  */
-async function sendAccessDeniedMessage(interaction, ephemeral = TRUE) {
+async function sendAccessDeniedMessage(interaction, ephemeral = true) {
   const embed = errorEmbed(
     'Access Denied',
     'You need the **Zentro Admin** role or **Administrator** permission to use this command.'
@@ -96,13 +96,13 @@ async function sendUnauthorizedGuildMessage(interaction) {
       {
         name: 'Contact Support',
         value: 'Please contact the bot administrator to get access.',
-        inline: FALSE
+        inline: false
       }
     ],
     timestamp: new Date()
   };
 
-  await interaction.reply({ embeds: [embed], ephemeral: TRUE });
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 /**
@@ -127,7 +127,7 @@ async function getLinkedPlayer(guildId, serverId, discordId) {
 async function getPlayerByIGN(guildId, serverId, ign) {
   try {
     const [result] = await pool.query(
-      'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND ign IS NOT NULL AND LOWER(ign) = LOWER(?) AND is_active = TRUE LIMIT 1',
+      'SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND ign IS NOT NULL AND LOWER(ign) = LOWER(?) AND is_active = true LIMIT 1',
       [guildId, serverId, ign]
     );
     return result[0] || null;

@@ -14,7 +14,7 @@ module.exports = {
     .addStringOption(opt =>
       opt.setName('in-game-name')
         .setDescription('Your in-game name')
-        .setRequired(TRUE)
+        .setRequired(true)
     ),
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

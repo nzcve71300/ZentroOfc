@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select the server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('configs')
         .setDescription('Select the configuration to set')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Outpost - Set TP to work or not', value: 'outpost_enabled' },
           { name: 'Outpost - Add delay in seconds', value: 'outpost_delay' },
@@ -27,7 +27,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('value')
         .setDescription('Enter the value (on/off for enabled, number for delay/time)')
-        .setRequired(TRUE)),
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -61,7 +61,7 @@ module.exports = {
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverId = parseInt(interaction.options.getString('server'));
@@ -141,7 +141,7 @@ module.exports = {
           [
             serverId, 
             positionType, 
-            setting === 'enabled' ? parsedValue : TRUE,
+            setting === 'enabled' ? parsedValue : true,
             setting === 'delay' ? parsedValue : 5,
             setting === 'time' ? parsedValue : 10
           ]

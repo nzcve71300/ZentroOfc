@@ -10,16 +10,16 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Category name')
-        .setRequired(TRUE))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('type')
         .setDescription('Category type')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Items', value: 'items' },
           { name: 'Kits', value: 'kits' },
@@ -28,7 +28,7 @@ module.exports = {
     .addRoleOption(option =>
       option.setName('role')
         .setDescription('Required role to access this category (optional)')
-        .setRequired(FALSE)),
+        .setRequired(false)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -54,11 +54,11 @@ module.exports = {
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverNickname = interaction.options.getString('server');

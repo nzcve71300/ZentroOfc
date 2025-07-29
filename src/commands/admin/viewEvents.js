@@ -10,8 +10,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)),
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -42,11 +42,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -94,14 +94,14 @@ module.exports = {
           embed.addFields({
             name: server.nickname,
             value: serverConfig,
-            inline: FALSE
+            inline: false
           });
         }
 
         embed.addFields({
           name: '📋 Instructions',
           value: 'Use `/set-events` to configure event settings for each server.',
-          inline: FALSE
+          inline: false
         });
 
         await interaction.editReply({
@@ -140,7 +140,7 @@ module.exports = {
         embed.addFields({
           name: 'No Configurations',
           value: 'No event configurations found for this server. Use `/set-events` to create configurations.',
-          inline: FALSE
+          inline: false
         });
       } else {
         for (const config of configsResult.rows) {
@@ -150,7 +150,7 @@ module.exports = {
           embed.addFields({
             name: `${eventName} (${status})`,
             value: `**Kill Message:** \`${config.kill_message}\`\n**Respawn Message:** \`${config.respawn_message}\``,
-            inline: FALSE
+            inline: false
           });
         }
       }
@@ -158,7 +158,7 @@ module.exports = {
       embed.addFields({
         name: '📋 Configuration Options',
         value: '• **bradscout/heliscout**: `on` or `off`\n• **bradkillmsg/helikillmsg**: Custom kill message\n• **bradrespawnmsg/helirespawnmsg**: Custom respawn message',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({

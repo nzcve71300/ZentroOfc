@@ -10,21 +10,21 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('category')
         .setDescription('Select a category')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('item')
         .setDescription('Select an item to edit')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE)),
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
-    const focusedOption = interaction.options.getFocused(TRUE);
+    const focusedOption = interaction.options.getFocused(true);
     const guildId = interaction.guildId;
 
     try {
@@ -88,7 +88,7 @@ module.exports = {
   async execute(interaction) {
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, TRUE);
+      return sendAccessDeniedMessage(interaction, true);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -111,7 +111,7 @@ module.exports = {
       if (itemResult.rows.length === 0) {
         return interaction.reply({
           embeds: [errorEmbed('Item Not Found', 'The specified item was not found.')],
-          ephemeral: TRUE
+          ephemeral: true
         });
       }
 
@@ -127,7 +127,7 @@ module.exports = {
         .setLabel('Display Name')
         .setStyle(TextInputStyle.Short)
         .setValue(item.display_name)
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(100);
 
       const shortNameInput = new TextInputBuilder()
@@ -135,7 +135,7 @@ module.exports = {
         .setLabel('Short Name (Item ID)')
         .setStyle(TextInputStyle.Short)
         .setValue(item.short_name)
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(50);
 
       const priceInput = new TextInputBuilder()
@@ -143,7 +143,7 @@ module.exports = {
         .setLabel('Price (coins)')
         .setStyle(TextInputStyle.Short)
         .setValue(item.price.toString())
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(10);
 
       const quantityInput = new TextInputBuilder()
@@ -151,7 +151,7 @@ module.exports = {
         .setLabel('Quantity')
         .setStyle(TextInputStyle.Short)
         .setValue(item.quantity.toString())
-        .setRequired(TRUE)
+        .setRequired(true)
         .setMaxLength(5);
 
       const timerInput = new TextInputBuilder()
@@ -159,7 +159,7 @@ module.exports = {
         .setLabel('Cooldown Timer (minutes, optional)')
         .setStyle(TextInputStyle.Short)
         .setValue(item.timer ? item.timer.toString() : '')
-        .setRequired(FALSE)
+        .setRequired(false)
         .setMaxLength(5);
 
       const firstActionRow = new ActionRowBuilder().addComponents(displayNameInput);
@@ -176,7 +176,7 @@ module.exports = {
       console.error('Error creating edit modal:', error);
       await interaction.reply({
         embeds: [errorEmbed('Error', 'Failed to create edit modal. Please try again.')],
-        ephemeral: TRUE
+        ephemeral: true
       });
     }
   },

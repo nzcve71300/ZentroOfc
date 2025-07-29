@@ -10,12 +10,12 @@ module.exports = {
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
-        .setRequired(TRUE)
-        .setAutocomplete(TRUE))
+        .setRequired(true)
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('setup')
         .setDescription('Select a setting to configure')
-        .setRequired(TRUE)
+        .setRequired(true)
         .addChoices(
           { name: 'Blackjack On/Off', value: 'blackjack_toggle' },
           { name: 'Slots On/Off', value: 'slots_toggle' },
@@ -28,7 +28,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Value for the setting (on/off, amount, or bet limit)')
-        .setRequired(TRUE)),
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -53,11 +53,11 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: TRUE });
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, FALSE);
+      return sendAccessDeniedMessage(interaction, false);
     }
 
     const serverOption = interaction.options.getString('server');
@@ -89,13 +89,13 @@ module.exports = {
 
       switch (setup) {
         case 'blackjack_toggle':
-          const blackjackEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'TRUE' || option === '1';
+          const blackjackEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
           message = `Blackjack has been ${blackjackEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
           value = blackjackEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
 
         case 'slots_toggle':
-          const slotsEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'TRUE' || option === '1';
+          const slotsEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
           message = `Slots has been ${slotsEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
           value = slotsEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
@@ -141,13 +141,13 @@ module.exports = {
       embed.addFields({
         name: '📋 Current Setting',
         value: `**${setup.replace(/_/g, ' ').toUpperCase()}:** ${value}`,
-        inline: FALSE
+        inline: false
       });
 
       embed.addFields({
         name: '💡 Available Settings',
         value: '• Blackjack On/Off\n• Slots On/Off\n• Daily Rewards Amount\n• Blackjack Min/Max Bet\n• Slots Min/Max Bet',
-        inline: FALSE
+        inline: false
       });
 
       await interaction.editReply({
