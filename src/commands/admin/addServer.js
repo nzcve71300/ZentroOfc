@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 
 module.exports = {
@@ -41,29 +41,30 @@ module.exports = {
 
     try {
       // Check if guild exists, if not create it
-      let guildResult = await pool.query(
+      const [guildResult] = await pool.query(
         'SELECT id FROM guilds WHERE discord_id = ?',
         [guildId]
       );
 
-      if (guildResult.rows.length === 0) {
-        // Create guild with explicit ID to avoid sequence permission issues
-        const newGuildResult = await pool.query(
-          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) RETURNING id',
+      let guildDbId;
+      if (guildResult.length === 0) {
+        // Create guild
+        const [newGuildResult] = await pool.query(
+          'INSERT INTO guilds (discord_id, name) VALUES (?, ?)',
           [guildId, interaction.guild.name]
         );
-        guildResult = newGuildResult;
+        guildDbId = newGuildResult.insertId;
+      } else {
+        guildDbId = guildResult[0].id;
       }
 
-      const guildDbId = guildResult.rows[0].id;
-
       // Check if server already exists
-      const existingServer = await pool.query(
+      const [existingServer] = await pool.query(
         'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
         [guildDbId, nickname]
       );
 
-      if (existingServer.rows.length > 0) {
+      if (existingServer.length > 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Server Exists', `A server with nickname **${nickname}** already exists in this guild.`)]
         });
@@ -88,11 +89,11 @@ module.exports = {
       let errorMessage = 'Failed to add server. Please try again.';
       
       // Handle specific database errors
-      if (error.code === '42501') {
-        errorMessage = 'Database permission error. Please check PostgreSQL user permissions. Contact the bot owner.';
-      } else if (error.code === '23505') {
+      if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+        errorMessage = 'Database permission error. Please check MySQL user permissions. Contact the bot owner.';
+      } else if (error.code === 'ER_DUP_ENTRY') {
         errorMessage = 'A server with this nickname already exists.';
-      } else if (error.code === '23502') {
+      } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
         errorMessage = 'Missing required data. Please check all required fields.';
       }
       
