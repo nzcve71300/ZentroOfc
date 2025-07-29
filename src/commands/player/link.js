@@ -1,14 +1,11 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const {
-  isDiscordIdBlocked,
-  isIgnBlocked,
-  getActivePlayerLinks,
+  getServersForGuild,
   isDiscordIdLinkedToDifferentIgn,
   isIgnLinkedToDifferentDiscordId,
-  createLinkRequest,
-  getServersForGuild
-} = require('../../utils/linking');
+  createOrUpdatePlayerLink
+} = require('../../utils/unifiedPlayerSystem');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,22 +24,6 @@ module.exports = {
     const ign = interaction.options.getString('in-game-name');
 
     try {
-      // TEMPORARILY DISABLED: Check if Discord ID is blocked
-      // const isBlocked = await isDiscordIdBlocked(guildId, discordId);
-      // if (isBlocked) {
-      //   return await interaction.editReply({
-      //     embeds: [errorEmbed('Account Blocked', 'Your Discord account is blocked from linking. Contact an admin.')]
-      //   });
-      // }
-
-      // TEMPORARILY DISABLED: Check if IGN is blocked
-      // const isIgnBlockedResult = await isIgnBlocked(guildId, ign);
-      // if (isIgnBlockedResult) {
-      //   return await interaction.editReply({
-      //     embeds: [errorEmbed('IGN Blocked', 'This in-game name is blocked from linking. Contact an admin.')]
-      //   });
-      // }
-
       // Get all servers for this guild
       const servers = await getServersForGuild(guildId);
       if (servers.length === 0) {
@@ -66,19 +47,6 @@ module.exports = {
           embeds: [orangeEmbed('IGN Already Linked', 'This in-game name is already linked to another Discord account.')]
         });
       }
-
-      // Check if already linked to this IGN
-      const existingLinks = await getActivePlayerLinks(guildId, discordId);
-      const alreadyLinkedToThisIgn = existingLinks.some(link => link.ign.toLowerCase() === ign.toLowerCase());
-      if (alreadyLinkedToThisIgn) {
-        return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', 'Your Discord is already linked to this in-game name.')]
-        });
-      }
-
-      // Create link request for the first server (we'll link to all servers when confirmed)
-      const firstServer = servers[0];
-      await createLinkRequest(guildId, discordId, ign, firstServer.id);
 
       // Confirm linking
       const row = new ActionRowBuilder().addComponents(

@@ -1,99 +1,59 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const {
-  getActivePlayerLinks,
-  getActivePlayerLinksByIgn,
-  unlinkAllPlayers,
-  unlinkAllPlayersByIgn,
-  unblockDiscordId,
-  unblockIgn
-} = require('../../utils/linking');
+const { createOrUpdatePlayerLink, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('allow-link')
-    .setDescription('Allow a player to relink their Discord account')
+    .setDescription('Allow a player to link their Discord account')
     .addStringOption(option =>
-      option.setName('name')
-        .setDescription('Discord ID or in-game name')
-        .setRequired(true)
-    ),
+      option.setName('discord_id')
+        .setDescription('Discord ID of the player')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('in-game-name')
+        .setDescription('In-game name of the player')
+        .setRequired(true)),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
-    if (!hasAdminPermissions(interaction.member)) {
-      return sendAccessDeniedMessage(interaction, false);
-    }
-
-    const playerName = interaction.options.getString('name');
     const guildId = interaction.guildId;
-    const adminId = interaction.user.id;
+    const discordId = interaction.options.getString('discord_id');
+    const ign = interaction.options.getString('in-game-name');
 
     try {
-      // Check if input is a Discord ID
-      const isDiscordId = /^\d{17,}$/.test(playerName);
-      
-      let unlinkedLinks = [];
-      let unblockedResult = null;
-      let playerNames = [];
-
-      if (isDiscordId) {
-        // Allow relink by Discord ID
-        unlinkedLinks = await unlinkAllPlayers(guildId, playerName);
-        unblockedResult = await unblockDiscordId(guildId, playerName);
-        playerNames = unlinkedLinks.map(link => link.ign);
-      } else {
-        // Allow relink by IGN
-        unlinkedLinks = await unlinkAllPlayersByIgn(guildId, playerName);
-        unblockedResult = await unblockIgn(guildId, playerName);
-        playerNames = unlinkedLinks.map(link => link.ign);
-      }
-
-      // Check if any active links exist
-      let existingLinks = [];
-      if (isDiscordId) {
-        existingLinks = await getActivePlayerLinks(guildId, playerName);
-      } else {
-        existingLinks = await getActivePlayerLinksByIgn(guildId, playerName);
-      }
-
-      if (unlinkedLinks.length === 0 && existingLinks.length === 0 && !unblockedResult) {
+      // Get all servers for this guild
+      const servers = await getServersForGuild(guildId);
+      if (servers.length === 0) {
         return interaction.editReply({
-          embeds: [orangeEmbed('Player Not Found', `No player found with name "${playerName}".`)]
+          embeds: [errorEmbed('No Servers Found', 'No Rust servers found for this Discord.')]
         });
       }
 
-      // Build response message
-      let message = '';
-      const actions = [];
-
-      if (unlinkedLinks.length > 0) {
-        const uniqueNames = [...new Set(playerNames)];
-        actions.push(`**${unlinkedLinks.length} account(s)** unlinked: **${uniqueNames.join(', ')}**`);
+      const linkedPlayers = [];
+      
+      // Link the player to all servers
+      for (const server of servers) {
+        const player = await createOrUpdatePlayerLink(guildId, server.id, discordId, ign);
+        linkedPlayers.push({ server: server.nickname, player: player });
       }
 
-      if (existingLinks.length > 0) {
-        const existingNames = existingLinks.map(link => link.ign);
-        actions.push(`**${existingLinks.length} player(s)** found but not linked: **${existingNames.join(', ')}**`);
-      }
+      const embed = successEmbed(
+        'Link Allowed', 
+        `Successfully linked **${discordId}** to **${ign}** across **${servers.length} server(s)**.`
+      );
 
-      if (unblockedResult) {
-        actions.push(`**Block removed** for ${isDiscordId ? 'Discord ID' : 'IGN'}`);
-      }
+      // Show which servers were linked
+      const serverNames = linkedPlayers.map(p => p.server);
+      embed.addFields({ name: 'Servers Linked', value: serverNames.join(', ') });
 
-      message = actions.join('\n');
-
-      await interaction.editReply({
-        embeds: [successEmbed('Relink Enabled', message)]
-      });
-
+      await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error('Allow-link error:', err);
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to allow relink.')]
-      });
+      console.error('Error in allow-link:', err);
+      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to allow link. Please try again.')] });
     }
   }
 };

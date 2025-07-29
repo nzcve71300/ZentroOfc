@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getServerByNickname, updateBalance, recordTransaction } = require('../../utils/economy');
+const { getServerByNickname, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -27,9 +27,7 @@ module.exports = {
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) AND nickname ILIKE $2 LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
-      const choices = servers.rows.map(row => ({ name: row.nickname, value: row.nickname }));
-      choices.unshift({ name: 'All Servers', value: 'ALL' });
-      await interaction.respond(choices);
+      await interaction.respond(servers.rows.map(row => ({ name: row.nickname, value: row.nickname })));
     } catch {
       await interaction.respond([]);
     }
@@ -44,30 +42,51 @@ module.exports = {
     const amount = interaction.options.getInteger('amount');
 
     try {
-      const servers = serverName === 'ALL'
-        ? await pool.query('SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)', [guildId])
-        : { rows: [await getServerByNickname(guildId, serverName)] };
-
-      let updatedPlayers = 0;
-      let totalAdded = 0;
-
-      for (const server of servers.rows) {
-        const players = await pool.query('SELECT id, ign FROM players WHERE server_id = $1', [server.id]);
-        for (const player of players.rows) {
-          const newBalance = await updateBalance(player.id, amount);
-          await recordTransaction(player.id, amount, 'admin_add');
-          updatedPlayers++;
-          totalAdded += amount;
-        }
+      const server = await getServerByNickname(guildId, serverName);
+      if (!server) {
+        return interaction.editReply({ embeds: [errorEmbed('Server Not Found', 'This server does not exist.')] });
       }
 
-      await interaction.editReply({
-        embeds: [successEmbed('Currency Added',
-          `Added **${amount} coins** to **${updatedPlayers} players** on **${serverName === 'ALL' ? 'All Servers' : serverName}**.\n\n**Total Added:** ${totalAdded} coins`)]
-      });
+      // Get all active players on this server
+      const players = await pool.query(
+        `SELECT p.*, e.balance 
+         FROM players p
+         LEFT JOIN economy e ON p.id = e.player_id
+         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+         AND p.server_id = $2
+         AND p.is_active = true`,
+        [guildId, server.id]
+      );
+
+      if (players.rows.length === 0) {
+        return interaction.editReply({ embeds: [errorEmbed('No Players Found', `No active players found on **${serverName}**.`)] });
+      }
+
+      const affectedPlayers = [];
+      for (const player of players.rows) {
+        const newBalance = await updatePlayerBalance(player.id, amount);
+        await recordTransaction(player.id, amount, 'admin_server_add');
+        affectedPlayers.push({ ign: player.ign, balance: newBalance });
+      }
+
+      const embed = successEmbed(
+        'Currency Added to Server', 
+        `Added **${amount} coins** to all players on **${serverName}**.\n\n**Players Affected:** ${affectedPlayers.length}`
+      );
+
+      // Add player details if there are 10 or fewer players
+      if (affectedPlayers.length <= 10) {
+        affectedPlayers.forEach(player => {
+          embed.addFields({ name: player.ign, value: `${player.balance} coins`, inline: true });
+        });
+      } else {
+        embed.addFields({ name: 'Players Updated', value: `${affectedPlayers.length} players received ${amount} coins each.` });
+      }
+
+      await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('Error in add-currency-server:', err);
-      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to add currency. Please try again.')] });
+      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to add currency to server. Please try again.')] });
     }
   }
 };

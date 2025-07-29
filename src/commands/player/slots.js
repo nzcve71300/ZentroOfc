@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
-const { getServerByNickname, getPlayerBalance, getServersForGuild } = require('../../utils/economy');
+const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -18,8 +18,9 @@ module.exports = {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
     try {
-      const choices = await getServersForGuild(guildId, focusedValue);
-      await interaction.respond(choices);
+      const servers = await getServersForGuild(guildId);
+      const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
+      await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
     } catch (err) {
       console.error('Autocomplete error:', err);
       await interaction.respond([]);
@@ -42,9 +43,9 @@ module.exports = {
         });
       }
 
-      // Get balance
-      const balanceData = await getPlayerBalance(guildId, serverOption, userId);
-      if (!balanceData) {
+      // Get player using unified system
+      const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
+      if (!player) {
         return interaction.editReply({
           embeds: [errorEmbed(
             'Account Not Linked',
@@ -52,7 +53,9 @@ module.exports = {
           )]
         });
       }
-      const balance = balanceData.balance;
+
+      // Get balance using unified system
+      const balance = await getPlayerBalance(player.id);
 
       // Get game config (min/max bet)
       const configResult = await pool.query(

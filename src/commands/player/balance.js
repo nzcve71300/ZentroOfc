@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
-const pool = require('../../db');
+const { getAllActivePlayersByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,23 +14,19 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const balances = await pool.query(
-        `SELECT rs.nickname, e.balance
-         FROM players p
-         JOIN economy e ON p.id = e.player_id
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2
-         ORDER BY rs.nickname`,
-        [userId, guildId]
-      );
+      // Get all active players for this Discord ID
+      const players = await getAllActivePlayersByDiscordId(guildId, userId);
 
-      if (balances.rows.length === 0) {
+      if (players.length === 0) {
         return interaction.editReply({ embeds: [errorEmbed('Account Not Linked', 'Use `/link <in-game-name>` before checking your balance.')] });
       }
 
       const embed = orangeEmbed('Balance Overview', '**Your Balances by Server:**');
-      balances.rows.forEach(row => embed.addFields({ name: row.nickname, value: `${row.balance || 0} coins`, inline: true }));
+      
+      for (const player of players) {
+        const balance = await getPlayerBalance(player.id);
+        embed.addFields({ name: player.nickname, value: `${balance} coins`, inline: true });
+      }
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {

@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
+const { getAllActivePlayersByDiscordId, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -35,17 +36,10 @@ module.exports = {
         });
       }
 
-      // Get all linked players across all servers
-      const players = await pool.query(
-        `SELECT p.id, p.ign, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         JOIN guilds g ON rs.guild_id = g.id
-         WHERE p.discord_id = $1 AND g.discord_id = $2`,
-        [userId, guildId]
-      );
+      // Get all linked players across all servers using unified system
+      const players = await getAllActivePlayersByDiscordId(guildId, userId);
 
-      if (players.rows.length === 0) {
+      if (players.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Account Not Linked', 'Use `/link <in-game-name>` to link your account first.')]
         });
@@ -54,18 +48,12 @@ module.exports = {
       let totalAdded = 0;
       const serverList = [];
 
-      for (const player of players.rows) {
-        // Ensure economy record exists
-        await pool.query(
-          'INSERT INTO economy (player_id, balance) VALUES ($1, $2) ON CONFLICT (player_id) DO UPDATE SET balance = economy.balance + $2',
-          [player.id, dailyAmount]
-        );
+      for (const player of players) {
+        // Update balance using unified system
+        await updatePlayerBalance(player.id, dailyAmount);
         
-        // Record transaction
-        await pool.query(
-          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES ($1, $2, $3, NOW())',
-          [player.id, dailyAmount, 'daily_reward']
-        );
+        // Record transaction using unified system
+        await recordTransaction(player.id, dailyAmount, 'daily_reward');
         
         totalAdded += dailyAmount;
         serverList.push(player.nickname);
@@ -74,7 +62,7 @@ module.exports = {
       const uniqueServers = [...new Set(serverList)];
       await interaction.editReply({
         embeds: [successEmbed('Daily Reward Claimed', 
-          `+${dailyAmount} coins added to **${players.rows.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} coins\n**Servers:** ${uniqueServers.join(', ')}`)]
+          `+${dailyAmount} coins added to **${players.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} coins\n**Servers:** ${uniqueServers.join(', ')}`)]
       });
 
     } catch (err) {

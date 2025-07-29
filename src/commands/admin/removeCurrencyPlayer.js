@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getServerByNickname, getPlayerByIGN, updateBalance, recordTransaction } = require('../../utils/economy');
+const { getServerByNickname, getActivePlayerByIgn, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -48,12 +48,16 @@ module.exports = {
 
     try {
       const server = await getServerByNickname(guildId, serverName);
-      if (!server) return interaction.editReply({ embeds: [errorEmbed('Server Not Found', 'This server does not exist.')] });
+      if (!server) {
+        return interaction.editReply({ embeds: [errorEmbed('Server Not Found', 'This server does not exist.')] });
+      }
 
-      const player = await getPlayerByIGN(guildId, server.id, playerName);
-      if (!player) return interaction.editReply({ embeds: [errorEmbed('Player Not Found', `No player named **${playerName}** found on **${serverName}**.`)] });
+      const player = await getActivePlayerByIgn(guildId, server.id, playerName);
+      if (!player) {
+        return interaction.editReply({ embeds: [errorEmbed('Player Not Found', `No player named **${playerName}** found on **${serverName}**.`)] });
+      }
 
-      const newBalance = await updateBalance(player.id, -amount);
+      const newBalance = await updatePlayerBalance(player.id, -amount);
       await recordTransaction(player.id, -amount, 'admin_remove');
 
       await interaction.editReply({
