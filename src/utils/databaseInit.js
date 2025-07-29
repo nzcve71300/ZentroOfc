@@ -7,7 +7,18 @@ const pool = require('../db');
 async function initializeDatabase() {
   console.log('Initializing database tables...');
   
+  // Check if pool is available
+  if (!pool) {
+    console.error('❌ Database pool not available - MySQL may not be running');
+    console.log('💡 Please set up MySQL database before running the bot');
+    return;
+  }
+  
   try {
+    // Test connection first
+    await pool.query('SELECT 1');
+    console.log('✅ Database connection verified');
+    
     // Ensure link_requests table exists
     await pool.query(`
       CREATE TABLE IF NOT EXISTS link_requests (
@@ -71,10 +82,11 @@ async function initializeDatabase() {
           !error.message.includes('Duplicate key on write or update') &&
           !error.message.includes('Duplicate entry') &&
           !error.message.includes('already exists')) {
-        throw error;
+        console.error('❌ Failed to add foreign key constraint:', error.message);
+      } else {
+        // Constraint already exists, ignore
+        console.log('ℹ️ Foreign key constraint fk_economy_player already exists');
       }
-      // Constraint already exists, ignore
-      console.log('ℹ️ Foreign key constraint fk_economy_player already exists');
     }
 
     // Create indexes for better performance
@@ -135,8 +147,8 @@ async function initializeDatabase() {
 
     console.log('✅ Database initialization completed successfully!');
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
-    throw error;
+    console.error('❌ Database initialization failed:', error.message);
+    console.log('💡 Please ensure MySQL is running and database exists');
   }
 }
 

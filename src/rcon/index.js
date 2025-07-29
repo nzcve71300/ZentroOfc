@@ -78,6 +78,8 @@ function startRconListeners(client) {
 async function refreshConnections(client) {
   try {
     const [result] = await pool.query('SELECT * FROM rust_servers');
+    console.log(`📡 Found ${result.length} servers in database`);
+    
     for (const server of result) {
       // Skip servers with invalid IP/port combinations
       if (!server.ip || server.ip === '0.0.0.0' || server.ip === 'PLACEHOLDER_IP' || !server.port || server.port === 0) {
@@ -90,6 +92,7 @@ async function refreshConnections(client) {
         const guildId = guildResult[0].discord_id;
         const key = `${guildId}_${server.nickname}`;
         if (!activeConnections[key]) {
+          console.log(`🔗 Attempting RCON connection to ${server.nickname} (${server.ip}:${server.port})`);
           connectRcon(client, guildId, server.nickname, server.ip, server.port, server.password);
         }
       }
@@ -101,6 +104,14 @@ async function refreshConnections(client) {
 
 function connectRcon(client, guildId, serverName, ip, port, password) {
   const key = `${guildId}_${serverName}`;
+  
+  // Validate connection parameters
+  if (!ip || ip === '0.0.0.0' || ip === 'PLACEHOLDER_IP' || !port || port === 0) {
+    console.log(`⚠️ Skipping RCON connection for ${serverName} - invalid parameters: ${ip}:${port}`);
+    return;
+  }
+  
+  console.log(`🔗 Connecting to RCON: ${serverName} (${ip}:${port})`);
   const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
   activeConnections[key] = ws;
 
@@ -188,11 +199,19 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
   ws.on('close', () => {
     console.log(`❌ Disconnected from RCON: ${serverName} (${guildId})`);
     delete activeConnections[key];
-    setTimeout(() => connectRcon(client, guildId, serverName, ip, port, password), 5000);
+    // Don't auto-reconnect for invalid servers
+    if (ip !== '0.0.0.0' && ip !== 'PLACEHOLDER_IP' && port !== 0) {
+      setTimeout(() => connectRcon(client, guildId, serverName, ip, port, password), 5000);
+    }
   });
 
   ws.on('error', (err) => {
-    console.error(`RCON Error (${serverName}):`, err.message);
+    // Only log connection refused errors once per server to avoid spam
+    if (err.code === 'ECONNREFUSED') {
+      console.log(`⚠️ RCON connection refused for ${serverName} (${ip}:${port}) - server may be offline`);
+    } else {
+      console.error(`RCON Error (${serverName}):`, err.message);
+    }
     ws.close();
   });
 }
