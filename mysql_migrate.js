@@ -75,17 +75,11 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS economy (
         id INT AUTO_INCREMENT PRIMARY KEY,
         player_id INT,
-        guild_id BIGINT,
-        server_id BIGINT,
-        discord_id BIGINT,
-        balance BIGINT DEFAULT 0
+        balance INT DEFAULT 0,
+        UNIQUE KEY unique_player (player_id),
+        FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
       )
     `);
-    await addConstraintIfNotExists(
-      'economy',
-      'economy_unique_guild_server_discord',
-      'UNIQUE (guild_id, server_id, discord_id)'
-    );
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_economy_player ON economy(player_id)`);
 
     /** ------------------------
@@ -95,18 +89,12 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS transactions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         player_id INT,
-        guild_id BIGINT,
-        server_id BIGINT,
-        discord_id BIGINT,
-        amount BIGINT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        amount INT NOT NULL,
+        type TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
       )
     `);
-    await addConstraintIfNotExists(
-      'transactions',
-      'transactions_unique_guild_server_discord',
-      'UNIQUE (guild_id, server_id, discord_id)'
-    );
 
     /** ------------------------
      * LINK REQUESTS TABLE

@@ -8,7 +8,13 @@
     "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["discord", "bot", "rust", "multi-tenant", "economy"],
+  "keywords": [
+    "discord",
+    "bot",
+    "rust",
+    "multi-tenant",
+    "economy"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -17,6 +23,6 @@
     "discord-api-types": "^0.37.64",
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
-    "mysql2": "^3.9.2"
+    "mysql2": "^3.14.3"
   }
 }

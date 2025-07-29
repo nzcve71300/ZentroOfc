@@ -79,6 +79,12 @@ async function refreshConnections(client) {
   try {
     const [result] = await pool.query('SELECT * FROM rust_servers');
     for (const server of result) {
+      // Skip servers with invalid IP/port combinations
+      if (!server.ip || server.ip === '0.0.0.0' || server.ip === 'PLACEHOLDER_IP' || !server.port || server.port === 0) {
+        console.log(`⚠️ Skipping RCON connection for server ${server.nickname} - invalid IP/port: ${server.ip}:${server.port}`);
+        continue;
+      }
+      
       const [guildResult] = await pool.query('SELECT discord_id FROM guilds WHERE id = ?', [server.guild_id]);
       if (guildResult.length > 0) {
         const guildId = guildResult[0].discord_id;

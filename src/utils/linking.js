@@ -167,8 +167,9 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         port = VALUES(port),
         password = VALUES(password);
     `;
-    console.log('🟧 Query:', serverInsertQuery, [serverIdText, guildIdText, serverName, '0.0.0.0', 0, '']);
-    await pool.query(serverInsertQuery, [serverIdText, guildIdText, serverName, '0.0.0.0', 0, '']);
+    // Use placeholder values - these need to be updated by admin commands
+    console.log('🟧 Query:', serverInsertQuery, [serverIdText, guildIdText, serverName, 'PLACEHOLDER_IP', 28016, 'PLACEHOLDER_PASSWORD']);
+    await pool.query(serverInsertQuery, [serverIdText, guildIdText, serverName, 'PLACEHOLDER_IP', 28016, 'PLACEHOLDER_PASSWORD']);
     console.log('✅ Server ensured:', serverIdText);
 
     // Update link request status - guild_id subquery uses BIGINT for discord_id
