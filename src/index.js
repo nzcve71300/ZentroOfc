@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { discordToken } = require('./config');
 const { startRconListeners } = require('./rcon');
 const { ensureZentroAdminRole, isAuthorizedGuild, sendUnauthorizedGuildMessage } = require('./utils/permissions');
+const { initializeDatabase } = require('./utils/databaseInit');
 const fs = require('fs');
 const path = require('path');
 
@@ -38,6 +39,14 @@ loadCommands(path.join(__dirname, 'commands'));
 client.once('ready', async () => {
   console.log(`Zentro Bot is online as ${client.user.tag}`);
   console.log('🚀 Bot startup complete - Latest code version loaded');
+  
+  // Initialize database tables
+  try {
+    await initializeDatabase();
+    console.log('✅ Database initialization completed');
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+  }
   
   // Create Zentro Admin role in all guilds the bot is in
   client.guilds.cache.forEach(async (guild) => {
@@ -106,7 +115,7 @@ client.on('interactionCreate', async interaction => {
       command.data.name.startsWith('autokits-') || command.data.name.startsWith('killfeed') ||
       command.data.name.startsWith('view-') || command.data.name.startsWith('list-') ||
       command.data.name.startsWith('open-') || command.data.name.startsWith('allow-') ||
-      command.data.name.startsWith('unlink')) {
+      command.data.name.startsWith('unlink') || command.data.name === 'force-link') {
     
     const isAuthorized = await isAuthorizedGuild(interaction.guild);
     if (!isAuthorized) {

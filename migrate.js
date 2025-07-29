@@ -14,6 +14,22 @@ async function migrate() {
   const deletedLogs = [];
   const tables = ['players', 'economy', 'transactions'];
 
+  // Ensure link_requests table exists
+  console.log('\n--- Creating link_requests table if it doesn\'t exist ---');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS link_requests (
+      id SERIAL PRIMARY KEY,
+      guild_id BIGINT NOT NULL,
+      server_id VARCHAR(32) NOT NULL,
+      discord_id BIGINT NOT NULL,
+      ign TEXT NOT NULL,
+      requested_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '10 minutes'),
+      status TEXT DEFAULT 'pending'
+    );
+  `);
+  console.log('link_requests table ensured');
+
   for (const table of tables) {
     console.log(`\n--- Processing table: ${table} ---`);
 
