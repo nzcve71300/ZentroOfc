@@ -11,9 +11,14 @@ async function migrateToUnifiedSystem() {
     const oldPlayers = await pool.query('SELECT * FROM players');
     console.log(`Found ${oldPlayers.rows.length} players in old system`);
     
-    // Backup old player_links table
-    const oldPlayerLinks = await pool.query('SELECT * FROM player_links');
-    console.log(`Found ${oldPlayerLinks.rows.length} player links in old system`);
+    // Check if player_links table exists
+    let oldPlayerLinks = { rows: [] };
+    try {
+      oldPlayerLinks = await pool.query('SELECT * FROM player_links');
+      console.log(`Found ${oldPlayerLinks.rows.length} player links in old system`);
+    } catch (error) {
+      console.log('No player_links table found - skipping player_links migration');
+    }
     
     // Backup old economy table
     const oldEconomy = await pool.query('SELECT * FROM economy');
@@ -56,22 +61,24 @@ async function migrateToUnifiedSystem() {
       }
     }
     
-    // Migrate from old player_links table
-    for (const link of oldPlayerLinks.rows) {
-      if (link.is_active) {
-        // Convert discord_id to BIGINT if it's currently VARCHAR
-        const discordId = typeof link.discord_id === 'string' ? parseInt(link.discord_id) : link.discord_id;
-        
-        await pool.query(`
-          INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
-          VALUES ($1, $2, $3, $4, $5, true)
-          ON CONFLICT (guild_id, discord_id, server_id) 
-          DO UPDATE SET 
-            ign = EXCLUDED.ign,
-            linked_at = EXCLUDED.linked_at,
-            unlinked_at = NULL,
-            is_active = true
-        `, [link.guild_id, link.server_id, discordId, link.ign, link.linked_at]);
+    // Migrate from old player_links table (if it exists)
+    if (oldPlayerLinks.rows.length > 0) {
+      for (const link of oldPlayerLinks.rows) {
+        if (link.is_active) {
+          // Convert discord_id to BIGINT if it's currently VARCHAR
+          const discordId = typeof link.discord_id === 'string' ? parseInt(link.discord_id) : link.discord_id;
+          
+          await pool.query(`
+            INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
+            VALUES ($1, $2, $3, $4, $5, true)
+            ON CONFLICT (guild_id, discord_id, server_id) 
+            DO UPDATE SET 
+              ign = EXCLUDED.ign,
+              linked_at = EXCLUDED.linked_at,
+              unlinked_at = NULL,
+              is_active = true
+          `, [link.guild_id, link.server_id, discordId, link.ign, link.linked_at]);
+        }
       }
     }
     
@@ -116,10 +123,15 @@ async function migrateToUnifiedSystem() {
     await pool.query('CREATE INDEX idx_players_server ON players(server_id)');
     await pool.query('CREATE INDEX idx_economy_player ON economy(player_id)');
     
-    // Step 7: Clean up old tables
+    // Step 7: Clean up old tables (only if they exist)
     console.log('Step 7: Cleaning up old tables...');
     
-    await pool.query('DROP TABLE IF EXISTS player_links CASCADE');
+    try {
+      await pool.query('DROP TABLE IF EXISTS player_links CASCADE');
+      console.log('Dropped player_links table');
+    } catch (error) {
+      console.log('player_links table was already dropped or never existed');
+    }
     
     console.log('Migration completed successfully!');
     console.log('New unified system is ready to use.');
