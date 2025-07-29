@@ -7,8 +7,23 @@ const pool = new Pool({
   password: 'zander123',
 });
 
+async function addConstraintIfNotExists(table, constraintName, constraintSQL) {
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = '${constraintName}'
+      ) THEN
+        ALTER TABLE ${table} 
+        ADD CONSTRAINT ${constraintName} ${constraintSQL};
+      END IF;
+    END$$;
+  `);
+}
+
 async function migrate() {
-  console.log('Starting full migration...');
+  console.log('Starting safe migration...');
 
   /** ------------------------
    * PLAYERS TABLE
@@ -26,15 +41,16 @@ async function migrate() {
     );
   `);
 
-  await pool.query(`
-    ALTER TABLE players 
-    ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_discord UNIQUE (guild_id, server_id, discord_id);
-  `);
-
-  await pool.query(`
-    ALTER TABLE players 
-    ADD CONSTRAINT IF NOT EXISTS players_unique_guild_server_ign UNIQUE (guild_id, server_id, ign);
-  `);
+  await addConstraintIfNotExists(
+    'players',
+    'players_unique_guild_server_discord',
+    'UNIQUE (guild_id, server_id, discord_id)'
+  );
+  await addConstraintIfNotExists(
+    'players',
+    'players_unique_guild_server_ign',
+    'UNIQUE (guild_id, server_id, ign)'
+  );
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id);
@@ -56,15 +72,12 @@ async function migrate() {
       balance BIGINT DEFAULT 0
     );
   `);
-
-  await pool.query(`
-    ALTER TABLE economy 
-    ADD CONSTRAINT IF NOT EXISTS economy_unique_guild_server_discord UNIQUE (guild_id, server_id, discord_id);
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_economy_player ON economy(player_id);
-  `);
+  await addConstraintIfNotExists(
+    'economy',
+    'economy_unique_guild_server_discord',
+    'UNIQUE (guild_id, server_id, discord_id)'
+  );
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_economy_player ON economy(player_id);`);
 
   /** ------------------------
    * TRANSACTIONS TABLE
@@ -80,11 +93,11 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
-
-  await pool.query(`
-    ALTER TABLE transactions 
-    ADD CONSTRAINT IF NOT EXISTS transactions_unique_guild_server_discord UNIQUE (guild_id, server_id, discord_id);
-  `);
+  await addConstraintIfNotExists(
+    'transactions',
+    'transactions_unique_guild_server_discord',
+    'UNIQUE (guild_id, server_id, discord_id)'
+  );
 
   /** ------------------------
    * LINK REQUESTS TABLE
@@ -98,11 +111,14 @@ async function migrate() {
       ign TEXT NOT NULL,
       requested_at TIMESTAMP DEFAULT NOW(),
       expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '10 minutes'),
-      status TEXT DEFAULT 'pending',
-      UNIQUE (guild_id, server_id, discord_id)
+      status TEXT DEFAULT 'pending'
     );
   `);
-
+  await addConstraintIfNotExists(
+    'link_requests',
+    'link_requests_unique_guild_server_discord',
+    'UNIQUE (guild_id, server_id, discord_id)'
+  );
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_link_requests_guild_discord ON link_requests(guild_id, discord_id);
     CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status);
@@ -125,7 +141,6 @@ async function migrate() {
       CHECK ((discord_id IS NOT NULL AND ign IS NULL) OR (discord_id IS NULL AND ign IS NOT NULL))
     );
   `);
-
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_discord ON link_blocks(guild_id, discord_id);
     CREATE INDEX IF NOT EXISTS idx_link_blocks_guild_ign ON link_blocks(guild_id, ign);
@@ -147,16 +162,16 @@ async function migrate() {
       is_active BOOLEAN DEFAULT true
     );
   `);
-
-  await pool.query(`
-    ALTER TABLE player_links 
-    ADD CONSTRAINT IF NOT EXISTS player_links_unique_guild_server_discord UNIQUE (guild_id, server_id, discord_id);
-  `);
-
-  await pool.query(`
-    ALTER TABLE player_links 
-    ADD CONSTRAINT IF NOT EXISTS player_links_unique_guild_server_ign UNIQUE (guild_id, server_id, ign);
-  `);
+  await addConstraintIfNotExists(
+    'player_links',
+    'player_links_unique_guild_server_discord',
+    'UNIQUE (guild_id, server_id, discord_id)'
+  );
+  await addConstraintIfNotExists(
+    'player_links',
+    'player_links_unique_guild_server_ign',
+    'UNIQUE (guild_id, server_id, ign)'
+  );
 
   /** ------------------------
    * PERMISSIONS
