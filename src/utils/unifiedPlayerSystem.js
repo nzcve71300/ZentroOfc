@@ -87,9 +87,23 @@ async function getAllActivePlayersByIdentifier(guildId, identifier) {
 }
 
 /**
- * Create or update player link
+ * Create or update player link - handles both Discord ID and IGN inputs
  */
-async function createOrUpdatePlayerLink(guildId, serverId, discordId, ign) {
+async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = null) {
+  let discordId, finalIgn;
+  
+  if (isDiscordId(identifier)) {
+    // Input is a Discord ID
+    discordId = identifier;
+    finalIgn = ign || 'Unknown';
+  } else {
+    // Input is an IGN - we need to find or create a Discord ID
+    // For now, we'll use a placeholder Discord ID for IGN-only links
+    // This could be enhanced to require a Discord ID for IGN links
+    discordId = '0'; // Placeholder - you might want to require Discord ID for IGN links
+    finalIgn = identifier;
+  }
+
   // First, ensure the player record exists
   const playerResult = await pool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
@@ -101,7 +115,7 @@ async function createOrUpdatePlayerLink(guildId, serverId, discordId, ign) {
        unlinked_at = NULL,
        is_active = true
      RETURNING *`,
-    [guildId, serverId, discordId, ign]
+    [guildId, serverId, discordId, finalIgn]
   );
 
   const player = playerResult.rows[0];
@@ -121,7 +135,7 @@ async function createOrUpdatePlayerLink(guildId, serverId, discordId, ign) {
 async function unlinkPlayer(guildId, serverId, discordId) {
   const result = await pool.query(
     `UPDATE players 
-     SET is_active = false, unlinked_at = NOW() 
+     SET is_active = false, unlinked_at = NOW(), ign = NULL
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND server_id = $2
      AND discord_id = $3
@@ -138,7 +152,7 @@ async function unlinkPlayer(guildId, serverId, discordId) {
 async function unlinkAllPlayersByDiscordId(guildId, discordId) {
   const result = await pool.query(
     `UPDATE players 
-     SET is_active = false, unlinked_at = NOW() 
+     SET is_active = false, unlinked_at = NOW(), ign = NULL
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND discord_id = $2
      AND is_active = true
@@ -154,7 +168,7 @@ async function unlinkAllPlayersByDiscordId(guildId, discordId) {
 async function unlinkAllPlayersByIgn(guildId, ign) {
   const result = await pool.query(
     `UPDATE players 
-     SET is_active = false, unlinked_at = NOW() 
+     SET is_active = false, unlinked_at = NOW(), ign = NULL
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
      AND LOWER(ign) = LOWER($2)
      AND is_active = true
