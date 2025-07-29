@@ -70,8 +70,8 @@ module.exports = {
         });
       }
 
-      // Generate a unique server ID
-      const serverId = `${guildId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Generate a unique server ID (shorter to fit VARCHAR(32))
+      const serverId = `${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
 
       // Add the server
       await pool.query(
