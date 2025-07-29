@@ -597,7 +597,7 @@ async function flushJoinLeaveBuffers(client) {
 
 async function pollPlayerCounts(client) {
   try {
-    const result = await pool.query(`
+    const [result] = await pool.query(`
       SELECT rs.*, g.discord_id as guild_discord_id 
       FROM rust_servers rs 
       JOIN guilds g ON rs.guild_id = g.id
@@ -674,7 +674,7 @@ function sendRconCommand(ip, port, password, command) {
 async function sendFeedEmbed(client, guildId, serverName, channelType, message) {
   try {
     // Get the channel ID from database
-    const result = await pool.query(
+    const [result] = await pool.query(
       `SELECT cs.channel_id 
        FROM channel_settings cs 
        JOIN rust_servers rs ON cs.server_id = rs.id 
@@ -713,7 +713,7 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
 async function updatePlayerCountChannel(client, guildId, serverName, online, queued) {
   try {
     // Get the channel ID from database
-    const result = await pool.query(
+    const [result] = await pool.query(
       `SELECT cs.channel_id 
        FROM channel_settings cs 
        JOIN rust_servers rs ON cs.server_id = rs.id 
@@ -772,7 +772,7 @@ async function flushKillFeedBuffers(client) {
 async function checkAllEvents(client) {
   try {
     // Get all active servers with event configurations in a single query
-    const result = await pool.query(`
+    const [result] = await pool.query(`
       SELECT 
         rs.id, rs.nickname, rs.ip, rs.port, rs.password, 
         g.discord_id as guild_id,
