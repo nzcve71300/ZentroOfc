@@ -1,38 +1,42 @@
 const { Pool } = require('pg');
+const fs = require('fs');
 
 const pool = new Pool({
   host: 'localhost',
   port: 5432,
   database: 'zentro_bot',
   user: 'postgres',
-  password: 'zander123', // <- replace
+  password: 'zander123',
 });
 
 async function migrate() {
   console.log('Starting migration...');
-
-  // Tables to fix
+  const deletedLogs = [];
   const tables = ['players', 'economy', 'transactions'];
 
   for (const table of tables) {
     console.log(`\n--- Processing table: ${table} ---`);
 
-    // Step 1: Clean bad rows
+    // Step 1: Find invalid rows
     const badRows = await pool.query(`
       SELECT * FROM ${table}
-      WHERE (discord_id IS NOT NULL AND discord_id !~ '^[0-9]+$')
+      WHERE (discord_id IS NOT NULL AND discord_id::TEXT !~ '^[0-9]+$')
          OR (guild_id IS NOT NULL AND guild_id::TEXT !~ '^[0-9]+$')
          OR (server_id IS NOT NULL AND server_id::TEXT !~ '^[0-9]+$');
     `);
+
     if (badRows.rows.length > 0) {
-      console.log(`Found ${badRows.rows.length} invalid rows in ${table}:`, badRows.rows);
+      console.log(`Found ${badRows.rows.length} invalid rows in ${table}. Deleting...`);
+      deletedLogs.push({ table, rows: badRows.rows });
+
       await pool.query(`
         DELETE FROM ${table}
-        WHERE (discord_id IS NOT NULL AND discord_id !~ '^[0-9]+$')
+        WHERE (discord_id IS NOT NULL AND discord_id::TEXT !~ '^[0-9]+$')
            OR (guild_id IS NOT NULL AND guild_id::TEXT !~ '^[0-9]+$')
            OR (server_id IS NOT NULL AND server_id::TEXT !~ '^[0-9]+$');
       `);
-      console.log(`Deleted invalid rows from ${table}`);
+    } else {
+      console.log(`No invalid rows found in ${table}`);
     }
 
     // Step 2: Add missing columns
@@ -53,7 +57,7 @@ async function migrate() {
       ALTER COLUMN discord_id TYPE BIGINT USING NULLIF(discord_id::TEXT, '')::BIGINT;
     `);
 
-    // Step 4: Rebuild constraints
+    // Step 4: Rebuild unique constraints
     const constraintName = `${table}_guild_discord_server_unique`;
     await pool.query(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${constraintName};`);
     await pool.query(`
@@ -64,7 +68,9 @@ async function migrate() {
     console.log(`Finished processing ${table}`);
   }
 
-  console.log('\nMigration complete!');
+  // Save deleted rows log
+  fs.writeFileSync('migration-log.json', JSON.stringify(deletedLogs, null, 2));
+  console.log('\nMigration complete! Deleted rows logged to migration-log.json');
   await pool.end();
 }
 
