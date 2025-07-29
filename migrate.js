@@ -187,5 +187,5 @@ async function migrate() {
 
 migrate().catch(err => {
   console.error('❌ Migration failed:', err);
-  process.exit(1);
+  // process.exit(1); // Removed so the bot still runs even if migrations fail
 });

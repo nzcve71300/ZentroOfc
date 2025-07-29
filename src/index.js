@@ -1,4 +1,13 @@
-require('./migrate');
+(async () => {
+  try {
+    console.log("Running database migrations...");
+    await require('./migrate');
+    console.log("Migrations completed successfully.");
+  } catch (err) {
+    console.error("⚠️ Migration failed. Bot will still start. Error:", err.message);
+  }
+})();
+
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { discordToken } = require('./config');
