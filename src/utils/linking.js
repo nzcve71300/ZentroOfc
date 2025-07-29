@@ -121,20 +121,6 @@ async function createLinkRequest(guildId, discordId, ign, serverId) {
 async function confirmLinkRequest(guildId, discordId, ign, serverId) {
   console.log(`Confirming link request: ${discordId} -> ${ign} on server ${serverId}`);
 
-  // Check if the IGN is already linked to another Discord ID
-  const existingLink = await pool.query(
-    `SELECT 1 FROM players 
-     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-     AND server_id = $2 
-     AND LOWER(ign) = LOWER($3) 
-     AND is_active = true`,
-    [guildId, serverId, ign]
-  );
-
-  if (existingLink.rows.length > 0) {
-    throw new Error(`This in-game name (${ign}) is already linked to another Discord account. Please contact an admin to unlink it first.`);
-  }
-
   // Update request status
   await pool.query(
     `UPDATE link_requests 
@@ -145,27 +131,44 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
     [guildId, discordId, serverId]
   );
 
-  // Check if this is a re-link (existing inactive record)
-  const existingPlayer = await pool.query(
-    `SELECT * FROM players 
+  // Step 1: Check if the IGN exists
+  const existing = await pool.query(
+    `SELECT id, is_active FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1) 
-     AND discord_id = $2 
-     AND server_id = $3`,
-    [guildId, discordId, serverId]
+     AND server_id = $2 
+     AND LOWER(ign) = LOWER($3)`,
+    [guildId, serverId, ign]
   );
 
-  let isRelink = false;
-  if (existingPlayer.rows.length > 0) {
-    const player = existingPlayer.rows[0];
-    isRelink = !player.is_active;
-    if (isRelink) {
-      console.log(`Re-linking existing user: ${discordId} -> ${ign} (was inactive)`);
+  if (existing.rows.length > 0) {
+    if (existing.rows[0].is_active) {
+      // Already linked - show error
+      throw new Error("❌ This IGN is already linked. Please contact an admin to unlink it first.");
+    } else {
+      // Reactivate existing row
+      console.log(`Reactivating existing inactive player: ${discordId} -> ${ign}`);
+      await pool.query(
+        `UPDATE players 
+         SET discord_id = $3, linked_at = NOW(), is_active = true, unlinked_at = NULL
+         WHERE id = $4`,
+        [guildId, serverId, discordId, existing.rows[0].id]
+      );
+      
+      // Ensure economy record exists
+      await pool.query(
+        'INSERT INTO economy (player_id, balance) VALUES ($1, 0) ON CONFLICT (player_id) DO NOTHING',
+        [existing.rows[0].id]
+      );
+      
+      console.log(`✅ Successfully reactivated user: ${discordId} -> ${ign}`);
+      return { id: existing.rows[0].id };
     }
   }
 
-  // Create new player link (strict mode - no ON CONFLICT)
+  // Step 2: If no existing record, insert a new one
+  console.log(`Creating new player link: ${discordId} -> ${ign}`);
   const result = await pool.query(
-    `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) 
+    `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
      VALUES ((SELECT id FROM guilds WHERE discord_id = $1), $2, $3, $4, NOW(), true)
      RETURNING *`,
     [guildId, serverId, discordId, ign]
@@ -179,12 +182,7 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId) {
     [player.id]
   );
 
-  if (isRelink) {
-    console.log(`✅ Successfully re-linked user: ${discordId} -> ${ign}`);
-  } else {
-    console.log(`✅ Successfully linked new user: ${discordId} -> ${ign}`);
-  }
-
+  console.log(`✅ Successfully linked new user: ${discordId} -> ${ign}`);
   return player;
 }
 

@@ -186,33 +186,29 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
  */
 async function unlinkAllPlayersByIdentifier(guildId, identifier) {
   if (isDiscordId(identifier)) {
-    // Handle Discord ID (numeric) - direct comparison
+    // Handle Discord ID (numeric) - direct comparison, always deactivate regardless of current status
     const result = await pool.query(
       `UPDATE players 
        SET is_active = false, unlinked_at = NOW()
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
-       AND discord_id = $2
-       AND is_active = true
-       RETURNING *`,
+       AND discord_id = $2`,
       [guildId, identifier]
     );
     
-    console.log(`Unlinked ${result.rows.length} player(s) for Discord ID: ${identifier}`);
-    return result.rows;
+    console.log(`Unlinked ${result.rowCount} player(s) for Discord ID: ${identifier}`);
+    return { rows: result.rows, rowCount: result.rowCount };
   } else {
-    // Handle IGN (text) - case-insensitive match
+    // Handle IGN (text) - case-insensitive match, always deactivate regardless of current status
     const result = await pool.query(
       `UPDATE players 
        SET is_active = false, unlinked_at = NOW()
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
-       AND LOWER(ign) = LOWER($2)
-       AND is_active = true
-       RETURNING *`,
+       AND LOWER(ign) = LOWER($2)`,
       [guildId, identifier]
     );
     
-    console.log(`Unlinked ${result.rows.length} player(s) for IGN: ${identifier}`);
-    return result.rows;
+    console.log(`Unlinked ${result.rowCount} player(s) for IGN: ${identifier}`);
+    return { rows: result.rows, rowCount: result.rowCount };
   }
 }
 
