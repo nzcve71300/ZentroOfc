@@ -140,15 +140,18 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
 
   try {
     // Ensure guild exists
-    await pool.query(`
+    const guildName = interaction?.guild?.name || 'Unknown Guild';
+    const guildInsertQuery = `
       INSERT INTO guilds (discord_id, name)
       VALUES ($1::BIGINT, $2::TEXT)
       ON CONFLICT (discord_id) DO NOTHING;
-    `, [guildIdBigInt, interaction?.guild?.name || 'Unknown Guild']);
+    `;
+    console.log('🟧 Query:', guildInsertQuery, [guildIdBigInt, guildName]);
+    await pool.query(guildInsertQuery, [guildIdBigInt, guildName]);
     console.log('✅ Guild ensured:', guildIdBigInt.toString());
 
     // Ensure server exists with correct casting and subquery for guild ID
-    await pool.query(`
+    const serverInsertQuery = `
       INSERT INTO rust_servers (id, guild_id, nickname)
       VALUES (
         $1::BIGINT,
@@ -156,31 +159,36 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         $3::TEXT
       )
       ON CONFLICT (id) DO NOTHING;
-    `, [serverIdBigInt, guildIdBigInt, serverName]);
+    `;
+    console.log('🟧 Query:', serverInsertQuery, [serverIdBigInt, guildIdBigInt, serverName]);
+    await pool.query(serverInsertQuery, [serverIdBigInt, guildIdBigInt, serverName]);
     console.log('✅ Server ensured:', serverIdBigInt.toString());
 
     // Update link request status (non-critical failure logs)
+    const linkRequestUpdateQuery = `
+      UPDATE link_requests
+      SET status = 'confirmed'
+      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
+        AND discord_id = $2::BIGINT
+        AND server_id = $3::BIGINT
+    `;
     try {
-      await pool.query(
-        `UPDATE link_requests
-         SET status = 'confirmed'
-         WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
-           AND discord_id = $2::BIGINT
-           AND server_id = $3::BIGINT`,
-        [guildIdBigInt, discordIdBigInt, serverIdBigInt]
-      );
+      console.log('🟧 Query:', linkRequestUpdateQuery, [guildIdBigInt, discordIdBigInt, serverIdBigInt]);
+      await pool.query(linkRequestUpdateQuery, [guildIdBigInt, discordIdBigInt, serverIdBigInt]);
       console.log('✅ Link request status updated');
     } catch (e) {
       console.warn('⚠️ Could not update link request status:', e.message);
     }
 
     // Check for existing active player link by ign
-    const { rows: existingPlayers } = await pool.query(`
+    const playerSelectQuery = `
       SELECT id, is_active FROM players
       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1::BIGINT)
         AND server_id = $2::BIGINT
         AND LOWER(ign) = LOWER($3::TEXT)
-    `, [guildIdBigInt, serverIdBigInt, ignText]);
+    `;
+    console.log('🟧 Query:', playerSelectQuery, [guildIdBigInt, serverIdBigInt, ignText]);
+    const { rows: existingPlayers } = await pool.query(playerSelectQuery, [guildIdBigInt, serverIdBigInt, ignText]);
 
     if (existingPlayers.length > 0) {
       const existing = existingPlayers[0];
@@ -188,23 +196,27 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         throw new Error("❌ This IGN is already linked and active. Contact an admin to unlink.");
       }
       // Reactivate inactive player
-      await pool.query(`
+      const playerUpdateQuery = `
         UPDATE players
         SET discord_id = $3::BIGINT, linked_at = NOW(), is_active = true, unlinked_at = NULL
         WHERE id = $4
-      `, [guildIdBigInt, serverIdBigInt, discordIdBigInt, existing.id]);
+      `;
+      console.log('🟧 Query:', playerUpdateQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, existing.id]);
+      await pool.query(playerUpdateQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, existing.id]);
       // Ensure economy record
-      await pool.query(`
+      const economyInsertQuery = `
         INSERT INTO economy (player_id, balance)
         VALUES ($1, 0)
         ON CONFLICT (player_id) DO NOTHING
-      `, [existing.id]);
+      `;
+      console.log('🟧 Query:', economyInsertQuery, [existing.id]);
+      await pool.query(economyInsertQuery, [existing.id]);
       console.log('✅ Reactivated existing inactive player:', ignText);
       return { id: existing.id };
     }
 
     // Insert new player or update existing discord_id (upsert)
-    const { rows } = await pool.query(`
+    const playerInsertQuery = `
       INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
       VALUES (
         (SELECT id FROM guilds WHERE discord_id = $1::BIGINT),
@@ -221,16 +233,20 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         is_active = true,
         unlinked_at = NULL
       RETURNING *;
-    `, [guildIdBigInt, serverIdBigInt, discordIdBigInt, ignText]);
+    `;
+    console.log('🟧 Query:', playerInsertQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, ignText]);
+    const { rows } = await pool.query(playerInsertQuery, [guildIdBigInt, serverIdBigInt, discordIdBigInt, ignText]);
 
     const player = rows[0];
 
     // Ensure economy record
-    await pool.query(`
+    const economyInsertQuery = `
       INSERT INTO economy (player_id, balance)
       VALUES ($1, 0)
       ON CONFLICT (player_id) DO NOTHING
-    `, [player.id]);
+    `;
+    console.log('🟧 Query:', economyInsertQuery, [player.id]);
+    await pool.query(economyInsertQuery, [player.id]);
 
     console.log('✅ Successfully linked player:', player);
     return player;
