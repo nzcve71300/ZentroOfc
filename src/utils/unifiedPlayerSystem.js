@@ -180,13 +180,19 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
 
 /**
  * Unlink all players by identifier (Discord ID or IGN) across all servers
+ * This function handles both Discord IDs and IGNs with a single query
  */
 async function unlinkAllPlayersByIdentifier(guildId, identifier) {
-  if (isDiscordId(identifier)) {
-    return unlinkAllPlayersByDiscordId(guildId, identifier);
-  } else {
-    return unlinkAllPlayersByIgn(guildId, identifier);
-  }
+  const result = await pool.query(
+    `UPDATE players 
+     SET is_active = false, unlinked_at = NOW(), ign = NULL
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
+     AND (discord_id = $2 OR LOWER(ign) = LOWER($2))
+     AND is_active = true
+     RETURNING *`,
+    [guildId, identifier]
+  );
+  return result.rows;
 }
 
 /**
