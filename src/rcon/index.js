@@ -428,19 +428,19 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     const serverId = serverResult.rows[0].id;
 
     // Check if kit is enabled
-    const autokitResult = await pool.query(
+    const [autokitResult] = await pool.query(
       'SELECT enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
       [serverId, kitKey]
     );
 
-    console.log('[KIT CLAIM DEBUG] Autokit config:', autokitResult.rows[0]);
+    console.log('[KIT CLAIM DEBUG] Autokit config:', autokitResult[0]);
 
-    if (autokitResult.rows.length === 0 || !autokitResult.rows[0].enabled) {
+    if (autokitResult.length === 0 || !autokitResult[0].enabled) {
       console.log('[KIT CLAIM DEBUG] Kit not enabled or not found:', kitKey);
       return;
     }
 
-    const kitConfig = autokitResult.rows[0];
+    const kitConfig = autokitResult[0];
     const kitName = kitConfig.game_name || kitKey;
 
     // Check cooldown
@@ -467,28 +467,28 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       console.log('[KIT CLAIM DEBUG] Checking elite authorization for:', kitKey, 'player:', player);
       
       // First check if player is linked
-      const playerResult = await pool.query(
+      const [playerResult] = await pool.query(
         'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
       
-      if (playerResult.rows.length === 0 || !playerResult.rows[0].discord_id) {
+      if (playerResult.length === 0 || !playerResult[0].discord_id) {
         console.log('[KIT CLAIM DEBUG] Player not linked for elite kit:', kitKey, 'player:', player);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you must link your Discord account first</color> <color=#800080>to claim elite kits</color>`);
         return;
       }
       
       // Then check if player is authorized for this kit
-      const authResult = await pool.query(
+      const [authResult] = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
          WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
         [serverId, player, kitKey]
       );
       
-      console.log('[KIT CLAIM DEBUG] Elite auth result:', authResult.rows);
+      console.log('[KIT CLAIM DEBUG] Elite auth result:', authResult);
       
-      if (authResult.rows.length === 0) {
+      if (authResult.length === 0) {
         console.log('[KIT CLAIM DEBUG] Not authorized for', kitKey, 'player:', player);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not authorized for</color> <color=#800080>${kitName}</color>`);
         return;

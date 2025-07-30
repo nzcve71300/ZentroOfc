@@ -125,7 +125,7 @@ class KillfeedProcessor {
     async getKillfeedConfig(serverId) {
     try {
       const [result] = await pool.query(
-        'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = $1',
+        'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = ?',
         [serverId]
       );
       
@@ -161,7 +161,7 @@ class KillfeedProcessor {
       const [result] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
-         WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
+         WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
         [serverId, sanitizedName]
       );
       
@@ -192,7 +192,7 @@ class KillfeedProcessor {
       const [killerResult] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
-         WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
+         WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
         [serverId, sanitizedKiller]
       );
 
@@ -240,7 +240,7 @@ class KillfeedProcessor {
       const [victimResult] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
-         WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
+         WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
         [serverId, victimName]
       );
 
@@ -264,15 +264,15 @@ class KillfeedProcessor {
 
   async getOrCreatePlayerStats(playerId) {
     try {
-      let result = await pool.query(
-        'SELECT * FROM player_stats WHERE player_id = $1',
+      let [result] = await pool.query(
+        'SELECT * FROM player_stats WHERE player_id = ?',
         [playerId]
       );
 
       if (result.length === 0) {
         // Create new stats record
         await pool.query(
-          'INSERT INTO player_stats (player_id) VALUES ($1)',
+          'INSERT INTO player_stats (player_id) VALUES (?)',
           [playerId]
         );
         
@@ -293,11 +293,11 @@ class KillfeedProcessor {
 
   async updatePlayerStats(playerId, updates) {
     try {
-      const setClause = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
-      const values = [playerId, ...Object.values(updates)];
+      const setClause = Object.keys(updates).map((key, index) => `${key} = ?`).join(', ');
+      const values = [...Object.values(updates), playerId];
       
       await pool.query(
-        `UPDATE player_stats SET ${setClause} WHERE player_id = $1`,
+        `UPDATE player_stats SET ${setClause} WHERE player_id = ?`,
         values
       );
     } catch (error) {
@@ -323,7 +323,7 @@ class KillfeedProcessor {
         `SELECT ps.* FROM player_stats ps
          JOIN players p ON ps.player_id = p.id
          JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE rs.id = $1 AND LOWER(p.ign) = LOWER($2)`,
+         WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
         [serverId, sanitizedName]
       );
 
