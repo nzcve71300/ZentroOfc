@@ -48,7 +48,7 @@ module.exports = {
       const totalPages = Math.ceil(totalServers / itemsPerPage);
       const startIndex = (page - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
-      const serversOnPage = serversResult.rows.slice(startIndex, endIndex);
+             const serversOnPage = serversResult.slice(startIndex, endIndex);
 
       if (page > totalPages) {
         return interaction.editReply({

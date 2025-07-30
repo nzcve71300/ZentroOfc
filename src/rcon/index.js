@@ -420,12 +420,12 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) {
+    if (serverResult.length === 0) {
       console.log('[KIT CLAIM DEBUG] Server not found:', serverName);
       return;
     }
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
 
     // Check if kit is enabled
     const [autokitResult] = await pool.query(
@@ -553,11 +553,11 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId, positionType]
     );
 
-    if (configResult.rows.length === 0 || !configResult.rows[0].enabled) {
+    if (configResult.length === 0 || !configResult[0].enabled) {
       return; // Position teleport is not configured or disabled
     }
 
-    const config = configResult.rows[0];
+    const config = configResult[0];
 
     // Check cooldown
     const cooldownKey = `${serverId}_${positionType}_${player}`;
@@ -577,12 +577,12 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId, positionType]
     );
 
-    if (coordResult.rows.length === 0) {
+    if (coordResult.length === 0) {
       sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleport coordinates not configured</color>`);
       return;
     }
 
-    const coords = coordResult.rows[0];
+    const coords = coordResult[0];
     const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
 
     // If there's a delay, show countdown
@@ -1019,12 +1019,12 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) {
+    if (serverResult.length === 0) {
       console.log(`[ZORP] Server not found: ${serverName}`);
       return;
     }
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
 
     // Check if player already has a zone
     const existingZone = await pool.query(
@@ -1032,7 +1032,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       [serverId, playerName]
     );
 
-    if (existingZone.rows.length > 0) {
+    if (existingZone.length > 0) {
       await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You already have an active Zorp zone. Use the delete emote to remove it first.</color>`);
       console.log(`[ZORP] Player ${playerName} already has a zone`);
       return;
@@ -1048,7 +1048,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     );
 
     // Use defaults if available, otherwise use hardcoded defaults
-    const defaults = defaultsResult.rows.length > 0 ? defaultsResult.rows[0] : {
+    const defaults = defaultsResult.length > 0 ? defaultsResult[0] : {
       size: 75,
       color_online: '0,255,0',
       color_offline: '255,0,0',
@@ -1110,7 +1110,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const newZonePos = { x: coords[0], y: coords[1], z: coords[2] };
     const newZoneSize = defaults.size;
 
-    for (const zone of existingZones.rows) {
+    for (const zone of existingZones) {
       if (zone.position) {
         const existingPos = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
         const existingSize = zone.size || 75; // Default size if not set
@@ -1188,12 +1188,12 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
       [guildId, serverName]
     );
     
-    if (serverResult.rows.length === 0) {
+    if (serverResult.length === 0) {
       console.log(`[ZORP] Server not found: ${serverName}`);
       return;
     }
     
-    const serverId = serverResult.rows[0].id;
+    const serverId = serverResult[0].id;
 
     // Check if player has a zone
     const zoneResult = await pool.query(
@@ -1201,13 +1201,13 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
       [serverId, playerName]
     );
 
-    if (zoneResult.rows.length === 0) {
+    if (zoneResult.length === 0) {
       await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You don't have a Zorp zone to delete.</color>`);
       console.log(`[ZORP] Player ${playerName} has no zone to delete`);
       return;
     }
 
-    const zoneName = zoneResult.rows[0].name;
+    const zoneName = zoneResult[0].name;
 
     // Delete zone from game
     await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
