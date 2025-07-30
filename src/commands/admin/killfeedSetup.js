@@ -69,7 +69,7 @@ module.exports = {
       const serverName = serverResult[0].nickname;
 
       // Check if killfeed config exists
-      let killfeedResult = await pool.query(
+      let [killfeedResult] = await pool.query(
         'SELECT id, enabled FROM killfeed_configs WHERE server_id = ?',
         [serverId]
       );
@@ -80,7 +80,7 @@ module.exports = {
           'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES (?, false, ?)',
           [serverId, formatString]
         );
-        killfeedResult = await pool.query(
+        [killfeedResult] = await pool.query(
           'SELECT id, enabled FROM killfeed_configs WHERE server_id = ?',
           [serverId]
         );

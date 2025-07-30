@@ -93,7 +93,7 @@ module.exports = {
       const serverName = serverResult[0].nickname;
 
       // Check if autokit exists
-      let autokitResult = await pool.query(
+      let [autokitResult] = await pool.query(
         'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
         [serverId, setup]
       );
@@ -104,7 +104,7 @@ module.exports = {
           'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, false, 0, ?)',
           [serverId, setup]
         );
-        autokitResult = await pool.query(
+        [autokitResult] = await pool.query(
           'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
           [serverId, setup]
         );
