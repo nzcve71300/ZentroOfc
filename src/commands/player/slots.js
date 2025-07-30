@@ -83,6 +83,10 @@ module.exports = {
       const row = new ActionRowBuilder().addComponents(betInput);
       modal.addComponents(row);
 
+      // Show the modal first
+      await interaction.showModal(modal);
+      
+      // Then send the embed as a follow-up
       const embed = orangeEmbed('🎰 **SLOTS** 🎰', `Spin to win big!`);
       
       embed.addFields(
@@ -93,9 +97,7 @@ module.exports = {
       
       embed.setFooter({ text: '💎 Premium Gaming Experience • May the odds be ever in your favor!' });
       
-      await interaction.editReply({ embeds: [embed] });
-
-      await interaction.showModal(modal);
+      await interaction.followUp({ embeds: [embed] });
 
     } catch (err) {
       console.error('Slots error:', err);
