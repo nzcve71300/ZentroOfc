@@ -1,7 +1,10 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
+
+// Game state storage
+const activeGames = new Map();
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -99,54 +102,95 @@ module.exports = {
         [betAmount, player.id]
       );
 
-      // Simple blackjack game logic
-      const playerCard1 = Math.floor(Math.random() * 10) + 1;
-      const playerCard2 = Math.floor(Math.random() * 10) + 1;
-      const dealerCard1 = Math.floor(Math.random() * 10) + 1;
-      const dealerCard2 = Math.floor(Math.random() * 10) + 1;
+      // Initialize game
+      const gameId = `${userId}_${server.id}_${Date.now()}`;
+      const playerCards = [drawCard(), drawCard()];
+      const dealerCards = [drawCard(), drawCard()];
+      
+      const gameState = {
+        playerCards,
+        dealerCards,
+        betAmount,
+        playerId: player.id,
+        serverId: server.id,
+        guildId,
+        userId,
+        balance: balance - betAmount,
+        gameOver: false
+      };
 
-      const playerTotal = playerCard1 + playerCard2;
-      const dealerTotal = dealerCard1 + dealerCard2;
+      activeGames.set(gameId, gameState);
 
-      let result, winnings = 0;
-
+      // Check for blackjack
+      const playerTotal = calculateHandValue(playerCards);
       if (playerTotal === 21) {
-        result = '🎰 **BLACKJACK!** 🎰';
-        winnings = Math.floor(betAmount * 2.5);
-      } else if (playerTotal > dealerTotal && playerTotal <= 21) {
-        result = '🎯 **You Win!** 🎯';
-        winnings = betAmount * 2;
-      } else if (dealerTotal > 21) {
-        result = '💥 **Dealer Bust! You Win!** 💥';
-        winnings = betAmount * 2;
-      } else {
-        result = '❌ **You Lose!** ❌';
-        winnings = 0;
-      }
-
-      // Update balance with winnings
-      if (winnings > 0) {
+        const winnings = Math.floor(betAmount * 2.5);
         await pool.query(
           'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
           [winnings, player.id]
         );
+        await pool.query(
+          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
+          [player.id, winnings - betAmount, 'blackjack']
+        );
+
+        const embed = orangeEmbed('🎰 **BLACKJACK WIN!** 🎰', 'Congratulations! You got a Blackjack!');
+        embed.addFields(
+          { name: '🎯 **Your Cards**', value: formatCards(playerCards), inline: true },
+          { name: '🎯 **Dealer Cards**', value: formatCards(dealerCards), inline: true },
+          { name: '💰 **Winnings**', value: `**${winnings.toLocaleString()}** coins`, inline: true }
+        );
+        embed.setFooter({ text: '💎 Premium Gaming Experience • Blackjack pays 2.5x!' });
+
+        return interaction.editReply({ embeds: [embed] });
       }
 
-      // Record transaction
-      await pool.query(
-        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
-        [player.id, winnings - betAmount, 'blackjack']
-      );
+      // Create game embed
+      const embed = createGameEmbed(gameState, server.nickname, false);
+      const row = createGameButtons(gameId);
 
-      const gameText = `**Your Cards:** ${playerCard1}, ${playerCard2} (${playerTotal})\n**Dealer's Cards:** ${dealerCard1}, ${dealerCard2} (${dealerTotal})`;
-      const balanceText = winnings > 0 
-        ? `**💰 Winnings:** +${winnings.toLocaleString()} coins\n**💰 New Balance:** ${(balance + winnings - betAmount).toLocaleString()} coins`
-        : `**💸 Loss:** -${betAmount.toLocaleString()} coins\n**💰 New Balance:** ${(balance - betAmount).toLocaleString()} coins`;
+      const reply = await interaction.editReply({ embeds: [embed], components: [row] });
 
-      const embed = orangeEmbed('🎰 **BLACKJACK** 🎰', `${result}\n\n${gameText}\n\n${balanceText}`);
-      embed.setFooter({ text: '💎 Premium Gaming Experience • Good luck next time!' });
+      // Set up button collector
+      const collector = reply.createMessageComponentCollector({ time: 60000 });
 
-      return interaction.editReply({ embeds: [embed] });
+      collector.on('collect', async (i) => {
+        if (i.user.id !== userId) {
+          return i.reply({ content: 'This is not your game!', ephemeral: true });
+        }
+
+        const game = activeGames.get(gameId);
+        if (!game || game.gameOver) {
+          return i.reply({ content: 'Game has ended!', ephemeral: true });
+        }
+
+        if (i.customId === `hit_${gameId}`) {
+          // Hit
+          game.playerCards.push(drawCard());
+          const playerTotal = calculateHandValue(game.playerCards);
+
+          if (playerTotal > 21) {
+            // Bust
+            await endGame(game, 'bust', i);
+          } else {
+            // Continue game
+            const updatedEmbed = createGameEmbed(game, server.nickname, false);
+            await i.update({ embeds: [updatedEmbed], components: [row] });
+          }
+        } else if (i.customId === `stand_${gameId}`) {
+          // Stand
+          await endGame(game, 'stand', i);
+        }
+      });
+
+      collector.on('end', () => {
+        const game = activeGames.get(gameId);
+        if (game && !game.gameOver) {
+          // Timeout - auto stand
+          endGame(game, 'timeout', interaction);
+        }
+        activeGames.delete(gameId);
+      });
 
     } catch (err) {
       console.error('Blackjack error:', err);
@@ -156,3 +200,118 @@ module.exports = {
     }
   }
 };
+
+// Helper functions
+function drawCard() {
+  return Math.floor(Math.random() * 10) + 1;
+}
+
+function calculateHandValue(cards) {
+  return cards.reduce((sum, card) => sum + card, 0);
+}
+
+function formatCards(cards) {
+  return cards.join(', ') + ` (${calculateHandValue(cards)})`;
+}
+
+function createGameEmbed(game, serverName, showDealerCards = false) {
+  const playerTotal = calculateHandValue(game.playerCards);
+  const dealerTotal = calculateHandValue(game.dealerCards);
+  
+  const embed = orangeEmbed('🎰 **BLACKJACK** 🎰', `Your turn on **${serverName}**`);
+  
+  embed.addFields(
+    { name: '🎯 **Your Cards**', value: formatCards(game.playerCards), inline: true },
+    { name: '🎯 **Dealer Cards**', value: showDealerCards ? formatCards(game.dealerCards) : `${game.dealerCards[0]}, ?`, inline: true },
+    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** coins`, inline: true }
+  );
+
+  if (showDealerCards) {
+    embed.addFields(
+      { name: '🎯 **Your Total**', value: `**${playerTotal}**`, inline: true },
+      { name: '🎯 **Dealer Total**', value: `**${dealerTotal}**`, inline: true }
+    );
+  } else {
+    embed.addFields(
+      { name: '🎯 **Your Total**', value: `**${playerTotal}**`, inline: true }
+    );
+  }
+
+  embed.setFooter({ text: '💎 Premium Gaming Experience • React with 🎯 to Hit or 🛑 to Stand' });
+  return embed;
+}
+
+function createGameButtons(gameId) {
+  return new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`hit_${gameId}`)
+        .setLabel('Hit')
+        .setEmoji('🎯')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`stand_${gameId}`)
+        .setLabel('Stand')
+        .setEmoji('🛑')
+        .setStyle(ButtonStyle.Secondary)
+    );
+}
+
+async function endGame(game, result, interaction) {
+  game.gameOver = true;
+  const playerTotal = calculateHandValue(game.playerCards);
+  const dealerTotal = calculateHandValue(game.dealerCards);
+
+  let gameResult, winnings = 0;
+
+  if (result === 'bust') {
+    gameResult = '❌ **BUST! You Lose!** ❌';
+    winnings = 0;
+  } else if (result === 'stand' || result === 'timeout') {
+    if (dealerTotal > 21) {
+      gameResult = '💥 **Dealer Bust! You Win!** 💥';
+      winnings = game.betAmount * 2;
+    } else if (playerTotal > dealerTotal) {
+      gameResult = '🎯 **You Win!** 🎯';
+      winnings = game.betAmount * 2;
+    } else if (playerTotal < dealerTotal) {
+      gameResult = '❌ **Dealer Wins!** ❌';
+      winnings = 0;
+    } else {
+      gameResult = '🤝 **Push!** 🤝';
+      winnings = game.betAmount; // Return bet
+    }
+  }
+
+  // Update balance
+  if (winnings > 0) {
+    await pool.query(
+      'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+      [winnings, game.playerId]
+    );
+  }
+
+  // Record transaction
+  await pool.query(
+    'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
+    [game.playerId, winnings - game.betAmount, 'blackjack']
+  );
+
+  const finalEmbed = orangeEmbed('🎰 **BLACKJACK** 🎰', gameResult);
+  finalEmbed.addFields(
+    { name: '🎯 **Your Cards**', value: formatCards(game.playerCards), inline: true },
+    { name: '🎯 **Dealer Cards**', value: formatCards(game.dealerCards), inline: true },
+    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** coins`, inline: true }
+  );
+
+  const balanceText = winnings > game.betAmount 
+    ? `**💰 Winnings:** +${(winnings - game.betAmount).toLocaleString()} coins\n**💰 New Balance:** ${(game.balance + winnings).toLocaleString()} coins`
+    : winnings === game.betAmount
+    ? `**🤝 Push:** Bet returned\n**💰 New Balance:** ${(game.balance + winnings).toLocaleString()} coins`
+    : `**💸 Loss:** -${game.betAmount.toLocaleString()} coins\n**💰 New Balance:** ${game.balance.toLocaleString()} coins`;
+
+  finalEmbed.addFields({ name: '💰 **Result**', value: balanceText, inline: false });
+  finalEmbed.setFooter({ text: '💎 Premium Gaming Experience • Good luck next time!' });
+
+  await interaction.update({ embeds: [finalEmbed], components: [] });
+}
