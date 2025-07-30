@@ -77,7 +77,7 @@ function startRconListeners(client) {
 
 async function refreshConnections(client) {
   try {
-    const [result] = await pool.query('SELECT * FROM rust_servers');
+    const [result] = await pool.execute('SELECT * FROM rust_servers');
     console.log(`📡 Found ${result.length} servers in database`);
     
     for (const server of result) {
@@ -102,7 +102,7 @@ async function refreshConnections(client) {
         continue;
       }
       
-      const [guildResult] = await pool.query('SELECT discord_id FROM guilds WHERE id = ?', [server.guild_id]);
+      const [guildResult] = await pool.execute('SELECT discord_id FROM guilds WHERE id = ?', [server.guild_id]);
       if (guildResult.length > 0) {
         const guildId = guildResult[0].discord_id;
         const key = `${guildId}_${server.nickname}`;
@@ -415,7 +415,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     console.log('[KIT CLAIM DEBUG] Processing claim for:', kitKey, 'player:', player, 'server:', serverName);
     
     // Get server ID
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.execute(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
@@ -428,7 +428,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     const serverId = serverResult[0].id;
 
     // Check if kit is enabled
-    const [autokitResult] = await pool.query(
+    const [autokitResult] = await pool.execute(
       'SELECT enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
       [serverId, kitKey]
     );
@@ -467,7 +467,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       console.log('[KIT CLAIM DEBUG] Checking elite authorization for:', kitKey, 'player:', player);
       
       // First check if player is linked
-      const [playerResult] = await pool.query(
+      const [playerResult] = await pool.execute(
         'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
@@ -479,7 +479,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       }
       
       // Then check if player is authorized for this kit
-      const [authResult] = await pool.query(
+      const [authResult] = await pool.execute(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
          WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
