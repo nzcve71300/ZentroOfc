@@ -1340,5 +1340,7 @@ module.exports = {
   sendRconCommand,
   getServerInfo,
   activeConnections,
-  restoreZonesOnStartup
+  restoreZonesOnStartup,
+  sendFeedEmbed,
+  updatePlayerCountChannel
 }; 

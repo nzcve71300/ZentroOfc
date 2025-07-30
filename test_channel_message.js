@@ -34,11 +34,11 @@ async function testChannelMessage() {
       console.log(`  - ${setting.guild_name}: ${setting.nickname} -> ${setting.channel_type} (${setting.channel_id})`);
     });
 
-    // Test the sendFeedEmbed function
+    // Test the sendFeedEmbed function directly
     console.log('\n🧪 Testing sendFeedEmbed function...');
     
-    // Import the function
-    const { sendFeedEmbed } = require('./src/rcon');
+    // Import the RCON module to access the function
+    const rconModule = require('./src/rcon');
     
     // Test with the first channel setting
     const testSetting = channelSettings[0];
@@ -48,7 +48,8 @@ async function testChannelMessage() {
     console.log(`Message: ${testMessage}`);
     
     try {
-      await sendFeedEmbed(null, testSetting.discord_id, testSetting.nickname, testSetting.channel_type, testMessage);
+      // Call sendFeedEmbed directly from the module
+      await rconModule.sendFeedEmbed(null, testSetting.discord_id, testSetting.nickname, testSetting.channel_type, testMessage);
       console.log('✅ Test message sent successfully!');
     } catch (error) {
       console.log('❌ Test message failed:', error.message);
@@ -56,10 +57,9 @@ async function testChannelMessage() {
 
     // Test player count update
     console.log('\n🧪 Testing player count update...');
-    const { updatePlayerCountChannel } = require('./src/rcon');
     
     try {
-      await updatePlayerCountChannel(null, testSetting.discord_id, testSetting.nickname, 25, 5);
+      await rconModule.updatePlayerCountChannel(null, testSetting.discord_id, testSetting.nickname, 25, 5);
       console.log('✅ Player count update test completed!');
     } catch (error) {
       console.log('❌ Player count update failed:', error.message);
