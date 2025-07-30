@@ -71,7 +71,7 @@ module.exports = {
       }
 
       const affectedPlayers = [];
-      for (const player of players.rows) {
+      for (const player of players) {
         const newBalance = await updatePlayerBalance(player.id, amount);
         await recordTransaction(player.id, amount, 'admin_server_add');
         affectedPlayers.push({ ign: player.ign, balance: newBalance });
@@ -79,7 +79,7 @@ module.exports = {
 
       const embed = successEmbed(
         'Currency Added to Server', 
-        `Added **${amount} coins** to all players on **${serverName}**.\n\n**Players Affected:** ${affectedPlayers.length}`
+        `Added **${amount} coins** to all players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
       );
 
       // Add player details if there are 10 or fewer players
