@@ -1,169 +1,140 @@
-const mysql = require('mysql2/promise');
 require('dotenv').config();
+const mysql = require('mysql2/promise');
 
 async function comprehensiveFix() {
-  console.log('🚀 Comprehensive Fix for Zentro Bot');
-  console.log('=====================================\n');
+  const pool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  });
 
-  // Step 1: Test database connection
-  console.log('1️⃣ Testing database connection...');
-  let pool;
   try {
-    pool = mysql.createPool({
-      host: process.env.DB_HOST,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      port: process.env.DB_PORT || 3306,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
+    console.log('🔧 Comprehensive fix for channels, autokits, killfeed, and positions...');
     
-    const [result] = await pool.query('SELECT 1 as test');
-    console.log('✅ Database connection successful!');
+    // Step 1: Fix channel settings
+    console.log('\n📺 Step 1: Fixing channel settings...');
     
-    // Step 2: Check and fix database schema
-    console.log('\n2️⃣ Checking database schema...');
+    // Delete all existing channel settings for this server
+    await pool.query(
+      'DELETE FROM channel_settings WHERE server_id = ?',
+      ['1753872071391_i24dewly']
+    );
     
-    // Check if economy table exists and has required columns
-    try {
-      const [economyColumns] = await pool.query('DESCRIBE economy');
-      const columnNames = economyColumns.map(col => col.Field);
-      
-      console.log('📊 Economy table columns:', columnNames);
-      
-      // Add missing columns
-      const requiredColumns = ['guild_id', 'server_id', 'discord_id'];
-      for (const col of requiredColumns) {
-        if (!columnNames.includes(col)) {
-          console.log(`➕ Adding ${col} column to economy table...`);
-          await pool.query(`ALTER TABLE economy ADD COLUMN ${col} VARCHAR(32)`);
-        }
-      }
-    } catch (error) {
-      console.log('❌ Economy table does not exist - creating it...');
-      await pool.query(`
-        CREATE TABLE economy (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          player_id INT,
-          guild_id VARCHAR(32),
-          server_id VARCHAR(32),
-          discord_id VARCHAR(32),
-          balance INT DEFAULT 0,
-          FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
-        )
-      `);
-    }
-    
-    // Check if transactions table exists and has required columns
-    try {
-      const [transactionColumns] = await pool.query('DESCRIBE transactions');
-      const columnNames = transactionColumns.map(col => col.Field);
-      
-      console.log('📈 Transactions table columns:', columnNames);
-      
-      // Add missing columns
-      const requiredColumns = ['guild_id', 'server_id', 'discord_id'];
-      for (const col of requiredColumns) {
-        if (!columnNames.includes(col)) {
-          console.log(`➕ Adding ${col} column to transactions table...`);
-          await pool.query(`ALTER TABLE transactions ADD COLUMN ${col} VARCHAR(32)`);
-        }
-      }
-    } catch (error) {
-      console.log('❌ Transactions table does not exist - creating it...');
-      await pool.query(`
-        CREATE TABLE transactions (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          player_id INT,
-          guild_id VARCHAR(32),
-          server_id VARCHAR(32),
-          discord_id VARCHAR(32),
-          amount INT NOT NULL,
-          type TEXT NOT NULL,
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
-        )
-      `);
-    }
-    
-    // Step 3: Clean up invalid servers
-    console.log('\n3️⃣ Cleaning up invalid servers...');
-    const [invalidServers] = await pool.query(`
-      SELECT id, nickname, ip, port 
-      FROM rust_servers 
-      WHERE ip = '0.0.0.0' 
-         OR ip = 'PLACEHOLDER_IP' 
-         OR ip = 'localhost' 
-         OR ip = '127.0.0.1'
-         OR ip IS NULL
-         OR port = 0
-         OR port IS NULL
-    `);
-    
-    if (invalidServers.length > 0) {
-      console.log(`⚠️ Found ${invalidServers.length} invalid servers:`);
-      invalidServers.forEach(server => {
-        console.log(`   - ${server.nickname} (${server.ip}:${server.port})`);
-      });
-      
-      console.log('\n🗑️ Deleting invalid servers...');
-      await pool.query(`
-        DELETE FROM rust_servers 
-        WHERE ip = '0.0.0.0' 
-           OR ip = 'PLACEHOLDER_IP' 
-           OR ip = 'localhost' 
-           OR ip = '127.0.0.1'
-           OR ip IS NULL
-           OR port = 0
-           OR port IS NULL
-      `);
-      console.log('✅ Invalid servers deleted');
-    } else {
-      console.log('✅ No invalid servers found');
-    }
-    
-    // Step 4: Create indexes for performance
-    console.log('\n4️⃣ Creating database indexes...');
-    const indexes = [
-      'CREATE INDEX IF NOT EXISTS idx_economy_guild_server ON economy(guild_id, server_id)',
-      'CREATE INDEX IF NOT EXISTS idx_economy_discord ON economy(discord_id)',
-      'CREATE INDEX IF NOT EXISTS idx_transactions_guild_server ON transactions(guild_id, server_id)',
-      'CREATE INDEX IF NOT EXISTS idx_transactions_discord ON transactions(discord_id)',
-      'CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp)'
+    // Insert fresh channel settings with correct IDs
+    const channelSettings = [
+      ['1753872071391_i24dewly', 'adminfeed', 1400098668123783268],
+      ['1753872071391_i24dewly', 'admin_feed', 1400098668123783268],
+      ['1753872071391_i24dewly', 'playercount', 1400098489311953007],
+      ['1753872071391_i24dewly', 'playerfeed', 1396872848748052581],
+      ['1753872071391_i24dewly', 'notefeed', 1397975202184429618],
+      ['1753872071391_i24dewly', 'eventfeed', 1397975202184429618],
+      ['1753872071391_i24dewly', 'killfeed', 1397975202184429618]
     ];
     
-    for (const indexQuery of indexes) {
-      try {
-        await pool.query(indexQuery);
-        console.log(`✅ Created index: ${indexQuery.split(' ')[2]}`);
-      } catch (error) {
-        if (error.message.includes('Duplicate key name') || error.message.includes('already exists')) {
-          console.log(`ℹ️ Index already exists: ${indexQuery.split(' ')[2]}`);
-        } else {
-          console.error(`❌ Failed to create index: ${error.message}`);
-        }
-      }
+    for (const [serverId, channelType, channelId] of channelSettings) {
+      await pool.query(
+        'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        [serverId, channelType, channelId]
+      );
     }
     
-    console.log('\n✅ Comprehensive fix completed successfully!');
-    console.log('\n📝 Next steps:');
-    console.log('1. Restart your bot to apply the RCON fixes');
-    console.log('2. Add valid servers with correct IP addresses');
-    console.log('3. The bot will now skip invalid servers automatically');
+    console.log('✅ Channel settings updated');
+    
+    // Step 2: Verify channel settings
+    console.log('\n🔍 Step 2: Verifying channel settings...');
+    const [verifyResult] = await pool.query(
+      `SELECT cs.channel_type, cs.channel_id 
+       FROM channel_settings cs 
+       JOIN rust_servers rs ON cs.server_id = rs.id 
+       JOIN guilds g ON rs.guild_id = g.id 
+       WHERE g.discord_id = '1391149977434329230' AND rs.nickname = 'RISE 3X'`
+    );
+    
+    console.log('📋 Current channel settings:');
+    verifyResult.forEach(channel => {
+      console.log(`- ${channel.channel_type}: ${channel.channel_id}`);
+    });
+    
+    // Step 3: Check autokits configuration
+    console.log('\n📦 Step 3: Checking autokits...');
+    const [autokitsResult] = await pool.query('SELECT COUNT(*) as count FROM autokits');
+    console.log(`- Found ${autokitsResult[0].count} autokit configurations`);
+    
+    // Test autokit query
+    const [testAutokit] = await pool.query(
+      'SELECT enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
+      ['1753872071391_i24dewly', 'FREEkit1']
+    );
+    
+    if (testAutokit.length > 0) {
+      console.log(`- Test autokit query works: ${testAutokit[0].enabled ? 'enabled' : 'disabled'}`);
+    } else {
+      console.log('- No autokit configurations found for test server');
+    }
+    
+    // Step 4: Check killfeed configuration
+    console.log('\n💀 Step 4: Checking killfeed...');
+    const [killfeedResult] = await pool.query('SELECT COUNT(*) as count FROM killfeed_configs');
+    console.log(`- Found ${killfeedResult[0].count} killfeed configurations`);
+    
+    const [testKillfeed] = await pool.query(
+      'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = ?',
+      ['1753872071391_i24dewly']
+    );
+    
+    if (testKillfeed.length > 0) {
+      console.log(`- Test killfeed query works: ${testKillfeed[0].enabled ? 'enabled' : 'disabled'}`);
+    } else {
+      console.log('- No killfeed configurations found for test server');
+    }
+    
+    // Step 5: Check positions configuration
+    console.log('\n📍 Step 5: Checking positions...');
+    const [positionsResult] = await pool.query('SELECT COUNT(*) as count FROM position_coordinates');
+    console.log(`- Found ${positionsResult[0].count} position coordinates`);
+    
+    const [testPosition] = await pool.query(
+      'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
+      ['1753872071391_i24dewly', 'outpost']
+    );
+    
+    if (testPosition.length > 0) {
+      console.log(`- Test position query works: ${testPosition[0].x_pos}, ${testPosition[0].y_pos}, ${testPosition[0].z_pos}`);
+    } else {
+      console.log('- No position coordinates found for test server');
+    }
+    
+    // Check position configs
+    const [positionConfigsResult] = await pool.query('SELECT COUNT(*) as count FROM position_configs');
+    console.log(`- Found ${positionConfigsResult[0].count} position configurations`);
+    
+    const [testPositionConfig] = await pool.query(
+      'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = ? AND position_type = ?',
+      ['1753872071391_i24dewly', 'outpost']
+    );
+    
+    if (testPositionConfig.length > 0) {
+      console.log(`- Test position config query works: ${testPositionConfig[0].enabled ? 'enabled' : 'disabled'}`);
+    } else {
+      console.log('- No position configurations found for test server');
+    }
+    
+    console.log('\n✅ Comprehensive fix completed!');
+    console.log('\n📋 Next steps:');
+    console.log('1. Restart your bot: pm2 restart zentro-bot');
+    console.log('2. Test admin spawn messages in your Rust server');
+    console.log('3. Test autokits: /kit FREEkit1');
+    console.log('4. Test killfeed by killing someone');
+    console.log('5. Test positions with outpost/bandit camp emotes');
     
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    console.log('\n💡 To fix this:');
-    console.log('1. Make sure MySQL/MariaDB is running');
-    console.log('2. Check your database credentials in .env file');
-    console.log('3. Ensure the database exists');
-    console.log('4. Try: mysql -u root -p to test connection');
+    console.error('❌ Error:', error);
   } finally {
-    if (pool) {
-      await pool.end();
-    }
+    await pool.end();
   }
 }
 

@@ -75,7 +75,7 @@ module.exports = {
         
         // Create a map of existing configurations
         const configMap = {};
-        autokitsResult.rows.forEach(row => {
+        autokitsResult.forEach(row => {
           configMap[row.kit_name] = row;
         });
 
