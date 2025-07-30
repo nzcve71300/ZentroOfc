@@ -26,13 +26,21 @@ module.exports = {
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
+
     try {
-      const [servers] = await pool.query(
+      const [result] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
-      await interaction.respond(servers.rows.map(row => ({ name: row.nickname, value: row.nickname })));
-    } catch {
+
+      const choices = result.map(row => ({
+        name: row.nickname,
+        value: row.nickname
+      }));
+
+      await interaction.respond(choices);
+    } catch (error) {
+      console.error('Autocomplete error:', error);
       await interaction.respond([]);
     }
   },
