@@ -44,7 +44,7 @@ module.exports = {
 
       const choices = result.map(row => ({
         name: row.nickname,
-        value: row.id.toString()
+        value: row.nickname
       }));
 
       await interaction.respond(choices);
@@ -62,19 +62,19 @@ module.exports = {
       return sendAccessDeniedMessage(interaction, false);
     }
 
-    const serverId = parseInt(interaction.options.getString('server'));
+    const serverNickname = interaction.options.getString('server');
     const channel = interaction.options.getChannel('channel');
     const channelType = interaction.options.getString('channel_type');
     const guildId = interaction.guildId;
 
     try {
-      // Verify server exists and belongs to this guild
+            // Verify server exists and belongs to this guild
       const [serverResult] = await pool.query(
-        `SELECT rs.nickname 
-         FROM rust_servers rs 
-         JOIN guilds g ON rs.guild_id = g.id 
-         WHERE rs.id = ? AND g.discord_id = ?`,
-        [serverId, guildId]
+        `SELECT rs.id, rs.nickname
+         FROM rust_servers rs
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE rs.nickname = ? AND g.discord_id = ?`,
+        [serverNickname, guildId]
       );
 
       if (serverResult.length === 0) {
@@ -83,6 +83,7 @@ module.exports = {
         });
       }
 
+      const serverId = serverResult[0].id;
       const serverName = serverResult[0].nickname;
 
       // Validate channel type requirements
