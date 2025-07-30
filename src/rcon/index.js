@@ -428,12 +428,12 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     const serverId = serverResult[0].id;
 
     // Check if kit is enabled
-    const autokitResult = await pool.query(
+    const [autokitResult] = await pool.query(
       'SELECT enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
       [serverId, kitKey]
     );
 
-    console.log('[KIT CLAIM DEBUG] Autokit config:', autokitResult[0]);
+    console.log('[KIT CLAIM DEBUG] Autokit config:', autokitResult);
 
     if (autokitResult.length === 0 || !autokitResult[0].enabled) {
       console.log('[KIT CLAIM DEBUG] Kit not enabled or not found:', kitKey);
@@ -467,7 +467,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       console.log('[KIT CLAIM DEBUG] Checking elite authorization for:', kitKey, 'player:', player);
       
       // First check if player is linked
-      const playerResult = await pool.query(
+      const [playerResult] = await pool.query(
         'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
@@ -479,7 +479,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       }
       
       // Then check if player is authorized for this kit
-      const authResult = await pool.query(
+      const [authResult] = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
          WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
