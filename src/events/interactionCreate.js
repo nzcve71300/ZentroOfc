@@ -592,38 +592,64 @@ async function handleBlackjackBet(interaction) {
   }
 
   try {
-    // Get server info using shared helper
-    const server = await getServerById(guildId, serverId);
-    if (!server) {
+    // Get server info using unified system
+    const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance, updatePlayerBalance, recordTransaction } = require('../utils/unifiedPlayerSystem');
+    
+    // Get server by ID
+    const [serverResult] = await pool.query(
+      'SELECT * FROM rust_servers WHERE id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)',
+      [serverId, guildId]
+    );
+    
+    if (serverResult.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
       });
     }
 
-    // Check player balance for this server
-    const balanceResult = await pool.query(
-      `SELECT e.balance, p.id as player_id, rs.nickname
-       FROM players p
-       JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = ? AND rs.id = ? AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
-       LIMIT 1`,
-      [userId, serverId, guildId]
-    );
+    const server = serverResult[0];
 
-    if (balanceResult.rows.length === 0) {
+    // Get player using unified system
+    const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
+    if (!player) {
       return interaction.editReply({
         embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character on this server first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    const { balance, player_id, nickname } = balanceResult.rows[0];
+    // Get balance using unified system
+    const balance = await getPlayerBalance(player.id);
 
     if (balance < betAmount) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} on ${nickname}. Your balance: ${balance}.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} on ${server.nickname}. Your balance: ${balance}.`)]
       });
     }
+
+    // Get bet limits from eco_games table
+    const limitsResult = await pool.query(
+      'SELECT option_value FROM eco_games WHERE server_id = ? AND setup = "blackjack" AND option = "min_max_bet"',
+      [serverId]
+    );
+
+    if (!limitsResult[0] || limitsResult[0].length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Configuration Error', 'Blackjack is not configured for this server.')]
+      });
+    }
+
+    const [minBet, maxBet] = limitsResult[0][0].option_value.split(',').map(Number);
+    if (betAmount < minBet || betAmount > maxBet) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid Bet', `Bet must be between ${minBet} and ${maxBet} coins.`)]
+      });
+    }
+
+    // Deduct bet from balance
+    await pool.query(
+      'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
+      [betAmount, player.id]
+    );
 
     // Simple blackjack game logic
     const playerCard1 = Math.floor(Math.random() * 10) + 1;
@@ -650,23 +676,24 @@ async function handleBlackjackBet(interaction) {
       winnings = 0;
     }
 
-    // Update balance using shared helper
-    const balanceResult2 = await updateBalance(player_id, winnings - betAmount);
-    if (!balanceResult2.success) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to update balance. Please try again.')]
-      });
-    }
+    // Update balance
+    await pool.query(
+      'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+      [winnings, player.id]
+    );
 
-    // Record transaction using shared helper
-    await recordTransaction(player_id, winnings - betAmount, 'blackjack');
+    // Record transaction
+    await pool.query(
+      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
+      [player.id, winnings - betAmount, 'blackjack']
+    );
 
     const gameText = `**Your cards:** ${playerCard1}, ${playerCard2} (${playerTotal})\n**Dealer's cards:** ${dealerCard1}, ${dealerCard2} (${dealerTotal})\n\n**Result:** ${result}`;
-    const balanceText = winnings > 0 ? `**Winnings:** +${winnings}\n**New Balance:** ${balanceResult2.newBalance}` : `**Loss:** -${betAmount}\n**New Balance:** ${balanceResult2.newBalance}`;
+    const balanceText = winnings > 0 ? `**Winnings:** +${winnings}\n**New Balance:** ${balance + winnings - betAmount}` : `**Loss:** -${betAmount}\n**New Balance:** ${balance - betAmount}`;
 
     await interaction.editReply({
       embeds: [orangeEmbed(
-        `Blackjack (${nickname})`,
+        `🎰 **BLACKJACK** 🎰`,
         `${gameText}\n\n${balanceText}`
       )]
     });
@@ -695,38 +722,64 @@ async function handleSlotsBet(interaction) {
   }
 
   try {
-    // Get server info using shared helper
-    const server = await getServerById(guildId, serverId);
-    if (!server) {
+    // Get server info using unified system
+    const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance, updatePlayerBalance, recordTransaction } = require('../utils/unifiedPlayerSystem');
+    
+    // Get server by ID
+    const [serverResult] = await pool.query(
+      'SELECT * FROM rust_servers WHERE id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)',
+      [serverId, guildId]
+    );
+    
+    if (serverResult.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
       });
     }
 
-    // Check player balance for this server
-    const balanceResult = await pool.query(
-      `SELECT e.balance, p.id as player_id, rs.nickname
-       FROM players p
-       JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = ? AND rs.id = ? AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
-       LIMIT 1`,
-      [userId, serverId, guildId]
-    );
+    const server = serverResult[0];
 
-    if (balanceResult.rows.length === 0) {
+    // Get player using unified system
+    const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
+    if (!player) {
       return interaction.editReply({
         embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character on this server first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    const { balance, player_id, nickname } = balanceResult.rows[0];
+    // Get balance using unified system
+    const balance = await getPlayerBalance(player.id);
 
     if (balance < betAmount) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} on ${nickname}. Your balance: ${balance}.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You don't have enough balance to bet ${betAmount} on ${server.nickname}. Your balance: ${balance}.`)]
       });
     }
+
+    // Get bet limits from eco_games table
+    const limitsResult = await pool.query(
+      'SELECT option_value FROM eco_games WHERE server_id = ? AND setup = "slots" AND option = "min_max_bet"',
+      [serverId]
+    );
+
+    if (!limitsResult[0] || limitsResult[0].length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Configuration Error', 'Slots is not configured for this server.')]
+      });
+    }
+
+    const [minBet, maxBet] = limitsResult[0][0].option_value.split(',').map(Number);
+    if (betAmount < minBet || betAmount > maxBet) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid Bet', `Bet must be between ${minBet} and ${maxBet} coins.`)]
+      });
+    }
+
+    // Deduct bet from balance
+    await pool.query(
+      'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
+      [betAmount, player.id]
+    );
 
     // Simple slots game logic
     const symbols = ['🍎', '🍊', '🍇', '🍒', '💎', '7️⃣'];
@@ -755,23 +808,24 @@ async function handleSlotsBet(interaction) {
       winnings = 0;
     }
 
-    // Update balance using shared helper
-    const balanceResult2 = await updateBalance(player_id, winnings - betAmount);
-    if (!balanceResult2.success) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to update balance. Please try again.')]
-      });
-    }
+    // Update balance
+    await pool.query(
+      'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+      [winnings, player.id]
+    );
 
-    // Record transaction using shared helper
-    await recordTransaction(player_id, winnings - betAmount, 'slots');
+    // Record transaction
+    await pool.query(
+      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
+      [player.id, winnings - betAmount, 'slots']
+    );
 
     const gameText = `**Reels:** ${reel1} | ${reel2} | ${reel3}\n\n**Result:** ${result}`;
-    const balanceText = winnings > 0 ? `**Winnings:** +${winnings}\n**New Balance:** ${balanceResult2.newBalance}` : `**Loss:** -${betAmount}\n**New Balance:** ${balanceResult2.newBalance}`;
+    const balanceText = winnings > 0 ? `**Winnings:** +${winnings}\n**New Balance:** ${balance + winnings - betAmount}` : `**Loss:** -${betAmount}\n**New Balance:** ${balance - betAmount}`;
 
     await interaction.editReply({
       embeds: [orangeEmbed(
-        `Slots (${nickname})`,
+        `🎰 **SLOTS** 🎰`,
         `${gameText}\n\n${balanceText}`
       )]
     });
