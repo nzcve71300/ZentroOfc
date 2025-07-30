@@ -35,13 +35,37 @@ async function finalFixGuildId() {
         const [after] = await pool.execute('SELECT id, discord_id, name FROM guilds WHERE id = 2');
         console.log('   Updated guild data:', after);
         
-        if (after[0].discord_id == correctGuildId) {
+        // Fix the comparison - use strict equality and convert to string
+        const actualGuildId = String(after[0].discord_id);
+        const expectedGuildId = String(correctGuildId);
+        
+        console.log(`   Expected: ${expectedGuildId}`);
+        console.log(`   Actual: ${actualGuildId}`);
+        
+        if (actualGuildId === expectedGuildId) {
             console.log('✅ SUCCESS! Guild discord_id is now correct.');
             console.log('🔄 Now restart your bot: pm2 restart zentro-bot');
         } else {
             console.log('❌ FAILED! Guild discord_id is still wrong.');
-            console.log(`   Expected: ${correctGuildId}`);
-            console.log(`   Actual: ${after[0].discord_id}`);
+            console.log('🔄 The database update did not work. Trying alternative method...');
+            
+            // Try alternative method - delete and reinsert
+            console.log('\n🔧 Trying alternative method - delete and reinsert...');
+            await pool.execute('DELETE FROM guilds WHERE id = 2');
+            await pool.execute(
+                'INSERT INTO guilds (id, discord_id, name) VALUES (2, ?, ?)',
+                [correctGuildId, 'RISE 3X']
+            );
+            
+            const [finalCheck] = await pool.execute('SELECT id, discord_id, name FROM guilds WHERE id = 2');
+            console.log('   Final guild data:', finalCheck);
+            
+            if (String(finalCheck[0].discord_id) === correctGuildId) {
+                console.log('✅ SUCCESS! Guild discord_id is now correct.');
+                console.log('🔄 Now restart your bot: pm2 restart zentro-bot');
+            } else {
+                console.log('❌ FAILED! Database update is not working.');
+            }
         }
 
     } catch (error) {
