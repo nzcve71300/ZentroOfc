@@ -1,110 +1,158 @@
-const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-const { orangeEmbed, errorEmbed } = require('../../embeds/format');
-const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
+const { SlashCommandBuilder } = require('discord.js');
+const { orangeEmbed, errorEmbed } = require('../../utils/embeds');
+const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('blackjack')
-    .setDescription('Play blackjack for currency')
+    .setDescription('Play blackjack with your coins')
     .addStringOption(option =>
       option.setName('server')
-        .setDescription('Select a server to gamble on')
+        .setDescription('The server to play on')
         .setRequired(true)
-        .setAutocomplete(true)
-    ),
+        .setAutocomplete(true))
+    .addIntegerOption(option =>
+      option.setName('amount')
+        .setDescription('Amount to bet')
+        .setRequired(true)
+        .setMinValue(1)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
+
     try {
-      const servers = await getServersForGuild(guildId);
-      const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
-      await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
-    } catch (err) {
-      console.error('Autocomplete error:', err);
+      const [servers] = await pool.query(
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ?',
+        [guildId, `%${focusedValue}%`]
+      );
+
+      await interaction.respond(
+        servers.map(server => ({ name: server.nickname, value: server.nickname }))
+      );
+    } catch (error) {
+      console.error('Blackjack autocomplete error:', error);
       await interaction.respond([]);
     }
   },
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
     const serverOption = interaction.options.getString('server');
+    const betAmount = interaction.options.getInteger('amount');
 
     try {
       // Get server
       const server = await getServerByNickname(guildId, serverOption);
       if (!server) {
-        return interaction.reply({
-          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')],
-          ephemeral: true
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
         });
       }
 
       // Get player using unified system
       const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
       if (!player) {
-        return interaction.reply({
+        return interaction.editReply({
           embeds: [errorEmbed(
             'Account Not Linked',
             'You must link your account using `/link <in-game-name>` before playing blackjack.'
-          )],
-          ephemeral: true
+          )]
         });
       }
 
-      // Get balance using unified system
+      // Get balance
       const balance = await getPlayerBalance(player.id);
 
-      // Get game config (min/max bet)
-      const [configResult] = await pool.query(
-        `SELECT option_value FROM eco_games WHERE server_id = ? AND setup = 'blackjack' AND option = 'min_max_bet'`,
+      // Get bet limits from eco_games table
+      const [limitsResult] = await pool.query(
+        'SELECT option_value FROM eco_games WHERE server_id = ? AND setup = "blackjack" AND option = "min_max_bet"',
         [server.id]
       );
-      let minBet = 1;
-      let maxBet = 10000;
-      if (configResult.length > 0) {
-        const [min, max] = configResult[0].option_value.split(',').map(Number);
-        minBet = min || minBet;
-        maxBet = max || maxBet;
+
+      if (!limitsResult || limitsResult.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Configuration Error', 'Blackjack is not configured for this server.')]
+        });
       }
 
-      // Build modal for bet
-      const modal = new ModalBuilder()
-        .setCustomId(`blackjack_bet_${server.id}`)
-        .setTitle(`Blackjack - Place Your Bet (${server.nickname})`);
-      const betInput = new TextInputBuilder()
-        .setCustomId('bet_amount')
-        .setLabel(`Enter your bet (${minBet}-${maxBet})`)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder(`Your balance: ${balance}`)
-        .setRequired(true);
-      const row = new ActionRowBuilder().addComponents(betInput);
-      modal.addComponents(row);
+      const [minBet, maxBet] = limitsResult[0].option_value.split(',').map(Number);
+      if (betAmount < minBet || betAmount > maxBet) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Invalid Bet', `Bet must be between ${minBet.toLocaleString()} and ${maxBet.toLocaleString()} coins.`)]
+        });
+      }
 
-      // Show the modal first
-      await interaction.showModal(modal);
-      
-      // Then send the embed as a follow-up
-      const embed = orangeEmbed('🎰 **BLACKJACK** 🎰', `Welcome to the high-stakes table!`);
-      
-      embed.addFields(
-        { name: '💰 **Your Balance**', value: `**${balance.toLocaleString()}** coins`, inline: true },
-        { name: '🎯 **Bet Limits**', value: `**${minBet.toLocaleString()}** - **${maxBet.toLocaleString()}** coins`, inline: true },
-        { name: '🎲 **Game Rules**', value: 'Get as close to 21 as possible without going over. Beat the dealer to win!', inline: false }
+      if (balance < betAmount) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Insufficient Balance', `You only have ${balance.toLocaleString()} coins. Please bet less or earn more coins.`)]
+        });
+      }
+
+      // Deduct bet from balance
+      await pool.query(
+        'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
+        [betAmount, player.id]
       );
-      
-      embed.setFooter({ text: '💎 Premium Gaming Experience • Good luck!' });
-      
-      await interaction.followUp({ embeds: [embed] });
+
+      // Simple blackjack game logic
+      const playerCard1 = Math.floor(Math.random() * 10) + 1;
+      const playerCard2 = Math.floor(Math.random() * 10) + 1;
+      const dealerCard1 = Math.floor(Math.random() * 10) + 1;
+      const dealerCard2 = Math.floor(Math.random() * 10) + 1;
+
+      const playerTotal = playerCard1 + playerCard2;
+      const dealerTotal = dealerCard1 + dealerCard2;
+
+      let result, winnings = 0;
+
+      if (playerTotal === 21) {
+        result = '🎰 **BLACKJACK!** 🎰';
+        winnings = Math.floor(betAmount * 2.5);
+      } else if (playerTotal > dealerTotal && playerTotal <= 21) {
+        result = '🎯 **You Win!** 🎯';
+        winnings = betAmount * 2;
+      } else if (dealerTotal > 21) {
+        result = '💥 **Dealer Bust! You Win!** 💥';
+        winnings = betAmount * 2;
+      } else {
+        result = '❌ **You Lose!** ❌';
+        winnings = 0;
+      }
+
+      // Update balance with winnings
+      if (winnings > 0) {
+        await pool.query(
+          'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+          [winnings, player.id]
+        );
+      }
+
+      // Record transaction
+      await pool.query(
+        'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
+        [player.id, winnings - betAmount, 'blackjack']
+      );
+
+      const gameText = `**Your Cards:** ${playerCard1}, ${playerCard2} (${playerTotal})\n**Dealer's Cards:** ${dealerCard1}, ${dealerCard2} (${dealerTotal})`;
+      const balanceText = winnings > 0 
+        ? `**💰 Winnings:** +${winnings.toLocaleString()} coins\n**💰 New Balance:** ${(balance + winnings - betAmount).toLocaleString()} coins`
+        : `**💸 Loss:** -${betAmount.toLocaleString()} coins\n**💰 New Balance:** ${(balance - betAmount).toLocaleString()} coins`;
+
+      const embed = orangeEmbed('🎰 **BLACKJACK** 🎰', `${result}\n\n${gameText}\n\n${balanceText}`);
+      embed.setFooter({ text: '💎 Premium Gaming Experience • Good luck next time!' });
+
+      return interaction.editReply({ embeds: [embed] });
 
     } catch (err) {
       console.error('Blackjack error:', err);
-      await interaction.reply({
-        embeds: [errorEmbed('Error', 'Failed to start Blackjack. Please try again.')],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to process Blackjack game. Please try again.')]
       });
     }
-  },
+  }
 };
