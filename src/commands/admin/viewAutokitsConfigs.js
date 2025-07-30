@@ -29,7 +29,7 @@ module.exports = {
 
     try {
       // Get all servers for this guild
-      const [serversResult] = await pool.query(
+      const serversResult = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? ORDER BY rs.nickname',
         [guildId]
       );
@@ -65,7 +65,7 @@ module.exports = {
       // Process each server on this page
       for (const server of serversOnPage) {
         // Get all autokit configurations for this server
-        const [autokitsResult] = await pool.query(
+        const autokitsResult = await pool.query(
           'SELECT kit_name, enabled, cooldown, game_name FROM autokits WHERE server_id = ? ORDER BY kit_name',
           [server.id]
         );

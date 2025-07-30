@@ -23,7 +23,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const [result] = await pool.query(
+      const result = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
@@ -54,7 +54,7 @@ module.exports = {
 
     try {
       // Get server info
-      const [serverResult] = await pool.query(
+      const serverResult = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
         [guildId, serverOption]
       );
