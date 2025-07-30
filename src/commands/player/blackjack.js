@@ -28,8 +28,6 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
-
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
     const serverOption = interaction.options.getString('server');
@@ -38,19 +36,21 @@ module.exports = {
       // Get server
       const server = await getServerByNickname(guildId, serverOption);
       if (!server) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')]
+        return interaction.reply({
+          embeds: [errorEmbed('Server Not Found', 'The specified server was not found.')],
+          ephemeral: true
         });
       }
 
       // Get player using unified system
       const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
       if (!player) {
-        return interaction.editReply({
+        return interaction.reply({
           embeds: [errorEmbed(
             'Account Not Linked',
             'You must link your account using `/link <in-game-name>` before playing blackjack.'
-          )]
+          )],
+          ephemeral: true
         });
       }
 
@@ -101,8 +101,9 @@ module.exports = {
 
     } catch (err) {
       console.error('Blackjack error:', err);
-      await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to start Blackjack. Please try again.')]
+      await interaction.reply({
+        embeds: [errorEmbed('Error', 'Failed to start Blackjack. Please try again.')],
+        ephemeral: true
       });
     }
   },
