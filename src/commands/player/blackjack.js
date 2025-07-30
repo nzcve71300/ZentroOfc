@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { orangeEmbed, errorEmbed } = require('../../utils/embeds');
+const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
