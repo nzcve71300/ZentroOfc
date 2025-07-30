@@ -105,32 +105,47 @@ module.exports = {
         [serverId, channelType]
       );
 
-      if (existingResult.length > 0) {
-        // Update existing setting
-        await pool.query(
-          'UPDATE channel_settings SET channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?',
-          [channel.id, serverId, channelType]
-        );
+      try {
+        if (existingResult.length > 0) {
+          // Update existing setting
+          await pool.query(
+            'UPDATE channel_settings SET channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?',
+            [channel.id, serverId, channelType]
+          );
 
-        await interaction.editReply({
-          embeds: [successEmbed(
-            'Channel Updated',
-            `**${channelType}** channel for **${serverName}** has been updated to <#${channel.id}>`
-          )]
-        });
-      } else {
-        // Create new setting
-        await pool.query(
-          'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-          [serverId, channelType, channel.id]
-        );
+          await interaction.editReply({
+            embeds: [successEmbed(
+              'Channel Updated',
+              `**${channelType}** channel for **${serverName}** has been updated to <#${channel.id}>\n\nPrevious channel: <#${existingResult[0].channel_id}>`
+            )]
+          });
+        } else {
+          // Create new setting
+          await pool.query(
+            'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+            [serverId, channelType, channel.id]
+          );
 
-        await interaction.editReply({
-          embeds: [successEmbed(
-            'Channel Set',
-            `**${channelType}** channel for **${serverName}** has been set to <#${channel.id}>`
-          )]
-        });
+          await interaction.editReply({
+            embeds: [successEmbed(
+              'Channel Set',
+              `**${channelType}** channel for **${serverName}** has been set to <#${channel.id}>`
+            )]
+          });
+        }
+      } catch (dbError) {
+        console.error('Database error in channel-set:', dbError);
+        
+        // If there's a foreign key constraint error, try to clean up and retry
+        if (dbError.code === 'ER_NO_REFERENCED_ROW_2') {
+          await interaction.editReply({
+            embeds: [errorEmbed('Database Error', 'There was an issue with the database constraint. Please try again or contact support.')]
+          });
+        } else {
+          await interaction.editReply({
+            embeds: [errorEmbed('Database Error', `Failed to set channel: ${dbError.message}`)]
+          });
+        }
       }
 
     } catch (error) {

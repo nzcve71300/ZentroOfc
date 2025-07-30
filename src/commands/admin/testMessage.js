@@ -49,7 +49,7 @@ module.exports = {
 
   async execute(interaction) {
     try {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
       const guildId = interaction.guildId;
       const serverName = interaction.options.getString('server');
@@ -58,7 +58,7 @@ module.exports = {
       // Check if user has admin permissions
       if (!interaction.member.permissions.has('Administrator')) {
         return interaction.editReply({
-          embeds: [errorEmbed('❌ **Permission Denied**\nYou need Administrator permissions to use this command.')]
+          embeds: [errorEmbed('Permission Denied', 'You need Administrator permissions to use this command.')]
         });
       }
 
@@ -74,7 +74,7 @@ module.exports = {
 
       if (channelResult.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed(`❌ **Channel Not Configured**\nNo ${channelType} channel configured for ${serverName}.\nUse \`/channel-set\` to configure channels.`)]
+          embeds: [errorEmbed('Channel Not Configured', `No ${channelType} channel configured for ${serverName}.\nUse \`/channel-set\` to configure channels.`)]
         });
       }
 
@@ -84,13 +84,13 @@ module.exports = {
       await sendFeedEmbed(interaction.client, guildId, serverName, channelType, testMessage);
 
       return interaction.editReply({
-        embeds: [successEmbed(`✅ **Test Message Sent**\nTest message sent to ${channelType} channel for ${serverName}!\nCheck the channel to see if the message was delivered.`)]
+        embeds: [successEmbed('Test Message Sent', `Test message sent to ${channelType} channel for ${serverName}!\nCheck the channel to see if the message was delivered.`)]
       });
 
     } catch (error) {
       console.error('Error in test-message command:', error);
       return interaction.editReply({
-        embeds: [errorEmbed(`❌ **Error**\nFailed to send test message: ${error.message}`)]
+        embeds: [errorEmbed('Error', `Failed to send test message: ${error.message}`)]
       });
     }
   }
