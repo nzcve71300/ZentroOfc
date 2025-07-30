@@ -83,9 +83,17 @@ module.exports = {
       const row = new ActionRowBuilder().addComponents(betInput);
       modal.addComponents(row);
 
-      await interaction.editReply({
-        embeds: [orangeEmbed('Slots', `Your balance: **${balance}** coins\nMin bet: **${minBet}** | Max bet: **${maxBet}**`)],
-      });
+      const embed = orangeEmbed('🎰 **SLOTS** 🎰', `Spin to win big!`);
+      
+      embed.addFields(
+        { name: '💰 **Your Balance**', value: `**${balance.toLocaleString()}** coins`, inline: true },
+        { name: '🎯 **Bet Limits**', value: `**${minBet.toLocaleString()}** - **${maxBet.toLocaleString()}** coins`, inline: true },
+        { name: '🎲 **Game Rules**', value: 'Match 3 symbols to win! Higher bets = bigger payouts!', inline: false }
+      );
+      
+      embed.setFooter({ text: '💎 Premium Gaming Experience • May the odds be ever in your favor!' });
+      
+      await interaction.editReply({ embeds: [embed] });
 
       await interaction.showModal(modal);
 

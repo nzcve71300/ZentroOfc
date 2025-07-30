@@ -83,9 +83,17 @@ module.exports = {
       const row = new ActionRowBuilder().addComponents(betInput);
       modal.addComponents(row);
 
-      await interaction.editReply({
-        embeds: [orangeEmbed('Blackjack', `Your balance: **${balance}** coins\nMin bet: **${minBet}** | Max bet: **${maxBet}**`)],
-      });
+      const embed = orangeEmbed('🎰 **BLACKJACK** 🎰', `Welcome to the high-stakes table!`);
+      
+      embed.addFields(
+        { name: '💰 **Your Balance**', value: `**${balance.toLocaleString()}** coins`, inline: true },
+        { name: '🎯 **Bet Limits**', value: `**${minBet.toLocaleString()}** - **${maxBet.toLocaleString()}** coins`, inline: true },
+        { name: '🎲 **Game Rules**', value: 'Get as close to 21 as possible without going over. Beat the dealer to win!', inline: false }
+      );
+      
+      embed.setFooter({ text: '💎 Premium Gaming Experience • Good luck!' });
+      
+      await interaction.editReply({ embeds: [embed] });
 
       await interaction.showModal(modal);
 
