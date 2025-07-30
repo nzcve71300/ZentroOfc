@@ -39,6 +39,27 @@ module.exports = {
     const rconPassword = interaction.options.getString('rcon_password') || '';
     const guildId = interaction.guildId;
 
+    // Validate inputs
+    if (!nickname || nickname.trim() === '' || nickname.toLowerCase().includes('unknown') || nickname.toLowerCase().includes('placeholder')) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid Nickname', 'Server nickname cannot be empty, "Unknown", or "Placeholder". Please provide a proper server name.')]
+      });
+    }
+
+    if (!ip || ip.trim() === '' || ip === '0.0.0.0' || ip === 'PLACEHOLDER_IP' || ip === 'localhost' || ip === '127.0.0.1') {
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid IP', 'Please provide a valid server IP address. Cannot use placeholder or localhost addresses.')]
+      });
+    }
+
+    // Basic IP format validation
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipRegex.test(ip)) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid IP Format', 'Please provide a valid IP address in the format: xxx.xxx.xxx.xxx')]
+      });
+    }
+
     try {
       // Check if guild exists, if not create it
       const [guildResult] = await pool.query(

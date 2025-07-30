@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { getAllActivePlayersByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
+const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,7 +26,13 @@ module.exports = {
       
       for (const player of players) {
         const balance = await getPlayerBalance(player.id);
-        embed.addFields({ name: player.nickname, value: `${balance} coins`, inline: true });
+        // Get server nickname for display
+        const [serverResult] = await pool.query(
+          'SELECT nickname FROM rust_servers WHERE id = ?',
+          [player.server_id]
+        );
+        const serverName = serverResult[0]?.nickname || 'Unknown Server';
+        embed.addFields({ name: serverName, value: `${balance} coins`, inline: true });
       }
 
       await interaction.editReply({ embeds: [embed] });
