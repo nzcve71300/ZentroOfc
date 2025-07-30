@@ -1,4 +1,4 @@
--- Check autokit data for RISE 3X server
+-- Check autokit data for RISE 3X server (MariaDB)
 USE zentro_bot;
 
 -- Test parameters
@@ -46,4 +46,8 @@ SELECT COUNT(*) as total_autokits FROM autokits;
 
 -- Step 6: Check table structure
 SELECT 'Step 6: Autokits table structure' as step;
-DESCRIBE autokits; 
+DESCRIBE autokits;
+
+-- Step 7: Check guild data
+SELECT 'Step 7: Guild data' as step;
+SELECT * FROM guilds WHERE discord_id = @guild_id; 
