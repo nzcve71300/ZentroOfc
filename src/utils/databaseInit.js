@@ -68,6 +68,34 @@ async function initializeDatabase() {
       ALTER TABLE economy 
       ADD COLUMN IF NOT EXISTS player_id INT
     `);
+    
+    // Add guild_id column to economy table if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE economy 
+        ADD COLUMN guild_id INT
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate column name')) {
+        console.error('❌ Failed to add guild_id to economy table:', error.message);
+      } else {
+        console.log('ℹ️ guild_id column already exists in economy table');
+      }
+    }
+
+    // Add guild_id column to transactions table if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE transactions 
+        ADD COLUMN guild_id INT
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate column name')) {
+        console.error('❌ Failed to add guild_id to transactions table:', error.message);
+      } else {
+        console.log('ℹ️ guild_id column already exists in transactions table');
+      }
+    }
 
     // Add foreign key constraint if it doesn't exist
     try {
@@ -86,6 +114,41 @@ async function initializeDatabase() {
       } else {
         // Constraint already exists, ignore
         console.log('ℹ️ Foreign key constraint fk_economy_player already exists');
+      }
+    }
+
+    // Try to add the unique constraints for economy and transactions tables
+    try {
+      await pool.query(`
+        ALTER TABLE economy 
+        ADD CONSTRAINT economy_unique_guild_server_discord 
+        UNIQUE (guild_id, server_id, discord_id)
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate key name') && 
+          !error.message.includes('Duplicate key on write or update') &&
+          !error.message.includes('Duplicate entry') &&
+          !error.message.includes('already exists')) {
+        console.log('⚠️ Could not add constraint economy_unique_guild_server_discord to economy: Key column \'guild_id\' doesn\'t exist in table');
+      } else {
+        console.log('ℹ️ economy_unique_guild_server_discord constraint already exists');
+      }
+    }
+
+    try {
+      await pool.query(`
+        ALTER TABLE transactions 
+        ADD CONSTRAINT transactions_unique_guild_server_discord 
+        UNIQUE (guild_id, server_id, discord_id)
+      `);
+    } catch (error) {
+      if (!error.message.includes('Duplicate key name') && 
+          !error.message.includes('Duplicate key on write or update') &&
+          !error.message.includes('Duplicate entry') &&
+          !error.message.includes('already exists')) {
+        console.log('⚠️ Could not add constraint transactions_unique_guild_server_discord to transactions: Key column \'guild_id\' doesn\'t exist in table');
+      } else {
+        console.log('ℹ️ transactions_unique_guild_server_discord constraint already exists');
       }
     }
 

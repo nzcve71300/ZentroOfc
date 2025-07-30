@@ -81,9 +81,24 @@ async function refreshConnections(client) {
     console.log(`📡 Found ${result.length} servers in database`);
     
     for (const server of result) {
-      // Skip servers with invalid IP/port combinations
-      if (!server.ip || server.ip === '0.0.0.0' || server.ip === 'PLACEHOLDER_IP' || !server.port || server.port === 0) {
+      // Enhanced validation for server IP/port combinations
+      if (!server.ip || 
+          server.ip === '0.0.0.0' || 
+          server.ip === 'PLACEHOLDER_IP' || 
+          server.ip === 'localhost' ||
+          server.ip === '127.0.0.1' ||
+          !server.port || 
+          server.port === 0 ||
+          server.port < 1 ||
+          server.port > 65535) {
         console.log(`⚠️ Skipping RCON connection for server ${server.nickname} - invalid IP/port: ${server.ip}:${server.port}`);
+        continue;
+      }
+      
+      // Validate IP format
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      if (!ipRegex.test(server.ip)) {
+        console.log(`⚠️ Skipping RCON connection for server ${server.nickname} - invalid IP format: ${server.ip}`);
         continue;
       }
       
@@ -105,9 +120,24 @@ async function refreshConnections(client) {
 function connectRcon(client, guildId, serverName, ip, port, password) {
   const key = `${guildId}_${serverName}`;
   
-  // Validate connection parameters
-  if (!ip || ip === '0.0.0.0' || ip === 'PLACEHOLDER_IP' || !port || port === 0) {
+  // Enhanced validation for connection parameters
+  if (!ip || 
+      ip === '0.0.0.0' || 
+      ip === 'PLACEHOLDER_IP' || 
+      ip === 'localhost' ||
+      ip === '127.0.0.1' ||
+      !port || 
+      port === 0 ||
+      port < 1 ||
+      port > 65535) {
     console.log(`⚠️ Skipping RCON connection for ${serverName} - invalid parameters: ${ip}:${port}`);
+    return;
+  }
+  
+  // Validate IP format
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  if (!ipRegex.test(ip)) {
+    console.log(`⚠️ Skipping RCON connection for ${serverName} - invalid IP format: ${ip}`);
     return;
   }
   
@@ -200,7 +230,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
     console.log(`❌ Disconnected from RCON: ${serverName} (${guildId})`);
     delete activeConnections[key];
     // Don't auto-reconnect for invalid servers
-    if (ip !== '0.0.0.0' && ip !== 'PLACEHOLDER_IP' && port !== 0) {
+    if (ip !== '0.0.0.0' && 
+        ip !== 'PLACEHOLDER_IP' && 
+        ip !== 'localhost' &&
+        ip !== '127.0.0.1' &&
+        port !== 0 &&
+        port >= 1 &&
+        port <= 65535) {
       setTimeout(() => connectRcon(client, guildId, serverName, ip, port, password), 5000);
     }
   });
@@ -209,6 +245,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
     // Only log connection refused errors once per server to avoid spam
     if (err.code === 'ECONNREFUSED') {
       console.log(`⚠️ RCON connection refused for ${serverName} (${ip}:${port}) - server may be offline`);
+    } else if (err.code === 'ENOTFOUND') {
+      console.log(`⚠️ RCON host not found for ${serverName} (${ip}:${port}) - check IP address`);
+    } else if (err.code === 'ETIMEDOUT') {
+      console.log(`⚠️ RCON connection timeout for ${serverName} (${ip}:${port}) - server may be slow to respond`);
     } else {
       console.error(`RCON Error (${serverName}):`, err.message);
     }
