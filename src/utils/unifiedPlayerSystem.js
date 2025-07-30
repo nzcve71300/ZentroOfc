@@ -13,10 +13,10 @@ function isDiscordId(input) {
 async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
   const [result] = await pool.query(
     `SELECT * FROM players 
-     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
-     AND p.server_id = ?
-     AND p.discord_id = ?
-     AND p.is_active = true`,
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
+     AND server_id = ?
+     AND discord_id = ?
+     AND is_active = true`,
     [guildId, serverId, discordId]
   );
   return result[0] || null;
@@ -28,11 +28,11 @@ async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
 async function getActivePlayerByIgn(guildId, serverId, ign) {
   const [result] = await pool.query(
     `SELECT * FROM players 
-     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
-     AND p.server_id = ?
-     AND p.ign IS NOT NULL
-     AND LOWER(p.ign) = LOWER(?)
-     AND p.is_active = true`,
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
+     AND server_id = ?
+     AND ign IS NOT NULL
+     AND LOWER(ign) = LOWER(?)
+     AND is_active = true`,
     [guildId, serverId, ign]
   );
   return result[0] || null;
@@ -44,9 +44,9 @@ async function getActivePlayerByIgn(guildId, serverId, ign) {
 async function getAllActivePlayersByDiscordId(guildId, discordId) {
   const [result] = await pool.query(
     `SELECT * FROM players 
-     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
-     AND p.discord_id = ?
-     AND p.is_active = true`,
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
+     AND discord_id = ?
+     AND is_active = true`,
     [guildId, discordId]
   );
   return result;
@@ -58,10 +58,10 @@ async function getAllActivePlayersByDiscordId(guildId, discordId) {
 async function getAllActivePlayersByIgn(guildId, ign) {
   const [result] = await pool.query(
     `SELECT * FROM players 
-     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
-     AND p.ign IS NOT NULL
-     AND LOWER(p.ign) = LOWER(?)
-     AND p.is_active = true`,
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
+     AND ign IS NOT NULL
+     AND LOWER(ign) = LOWER(?)
+     AND is_active = true`,
     [guildId, ign]
   );
   return result;
