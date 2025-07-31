@@ -160,10 +160,9 @@ RCON_DEFAULT_PASSWORD=your-rcon-password
 - `/set-currency` - Set currency name
 - `/set-events` - Configure Bradley/Helicopter events
 - `/view-events` - View event configurations
-- `/edit-zone` - Edit ZORP zone settings
-- `/delete-zone` - Delete a ZORP zone
+- `/edit-zorp` - Edit ZORP zone settings
+- `/delete-zorp` - Delete a ZORP zone
 - `/list-zones` - List all active ZORP zones
-- `/zorp-config` - Configure ZORP defaults
 
 ### Player Commands
 - `/balance` - Show balance across servers
@@ -213,7 +212,7 @@ Players can create zones by using the emote: `d11_quick_chat_questions_slot_1`
 
 ### Discord Admin Commands
 
-#### `/edit-zone <zone_name> [options]`
+#### `/edit-zorp <server> [options]`
 Edit zone configuration settings.
 
 **Parameters:**
@@ -229,12 +228,12 @@ Edit zone configuration settings.
 
 **Examples:**
 ```
-/edit-zone ZORP_1234567890 size 100
-/edit-zone ZORP_1234567890 color_online "255,255,0"
-/edit-zone ZORP_1234567890 expire 86400
+/edit-zorp "Server Name" size 100
+/edit-zorp "Server Name" color_online "255,255,0"
+/edit-zorp "Server Name" expire 86400
 ```
 
-#### `/delete-zone <zone_name>`
+#### `/delete-zorp <zone_name>`
 Delete a ZORP zone from both game and database.
 
 **Parameters:**
@@ -242,7 +241,7 @@ Delete a ZORP zone from both game and database.
 
 **Examples:**
 ```
-/delete-zone ZORP_1234567890
+/delete-zorp ZORP_1234567890
 ```
 
 #### `/list-zones`
@@ -253,22 +252,7 @@ List all active ZORP zones in the guild.
 /list-zones
 ```
 
-#### `/zorp-config [options]`
-View and configure ZORP default settings.
 
-**Parameters:**
-- `size`: Default zone size
-- `color_online`: Default online color
-- `color_offline`: Default offline color
-- `expire`: Default expiration time
-- `min_team`: Default minimum team size
-- `max_team`: Default maximum team size
-
-**Examples:**
-```
-/zorp-config
-/zorp-config size 100 expire 86400
-```
 
 ### Database Schema
 The ZORP system uses the `zones` table:

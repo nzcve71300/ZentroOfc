@@ -34,7 +34,7 @@ module.exports = {
 
       // Group zones by server
       const zonesByServer = {};
-      for (const zone of zonesResult.rows) {
+      for (const zone of zonesResult) {
         const serverName = zone.nickname || 'Unknown Server';
         if (!zonesByServer[serverName]) zonesByServer[serverName] = [];
         zonesByServer[serverName].push(zone);

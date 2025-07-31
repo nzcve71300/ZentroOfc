@@ -5,7 +5,7 @@ const { sendRconCommand } = require('../../rcon');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('delete-zone')
+    .setName('delete-zorp')
     .setDescription('Delete a ZORP zone')
     .addStringOption(option =>
       option.setName('zone_name')
@@ -35,7 +35,7 @@ module.exports = {
       // Get zone
       let zoneResult;
       try {
-        zoneResult = await pool.query(`
+        [zoneResult] = await pool.query(`
           SELECT z.*, rs.ip, rs.port, rs.password, rs.nickname
           FROM zones z
           JOIN rust_servers rs ON z.server_id = rs.id
@@ -58,11 +58,11 @@ module.exports = {
       const zone = zoneResult[0];
 
       // Delete from game via RCON
-      let rconSuccess = FALSE;
+      let rconSuccess = false;
       try {
         if (zone.ip && zone.port && zone.password) {
           await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zoneName}"`);
-          rconSuccess = TRUE;
+          rconSuccess = true;
         } else {
           console.warn('Missing RCON credentials for zone deletion:', zoneName);
         }
@@ -104,7 +104,7 @@ module.exports = {
       await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-      console.error('Unexpected error in delete-zone command:', error);
+      console.error('Unexpected error in delete-zorp command:', error);
       await interaction.editReply({
         embeds: [errorEmbed('Error', 'An unexpected error occurred while deleting the zone.')]
       });

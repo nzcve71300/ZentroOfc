@@ -5,7 +5,7 @@ const { sendRconCommand } = require('../../rcon');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('edit-zone')
+    .setName('edit-zorp')
     .setDescription('Edit ZORP zone configuration for a server')
     .addStringOption(option =>
       option.setName('server')
@@ -58,7 +58,7 @@ module.exports = {
         ORDER BY rs.nickname
       `, [interaction.guildId]);
 
-      const choices = serversResult.rows.map(server => ({
+      const choices = serversResult.map(server => ({
         name: server.nickname,
         value: server.id.toString()
       }));
@@ -100,7 +100,7 @@ module.exports = {
       // Get server details
       let serverResult;
       try {
-        serverResult = await pool.query(`
+        [serverResult] = await pool.query(`
           SELECT rs.*, g.discord_id
           FROM rust_servers rs
           JOIN guilds g ON rs.guild_id = g.id
@@ -135,7 +135,7 @@ module.exports = {
       // Get all zones for this server
       let zonesResult;
       try {
-        zonesResult = await pool.query(`
+        [zonesResult] = await pool.query(`
           SELECT * FROM zones WHERE server_id = ?
         `, [serverId]);
       } catch (dbError) {
@@ -145,7 +145,7 @@ module.exports = {
         });
       }
 
-      const zones = zonesResult.rows;
+      const zones = zonesResult;
       const updatedFields = [];
       const rconErrors = [];
 
@@ -156,42 +156,42 @@ module.exports = {
         let paramCount = 1;
 
         if (size !== null) {
-          updates.push(`size = $${paramCount++}`);
+          updates.push(`size = ?`);
           values.push(size);
           updatedFields.push('size');
         }
         if (colorOnline !== null) {
-          updates.push(`color_online = $${paramCount++}`);
+          updates.push(`color_online = ?`);
           values.push(colorOnline);
           updatedFields.push('color_online');
         }
         if (colorOffline !== null) {
-          updates.push(`color_offline = $${paramCount++}`);
+          updates.push(`color_offline = ?`);
           values.push(colorOffline);
           updatedFields.push('color_offline');
         }
         if (radiation !== null) {
-          updates.push(`radiation = $${paramCount++}`);
+          updates.push(`radiation = ?`);
           values.push(radiation);
           updatedFields.push('radiation');
         }
         if (delay !== null) {
-          updates.push(`delay = $${paramCount++}`);
+          updates.push(`delay = ?`);
           values.push(delay);
           updatedFields.push('delay');
         }
         if (expire !== null) {
-          updates.push(`expire = $${paramCount++}`);
+          updates.push(`expire = ?`);
           values.push(expire);
           updatedFields.push('expire');
         }
         if (minTeam !== null) {
-          updates.push(`min_team = $${paramCount++}`);
+          updates.push(`min_team = ?`);
           values.push(minTeam);
           updatedFields.push('min_team');
         }
         if (maxTeam !== null) {
-          updates.push(`max_team = $${paramCount++}`);
+          updates.push(`max_team = ?`);
           values.push(maxTeam);
           updatedFields.push('max_team');
         }
@@ -203,7 +203,7 @@ module.exports = {
             await pool.query(`
               UPDATE zones 
               SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-              WHERE id = $${paramCount}
+              WHERE id = ?
             `, values);
           } catch (dbUpdateError) {
             console.error('Database error updating zone:', dbUpdateError);
@@ -243,35 +243,35 @@ module.exports = {
         let paramCount = 1;
 
         if (size !== null) {
-          defaultsUpdates.push(`size = $${paramCount++}`);
+          defaultsUpdates.push(`size = ?`);
           defaultsValues.push(size);
         }
         if (colorOnline !== null) {
-          defaultsUpdates.push(`color_online = $${paramCount++}`);
+          defaultsUpdates.push(`color_online = ?`);
           defaultsValues.push(colorOnline);
         }
         if (colorOffline !== null) {
-          defaultsUpdates.push(`color_offline = $${paramCount++}`);
+          defaultsUpdates.push(`color_offline = ?`);
           defaultsValues.push(colorOffline);
         }
         if (radiation !== null) {
-          defaultsUpdates.push(`radiation = $${paramCount++}`);
+          defaultsUpdates.push(`radiation = ?`);
           defaultsValues.push(radiation);
         }
         if (delay !== null) {
-          defaultsUpdates.push(`delay = $${paramCount++}`);
+          defaultsUpdates.push(`delay = ?`);
           defaultsValues.push(delay);
         }
         if (expire !== null) {
-          defaultsUpdates.push(`expire = $${paramCount++}`);
+          defaultsUpdates.push(`expire = ?`);
           defaultsValues.push(expire);
         }
         if (minTeam !== null) {
-          defaultsUpdates.push(`min_team = $${paramCount++}`);
+          defaultsUpdates.push(`min_team = ?`);
           defaultsValues.push(minTeam);
         }
         if (maxTeam !== null) {
-          defaultsUpdates.push(`max_team = $${paramCount++}`);
+          defaultsUpdates.push(`max_team = ?`);
           defaultsValues.push(maxTeam);
         }
 
@@ -287,14 +287,14 @@ module.exports = {
             await pool.query(`
               UPDATE zorp_defaults 
               SET ${defaultsUpdates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-              WHERE server_id = $${paramCount}
+              WHERE server_id = ?
             `, defaultsValues);
           } else {
             // Create new defaults
             defaultsValues.push(serverId);
             await pool.query(`
               INSERT INTO zorp_defaults (server_id, ${defaultsUpdates.map(u => u.split(' = ')[0]).join(', ')}, created_at, updated_at)
-              VALUES ($${paramCount}, ${defaultsValues.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              VALUES (?, ${defaultsValues.slice(0, -1).map(() => '?').join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `, defaultsValues);
           }
         }
@@ -330,7 +330,7 @@ module.exports = {
       await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-      console.error('Unexpected error in edit-zone command:', error);
+      console.error('Unexpected error in edit-zorp command:', error);
       await interaction.editReply({
         embeds: [errorEmbed('Error', 'An unexpected error occurred while updating zones.')]
       });
