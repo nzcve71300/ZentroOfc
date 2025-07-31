@@ -1111,6 +1111,9 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       [serverId]
     );
 
+    console.log(`[ZORP DEBUG] Server ID: ${serverId}`);
+    console.log(`[ZORP DEBUG] Defaults query result:`, defaultsResult);
+
     // Use defaults if available, otherwise use hardcoded defaults
     const defaults = defaultsResult.length > 0 ? defaultsResult[0] : {
       size: 75,
@@ -1122,6 +1125,9 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       min_team: 1,
       max_team: 8
     };
+
+    console.log(`[ZORP DEBUG] Final defaults object:`, defaults);
+    console.log(`[ZORP DEBUG] Size value: ${defaults.size}`);
 
     // Check team size limits
     const teamSize = teamInfo ? teamInfo.length : 1;
