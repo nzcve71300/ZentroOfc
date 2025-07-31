@@ -1193,12 +1193,17 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Create zone in-game using server defaults
     const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${defaults.size} 0 0 0 0 0`;
-    await sendRconCommand(ip, port, password, zoneCommand);
+    console.log(`[ZORP DEBUG] Executing zone creation command: ${zoneCommand}`);
+    const createResult = await sendRconCommand(ip, port, password, zoneCommand);
+    console.log(`[ZORP DEBUG] Zone creation result:`, createResult);
 
     // Set zone to online color immediately
-    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (${defaults.color_online})`);
+    console.log(`[ZORP DEBUG] Setting zone color to: ${defaults.color_online}`);
+    const colorResult = await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (${defaults.color_online})`);
+    console.log(`[ZORP DEBUG] Color setting result:`, colorResult);
 
     // Set zone enter/leave messages
+    console.log(`[ZORP DEBUG] Setting zone messages`);
     await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" showchatmessage 1`);
     await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" entermessage "You entered ${playerName} Zorp"`);
     await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" leavemessage "You left ${playerName} Zorp"`);
@@ -1325,25 +1330,35 @@ async function restoreZonesOnStartup(client) {
       WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
     `);
 
+    console.log(`[ZORP DEBUG] Found ${result.length} zones to restore`);
+
     let restoredCount = 0;
     let errorCount = 0;
 
     for (const zone of result) {
       try {
+        console.log(`[ZORP DEBUG] Attempting to restore zone: ${zone.name} (owned by ${zone.owner}) on ${zone.nickname}`);
+        
         // Parse position
         const position = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
         
         if (!position || !position.x || !position.y || !position.z) {
-          console.log(`[ZORP] Skipping zone ${zone.name} - invalid position data`);
+          console.log(`[ZORP] Skipping zone ${zone.name} - invalid position data:`, position);
           continue;
         }
 
+        console.log(`[ZORP DEBUG] Zone position: x=${position.x}, y=${position.y}, z=${position.z}`);
+
         // Recreate zone in-game
         const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${zone.size} 0 0 0 0 0`;
-        await sendRconCommand(zone.ip, zone.port, zone.password, zoneCommand);
+        console.log(`[ZORP DEBUG] Executing restoration command: ${zoneCommand}`);
+        const createResult = await sendRconCommand(zone.ip, zone.port, zone.password, zoneCommand);
+        console.log(`[ZORP DEBUG] Restoration result for ${zone.name}:`, createResult);
 
         // Set zone color
-        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+        console.log(`[ZORP DEBUG] Setting color for ${zone.name} to: ${zone.color_online}`);
+        const colorResult = await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+        console.log(`[ZORP DEBUG] Color setting result for ${zone.name}:`, colorResult);
 
         // Set zone enter/leave messages
         await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" showchatmessage 1`);
