@@ -276,11 +276,17 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
     const killData = await killfeedProcessor.processKill(msg, serverId);
     
     if (killData) {
-      // Send formatted killfeed message to server
-      sendRconCommand(ip, port, password, `say ${killData.message}`);
+      // Create game server message with HTML formatting
+      const gameMessage = `<color=#ff0000>${killData.killer} ${killData.killerStats?.kd_ratio || '0.00'}</color> Killed <color=#00ff00>${killData.victim} ${killData.victimStats?.kd_ratio || '0.00'}</color>`;
       
-      // Add to Discord killfeed buffer
-      addToKillFeedBuffer(guildId, serverName, killData.message);
+      // Create Discord message with clean formatting
+      const discordMessage = `${killData.killer} ☠️ ${killData.victim}`;
+      
+      // Send formatted killfeed message to server
+      sendRconCommand(ip, port, password, `say ${gameMessage}`);
+      
+      // Add to Discord killfeed buffer with clean format
+      addToKillFeedBuffer(guildId, serverName, discordMessage);
       
       // Handle coin rewards for kills (only for player kills)
       if (killData.isPlayerKill) {

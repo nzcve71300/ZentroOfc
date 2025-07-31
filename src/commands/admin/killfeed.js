@@ -79,7 +79,7 @@ module.exports = {
 
       if (killfeedResult.length === 0) {
         // Create new killfeed config with default format
-        const defaultFormat = '{Killer}{KillerKD}☠️{Victim} {VictimKD}';
+        const defaultFormat = '{Killer} ☠️ {Victim}';
         await pool.query(
           'INSERT INTO killfeed_configs (server_id, enabled, format_string) VALUES (?, ?, ?)',
           [serverId, option === 'on', defaultFormat]

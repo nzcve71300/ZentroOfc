@@ -33,6 +33,10 @@ class KillfeedProcessor {
       // Process the kill for K/D tracking
       await this.processKillStats(killer, victim, serverId);
 
+      // Get stats for both players
+      const killerStats = await this.getPlayerStats(killer, serverId);
+      const victimStats = await this.getPlayerStats(victim, serverId);
+
       // Format the killfeed message
       const formattedMessage = await this.formatKillfeedMessage(killMessage, killfeedConfig.format_string, killer, victim, serverId);
 
@@ -40,6 +44,8 @@ class KillfeedProcessor {
         message: formattedMessage,
         killer,
         victim,
+        killerStats,
+        victimStats,
         isPlayerKill: await this.isPlayerKill(victim, serverId)
       };
 
@@ -135,7 +141,7 @@ class KillfeedProcessor {
         // Return default config if none exists
         return {
           enabled: true, // Default to enabled
-          format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}'
+          format_string: '{Killer} ☠️ {Victim}'
         };
       }
     } catch (error) {
@@ -143,7 +149,7 @@ class KillfeedProcessor {
       // Return default config on error
       return {
         enabled: true,
-        format_string: '<color=#ff0000> {Killer} {KillerKD}<color=#99aab5> Killed<color=green> {Victim} {VictimKD}'
+        format_string: '{Killer} ☠️ {Victim}'
       };
     }
   }
