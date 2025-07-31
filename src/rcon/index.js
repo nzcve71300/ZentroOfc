@@ -225,6 +225,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Handle ZORP zone entry/exit messages
       await handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, password);
 
+      // Handle team changes
+      await handleTeamChanges(client, guildId, serverName, msg, ip, port, password);
+
     } catch (err) {
       console.error('RCON listener error:', err);
     }
@@ -1092,6 +1095,9 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
       const playerName = entryMatch[1];
       console.log(`[ZORP] Zone entry detected for: ${playerName} on server: ${serverName}`);
       
+      // Set zone to green (online) - allow building and damage
+      await setZoneToGreen(ip, port, password, playerName);
+      
       // Send to zorp feed
       await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=green`);
       
@@ -1099,11 +1105,107 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
       const playerName = exitMatch[1];
       console.log(`[ZORP] Zone exit detected for: ${playerName} on server: ${serverName}`);
       
+      // Set zone to red (offline) - allow building but no damage
+      await setZoneToRed(ip, port, password, playerName);
+      
       // Send to zorp feed
       await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=red`);
     }
   } catch (error) {
     console.error('Error handling ZORP zone status:', error);
+  }
+}
+
+async function setZoneToGreen(ip, port, password, playerName) {
+  try {
+    // Get zone name from database
+    const [zoneResult] = await pool.query(
+      'SELECT name, color_online FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      [playerName]
+    );
+    
+    if (zoneResult.length > 0) {
+      const zone = zoneResult[0];
+      // Set zone to green settings: allow building (1), allow building damage (1), allow PvP (1)
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+      console.log(`[ZORP] Set zone ${zone.name} to green (online) for ${playerName}`);
+    }
+  } catch (error) {
+    console.error('Error setting zone to green:', error);
+  }
+}
+
+async function setZoneToRed(ip, port, password, playerName) {
+  try {
+    // Get zone name from database
+    const [zoneResult] = await pool.query(
+      'SELECT name, color_offline FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      [playerName]
+    );
+    
+    if (zoneResult.length > 0) {
+      const zone = zoneResult[0];
+      // Set zone to red settings: allow building (1), no building damage (0), no PvP (0)
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 0`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 0`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_offline})`);
+      console.log(`[ZORP] Set zone ${zone.name} to red (offline) for ${playerName}`);
+    }
+  } catch (error) {
+    console.error('Error setting zone to red:', error);
+  }
+}
+
+async function handleTeamChanges(client, guildId, serverName, msg, ip, port, password) {
+  try {
+    // Check for team-related messages
+    const teamCreatedMatch = msg.match(/(.+) created a team/);
+    const teamJoinedMatch = msg.match(/(.+) joined (.+)'s team/);
+    const teamLeftMatch = msg.match(/(.+) left (.+)'s team/);
+    const teamKickedMatch = msg.match(/(.+) kicked (.+) from the team/);
+    const teamDisbandedMatch = msg.match(/(.+) disbanded the team/);
+    
+    if (teamCreatedMatch || teamJoinedMatch || teamLeftMatch || teamKickedMatch || teamDisbandedMatch) {
+      console.log(`[ZORP] Team change detected: ${msg}`);
+      
+      // Get all active ZORPs for this server
+      const [serverResult] = await pool.query(
+        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+        [guildId, serverName]
+      );
+      
+      if (serverResult.length === 0) return;
+      
+      const serverId = serverResult[0].id;
+      const [zones] = await pool.query(
+        'SELECT * FROM zorp_zones WHERE server_id = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+        [serverId]
+      );
+      
+      for (const zone of zones) {
+        try {
+          // Delete zone from game
+          await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zone.name}"`);
+          
+          // Delete from database
+          await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+          
+          console.log(`[ZORP] Deleted zone ${zone.name} due to team change`);
+          
+          // Send to zorp feed
+          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted - Team changed`);
+          
+        } catch (error) {
+          console.error(`Error deleting zone ${zone.name}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error handling team changes:', error);
   }
 }
 
@@ -1137,7 +1239,21 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     }
 
     // Get player's team info
-    const teamInfo = await getPlayerTeam(serverId, playerName);
+    const teamInfo = await getPlayerTeam(ip, port, password, playerName);
+    
+    // Check if player is in a team
+    if (!teamInfo) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You must be in a team to create a ZORP zone.</color>`);
+      console.log(`[ZORP] Player ${playerName} is not in a team`);
+      return;
+    }
+
+    // Check if player is the team owner
+    if (teamInfo.owner !== playerName) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Only team owners can create ZORP zones.</color>`);
+      console.log(`[ZORP] Player ${playerName} is not team owner. Owner is: ${teamInfo.owner}`);
+      return;
+    }
     
     // Get server defaults for ZORP configuration
     const [defaultsResult] = await pool.query(
@@ -1164,19 +1280,18 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     console.log(`[ZORP DEBUG] Size value: ${defaults.size}`);
 
     // Check team size limits
-    const teamSize = teamInfo ? teamInfo.length : 1;
+    const teamSize = teamInfo.members.length;
     const minTeam = defaults.min_team;
     const maxTeam = defaults.max_team;
 
     if (teamSize < minTeam) {
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Please create a team</color>`);
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>you are under the minimum team limit</color>`);
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Your team is too small. Minimum: ${minTeam} players</color>`);
       console.log(`[ZORP] Team size too small for ${playerName}: ${teamSize} < ${minTeam}`);
       return;
     }
 
     if (teamSize > maxTeam) {
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>you are over the team limit</color>`);
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Your team is too large. Maximum: ${maxTeam} players</color>`);
       console.log(`[ZORP] Team size too large for ${playerName}: ${teamSize} > ${maxTeam}`);
       return;
     }
@@ -1241,7 +1356,8 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const zoneName = `ZORP_${timestamp}`;
 
     // Create zone in-game using server defaults
-    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${defaults.size} 0 0 0 0 0`;
+    // Green zone settings: allow building (1), allow building damage (1), allow PvP (1)
+    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${defaults.size} 1 0 0 1 1`;
     console.log(`[ZORP DEBUG] Executing zone creation command: ${zoneCommand}`);
     const createResult = await sendRconCommand(ip, port, password, zoneCommand);
     console.log(`[ZORP DEBUG] Zone creation result:`, createResult);
@@ -1346,14 +1462,58 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
   }
 }
 
-async function getPlayerTeam(serverId, playerName) {
+async function getPlayerTeam(ip, port, password, playerName) {
   try {
-    // This is a simplified team lookup - you may need to implement actual team detection
-    // For now, we'll return the player as a single-member team
-    return [playerName];
+    // Get all teams from the server
+    const teamInfoResult = await sendRconCommand(ip, port, password, 'relationshipmanager.teaminfoall');
+    
+    if (!teamInfoResult) {
+      console.log(`[ZORP] Could not get team info for ${playerName}`);
+      return null;
+    }
+
+    // Parse team info to find the player's team
+    const lines = teamInfoResult.split('\n');
+    let playerTeam = null;
+    let teamOwner = null;
+
+    for (const line of lines) {
+      if (line.includes(playerName)) {
+        // Extract team info from the line
+        const teamMatch = line.match(/Team (\d+):/);
+        if (teamMatch) {
+          const teamId = teamMatch[1];
+          // Get detailed team info
+          const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo ${teamId}`);
+          
+          if (detailedTeamInfo) {
+            const teamLines = detailedTeamInfo.split('\n');
+            const teamMembers = [];
+            
+            for (const teamLine of teamLines) {
+              if (teamLine.includes('Owner:')) {
+                teamOwner = teamLine.split('Owner:')[1].trim();
+              } else if (teamLine.includes('Member:')) {
+                const member = teamLine.split('Member:')[1].trim();
+                teamMembers.push(member);
+              }
+            }
+            
+            playerTeam = {
+              id: teamId,
+              owner: teamOwner,
+              members: teamMembers
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    return playerTeam;
   } catch (error) {
     console.error('Error getting player team:', error);
-    return [playerName];
+    return null;
   }
 }
 
@@ -1399,7 +1559,7 @@ async function restoreZonesOnStartup(client) {
         console.log(`[ZORP DEBUG] Zone position: x=${position.x}, y=${position.y}, z=${position.z}`);
 
         // Recreate zone in-game
-        const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${zone.size} 0 0 0 0 0`;
+        const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${zone.size} 1 0 0 1 1`;
         console.log(`[ZORP DEBUG] Executing restoration command: ${zoneCommand}`);
         const createResult = await sendRconCommand(zone.ip, zone.port, zone.password, zoneCommand);
         console.log(`[ZORP DEBUG] Restoration result for ${zone.name}:`, createResult);
@@ -1413,6 +1573,11 @@ async function restoreZonesOnStartup(client) {
         await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" showchatmessage 1`);
         await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" entermessage "You entered ${zone.owner} Zorp"`);
         await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" leavemessage "You left ${zone.owner} Zorp"`);
+
+        // Set zone to green (online) settings
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
+        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
 
         console.log(`[ZORP] Restored zone: ${zone.name} (owned by ${zone.owner}) on ${zone.nickname}`);
         restoredCount++;
