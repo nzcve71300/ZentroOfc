@@ -76,7 +76,7 @@ module.exports = {
       }
 
       // Build dropdown
-      const categoryOptions = categoriesResult.rows.map(category => ({
+      const categoryOptions = categoriesResult.map(category => ({
         label: category.name,
         description: `${category.type} category`,
         value: category.id.toString()
