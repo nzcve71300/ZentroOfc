@@ -1091,7 +1091,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const serverId = serverResult[0].id;
 
     // Check if player already has a zone
-    const existingZone = await pool.query(
+    const [existingZone] = await pool.query(
       'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
       [serverId, playerName]
     );
@@ -1166,7 +1166,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     }
 
     // Check for overlapping zones
-    const existingZones = await pool.query(
+    const [existingZones] = await pool.query(
       'SELECT name, position, size FROM zorp_zones WHERE server_id = ?',
       [serverId]
     );
@@ -1260,7 +1260,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     const serverId = serverResult[0].id;
 
     // Check if player has a zone
-    const zoneResult = await pool.query(
+    const [zoneResult] = await pool.query(
       'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
       [serverId, playerName]
     );
