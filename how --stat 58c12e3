@@ -1,0 +1,9 @@
+[33mcommit 58c12e3a02ab5f5708e7f57ad0e1373a9e0e40c2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Zande <zanderdewet191@gmail.com>
+Date:   Thu Jul 31 13:41:51 2025 +0200
+
+    fix
+
+fix_autokit_configurations.js
+src/commands/admin/wipeKitClaims.js
+src/rcon/index.js
