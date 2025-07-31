@@ -1078,7 +1078,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     console.log(`[ZORP] Creating zone for player: ${playerName} on server: ${serverName}`);
 
     // Get server ID
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
@@ -1106,7 +1106,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const teamInfo = await getPlayerTeam(serverId, playerName);
     
     // Get server defaults for ZORP configuration
-    const defaultsResult = await pool.query(
+    const [defaultsResult] = await pool.query(
       'SELECT size, color_online, color_offline, radiation, delay, expire, min_team, max_team FROM zorp_defaults WHERE server_id = ?',
       [serverId]
     );
@@ -1252,7 +1252,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     console.log(`[ZORP] Deleting zone for player: ${playerName} on server: ${serverName}`);
 
     // Get server ID
-    const serverResult = await pool.query(
+    const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
