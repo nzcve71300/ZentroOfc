@@ -48,16 +48,16 @@ module.exports = {
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
-    
+
     try {
       const [result] = await pool.query(
-        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname LIKE ? ORDER BY rs.nickname LIMIT 25',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
       const choices = result.map(row => ({
         name: row.nickname,
-        value: row.id.toString()
+        value: row.nickname
       }));
 
       await interaction.respond(choices);
@@ -71,7 +71,7 @@ module.exports = {
     await interaction.deferReply({ flags: 64 });
 
     try {
-      const serverId = interaction.options.getString('server');
+      const serverOption = interaction.options.getString('server');
       const size = interaction.options.getInteger('size');
       const colorOnline = interaction.options.getString('color_online');
       const colorOffline = interaction.options.getString('color_offline');
@@ -81,8 +81,8 @@ module.exports = {
       const minTeam = interaction.options.getInteger('min_team');
       const maxTeam = interaction.options.getInteger('max_team');
 
-      // Validate serverId
-      if (!serverId || isNaN(parseInt(serverId))) {
+      // Validate serverOption
+      if (!serverOption || typeof serverOption !== 'string' || serverOption.trim() === '') {
         return interaction.editReply({
           embeds: [errorEmbed('Error', 'Please select a valid server.')]
         });
@@ -95,8 +95,8 @@ module.exports = {
           SELECT rs.*, g.discord_id
           FROM rust_servers rs
           JOIN guilds g ON rs.guild_id = g.id
-          WHERE g.discord_id = ? AND rs.id = ?
-        `, [interaction.guildId, serverId]);
+          WHERE g.discord_id = ? AND rs.nickname = ?
+        `, [interaction.guildId, serverOption]);
       } catch (dbError) {
         console.error('Database error fetching server:', dbError);
         return interaction.editReply({
@@ -111,6 +111,7 @@ module.exports = {
       }
 
       const server = serverResult[0];
+      const serverId = server.id;
 
       // Check if any parameters were provided
       const hasUpdates = size !== null || colorOnline !== null || colorOffline !== null || 
