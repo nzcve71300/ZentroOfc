@@ -1,96 +1,82 @@
-const pool = require('./src/db');
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function forceDatabaseRefresh() {
+  console.log('🔄 Force Database Refresh');
+  console.log('========================\n');
+
   try {
-    console.log('🔍 Force refreshing database connection...');
+    // Create a fresh connection
+    const freshPool = mysql.createPool({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT || 3306
+    });
+
+    console.log('📋 Checking guild data with fresh connection...');
+    const [guilds] = await freshPool.execute('SELECT * FROM guilds');
     
-    // Close and recreate the pool
-    await pool.end();
-    
-    // Wait a moment
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Recreate the pool
-    const { Pool } = require('pg');
-    const { db } = require('./src/config');
-    const newPool = new Pool(db);
-    
-    console.log('📋 Database config:', db);
-    
-    // Test connection
-    const result = await newPool.query('SELECT current_database() as db_name, current_user as user');
-    console.log('🗄️  Connected to database:', result.rows[0].db_name);
-    console.log('👤 Connected as user:', result.rows[0].user);
-    
-    // Check if players table exists
-    const tableExists = await newPool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'players'
-      ) as exists
-    `);
-    console.log('📋 Players table exists:', tableExists.rows[0].exists);
-    
-    if (tableExists.rows[0].exists) {
-      // Check columns
-      const columns = await newPool.query(`
-        SELECT column_name, data_type 
-        FROM information_schema.columns 
-        WHERE table_name = 'players' 
-        ORDER BY ordinal_position
-      `);
-      
-      console.log('📋 Players table columns:');
-      columns.rows.forEach(col => {
-        console.log(`  - ${col.column_name}: ${col.data_type}`);
-      });
-      
-      // Check specifically for is_active
-      const hasIsActive = columns.rows.some(col => col.column_name === 'is_active');
-      console.log('🔍 Has is_active column:', hasIsActive);
-      
-      if (hasIsActive) {
-        console.log('✅ is_active column exists! Testing query...');
-        
-        // Test the exact query that's failing
-        const testQuery = await newPool.query(`
-          SELECT * FROM players 
-          WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
-          AND discord_id = $2
-          AND LOWER(ign) != LOWER($3)
-          AND is_active = true
-        `, [123456789, '987654321', 'test']);
-        
-        console.log('✅ Test query executed successfully!');
-        console.log('📊 Test query returned', testQuery.rows.length, 'rows');
-        
-      } else {
-        console.log('❌ is_active column does NOT exist!');
-        
-        // Try to add it
-        try {
-          await newPool.query(`
-            ALTER TABLE players 
-            ADD COLUMN is_active BOOLEAN DEFAULT true
-          `);
-          console.log('✅ Added is_active column!');
-          
-          await newPool.query(`
-            UPDATE players SET is_active = true WHERE is_active IS NULL
-          `);
-          console.log('✅ Updated existing players!');
-          
-        } catch (addError) {
-          console.error('❌ Could not add is_active column:', addError.message);
-        }
-      }
+    for (const guild of guilds) {
+      console.log(`Guild: "${guild.name}" (ID: ${guild.id}, Discord: ${guild.discord_id})`);
     }
+
+    // Check the specific guild
+    console.log('\n🔍 Checking Guild ID 176 specifically:');
+    const [guild176] = await freshPool.execute('SELECT * FROM guilds WHERE id = 176');
     
-    await newPool.end();
+    if (guild176.length > 0) {
+      console.log(`Guild: "${guild176[0].name}" (ID: ${guild176[0].id})`);
+      console.log(`Discord ID: ${guild176[0].discord_id}`);
+    }
+
+    // Try the update again with fresh connection
+    console.log('\n🔄 Attempting update with fresh connection...');
+    const correctGuildId = '1391149977434329230';
     
+    const [updateResult] = await freshPool.execute(
+      'UPDATE guilds SET discord_id = ? WHERE id = ?',
+      [correctGuildId, 176]
+    );
+    
+    console.log(`Rows affected: ${updateResult.affectedRows}`);
+
+    // Check immediately after update
+    console.log('\n✅ Checking immediately after update:');
+    const [checkAfter] = await freshPool.execute('SELECT * FROM guilds WHERE id = 176');
+    
+    if (checkAfter.length > 0) {
+      console.log(`Guild: "${checkAfter[0].name}" (ID: ${checkAfter[0].id})`);
+      console.log(`Discord ID: ${checkAfter[0].discord_id}`);
+      console.log(`Expected: ${correctGuildId}`);
+      console.log(`Match: ${checkAfter[0].discord_id === correctGuildId ? '✅' : '❌'}`);
+    }
+
+    // Test autokit query
+    console.log('\n🧪 Testing autokit query:');
+    const [autokitTest] = await freshPool.execute(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [correctGuildId, 'RISE 3X']
+    );
+    
+    if (autokitTest.length > 0) {
+      console.log('✅ Autokit query works!');
+      console.log(`  Server ID: ${autokitTest[0].id}`);
+    } else {
+      console.log('❌ Autokit query fails');
+    }
+
+    // Close the fresh connection
+    await freshPool.end();
+
+    console.log('\n🚀 Now restart the bot:');
+    console.log('pm2 stop zentro-bot');
+    console.log('pm2 start zentro-bot');
+    console.log('pm2 logs zentro-bot');
+
   } catch (error) {
-    console.error('❌ Database refresh failed:', error.message);
-    console.error('Error details:', error);
+    console.error('❌ Error:', error.message);
   }
 }
 
