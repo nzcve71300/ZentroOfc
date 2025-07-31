@@ -24,7 +24,9 @@ module.exports = {
           { name: 'Playercount (Voice Channel)', value: 'playercount' },
           { name: 'Playerfeed (Text Channel)', value: 'playerfeed' },
           { name: 'Admin feed (Text Channel)', value: 'adminfeed' },
-          { name: 'Note feed (Text Channel)', value: 'notefeed' }
+          { name: 'Note feed (Text Channel)', value: 'notefeed' },
+          { name: 'Killfeed (Text Channel)', value: 'killfeed' },
+          { name: 'ZORP feed (Text Channel)', value: 'zorpfeed' }
         )),
 
   async autocomplete(interaction) {

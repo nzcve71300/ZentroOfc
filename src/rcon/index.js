@@ -1253,7 +1253,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
 
     // Log to admin feed
-    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🛡️ **ZORP Zone Created:** ${playerName} created zone ${zoneName}`);
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zorp=green`);
 
     console.log(`[ZORP] Zone created successfully for ${playerName}: ${zoneName}`);
 
@@ -1303,7 +1303,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);
 
     // Log to admin feed
-    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🗑️ **ZORP Zone Deleted:** ${playerName} deleted zone ${zoneName}`);
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zorp=red`);
 
     console.log(`[ZORP] Zone deleted successfully for ${playerName}: ${zoneName}`);
 
@@ -1417,7 +1417,7 @@ async function deleteExpiredZones(client) {
         console.log(`[ZORP] Deleted expired zone: ${zone.name}`);
         
         // Send to admin feed
-        await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'adminfeed', `🗑️ **ZORP Zone Expired:** ${zone.name} (owned by ${zone.owner})`);
+        await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} zorp=red`);
         
       } catch (error) {
         console.error(`Error deleting expired zone ${zone.name}:`, error);
