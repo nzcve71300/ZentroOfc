@@ -102,7 +102,7 @@ module.exports = {
         // Create new autokit
         await pool.query(
           'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, false, 0, ?)',
-          [serverId, setup]
+          [serverId, setup, setup]  // Use setup as the game_name as well
         );
         [autokitResult] = await pool.query(
           'SELECT id, enabled, cooldown, game_name FROM autokits WHERE server_id = ? AND kit_name = ?',
