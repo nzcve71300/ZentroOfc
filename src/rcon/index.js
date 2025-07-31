@@ -1185,8 +1185,17 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
         const existingPos = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
         const existingSize = zone.size || 75; // Default size if not set
 
+        console.log(`[ZORP DEBUG] Checking overlap with zone: ${zone.name}`);
+        console.log(`[ZORP DEBUG] New zone position:`, newZonePos, `size: ${newZoneSize}`);
+        console.log(`[ZORP DEBUG] Existing zone position:`, existingPos, `size: ${existingSize}`);
+
         if (zonesOverlap(newZonePos, newZoneSize, existingPos, existingSize)) {
-          await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are too close to another ZORP!</color>`);
+          console.log(`[ZORP DEBUG] Zone overlap detected for ${playerName} - too close to zone ${zone.name}`);
+          console.log(`[ZORP DEBUG] Sending overlap message to player: ${playerName}`);
+          const overlapMessage = `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are too close to another ZORP!</color>`;
+          console.log(`[ZORP DEBUG] RCON command: ${overlapMessage}`);
+          const result = await sendRconCommand(ip, port, password, overlapMessage);
+          console.log(`[ZORP DEBUG] Overlap message result:`, result);
           console.log(`[ZORP] Zone overlap detected for ${playerName} - too close to zone ${zone.name}`);
           return;
         }
