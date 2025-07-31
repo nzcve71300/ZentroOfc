@@ -33,6 +33,7 @@ const bookARideState = new Map();
 const bookARideCooldowns = new Map();
 const lastPrintposRequest = new Map();
 const eventFlags = new Map(); // Track event states to prevent duplicate messages
+const kitClaimDeduplication = new Map(); // Track recent kit claims to prevent duplicates
 
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
@@ -413,6 +414,26 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
 async function handleKitClaim(client, guildId, serverName, ip, port, password, kitKey, player) {
   try {
     console.log('[KIT CLAIM DEBUG] Processing claim for:', kitKey, 'player:', player, 'server:', serverName);
+    
+    // Deduplication check - prevent same kit claim within 5 seconds
+    const dedupKey = `${serverName}:${player}:${kitKey}`;
+    const now = Date.now();
+    const lastClaim = kitClaimDeduplication.get(dedupKey);
+    
+    if (lastClaim && (now - lastClaim) < 5000) {
+      console.log('[KIT CLAIM DEBUG] Duplicate claim detected, skipping:', dedupKey);
+      return;
+    }
+    
+    // Record this claim attempt
+    kitClaimDeduplication.set(dedupKey, now);
+    
+    // Clean up old entries (older than 10 seconds)
+    for (const [key, timestamp] of kitClaimDeduplication.entries()) {
+      if (now - timestamp > 10000) {
+        kitClaimDeduplication.delete(key);
+      }
+    }
     
     // Get server ID
     const [serverResult] = await pool.execute(
