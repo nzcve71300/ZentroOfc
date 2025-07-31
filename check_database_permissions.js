@@ -15,9 +15,9 @@ async function checkPermissions() {
     });
 
     console.log('📋 Current user info:');
-    const [userInfo] = await connection.execute('SELECT USER() as current_user, DATABASE() as current_db');
-    console.log(`User: ${userInfo[0].current_user}`);
-    console.log(`Database: ${userInfo[0].current_db}`);
+    const [userInfo] = await connection.execute('SELECT USER() as user_name, DATABASE() as db_name');
+    console.log(`User: ${userInfo[0].user_name}`);
+    console.log(`Database: ${userInfo[0].db_name}`);
 
     console.log('\n🔍 Checking permissions on guilds table:');
     
