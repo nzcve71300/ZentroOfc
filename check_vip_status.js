@@ -17,7 +17,7 @@ async function checkVipStatus() {
     console.log('✅ Database connected successfully!');
 
     // Get your Discord ID and in-game name
-    const discordId = '1391149977434329230'; // Replace with your Discord ID
+    const discordId = '1252993829007528200'; // Your actual Discord ID from the database
     const playerName = 'nzcve7130'; // Replace with your in-game name
     const serverId = '1753952654507_7deot3q0';
 
