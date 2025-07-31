@@ -46,6 +46,10 @@ const BOOKARIDE_CHOICES = {
 const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
 const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
 
+// Track online players per server
+const onlinePlayers = new Map(); // serverKey -> Set of player names
+const onlineStatusChecks = new Map(); // serverKey -> last check timestamp
+
 // Helper function to calculate 3D distance between two points
 function calculateDistance(x1, y1, z1, x2, y2, z2) {
   return Math.sqrt(
@@ -231,6 +235,14 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle team changes
       await handleTeamChanges(client, guildId, serverName, msg, ip, port, password);
+
+      // Check online status every 30 seconds (roughly)
+      const now = Date.now();
+      const lastCheck = onlineStatusChecks.get(key) || 0;
+      if (now - lastCheck > 30000) { // 30 seconds
+        await checkPlayerOnlineStatus(client, guildId, serverName, ip, port, password);
+        onlineStatusChecks.set(key, now);
+      }
 
     } catch (err) {
       console.error('RCON listener error:', err);
@@ -1091,29 +1103,19 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
 
 async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, password) {
   try {
-    // Check for zone entry/exit messages
-    const entryMatch = msg.match(/You entered (.+?) Zorp/);
-    const exitMatch = msg.match(/You left (.+?) Zorp/);
+    const entryMatch = msg.match(/You entered (.+) Zorp/);
+    const exitMatch = msg.match(/You left (.+) Zorp/);
     
     if (entryMatch) {
       const playerName = entryMatch[1];
       console.log(`[ZORP] Zone entry detected for: ${playerName} on server: ${serverName}`);
-      
-      // Set zone to green (online) - allow building and damage
       await setZoneToGreen(ip, port, password, playerName);
-      
-      // Send to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=green`);
-      
+      // Don't send feed message here - only when player comes online
     } else if (exitMatch) {
       const playerName = exitMatch[1];
       console.log(`[ZORP] Zone exit detected for: ${playerName} on server: ${serverName}`);
-      
-      // Set zone to red (offline) - allow building but no damage
       await setZoneToRed(ip, port, password, playerName);
-      
-      // Send to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=red`);
+      // Don't send feed message here - only when player goes offline
     }
   } catch (error) {
     console.error('Error handling ZORP zone status:', error);
@@ -1383,13 +1385,13 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       name: zoneName,
       owner: playerName,
       team: teamInfo,
-      position: { x: coords[0], y: coords[1], z: coords[2] },
+      position: coords,
       size: defaults.size,
       color_online: defaults.color_online,
       color_offline: defaults.color_offline,
       radiation: defaults.radiation,
       delay: defaults.delay,
-      expire: defaults.expire,
+      expire: 2592000, // 30 days in seconds - real expiration handled by online/offline system
       min_team: minTeam,
       max_team: maxTeam
     };
@@ -1468,52 +1470,55 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
 
 async function getPlayerTeam(ip, port, password, playerName) {
   try {
-    // Get all teams from the server
+    console.log(`[ZORP DEBUG] Getting team info for player: ${playerName}`);
     const teamInfoResult = await sendRconCommand(ip, port, password, 'relationshipmanager.teaminfoall');
+    console.log(`[ZORP DEBUG] Team info result: ${teamInfoResult}`);
     
-    if (!teamInfoResult) {
-      console.log(`[ZORP] Could not get team info for ${playerName}`);
-      return null;
+    if (!teamInfoResult) { 
+      console.log(`[ZORP DEBUG] No team info result for ${playerName}`);
+      return null; 
     }
-
-    // Parse team info to find the player's team
+    
     const lines = teamInfoResult.split('\n');
     let playerTeam = null;
     let teamOwner = null;
-
+    
     for (const line of lines) {
+      console.log(`[ZORP DEBUG] Processing line: ${line}`);
       if (line.includes(playerName)) {
-        // Extract team info from the line
         const teamMatch = line.match(/Team (\d+):/);
         if (teamMatch) {
           const teamId = teamMatch[1];
-          // Get detailed team info
+          console.log(`[ZORP DEBUG] Found player ${playerName} in team ${teamId}`);
           const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo ${teamId}`);
+          console.log(`[ZORP DEBUG] Detailed team info: ${detailedTeamInfo}`);
           
           if (detailedTeamInfo) {
             const teamLines = detailedTeamInfo.split('\n');
             const teamMembers = [];
-            
             for (const teamLine of teamLines) {
-              if (teamLine.includes('Owner:')) {
-                teamOwner = teamLine.split('Owner:')[1].trim();
-              } else if (teamLine.includes('Member:')) {
+              if (teamLine.includes('Owner:')) { 
+                teamOwner = teamLine.split('Owner:')[1].trim(); 
+                console.log(`[ZORP DEBUG] Team owner: ${teamOwner}`);
+              }
+              else if (teamLine.includes('Member:')) { 
                 const member = teamLine.split('Member:')[1].trim();
                 teamMembers.push(member);
+                console.log(`[ZORP DEBUG] Team member: ${member}`);
               }
             }
-            
-            playerTeam = {
-              id: teamId,
-              owner: teamOwner,
-              members: teamMembers
-            };
+            playerTeam = { id: teamId, owner: teamOwner, members: teamMembers };
+            console.log(`[ZORP DEBUG] Final team object:`, playerTeam);
             break;
           }
         }
       }
     }
-
+    
+    if (!playerTeam) {
+      console.log(`[ZORP DEBUG] Player ${playerName} not found in any team`);
+    }
+    
     return playerTeam;
   } catch (error) {
     console.error('Error getting player team:', error);
@@ -1641,6 +1646,88 @@ async function enableTeamActionLogging(ip, port, password) {
     console.log('[ZORP] Team action logging enabled');
   } catch (error) {
     console.error('Error enabling team action logging:', error);
+  }
+}
+
+async function getOnlinePlayers(ip, port, password) {
+  try {
+    const result = await sendRconCommand(ip, port, password, 'users');
+    if (!result) return new Set();
+    
+    const lines = result.split('\n');
+    const players = new Set();
+    
+    for (const line of lines) {
+      if (line.trim() && !line.includes('Users:') && !line.includes('Total:')) {
+        const playerName = line.trim();
+        if (playerName) {
+          players.add(playerName);
+        }
+      }
+    }
+    
+    return players;
+  } catch (error) {
+    console.error('Error getting online players:', error);
+    return new Set();
+  }
+}
+
+async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, password) {
+  try {
+    const serverKey = `${guildId}_${serverName}`;
+    const currentOnline = await getOnlinePlayers(ip, port, password);
+    const previousOnline = onlinePlayers.get(serverKey) || new Set();
+    
+    // Check who went offline
+    for (const player of previousOnline) {
+      if (!currentOnline.has(player)) {
+        console.log(`[ZORP] Player ${player} went offline on ${serverName}`);
+        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
+      }
+    }
+    
+    // Check who came online
+    for (const player of currentOnline) {
+      if (!previousOnline.has(player)) {
+        console.log(`[ZORP] Player ${player} came online on ${serverName}`);
+        await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+      }
+    }
+    
+    // Update online players
+    onlinePlayers.set(serverKey, currentOnline);
+  } catch (error) {
+    console.error('Error checking player online status:', error);
+  }
+}
+
+async function handlePlayerOffline(client, guildId, serverName, playerName, ip, port, password) {
+  try {
+    // Set zone to red
+    await setZoneToRed(ip, port, password, playerName);
+    
+    // Send offline message to zorp feed
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=red`);
+    
+    // Start expiration timer (don't delete immediately, just mark as offline)
+    console.log(`[ZORP] Player ${playerName} went offline, zone set to red`);
+  } catch (error) {
+    console.error('Error handling player offline:', error);
+  }
+}
+
+async function handlePlayerOnline(client, guildId, serverName, playerName, ip, port, password) {
+  try {
+    // Set zone to green
+    await setZoneToGreen(ip, port, password, playerName);
+    
+    // Send online message to zorp feed
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=green`);
+    
+    console.log(`[ZORP] Player ${playerName} came online, zone set to green`);
+  } catch (error) {
+    console.error('Error handling player online:', error);
   }
 }
 
