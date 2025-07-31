@@ -37,7 +37,7 @@ module.exports = {
       try {
         [zoneResult] = await pool.query(`
           SELECT z.*, rs.ip, rs.port, rs.password, rs.nickname
-          FROM zones z
+          FROM zorp_zones z
           JOIN rust_servers rs ON z.server_id = rs.id
           JOIN guilds g ON rs.guild_id = g.id
           WHERE g.discord_id = ? AND z.name = ?
@@ -73,7 +73,7 @@ module.exports = {
 
       // Delete from database
       try {
-        await pool.query('DELETE FROM zones WHERE id = ?', [zone.id]);
+        await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
       } catch (dbDeleteError) {
         console.error('Database error deleting zone:', dbDeleteError);
         return interaction.editReply({

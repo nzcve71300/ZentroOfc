@@ -128,7 +128,7 @@ module.exports = {
       let zonesResult;
       try {
         [zonesResult] = await pool.query(`
-          SELECT * FROM zones WHERE server_id = ?
+          SELECT * FROM zorp_zones WHERE server_id = ?
         `, [serverId]);
       } catch (dbError) {
         console.error('Database error fetching zones:', dbError);
@@ -193,7 +193,7 @@ module.exports = {
           values.push(zone.id);
           try {
             await pool.query(`
-              UPDATE zones 
+              UPDATE zorp_zones 
               SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
             `, values);

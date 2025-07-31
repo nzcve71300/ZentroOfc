@@ -1092,12 +1092,12 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check if player already has a zone
     const existingZone = await pool.query(
-      'SELECT name FROM zones WHERE server_id = ? AND owner = ?',
+      'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
       [serverId, playerName]
     );
 
     if (existingZone.length > 0) {
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You already have an active Zorp zone. Use the delete emote to remove it first.</color>`);
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You already have an active Zorp zone. Use the goodbye emote to remove it first.</color>`);
       console.log(`[ZORP] Player ${playerName} already has a zone`);
       return;
     }
@@ -1167,7 +1167,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check for overlapping zones
     const existingZones = await pool.query(
-      'SELECT name, position, size FROM zones WHERE server_id = ?',
+      'SELECT name, position, size FROM zorp_zones WHERE server_id = ?',
       [serverId]
     );
 
@@ -1221,7 +1221,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     };
 
     await pool.query(`
-      INSERT INTO zones (server_id, name, owner, team, position, size, color_online, color_offline, radiation, delay, expire, min_team, max_team)
+      INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, radiation, delay, expire, min_team, max_team)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
@@ -1261,7 +1261,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check if player has a zone
     const zoneResult = await pool.query(
-      'SELECT name FROM zones WHERE server_id = ? AND owner = ?',
+      'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
       [serverId, playerName]
     );
 
@@ -1277,7 +1277,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
 
     // Delete zone from database
-    await pool.query('DELETE FROM zones WHERE server_id = ? AND owner = ?', [serverId, playerName]);
+    await pool.query('DELETE FROM zorp_zones WHERE server_id = ? AND owner = ?', [serverId, playerName]);
 
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);
@@ -1319,7 +1319,7 @@ async function restoreZonesOnStartup(client) {
     
     const [result] = await pool.query(`
       SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
-      FROM zones z
+      FROM zorp_zones z
       JOIN rust_servers rs ON z.server_id = rs.id
       JOIN guilds g ON rs.guild_id = g.id
       WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
@@ -1370,7 +1370,7 @@ async function deleteExpiredZones(client) {
   try {
     const [result] = await pool.query(`
       SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
-      FROM zones z
+      FROM zorp_zones z
       JOIN rust_servers rs ON z.server_id = rs.id
       JOIN guilds g ON rs.guild_id = g.id
       WHERE z.created_at + INTERVAL z.expire SECOND < CURRENT_TIMESTAMP
@@ -1382,7 +1382,7 @@ async function deleteExpiredZones(client) {
         await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
         
         // Delete from database
-        await pool.query('DELETE FROM zones WHERE id = ?', [zone.id]);
+        await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
         
         console.log(`[ZORP] Deleted expired zone: ${zone.name}`);
         

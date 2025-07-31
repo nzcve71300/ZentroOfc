@@ -14,7 +14,7 @@ module.exports = {
       // Get all zones for this guild
       const [zonesResult] = await pool.query(`
         SELECT z.*, rs.nickname
-        FROM zones z
+        FROM zorp_zones z
         JOIN rust_servers rs ON z.server_id = rs.id
         JOIN guilds g ON rs.guild_id = g.id
         WHERE g.discord_id = ?
