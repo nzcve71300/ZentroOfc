@@ -1495,7 +1495,66 @@ async function getPlayerTeam(ip, port, password, playerName) {
     // Check if we have a tracked team ID for this player
     const teamId = playerTeamIds.get(playerName);
     if (!teamId) {
-      console.log(`[ZORP DEBUG] No tracked team ID for ${playerName}`);
+      console.log(`[ZORP DEBUG] No tracked team ID for ${playerName}, trying direct query...`);
+      
+      // Fallback: Try to get team info directly from server
+      try {
+        const allTeamsResult = await sendRconCommand(ip, port, password, 'relationshipmanager.teaminfoall');
+        if (allTeamsResult) {
+          const lines = allTeamsResult.split('\n');
+          for (const line of lines) {
+            if (line.includes('Team') && line.includes(':')) {
+              const teamMatch = line.match(/Team (\d+):/);
+              if (teamMatch) {
+                const currentTeamId = teamMatch[1];
+                const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo "${currentTeamId}"`);
+                
+                if (detailedTeamInfo) {
+                  const teamLines = detailedTeamInfo.split('\n');
+                  const teamMembers = [];
+                  let teamOwner = null;
+                  
+                  for (const teamLine of teamLines) {
+                    if (teamLine.includes('(LEADER)')) {
+                      const leaderMatch = teamLine.match(/(.+) \[(\d+)\] \(LEADER\)/);
+                      if (leaderMatch) {
+                        teamOwner = leaderMatch[1];
+                        teamMembers.push(leaderMatch[1]);
+                      }
+                    } else if (teamLine.includes('Member:')) {
+                      const memberMatch = teamLine.match(/Member: (.+)/);
+                      if (memberMatch) {
+                        const member = memberMatch[1];
+                        teamMembers.push(member);
+                      }
+                    }
+                  }
+                  
+                  // Check if our player is in this team
+                  if (teamMembers.includes(playerName)) {
+                    console.log(`[ZORP DEBUG] Found ${playerName} in team ${currentTeamId} via direct query`);
+                    // Cache this team info
+                    playerTeamIds.set(playerName, currentTeamId);
+                    
+                    const playerTeam = { 
+                      id: currentTeamId, 
+                      owner: teamOwner, 
+                      members: teamMembers 
+                    };
+                    
+                    console.log(`[ZORP DEBUG] Final team object from direct query:`, playerTeam);
+                    return playerTeam;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (fallbackError) {
+        console.error('[ZORP DEBUG] Fallback team query failed:', fallbackError);
+      }
+      
+      console.log(`[ZORP DEBUG] No team found for ${playerName} via direct query either`);
       return null;
     }
     
