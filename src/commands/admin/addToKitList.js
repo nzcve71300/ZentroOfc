@@ -89,7 +89,7 @@ module.exports = {
          JOIN guilds g ON rs.guild_id = g.id
          WHERE g.discord_id = ? AND rs.id = ? AND (p.ign LIKE ? OR p.discord_id = ? OR p.discord_id IS NULL)
          ORDER BY p.ign`,
-        [guildId, serverId, playerName]
+        [guildId, serverId, `%${playerName}%`, playerName]
       );
 
       if (playerResult.length === 0) {
