@@ -50,6 +50,9 @@ const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
 const onlinePlayers = new Map(); // serverKey -> Set of player names
 const onlineStatusChecks = new Map(); // serverKey -> last check timestamp
 
+// Track team IDs per player
+const playerTeamIds = new Map(); // playerName -> teamId
+
 // Helper function to calculate 3D distance between two points
 function calculateDistance(x1, y1, z1, x2, y2, z2) {
   return Math.sqrt(
@@ -154,6 +157,8 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
     console.log(`🔥 Connected to RCON: ${serverName} (${guildId})`);
     // Enable team action logging
     await enableTeamActionLogging(ip, port, password);
+    // Populate team IDs on startup
+    await populateTeamIds(ip, port, password);
   });
 
   ws.on('message', async (data) => {
@@ -235,6 +240,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle team changes
       await handleTeamChanges(client, guildId, serverName, msg, ip, port, password);
+
+      // Track team changes for ZORP system
+      await trackTeamChanges(msg);
 
       // Check online status every 30 seconds (roughly)
       const now = Date.now();
@@ -1471,55 +1479,62 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
 async function getPlayerTeam(ip, port, password, playerName) {
   try {
     console.log(`[ZORP DEBUG] Getting team info for player: ${playerName}`);
-    const teamInfoResult = await sendRconCommand(ip, port, password, 'relationshipmanager.teaminfoall');
-    console.log(`[ZORP DEBUG] Team info result: ${teamInfoResult}`);
     
-    if (!teamInfoResult) { 
-      console.log(`[ZORP DEBUG] No team info result for ${playerName}`);
-      return null; 
+    // Check if we have a tracked team ID for this player
+    const teamId = playerTeamIds.get(playerName);
+    if (!teamId) {
+      console.log(`[ZORP DEBUG] No tracked team ID for ${playerName}`);
+      return null;
     }
     
-    const lines = teamInfoResult.split('\n');
-    let playerTeam = null;
+    console.log(`[ZORP DEBUG] Found team ID ${teamId} for ${playerName}`);
+    
+    // Get detailed team info using the team ID
+    const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo "${teamId}"`);
+    console.log(`[ZORP DEBUG] Detailed team info: ${detailedTeamInfo}`);
+    
+    if (!detailedTeamInfo) {
+      console.log(`[ZORP DEBUG] No detailed team info for team ${teamId}`);
+      return null;
+    }
+    
+    const teamLines = detailedTeamInfo.split('\n');
+    const teamMembers = [];
     let teamOwner = null;
     
-    for (const line of lines) {
-      console.log(`[ZORP DEBUG] Processing line: ${line}`);
-      if (line.includes(playerName)) {
-        const teamMatch = line.match(/Team (\d+):/);
-        if (teamMatch) {
-          const teamId = teamMatch[1];
-          console.log(`[ZORP DEBUG] Found player ${playerName} in team ${teamId}`);
-          const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo ${teamId}`);
-          console.log(`[ZORP DEBUG] Detailed team info: ${detailedTeamInfo}`);
-          
-          if (detailedTeamInfo) {
-            const teamLines = detailedTeamInfo.split('\n');
-            const teamMembers = [];
-            for (const teamLine of teamLines) {
-              if (teamLine.includes('Owner:')) { 
-                teamOwner = teamLine.split('Owner:')[1].trim(); 
-                console.log(`[ZORP DEBUG] Team owner: ${teamOwner}`);
-              }
-              else if (teamLine.includes('Member:')) { 
-                const member = teamLine.split('Member:')[1].trim();
-                teamMembers.push(member);
-                console.log(`[ZORP DEBUG] Team member: ${member}`);
-              }
-            }
-            playerTeam = { id: teamId, owner: teamOwner, members: teamMembers };
-            console.log(`[ZORP DEBUG] Final team object:`, playerTeam);
-            break;
-          }
+    for (const teamLine of teamLines) {
+      console.log(`[ZORP DEBUG] Processing team line: ${teamLine}`);
+      if (teamLine.includes('(LEADER)')) {
+        const leaderMatch = teamLine.match(/(.+) \[(\d+)\] \(LEADER\)/);
+        if (leaderMatch) {
+          teamOwner = leaderMatch[1];
+          teamMembers.push(leaderMatch[1]);
+          console.log(`[ZORP DEBUG] Team leader: ${teamOwner}`);
+        }
+      } else if (teamLine.includes('Member:')) {
+        const memberMatch = teamLine.match(/Member: (.+)/);
+        if (memberMatch) {
+          const member = memberMatch[1];
+          teamMembers.push(member);
+          console.log(`[ZORP DEBUG] Team member: ${member}`);
         }
       }
     }
     
-    if (!playerTeam) {
-      console.log(`[ZORP DEBUG] Player ${playerName} not found in any team`);
+    if (teamMembers.length === 0) {
+      console.log(`[ZORP DEBUG] No team members found for team ${teamId}`);
+      return null;
     }
     
+    const playerTeam = { 
+      id: teamId, 
+      owner: teamOwner, 
+      members: teamMembers 
+    };
+    
+    console.log(`[ZORP DEBUG] Final team object:`, playerTeam);
     return playerTeam;
+    
   } catch (error) {
     console.error('Error getting player team:', error);
     return null;
@@ -1731,6 +1746,112 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
   }
 }
 
+async function trackTeamChanges(msg) {
+  try {
+    // Track when players join teams
+    const joinMatch = msg.match(/(.+) has joined (.+)s team, ID: \[(\d+)\]/);
+    if (joinMatch) {
+      const playerName = joinMatch[1];
+      const teamId = joinMatch[3];
+      playerTeamIds.set(playerName, teamId);
+      console.log(`[ZORP] Player ${playerName} joined team ${teamId}`);
+      return;
+    }
+
+    // Track when players leave teams
+    const leaveMatch = msg.match(/(.+) has left (.+)s team, ID: \[(\d+)\]/);
+    if (leaveMatch) {
+      const playerName = leaveMatch[1];
+      playerTeamIds.delete(playerName);
+      console.log(`[ZORP] Player ${playerName} left team ${leaveMatch[3]}`);
+      return;
+    }
+
+    // Track when teams are created
+    const createMatch = msg.match(/(.+) created a team, ID: \[(\d+)\]/);
+    if (createMatch) {
+      const playerName = createMatch[1];
+      const teamId = createMatch[2];
+      playerTeamIds.set(playerName, teamId);
+      console.log(`[ZORP] Player ${playerName} created team ${teamId}`);
+      return;
+    }
+
+    // Track when players are kicked
+    const kickMatch = msg.match(/(.+) kicked (.+) from the team, ID: \[(\d+)\]/);
+    if (kickMatch) {
+      const kickedPlayer = kickMatch[2];
+      playerTeamIds.delete(kickedPlayer);
+      console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${kickMatch[3]}`);
+      return;
+    }
+
+    // Track when teams are disbanded
+    const disbandMatch = msg.match(/(.+) disbanded the team, ID: \[(\d+)\]/);
+    if (disbandMatch) {
+      const teamId = disbandMatch[2];
+      // Remove all players from this team
+      for (const [player, id] of playerTeamIds.entries()) {
+        if (id === teamId) {
+          playerTeamIds.delete(player);
+          console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId}`);
+        }
+      }
+      return;
+    }
+  } catch (error) {
+    console.error('Error tracking team changes:', error);
+  }
+}
+
+async function populateTeamIds(ip, port, password) {
+  try {
+    console.log('[ZORP] Populating team IDs on startup...');
+    const teamInfoResult = await sendRconCommand(ip, port, password, 'relationshipmanager.teaminfoall');
+    
+    if (!teamInfoResult) {
+      console.log('[ZORP] No team info available on startup');
+      return;
+    }
+    
+    const lines = teamInfoResult.split('\n');
+    for (const line of lines) {
+      if (line.includes('Team') && line.includes(':')) {
+        const teamMatch = line.match(/Team (\d+):/);
+        if (teamMatch) {
+          const teamId = teamMatch[1];
+          const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo "${teamId}"`);
+          
+          if (detailedTeamInfo) {
+            const teamLines = detailedTeamInfo.split('\n');
+            for (const teamLine of teamLines) {
+              if (teamLine.includes('(LEADER)')) {
+                const leaderMatch = teamLine.match(/(.+) \[(\d+)\] \(LEADER\)/);
+                if (leaderMatch) {
+                  const leader = leaderMatch[1];
+                  playerTeamIds.set(leader, teamId);
+                  console.log(`[ZORP] Found team leader ${leader} in team ${teamId}`);
+                }
+              } else if (teamLine.includes('Member:')) {
+                const memberMatch = teamLine.match(/Member: (.+)/);
+                if (memberMatch) {
+                  const member = memberMatch[1];
+                  playerTeamIds.set(member, teamId);
+                  console.log(`[ZORP] Found team member ${member} in team ${teamId}`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`[ZORP] Populated ${playerTeamIds.size} team IDs on startup`);
+  } catch (error) {
+    console.error('Error populating team IDs:', error);
+  }
+}
+
 // Export functions for use in commands
 module.exports = {
   startRconListeners,
@@ -1740,5 +1861,6 @@ module.exports = {
   restoreZonesOnStartup,
   sendFeedEmbed,
   updatePlayerCountChannel,
-  enableTeamActionLogging
+  enableTeamActionLogging,
+  populateTeamIds
 }; 
