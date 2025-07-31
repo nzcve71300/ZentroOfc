@@ -72,30 +72,53 @@ async function fixEventsAndChannels() {
       console.log('✅ channel_settings table already exists');
     }
     
-    // Clean up invalid channel IDs
+    // Clean up ALL invalid channel IDs (common invalid IDs)
     console.log('\n🧹 Cleaning up invalid channel IDs...');
-    const [invalidChannels] = await pool.query(`
+    const invalidChannelIds = [
+      '1400098668123783200',
+      '1400098489311953000',
+      '1396872848748052500'
+    ];
+    
+    for (const channelId of invalidChannelIds) {
+      const [invalidChannels] = await pool.query(`
+        SELECT cs.*, rs.nickname 
+        FROM channel_settings cs 
+        JOIN rust_servers rs ON cs.server_id = rs.id 
+        WHERE cs.channel_id = ?
+      `, [channelId]);
+      
+      if (invalidChannels.length > 0) {
+        console.log(`❌ Found ${invalidChannels.length} invalid channel IDs (${channelId}):`);
+        invalidChannels.forEach(channel => {
+          console.log(`  - Server: ${channel.nickname}, Type: ${channel.channel_type}, Channel ID: ${channel.channel_id}`);
+        });
+        
+        // Delete invalid channel settings
+        await pool.query(`
+          DELETE FROM channel_settings 
+          WHERE channel_id = ?
+        `, [channelId]);
+        
+        console.log(`✅ Cleaned up invalid channel ID: ${channelId}`);
+      }
+    }
+    
+    // Also clean up any channel IDs that look like they might be invalid (very old or placeholder)
+    const [allChannels] = await pool.query(`
       SELECT cs.*, rs.nickname 
       FROM channel_settings cs 
       JOIN rust_servers rs ON cs.server_id = rs.id 
-      WHERE cs.channel_id = '1400098668123783200'
+      WHERE cs.channel_id LIKE '1400%' OR cs.channel_id LIKE '1396%'
     `);
     
-    if (invalidChannels.length > 0) {
-      console.log(`❌ Found ${invalidChannels.length} invalid channel IDs to clean up:`);
-      invalidChannels.forEach(channel => {
+    if (allChannels.length > 0) {
+      console.log(`\n⚠️  Found ${allChannels.length} potentially invalid channel IDs:`);
+      allChannels.forEach(channel => {
         console.log(`  - Server: ${channel.nickname}, Type: ${channel.channel_type}, Channel ID: ${channel.channel_id}`);
       });
       
-      // Delete invalid channel settings
-      await pool.query(`
-        DELETE FROM channel_settings 
-        WHERE channel_id = '1400098668123783200'
-      `);
-      
-      console.log('✅ Cleaned up invalid channel IDs');
-    } else {
-      console.log('✅ No invalid channel IDs found');
+      console.log('\n💡 These channel IDs might be invalid. You may need to reconfigure them with /channel-set');
     }
     
     // Verify fixes
