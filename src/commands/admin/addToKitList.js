@@ -6,7 +6,7 @@ const pool = require('../../db');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('add-to-kit-list')
-    .setDescription('Add a player to an elite kit list')
+    .setDescription('Add a player to a kit authorization list')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
@@ -19,9 +19,10 @@ module.exports = {
         .setMaxLength(50))
     .addStringOption(option =>
       option.setName('kitlist')
-        .setDescription('Select which elite list to add to')
+        .setDescription('Select which kit list to add to')
         .setRequired(true)
         .addChoices(
+          { name: 'VIP Kits', value: 'VIPkit' },
           { name: 'Elite List 1', value: 'Elite1' },
           { name: 'Elite List 2', value: 'Elite2' },
           { name: 'Elite List 3', value: 'Elite3' },
@@ -104,10 +105,10 @@ module.exports = {
           `Found ${playerResult.length} players matching "${playerName}". Please be more specific:`
         );
 
-        for (const player of playerResult.rows) {
+        for (const player of playerResult) {
           embed.addFields({
             name: `👤 ${player.ign || 'Unknown'}`,
-            value: `**Discord ID:** ${player.discord_id}`,
+            value: `**Discord ID:** ${player.discord_id || 'Not linked'}`,
             inline: true
           });
         }
@@ -126,8 +127,9 @@ module.exports = {
       );
 
       if (existingResult.length > 0) {
+        const kitType = kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`;
         return interaction.editReply({
-          embeds: [errorEmbed('Already in List', `${player.ign || 'Player'} is already in ${kitlist} on ${serverName}.`)]
+          embeds: [errorEmbed('Already in List', `${player.ign || 'Player'} is already authorized for ${kitType} on ${serverName}.`)]
         });
       }
 
@@ -144,10 +146,11 @@ module.exports = {
         [serverId, player.discord_id, kitlist]
       );
 
+      const kitType = kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`;
       await interaction.editReply({
         embeds: [successEmbed(
           'Player Added to Kit List',
-          `**Player:** ${player.ign || 'Unknown'}\n**Server:** ${serverName}\n**Kit List:** ${kitlist}\n\nPlayer has been added to the elite kit list successfully.`
+          `**Player:** ${player.ign || 'Unknown'}\n**Server:** ${serverName}\n**Authorization:** ${kitType}\n\nPlayer has been authorized for ${kitType} successfully.`
         )]
       });
 
