@@ -47,29 +47,20 @@ module.exports = {
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guildId;
     
     try {
-      // Get servers for this guild
-      const [serversResult] = await pool.query(`
-        SELECT rs.id, rs.nickname
-        FROM rust_servers rs
-        JOIN guilds g ON rs.guild_id = g.id
-        WHERE g.discord_id = ?
-        ORDER BY rs.nickname
-      `, [interaction.guildId]);
+      const [result] = await pool.query(
+        'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname LIKE ? ORDER BY rs.nickname LIMIT 25',
+        [guildId, `%${focusedValue}%`]
+      );
 
-      const choices = serversResult.map(server => ({
-        name: server.nickname,
-        value: server.id.toString()
+      const choices = result.map(row => ({
+        name: row.nickname,
+        value: row.id.toString()
       }));
 
-      const filtered = choices.filter(choice => 
-        choice.name.toLowerCase().includes(focusedValue.toLowerCase())
-      );
-
-      await interaction.respond(
-        filtered.slice(0, 25)
-      );
+      await interaction.respond(choices);
     } catch (error) {
       console.error('Autocomplete error:', error);
       await interaction.respond([]);
