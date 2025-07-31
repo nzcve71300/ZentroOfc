@@ -34,7 +34,7 @@ module.exports = {
         .setRequired(false))
     .addIntegerOption(option =>
       option.setName('expire')
-        .setDescription('Expiration time in seconds (default: 126000 = 35 hours)')
+        .setDescription('Expiration time in hours (default: 35 hours)')
         .setRequired(false))
     .addIntegerOption(option =>
       option.setName('min_team')
@@ -174,7 +174,7 @@ module.exports = {
         }
         if (expire !== null) {
           updates.push(`expire = ?`);
-          values.push(expire);
+          values.push(expire * 3600); // Convert hours to seconds
           updatedFields.push('expire');
         }
         if (minTeam !== null) {
@@ -256,7 +256,7 @@ module.exports = {
         }
         if (expire !== null) {
           defaultsUpdates.push(`expire = ?`);
-          defaultsValues.push(expire);
+          defaultsValues.push(expire * 3600); // Convert hours to seconds
         }
         if (minTeam !== null) {
           defaultsUpdates.push(`min_team = ?`);
