@@ -13,11 +13,11 @@ const KIT_EMOTES = {
   FREEkit1: 'd11_quick_chat_i_need_phrase_format d11_Wood',
   FREEkit2: 'd11_quick_chat_i_need_phrase_format d11_Water',
   VIPkit: 'd11_quick_chat_i_need_phrase_format stones',
-  ELITEkit1: 'd11_quick_chat_i_need_phrase_format metal.refined',
-  ELITEkit2: 'd11_quick_chat_i_need_phrase_format d11_Scrap',
-  ELITEkit3: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
-  ELITEkit4: 'd11_quick_chat_i_need_phrase_format d11_Food',
-  ELITEkit5: 'd11_quick_chat_i_need_phrase_format d11_Cloth',
+  ELITEkit1: 'd11_quick_chat_i_need_phrase_format d11_Metal_Fragments',
+  ELITEkit2: 'd11_quick_chat_i_need_phrase_format metal.refined',
+  ELITEkit3: 'd11_quick_chat_i_need_phrase_format d11_Scrap',
+  ELITEkit4: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
+  ELITEkit5: 'd11_quick_chat_i_need_phrase_format d11_Food',
 };
 
 // Teleport emote mappings

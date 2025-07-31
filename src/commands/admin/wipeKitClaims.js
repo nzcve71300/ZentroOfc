@@ -18,6 +18,8 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'All Kits', value: 'all' },
+          { name: 'Free Kit 1', value: 'FREEkit1' },
+          { name: 'Free Kit 2', value: 'FREEkit2' },
           { name: 'VIP Kits', value: 'VIPkit' },
           { name: 'Elite List 1', value: 'Elite1' },
           { name: 'Elite List 2', value: 'Elite2' },
@@ -89,13 +91,32 @@ module.exports = {
         kitNames = ['All kits'];
       } else {
         // Delete cooldown entries for specific kit
-        const kitName = kitlist === 'VIPkit' ? 'VIPkit' : `ELITEkit${kitlist.replace('Elite', '')}`;
+        let kitName;
+        if (kitlist === 'VIPkit') {
+          kitName = 'VIPkit';
+        } else if (kitlist.startsWith('FREEkit')) {
+          kitName = kitlist; // FREEkit1, FREEkit2
+        } else if (kitlist.startsWith('Elite')) {
+          kitName = `ELITEkit${kitlist.replace('Elite', '')}`;
+        } else {
+          kitName = kitlist;
+        }
+        
         const [deleteResult] = await pool.query(
           'DELETE FROM kit_cooldowns WHERE server_id = ? AND kit_name = ?',
           [serverId, kitName]
         );
         deletedCount = deleteResult.affectedRows;
-        kitNames = [kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`];
+        
+        if (kitlist === 'VIPkit') {
+          kitNames = ['VIP kits'];
+        } else if (kitlist.startsWith('FREEkit')) {
+          kitNames = [`${kitlist} free kits`];
+        } else if (kitlist.startsWith('Elite')) {
+          kitNames = [`${kitlist} elite kits`];
+        } else {
+          kitNames = [kitlist];
+        }
       }
 
       const embed = successEmbed(
