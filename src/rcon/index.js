@@ -222,6 +222,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       await handleZorpEmote(client, guildId, serverName, parsed, ip, port, password);
       await handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, port, password);
 
+      // Handle ZORP zone entry/exit messages
+      await handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, password);
+
     } catch (err) {
       console.error('RCON listener error:', err);
     }
@@ -1073,6 +1076,31 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
   }
 }
 
+async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, password) {
+  try {
+    // Check for zone entry/exit messages
+    const entryMatch = msg.match(/You entered (.+?) Zorp/);
+    const exitMatch = msg.match(/You left (.+?) Zorp/);
+    
+    if (entryMatch) {
+      const playerName = entryMatch[1];
+      console.log(`[ZORP] Zone entry detected for: ${playerName} on server: ${serverName}`);
+      
+      // Send to zorp feed
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=green`);
+      
+    } else if (exitMatch) {
+      const playerName = exitMatch[1];
+      console.log(`[ZORP] Zone exit detected for: ${playerName} on server: ${serverName}`);
+      
+      // Send to zorp feed
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=red`);
+    }
+  } catch (error) {
+    console.error('Error handling ZORP zone status:', error);
+  }
+}
+
 async function createZorpZone(client, guildId, serverName, ip, port, password, playerName) {
   try {
     console.log(`[ZORP] Creating zone for player: ${playerName} on server: ${serverName}`);
@@ -1252,8 +1280,8 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
 
-    // Log to admin feed
-    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zorp=green`);
+    // Log to zorp feed
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp created`);
 
     console.log(`[ZORP] Zone created successfully for ${playerName}: ${zoneName}`);
 
@@ -1302,8 +1330,8 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);
 
-    // Log to admin feed
-    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zorp=red`);
+    // Log to zorp feed
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp deleted`);
 
     console.log(`[ZORP] Zone deleted successfully for ${playerName}: ${zoneName}`);
 
@@ -1416,8 +1444,8 @@ async function deleteExpiredZones(client) {
         
         console.log(`[ZORP] Deleted expired zone: ${zone.name}`);
         
-        // Send to admin feed
-        await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} zorp=red`);
+        // Send to zorp feed
+        await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted`);
         
       } catch (error) {
         console.error(`Error deleting expired zone ${zone.name}:`, error);
