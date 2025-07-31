@@ -283,11 +283,12 @@ module.exports = {
             `, defaultsValues);
           } else {
             // Create new defaults
-            defaultsValues.push(serverId);
+            const insertColumns = ['server_id', ...defaultsUpdates.map(u => u.split(' = ')[0])];
+            const insertValues = [serverId, ...defaultsValues];
             await pool.query(`
-              INSERT INTO zorp_defaults (server_id, ${defaultsUpdates.map(u => u.split(' = ')[0]).join(', ')}, created_at, updated_at)
-              VALUES (?, ${defaultsValues.slice(0, -1).map(() => '?').join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `, defaultsValues);
+              INSERT INTO zorp_defaults (${insertColumns.join(', ')}, created_at, updated_at)
+              VALUES (${insertValues.map(() => '?').join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `, insertValues);
           }
         }
       } catch (defaultsError) {
