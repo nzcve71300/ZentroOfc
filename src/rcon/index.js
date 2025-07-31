@@ -1240,6 +1240,18 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     
     const serverId = serverResult[0].id;
 
+    // Check if ZORPs are enabled for this server
+    const [enabledResult] = await pool.query(
+      'SELECT enabled FROM zorp_defaults WHERE server_id = ?',
+      [serverId]
+    );
+    
+    if (enabledResult.length > 0 && !enabledResult[0].enabled) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>ZORP system is currently disabled on this server.</color>`);
+      console.log(`[ZORP] ZORP system disabled for server: ${serverName}`);
+      return;
+    }
+
     // Check if player already has a zone
     const [existingZone] = await pool.query(
       'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',

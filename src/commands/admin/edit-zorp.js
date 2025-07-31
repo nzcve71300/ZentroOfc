@@ -43,6 +43,10 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('max_team')
         .setDescription('Maximum team size (default: 8)')
+        .setRequired(false))
+    .addBooleanOption(option =>
+      option.setName('zorp')
+        .setDescription('Enable or disable ZORP system (default: true)')
         .setRequired(false)),
 
   async autocomplete(interaction) {
@@ -80,6 +84,7 @@ module.exports = {
       const expire = interaction.options.getInteger('expire');
       const minTeam = interaction.options.getInteger('min_team');
       const maxTeam = interaction.options.getInteger('max_team');
+      const zorpEnabled = interaction.options.getBoolean('zorp');
 
       // Validate serverOption
       if (!serverOption || typeof serverOption !== 'string' || serverOption.trim() === '') {
@@ -116,7 +121,7 @@ module.exports = {
       // Check if any parameters were provided
       const hasUpdates = size !== null || colorOnline !== null || colorOffline !== null || 
                         radiation !== null || delay !== null || expire !== null || 
-                        minTeam !== null || maxTeam !== null;
+                        minTeam !== null || maxTeam !== null || zorpEnabled !== null;
 
       if (!hasUpdates) {
         return interaction.editReply({
@@ -265,6 +270,10 @@ module.exports = {
         if (maxTeam !== null) {
           defaultsUpdates.push(`max_team = ?`);
           defaultsValues.push(maxTeam);
+        }
+        if (zorpEnabled !== null) {
+          defaultsUpdates.push(`enabled = ?`);
+          defaultsValues.push(zorpEnabled ? 1 : 0);
         }
 
         if (defaultsUpdates.length > 0) {
