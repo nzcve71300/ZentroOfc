@@ -9,10 +9,11 @@ async function createZorpTables() {
     
     // Create connection pool
     pool = mysql.createPool({
-      host: config.database.host,
-      user: config.database.user,
-      password: config.database.password,
-      database: config.database.name,
+      host: config.db.host,
+      user: config.db.user,
+      password: config.db.password,
+      database: config.db.database,
+      port: config.db.port,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0
@@ -73,7 +74,7 @@ async function createZorpTables() {
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = ? AND table_name IN ('zorp_zones', 'zorp_defaults')
-    `, [config.database.name]);
+    `, [config.db.database]);
 
     console.log('📊 Found tables:');
     tables.forEach(table => {
