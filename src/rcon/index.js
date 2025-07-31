@@ -146,7 +146,11 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
   const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
   activeConnections[key] = ws;
 
-  ws.on('open', () => console.log(`🔥 Connected to RCON: ${serverName} (${guildId})`));
+  ws.on('open', async () => {
+    console.log(`🔥 Connected to RCON: ${serverName} (${guildId})`);
+    // Enable team action logging
+    await enableTeamActionLogging(ip, port, password);
+  });
 
   ws.on('message', async (data) => {
     try {
@@ -1548,6 +1552,9 @@ async function restoreZonesOnStartup(client) {
       try {
         console.log(`[ZORP DEBUG] Attempting to restore zone: ${zone.name} (owned by ${zone.owner}) on ${zone.nickname}`);
         
+        // Enable team action logging for this server
+        await enableTeamActionLogging(zone.ip, zone.port, zone.password);
+        
         // Parse position
         const position = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
         
@@ -1627,6 +1634,16 @@ async function deleteExpiredZones(client) {
   }
 }
 
+async function enableTeamActionLogging(ip, port, password) {
+  try {
+    console.log('[ZORP] Enabling team action logging...');
+    await sendRconCommand(ip, port, password, 'relationshipmanager.logteamactions "1"');
+    console.log('[ZORP] Team action logging enabled');
+  } catch (error) {
+    console.error('Error enabling team action logging:', error);
+  }
+}
+
 // Export functions for use in commands
 module.exports = {
   startRconListeners,
@@ -1635,5 +1652,6 @@ module.exports = {
   activeConnections,
   restoreZonesOnStartup,
   sendFeedEmbed,
-  updatePlayerCountChannel
+  updatePlayerCountChannel,
+  enableTeamActionLogging
 }; 
