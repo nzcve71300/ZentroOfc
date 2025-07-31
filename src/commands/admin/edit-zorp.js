@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
-const { sendRconCommand } = require('../../rcon');
+const { sendRconCommand, sendFeedEmbed } = require('../../rcon');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -274,6 +274,37 @@ module.exports = {
         if (zorpEnabled !== null) {
           defaultsUpdates.push(`enabled = ?`);
           defaultsValues.push(zorpEnabled ? 1 : 0);
+          
+          // If disabling ZORPs, delete all existing zones
+          if (!zorpEnabled) {
+            console.log(`[ZORP] Disabling ZORPs for server ${server.nickname}, deleting all existing zones...`);
+            
+            // Delete all zones from database and game
+            for (const zone of zones) {
+              try {
+                // Delete from game
+                if (server.ip && server.port && server.password) {
+                  await sendRconCommand(server.ip, server.port, server.password, `zones.deletecustomzone "${zone.name}"`);
+                  console.log(`[ZORP] Deleted zone ${zone.name} from game`);
+                }
+                
+                // Delete from database
+                await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+                console.log(`[ZORP] Deleted zone ${zone.name} from database`);
+                
+              } catch (deleteError) {
+                console.error(`Error deleting zone ${zone.name}:`, deleteError);
+                rconErrors.push(`Failed to delete zone ${zone.name}`);
+              }
+            }
+            
+            // Send feed message about mass deletion
+            try {
+              await sendFeedEmbed(interaction.client, interaction.guildId, server.nickname, 'zorpfeed', `[ZORP] All ZORPs deleted - System disabled`);
+            } catch (feedError) {
+              console.error('Error sending feed message:', feedError);
+            }
+          }
         }
 
         if (defaultsUpdates.length > 0) {
