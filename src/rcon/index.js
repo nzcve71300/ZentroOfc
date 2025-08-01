@@ -691,11 +691,17 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       const config = configResult[0];
       console.log(`[TELEPORT DEBUG] Config: enabled=${config.enabled}, delay=${config.delay_seconds}, cooldown=${config.cooldown_minutes}`);
       console.log(`[TELEPORT DEBUG] Raw config object:`, config);
-    }
-
-    if (configResult.length === 0 || !configResult[0].enabled) {
-      console.log(`[TELEPORT DEBUG] Teleport disabled or not configured for ${positionType}`);
-      return; // Position teleport is not configured or disabled
+      
+      // Check if enabled (MySQL returns 1 for true, 0 for false)
+      if (config.enabled === 1) {
+        console.log(`[TELEPORT DEBUG] Teleport is ENABLED for ${positionType}`);
+      } else {
+        console.log(`[TELEPORT DEBUG] Teleport is DISABLED for ${positionType}`);
+        return; // Position teleport is disabled
+      }
+    } else {
+      console.log(`[TELEPORT DEBUG] No config found for ${positionType}`);
+      return; // Position teleport is not configured
     }
 
     const config = configResult[0];
@@ -728,6 +734,8 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleport coordinates not configured</color>`);
       return;
     }
+
+    console.log(`[TELEPORT DEBUG] Proceeding with teleport for ${player} to ${positionType}`);
 
     const coords = coordResult[0];
     const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
