@@ -74,13 +74,24 @@ module.exports = {
     const setup = interaction.options.getString('setup');
     const option = interaction.options.getString('option');
     const value = interaction.options.getString('value');
-    const guildId = interaction.guildId;
+    const discordGuildId = interaction.guildId;
 
     try {
+      // Get the guild_id from the guilds table
+      const [guildResult] = await pool.query('SELECT id FROM guilds WHERE discord_id = ?', [discordGuildId]);
+      
+      if (guildResult.length === 0) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Error', 'Guild not found in database.')]
+        });
+      }
+      
+      const guildId = guildResult[0].id;
+      
       // Get server info
       const [serverResult] = await pool.query(
         'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
-        [guildId, serverOption]
+        [discordGuildId, serverOption]
       );
 
       if (serverResult.length === 0) {
