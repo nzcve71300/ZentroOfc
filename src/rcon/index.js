@@ -181,10 +181,14 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         await ensurePlayerExists(guildId, serverName, player);
         // Send to playerfeed
         await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
+        // Handle Zorp zone online immediately
+        await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
       }
       if (msg.match(/has disconnected/)) {
         const player = msg.split(' ')[0];
         addToBuffer(guildId, serverName, 'leaves', player);
+        // Handle Zorp zone offline immediately
+        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
       }
 
       // Handle admin loot spawns
