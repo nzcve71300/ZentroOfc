@@ -107,15 +107,14 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get server and category
-      const [result] = await pool.query(
-        `SELECT rs.id as server_id, sc.id as category_id 
-         FROM rust_servers rs 
-         JOIN guilds g ON rs.guild_id = g.id 
-         JOIN shop_categories sc ON rs.id = sc.server_id 
-         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
-        [guildId, serverNickname, categoryName]
-      );
+             // Get server and category
+       const [result] = await pool.query(
+         `SELECT rs.id as server_id, sc.id as category_id 
+          FROM rust_servers rs 
+          JOIN shop_categories sc ON rs.id = sc.server_id 
+          WHERE rs.guild_id = ? AND rs.nickname = ? AND sc.name = ?`,
+         [guildId, serverNickname, categoryName]
+       );
 
       if (result.length === 0) {
         return interaction.editReply({
