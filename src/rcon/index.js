@@ -1879,8 +1879,16 @@ async function trackTeamChanges(msg) {
     const leaveMatch = msg.match(/(.+) has left (.+)s team, ID: \[(\d+)\]/);
     if (leaveMatch) {
       const playerName = leaveMatch[1];
+      const teamId = leaveMatch[3];
       playerTeamIds.delete(playerName);
-      console.log(`[ZORP] Player ${playerName} left team ${leaveMatch[3]}`);
+      console.log(`[ZORP] Player ${playerName} left team ${teamId}`);
+      
+      // Delete Zorp zone when player leaves team
+      try {
+        await deleteZorpZoneOnTeamLeave(playerName);
+      } catch (error) {
+        console.error(`[ZORP] Error deleting zone for ${playerName} after leaving team:`, error);
+      }
       return;
     }
 
@@ -1898,8 +1906,16 @@ async function trackTeamChanges(msg) {
     const kickMatch = msg.match(/(.+) kicked (.+) from the team, ID: \[(\d+)\]/);
     if (kickMatch) {
       const kickedPlayer = kickMatch[2];
+      const teamId = kickMatch[3];
       playerTeamIds.delete(kickedPlayer);
-      console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${kickMatch[3]}`);
+      console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId}`);
+      
+      // Delete Zorp zone when player is kicked
+      try {
+        await deleteZorpZoneOnTeamLeave(kickedPlayer);
+      } catch (error) {
+        console.error(`[ZORP] Error deleting zone for ${kickedPlayer} after being kicked:`, error);
+      }
       return;
     }
 
@@ -1907,17 +1923,71 @@ async function trackTeamChanges(msg) {
     const disbandMatch = msg.match(/(.+) disbanded the team, ID: \[(\d+)\]/);
     if (disbandMatch) {
       const teamId = disbandMatch[2];
-      // Remove all players from this team
+      // Remove all players from this team and delete their zones
       for (const [player, id] of playerTeamIds.entries()) {
         if (id === teamId) {
           playerTeamIds.delete(player);
           console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId}`);
+          
+          // Delete Zorp zone when team is disbanded
+          try {
+            await deleteZorpZoneOnTeamLeave(player);
+          } catch (error) {
+            console.error(`[ZORP] Error deleting zone for ${player} after team disband:`, error);
+          }
         }
       }
       return;
     }
   } catch (error) {
     console.error('Error tracking team changes:', error);
+  }
+}
+
+async function deleteZorpZoneOnTeamLeave(playerName) {
+  try {
+    console.log(`[ZORP] Checking for zones to delete for ${playerName} after leaving team...`);
+    
+    // Get all active zones for this player
+    const [zones] = await pool.query(`
+      SELECT z.*, rs.nickname, rs.ip, rs.port, rs.password, g.discord_id
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.owner = ? AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+    `, [playerName]);
+    
+    if (zones.length === 0) {
+      console.log(`[ZORP] No active zones found for ${playerName}`);
+      return;
+    }
+    
+    for (const zone of zones) {
+      try {
+        console.log(`[ZORP] Deleting zone ${zone.name} for ${playerName} on ${zone.nickname}...`);
+        
+        // Delete from game
+        if (zone.ip && zone.port && zone.password) {
+          await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
+          console.log(`[ZORP] Deleted zone ${zone.name} from game`);
+        }
+        
+        // Delete from database
+        await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+        console.log(`[ZORP] Deleted zone ${zone.name} from database`);
+        
+        // Note: We can't send feed message here since we don't have client access
+        // The zone deletion will be logged in the console
+        
+      } catch (deleteError) {
+        console.error(`[ZORP] Error deleting zone ${zone.name}:`, deleteError);
+      }
+    }
+    
+    console.log(`[ZORP] Successfully deleted all zones for ${playerName}`);
+    
+  } catch (error) {
+    console.error(`[ZORP] Error in deleteZorpZoneOnTeamLeave for ${playerName}:`, error);
   }
 }
 
