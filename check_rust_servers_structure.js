@@ -1,6 +1,6 @@
 const pool = require('./src/db');
 
-async function checkTableStructure() {
+async function checkRustServersStructure() {
   try {
     console.log('🔍 Checking rust_servers table structure...');
 
@@ -31,4 +31,4 @@ async function checkTableStructure() {
   }
 }
 
-checkTableStructure(); 
+checkRustServersStructure(); 
