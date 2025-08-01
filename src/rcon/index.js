@@ -249,6 +249,16 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Track team changes for ZORP system
       await trackTeamChanges(msg);
 
+      // Handle save messages - specifically "Saving X entities"
+      if (msg.includes("[ SAVE ] Saving") && msg.includes("entities")) {
+        const saveMatch = msg.match(/\[ SAVE \] Saving (\d+) entities/);
+        if (saveMatch) {
+          const entityCount = saveMatch[1];
+          // Send colored message to game with just the entity count
+          await sendRconCommand(ip, port, password, `say <color=#00FF00>Saving</color> <color=white>${entityCount} entities</color>`);
+        }
+      }
+
       // Check online status every 30 seconds (roughly)
       const now = Date.now();
       const lastCheck = onlineStatusChecks.get(key) || 0;
