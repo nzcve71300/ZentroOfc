@@ -68,9 +68,9 @@ async function debugRconGuildId() {
         console.log('✅ No servers found with Discord guild_id as guild_id (good)');
       } else {
         console.log(`⚠️  Found ${discordGuildResult.length} servers with Discord guild_id as guild_id:`);
-        discordGuildResult.forEach(server => {
+        for (const server of discordGuildResult) {
           console.log(`  - ${server.nickname} (guild_id: ${server.guild_id})`);
-        });
+        }
       }
       
       // Test 4: Check what guild_id the server actually has
@@ -84,7 +84,7 @@ async function debugRconGuildId() {
         console.log('❌ Server not found by nickname');
       } else {
         console.log(`📋 Servers with nickname "${testCase.serverName}":`);
-        serverInfo.forEach(server => {
+        for (const server of serverInfo) {
           console.log(`  - ID: ${server.id}, Guild ID: ${server.guild_id}`);
           
           // Check what guild this guild_id belongs to
@@ -98,7 +98,7 @@ async function debugRconGuildId() {
           } else {
             console.log(`    → Guild not found in guilds table!`);
           }
-        });
+        }
       }
     }
     
