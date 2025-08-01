@@ -1502,52 +1502,66 @@ async function getPlayerTeam(ip, port, password, playerName) {
         const allTeamsResult = await sendRconCommand(ip, port, password, 'relationshipmanager.teaminfoall');
         if (allTeamsResult) {
           const lines = allTeamsResult.split('\n');
+          let currentTeamId = null;
+          const teamMembers = [];
+          let teamOwner = null;
+          
           for (const line of lines) {
-            if (line.includes('Team') && line.includes(':')) {
-              const teamMatch = line.match(/Team (\d+):/);
-              if (teamMatch) {
-                const currentTeamId = teamMatch[1];
-                const detailedTeamInfo = await sendRconCommand(ip, port, password, `relationshipmanager.teaminfo "${currentTeamId}"`);
+            // Check for team header line
+            const teamHeaderMatch = line.match(/Team (\d+) member list:/);
+            if (teamHeaderMatch) {
+              // If we were processing a team and found our player, return that team
+              if (currentTeamId && teamMembers.includes(playerName)) {
+                console.log(`[ZORP DEBUG] Found ${playerName} in team ${currentTeamId} via direct query`);
+                // Cache this team info
+                playerTeamIds.set(playerName, currentTeamId);
                 
-                if (detailedTeamInfo) {
-                  const teamLines = detailedTeamInfo.split('\n');
-                  const teamMembers = [];
-                  let teamOwner = null;
-                  
-                  for (const teamLine of teamLines) {
-                    if (teamLine.includes('(LEADER)')) {
-                      const leaderMatch = teamLine.match(/(.+) \[(\d+)\] \(LEADER\)/);
-                      if (leaderMatch) {
-                        teamOwner = leaderMatch[1];
-                        teamMembers.push(leaderMatch[1]);
-                      }
-                    } else if (teamLine.includes('Member:')) {
-                      const memberMatch = teamLine.match(/Member: (.+)/);
-                      if (memberMatch) {
-                        const member = memberMatch[1];
-                        teamMembers.push(member);
-                      }
-                    }
-                  }
-                  
-                  // Check if our player is in this team
-                  if (teamMembers.includes(playerName)) {
-                    console.log(`[ZORP DEBUG] Found ${playerName} in team ${currentTeamId} via direct query`);
-                    // Cache this team info
-                    playerTeamIds.set(playerName, currentTeamId);
-                    
-                    const playerTeam = { 
-                      id: currentTeamId, 
-                      owner: teamOwner, 
-                      members: teamMembers 
-                    };
-                    
-                    console.log(`[ZORP DEBUG] Final team object from direct query:`, playerTeam);
-                    return playerTeam;
-                  }
+                const playerTeam = { 
+                  id: currentTeamId, 
+                  owner: teamOwner, 
+                  members: teamMembers 
+                };
+                
+                console.log(`[ZORP DEBUG] Final team object from direct query:`, playerTeam);
+                return playerTeam;
+              }
+              
+              // Start new team
+              currentTeamId = teamHeaderMatch[1];
+              teamMembers.length = 0; // Clear array
+              teamOwner = null;
+              console.log(`[ZORP DEBUG] Processing team ${currentTeamId}`);
+            } else if (currentTeamId && line.trim()) {
+              // Process team member line
+              const memberMatch = line.match(/^(.+?) \[(\d+)\]( \(LEADER\))?$/);
+              if (memberMatch) {
+                const memberName = memberMatch[1].trim();
+                const isLeader = memberMatch[3] !== undefined;
+                
+                teamMembers.push(memberName);
+                if (isLeader) {
+                  teamOwner = memberName;
                 }
+                
+                console.log(`[ZORP DEBUG] Team member: ${memberName}${isLeader ? ' (LEADER)' : ''}`);
               }
             }
+          }
+          
+          // Check the last team
+          if (currentTeamId && teamMembers.includes(playerName)) {
+            console.log(`[ZORP DEBUG] Found ${playerName} in team ${currentTeamId} via direct query`);
+            // Cache this team info
+            playerTeamIds.set(playerName, currentTeamId);
+            
+            const playerTeam = { 
+              id: currentTeamId, 
+              owner: teamOwner, 
+              members: teamMembers 
+            };
+            
+            console.log(`[ZORP DEBUG] Final team object from direct query:`, playerTeam);
+            return playerTeam;
           }
         }
       } catch (fallbackError) {
