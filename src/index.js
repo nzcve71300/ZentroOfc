@@ -131,10 +131,11 @@ client.on('interactionCreate', async interaction => {
   if (!command) return;
 
   // Subscription enforcement - block all commands if subscription is not active
+  // EXCEPT for mark-paid command which needs to work even without subscription
   const { isSubscriptionActive } = require('./utils/subscriptionSystem');
   const subscriptionActive = await isSubscriptionActive(interaction.guildId);
   
-  if (!subscriptionActive) {
+  if (!subscriptionActive && interaction.commandName !== 'mark-paid') {
     return interaction.reply({
       embeds: [{
         color: 0xFF6B35,
