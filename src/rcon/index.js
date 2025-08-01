@@ -688,7 +688,9 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
 
     console.log(`[TELEPORT DEBUG] Config result: ${configResult.length} records found`);
     if (configResult.length > 0) {
-      console.log(`[TELEPORT DEBUG] Config: enabled=${configResult[0].enabled}, delay=${configResult[0].delay_seconds}, cooldown=${configResult[0].cooldown_minutes}`);
+      const config = configResult[0];
+      console.log(`[TELEPORT DEBUG] Config: enabled=${config.enabled}, delay=${config.delay_seconds}, cooldown=${config.cooldown_minutes}`);
+      console.log(`[TELEPORT DEBUG] Raw config object:`, config);
     }
 
     if (configResult.length === 0 || !configResult[0].enabled) {
@@ -852,8 +854,25 @@ function getServerInfo(ip, port, password) {
 }
 
 function extractPlayerName(logLine) {
-  const match = logLine.match(/\[CHAT LOCAL\] (.*?) :/);
-  return match ? match[1] : null;
+  // Try multiple formats for player name extraction
+  let match = logLine.match(/\[CHAT LOCAL\] (.*?) :/);
+  if (match) return match[1];
+  
+  // Try JSON format
+  if (logLine.includes('"Username"')) {
+    try {
+      const parsed = JSON.parse(logLine);
+      if (parsed.Username) return parsed.Username;
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+  }
+  
+  // Try direct format
+  match = logLine.match(/^([^:]+) :/);
+  if (match) return match[1];
+  
+  return null;
 }
 
 function sendRconCommand(ip, port, password, command) {
