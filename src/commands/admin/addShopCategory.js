@@ -70,7 +70,7 @@ module.exports = {
     try {
       // Get server ID
       const [serverResult] = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
+        'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
         [guildId, serverNickname]
       );
 
