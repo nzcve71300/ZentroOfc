@@ -205,10 +205,29 @@ async function flipCoin(game, interaction, serverName) {
   game.gameOver = true;
   game.flipped = true;
 
-  // Flip the coin (50/50 chance)
-  const result = Math.random() < 0.5 ? 'heads' : 'tails';
+  // Get difficulty settings from database
+  const [settingsResult] = await pool.query(
+    'SELECT option_value FROM eco_games WHERE server_id = ? AND setup = "coinflip" AND option IN ("win_probability", "payout_multiplier")',
+    [game.serverId]
+  );
+
+  // Default to harder settings if not configured
+  let winProbability = 0.42; // 42% win chance (was 50%)
+  let payoutMultiplier = 1.7; // 1.7x payout (was 2.0)
+
+  // Parse settings from database
+  settingsResult.forEach(row => {
+    if (row.option === 'win_probability') {
+      winProbability = parseFloat(row.option_value);
+    } else if (row.option === 'payout_multiplier') {
+      payoutMultiplier = parseFloat(row.option_value);
+    }
+  });
+
+  // Flip the coin with configured difficulty
+  const result = Math.random() < winProbability ? 'heads' : 'tails';
   const won = game.chosenSide === result;
-  const winnings = won ? game.betAmount * 2 : 0;
+  const winnings = won ? Math.floor(game.betAmount * payoutMultiplier) : 0;
 
   // Update balance in database
   if (winnings > 0) {
