@@ -41,7 +41,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -156,12 +156,12 @@ module.exports = {
 
       collector.on('collect', async (i) => {
         if (i.user.id !== userId) {
-          return i.reply({ content: 'This is not your game!', ephemeral: true });
+          return i.reply({ content: 'This is not your game!' });
         }
 
         const game = activeGames.get(gameId);
         if (!game || game.gameOver) {
-          return i.reply({ content: 'Game has ended!', ephemeral: true });
+          return i.reply({ content: 'Game has ended!' });
         }
 
         if (i.customId === `hit_${gameId}`) {

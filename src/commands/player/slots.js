@@ -41,7 +41,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -129,12 +129,12 @@ module.exports = {
 
       collector.on('collect', async (i) => {
         if (i.user.id !== userId) {
-          return i.reply({ content: 'This is not your game!', ephemeral: true });
+          return i.reply({ content: 'This is not your game!' });
         }
 
         const game = activeSlotsGames.get(gameId);
         if (!game || game.gameOver) {
-          return i.reply({ content: 'Game has ended!', ephemeral: true });
+          return i.reply({ content: 'Game has ended!' });
         }
 
         if (i.customId === `spin_${gameId}`) {
@@ -202,7 +202,7 @@ function createSlotsButtons(gameId) {
 
 async function spinSlots(game, interaction, serverName) {
   if (game.spins >= game.maxSpins) {
-    return interaction.reply({ content: 'No spins left! Cash out to end the game.', ephemeral: true });
+    return interaction.reply({ content: 'No spins left! Cash out to end the game.' });
   }
 
   // Spin the slots
@@ -265,7 +265,8 @@ async function spinSlots(game, interaction, serverName) {
   embed.setFooter({ text: '💎 Premium Gaming Experience • Keep spinning or cash out!' });
 
   // Update buttons based on remaining spins
-  const gameId = interaction.customId.split('_')[1];
+  // Extract gameId from the original game state
+  const gameId = Object.keys(activeSlotsGames).find(id => activeSlotsGames.get(id) === game);
   const row = game.spins >= game.maxSpins 
     ? new ActionRowBuilder().addComponents(
         new ButtonBuilder()
