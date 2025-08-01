@@ -57,14 +57,14 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
       return sendAccessDeniedMessage(interaction, false);
     }
 
-    const serverId = parseInt(interaction.options.getString('server'));
+    const serverId = interaction.options.getString('server');
     const configs = interaction.options.getString('configs');
     const value = interaction.options.getString('value');
     const guildId = interaction.guildId;
@@ -76,7 +76,7 @@ module.exports = {
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
          WHERE rs.id = ? AND g.discord_id = ?`,
-        [serverId, guildId]
+        [parseInt(serverId), guildId]
       );
 
       if (serverResult.length === 0) {
