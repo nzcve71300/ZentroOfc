@@ -53,6 +53,9 @@ const onlineStatusChecks = new Map(); // serverKey -> last check timestamp
 // Track team IDs per player
 const playerTeamIds = new Map(); // playerName -> teamId
 
+// Add at the top of the file, after the existing imports
+const lastOfflineCall = new Map(); // Track last offline call time per player
+
 // Helper function to calculate 3D distance between two points
 function calculateDistance(x1, y1, z1, x2, y2, z2) {
   return Math.sqrt(
@@ -1866,11 +1869,27 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
 
 async function handlePlayerOffline(client, guildId, serverName, playerName, ip, port, password) {
   try {
+    // Deduplication: prevent multiple calls for the same player within 30 seconds
+    const playerKey = `${guildId}_${serverName}_${playerName}`;
+    const now = Date.now();
+    const lastCall = lastOfflineCall.get(playerKey) || 0;
+    
+    if (now - lastCall < 30000) { // 30 seconds
+      console.log(`[ZORP] Skipping duplicate offline call for ${playerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
+      return;
+    }
+    
+    lastOfflineCall.set(playerKey, now);
+    
+    console.log(`[ZORP DEBUG] Processing offline for ${playerName} on ${serverName}`);
+    
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
       'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
+    
+    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${playerName}`);
     
     if (zoneResult.length > 0) {
       // Set zone to red
@@ -1890,11 +1909,27 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
 
 async function handlePlayerOnline(client, guildId, serverName, playerName, ip, port, password) {
   try {
+    // Deduplication: prevent multiple calls for the same player within 30 seconds
+    const playerKey = `${guildId}_${serverName}_${playerName}`;
+    const now = Date.now();
+    const lastCall = lastOfflineCall.get(playerKey) || 0;
+    
+    if (now - lastCall < 30000) { // 30 seconds
+      console.log(`[ZORP] Skipping duplicate online call for ${playerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
+      return;
+    }
+    
+    lastOfflineCall.set(playerKey, now);
+    
+    console.log(`[ZORP DEBUG] Processing online for ${playerName} on ${serverName}`);
+    
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
       'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
+    
+    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${playerName}`);
     
     if (zoneResult.length > 0) {
       // Set zone to green

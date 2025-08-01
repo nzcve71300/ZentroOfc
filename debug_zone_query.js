@@ -43,15 +43,15 @@ async function debugZoneQuery() {
 
       // Check expiration
       const [expireQuery] = await pool.query(
-        'SELECT name, created_at, expire, created_at + INTERVAL expire SECOND as expires_at, NOW() as current_time FROM zorp_zones WHERE owner = ?',
+        'SELECT name, created_at, expire, created_at + INTERVAL expire SECOND as expires_at, NOW() as current_timestamp FROM zorp_zones WHERE owner = ?',
         ['nzcve7130']
       );
       expireQuery.forEach((zone, index) => {
         console.log(`   Zone ${index + 1}: ${zone.name}`);
         console.log(`     Created: ${zone.created_at}`);
         console.log(`     Expires: ${zone.expires_at}`);
-        console.log(`     Current: ${zone.current_time}`);
-        console.log(`     Is expired: ${new Date(zone.expires_at) < new Date(zone.current_time)}`);
+        console.log(`     Current: ${zone.current_timestamp}`);
+        console.log(`     Is expired: ${new Date(zone.expires_at) < new Date(zone.current_timestamp)}`);
       });
 
     } else {
