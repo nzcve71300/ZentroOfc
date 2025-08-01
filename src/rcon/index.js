@@ -259,10 +259,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         }
       }
 
-      // Check online status every 30 seconds (roughly)
+      // Check online status every 5 minutes (reduced frequency)
       const now = Date.now();
       const lastCheck = onlineStatusChecks.get(key) || 0;
-      if (now - lastCheck > 30000) { // 30 seconds
+      if (now - lastCheck > 300000) { // 5 minutes
         await checkPlayerOnlineStatus(client, guildId, serverName, ip, port, password);
         onlineStatusChecks.set(key, now);
       }
