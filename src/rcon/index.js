@@ -634,19 +634,29 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     const msg = parsed.Message;
     if (!msg) return;
 
+    // Debug: Log all messages to see what emotes are being sent
+    if (msg.includes('d11_quick_chat_combat_slot')) {
+      console.log(`[TELEPORT DEBUG] Emote detected: ${msg}`);
+    }
+
     // Get server ID
     const [serverResult] = await pool.query(
       'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
       [guildId, serverName]
     );
     
-    if (serverResult.length === 0) return;
+    if (serverResult.length === 0) {
+      console.log(`[TELEPORT DEBUG] No server found for ${serverName} in guild ${guildId}`);
+      return;
+    }
     
     const serverId = serverResult[0].id;
+    console.log(`[TELEPORT DEBUG] Server ID: ${serverId} for ${serverName}`);
 
     // Check for Outpost emote
     if (msg.includes('d11_quick_chat_combat_slot_2')) {
       const player = extractPlayerName(msg);
+      console.log(`[TELEPORT DEBUG] Outpost emote detected for player: ${player}`);
       if (player) {
         await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'outpost', player);
       }
@@ -655,6 +665,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     // Check for Bandit Camp emote
     if (msg.includes('d11_quick_chat_combat_slot_0')) {
       const player = extractPlayerName(msg);
+      console.log(`[TELEPORT DEBUG] Bandit Camp emote detected for player: ${player}`);
       if (player) {
         await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'banditcamp', player);
       }
@@ -667,13 +678,21 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
 
 async function handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, positionType, player) {
   try {
+    console.log(`[TELEPORT DEBUG] Processing teleport for ${player} to ${positionType} on server ${serverId}`);
+    
     // Get position configuration
     const configResult = await pool.query(
       'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = ? AND position_type = ?',
       [serverId.toString(), positionType]
     );
 
+    console.log(`[TELEPORT DEBUG] Config result: ${configResult.length} records found`);
+    if (configResult.length > 0) {
+      console.log(`[TELEPORT DEBUG] Config: enabled=${configResult[0].enabled}, delay=${configResult[0].delay_seconds}, cooldown=${configResult[0].cooldown_minutes}`);
+    }
+
     if (configResult.length === 0 || !configResult[0].enabled) {
+      console.log(`[TELEPORT DEBUG] Teleport disabled or not configured for ${positionType}`);
       return; // Position teleport is not configured or disabled
     }
 
@@ -697,7 +716,13 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId.toString(), positionType]
     );
 
+    console.log(`[TELEPORT DEBUG] Coordinates result: ${coordResult.length} records found`);
+    if (coordResult.length > 0) {
+      console.log(`[TELEPORT DEBUG] Coordinates: X=${coordResult[0].x_pos}, Y=${coordResult[0].y_pos}, Z=${coordResult[0].z_pos}`);
+    }
+
     if (coordResult.length === 0) {
+      console.log(`[TELEPORT DEBUG] No coordinates found for ${positionType}`);
       sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleport coordinates not configured</color>`);
       return;
     }
@@ -734,6 +759,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
     } else {
       // Execute teleport immediately
       const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
+      console.log(`[TELEPORT DEBUG] Executing teleport command: ${teleportCommand}`);
       sendRconCommand(ip, port, password, teleportCommand);
       
       // Send success message
@@ -744,6 +770,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       
       // Send to admin feed
       await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
+      console.log(`[TELEPORT DEBUG] Teleport completed successfully for ${player} to ${positionDisplayName}`);
     }
 
   } catch (error) {
