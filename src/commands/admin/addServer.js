@@ -85,10 +85,13 @@ module.exports = {
         });
       }
 
-      // Add the server (using auto-increment ID)
+      // Generate a unique server ID
+      const serverId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Add the server with the generated ID
       const [serverResult] = await pool.query(
-        'INSERT INTO rust_servers (guild_id, nickname, ip, port, rcon_password) VALUES (?, ?, ?, ?, ?)',
-        [guildId, nickname, ip, port, rconPassword]
+        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, rcon_password) VALUES (?, ?, ?, ?, ?, ?)',
+        [serverId, guildId, nickname, ip, port, rconPassword]
       );
 
       // Increment active servers count
