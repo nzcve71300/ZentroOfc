@@ -56,4 +56,5 @@ if (fs.existsSync(filePath)) {
 }
 
 console.log(`\n💡 Test this one file first, then we'll fix the rest!`);
-console.log(`💡 Restart your bot with: pm2 restart zentro-bot`); 
+console.log(`💡 Restart your bot with: pm2 restart zentro-bot`);
+}
