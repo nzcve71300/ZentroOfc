@@ -85,10 +85,10 @@ function startRconListeners(client) {
   setInterval(() => checkAllEvents(client), 60000); // Check for events every 60 seconds (reduced frequency)
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
   
-  // Check player online status every 10 minutes (600000ms)
+  // Check player online status every 2 minutes (120000ms) for better Zorp detection
   setInterval(() => {
     checkAllPlayerOnlineStatus(client);
-  }, 600000);
+  }, 120000);
 }
 
 async function refreshConnections(client) {
@@ -184,29 +184,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         await ensurePlayerExists(guildId, serverName, player);
         // Send to playerfeed
         await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
-        // Handle Zorp zone online immediately
+        // Handle Zorp zone online immediately (only for reliable join messages)
         await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
       }
-      if (msg.match(/has disconnected/)) {
-        const player = msg.split(' ')[0];
-        addToBuffer(guildId, serverName, 'leaves', player);
-        // Handle Zorp zone offline immediately
-        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
-      }
       
-      // Check for other disconnect formats
-      if (msg.match(/disconnected/) || msg.match(/left the game/) || msg.match(/quit the game/)) {
-        const player = msg.split(' ')[0];
-        console.log(`[DEBUG] Disconnect detected: ${msg}`);
-        addToBuffer(guildId, serverName, 'leaves', player);
-        // Handle Zorp zone offline immediately
-        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
-      }
-      
-      // Debug: Log all messages to see disconnect format
-      if (msg.includes('disconnect') || msg.includes('left') || msg.includes('quit')) {
-        console.log(`[DEBUG] Potential disconnect message: ${msg}`);
-      }
+      // Note: We removed unreliable disconnect message detection for Zorp
+      // Zorp will now rely on the same reliable polling system as playercount
+      // This ensures consistency and reliability
 
       // Handle admin loot spawns
       if (msg.match(/\[ServerVar\] giving .* x /)) {
@@ -1842,20 +1826,20 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
       return; // Skip if no players detected
     }
     
-    // Check who went offline
+    // Check who went offline - PRIMARY METHOD FOR ZORP OFFLINE DETECTION
     for (const player of previousOnline) {
       if (!currentOnline.has(player)) {
         // Only trigger offline if player was actually online before
-        console.log(`[ZORP] Player ${player} went offline on ${serverName}`);
+        console.log(`[ZORP] Player ${player} went offline on ${serverName} (via polling)`);
         await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
       }
     }
     
-    // Check who came online
+    // Check who came online - PRIMARY METHOD FOR ZORP ONLINE DETECTION
     for (const player of currentOnline) {
       if (!previousOnline.has(player)) {
         // Only trigger online if player wasn't online before
-        console.log(`[ZORP] Player ${player} came online on ${serverName}`);
+        console.log(`[ZORP] Player ${player} came online on ${serverName} (via polling)`);
         await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
       }
     }
