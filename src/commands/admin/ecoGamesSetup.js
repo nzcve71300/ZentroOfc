@@ -18,12 +18,12 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Blackjack On/Off', value: 'blackjack_toggle' },
-          { name: 'Slots On/Off', value: 'slots_toggle' },
+          { name: 'Coinflip On/Off', value: 'coinflip_toggle' },
           { name: 'Daily Rewards Amount', value: 'daily_amount' },
           { name: 'Blackjack Min Bet', value: 'blackjack_min' },
           { name: 'Blackjack Max Bet', value: 'blackjack_max' },
-          { name: 'Slots Min Bet', value: 'slots_min' },
-          { name: 'Slots Max Bet', value: 'slots_max' }
+          { name: 'Coinflip Min Bet', value: 'coinflip_min' },
+          { name: 'Coinflip Max Bet', value: 'coinflip_max' }
         ))
     .addStringOption(option =>
       option.setName('option')
@@ -94,11 +94,11 @@ module.exports = {
           value = blackjackEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
 
-        case 'slots_toggle':
-          const slotsEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
-          settingValue = slotsEnabled ? 'true' : 'false';
-          message = `Slots has been ${slotsEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
-          value = slotsEnabled ? '🟢 Enabled' : '🔴 Disabled';
+        case 'coinflip_toggle':
+          const coinflipEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          settingValue = coinflipEnabled ? 'true' : 'false';
+          message = `Coinflip has been ${coinflipEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
+          value = coinflipEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
 
         case 'daily_amount':
@@ -115,8 +115,8 @@ module.exports = {
 
         case 'blackjack_min':
         case 'blackjack_max':
-        case 'slots_min':
-        case 'slots_max':
+        case 'coinflip_min':
+        case 'coinflip_max':
           const betLimit = parseInt(option);
           if (isNaN(betLimit) || betLimit < 0) {
             return interaction.editReply({
@@ -124,7 +124,7 @@ module.exports = {
             });
           }
           settingValue = betLimit.toString();
-          const gameType = setup.includes('blackjack') ? 'Blackjack' : 'Slots';
+          const gameType = setup.includes('blackjack') ? 'Blackjack' : 'Coinflip';
           const limitType = setup.includes('min') ? 'minimum' : 'maximum';
           message = `${gameType} ${limitType} bet has been set to ${betLimit} coins on ${serverName}.`;
           value = `${betLimit} coins`;
@@ -157,7 +157,7 @@ module.exports = {
 
       embed.addFields({
         name: '💡 Available Settings',
-        value: '• Blackjack On/Off\n• Slots On/Off\n• Daily Rewards Amount\n• Blackjack Min/Max Bet\n• Slots Min/Max Bet',
+        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
         inline: false
       });
 
