@@ -7,7 +7,7 @@ async function fixZonePositionFormat() {
     // Get the current zone
     console.log('\n1. Getting current zone...');
     const [zoneResult] = await pool.query(`
-      SELECT * FROM zorp_zones WHERE name = 'ZORP_1754010669190'
+      SELECT * FROM zorp_zones WHERE name = 'ZORP_1754011367156'
     `);
     
     if (zoneResult.length === 0) {
