@@ -27,7 +27,7 @@ module.exports = {
 
   async execute(interaction) {
     // Defer reply to prevent timeout
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply();
 
     // Check if user has admin permissions (Zentro Admin role or Administrator)
     if (!hasAdminPermissions(interaction.member)) {
@@ -75,7 +75,7 @@ module.exports = {
 
       // Check if server already exists
       const [existingServer] = await pool.query(
-        'SELECT id FROM servers WHERE guild_id = ? AND nickname = ?',
+        'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
         [guildId, nickname]
       );
 
@@ -87,7 +87,7 @@ module.exports = {
 
       // Add the server (using auto-increment ID)
       const [serverResult] = await pool.query(
-        'INSERT INTO servers (guild_id, nickname, ip, port, rcon_password) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO rust_servers (guild_id, nickname, ip, port, rcon_password) VALUES (?, ?, ?, ?, ?)',
         [guildId, nickname, ip, port, rconPassword]
       );
 
