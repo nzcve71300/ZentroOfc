@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { decrementActiveServers } = require('../../utils/subscriptionSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -24,7 +25,7 @@ module.exports = {
 
     try {
       const [result] = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
+        'SELECT nickname FROM servers WHERE guild_id = ? AND nickname LIKE ? AND is_active = 1 LIMIT 25',
         [guildId, `%${focusedValue}%`]
       );
 
@@ -52,7 +53,7 @@ module.exports = {
     try {
       // Get server ID
       const [serverResult] = await pool.query(
-        'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
+        'SELECT id FROM servers WHERE guild_id = ? AND nickname = ? AND is_active = 1',
         [guildId, serverNickname]
       );
 
@@ -66,7 +67,10 @@ module.exports = {
       const serverId = serverResult[0].id;
 
       // Delete the server (this will cascade to related data)
-      await pool.query('DELETE FROM rust_servers WHERE id = ?', [serverId]);
+      await pool.query('DELETE FROM servers WHERE id = ?', [serverId]);
+
+      // Decrement active servers count
+      await decrementActiveServers(guildId);
 
       await interaction.reply({
         embeds: [orangeEmbed(

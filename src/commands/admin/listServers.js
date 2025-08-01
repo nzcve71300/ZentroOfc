@@ -17,9 +17,9 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get all servers for this guild
+      // Get all active servers for this guild
       const [serversResult] = await pool.query(
-        'SELECT rs.nickname, rs.ip, rs.port, rs.password FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? ORDER BY rs.nickname',
+        'SELECT nickname, ip, port, rcon_password FROM servers WHERE guild_id = ? AND is_active = 1 ORDER BY nickname',
         [guildId]
       );
 
@@ -37,7 +37,7 @@ module.exports = {
       serversResult.forEach((server, index) => {
         serverList += `**${index + 1}. ${server.nickname}**\n`;
         serverList += `   • **IP:** ${server.ip}:${server.port}\n`;
-        serverList += `   • **RCON:** ${server.password ? 'Configured' : 'Not configured'}\n\n`;
+        serverList += `   • **RCON:** ${server.rcon_password ? 'Configured' : 'Not configured'}\n\n`;
       });
 
       await interaction.reply({

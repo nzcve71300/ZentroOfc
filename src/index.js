@@ -13,7 +13,7 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { discordToken } = require('./config');
 const { startRconListeners } = require('./rcon');
 const { ensureZentroAdminRole, isAuthorizedGuild, sendUnauthorizedGuildMessage } = require('./utils/permissions');
-const { initializeDatabase } = require('./utils/databaseInit');
+const { initializeGuildSubscription } = require('./utils/subscriptionSystem');
 const pool = require('./db');
 const fs = require('fs');
 const path = require('path');
@@ -53,25 +53,22 @@ client.once('ready', async () => {
   
   // Initialize database tables
   try {
+    const { initializeDatabase } = require('./db');
     await initializeDatabase();
     console.log('✅ Database initialization completed');
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
   }
   
-  // Pre-insert all connected guilds into the database
+  // Initialize subscriptions for all connected guilds
   try {
-    console.log('📋 Ensuring all connected guilds exist in database...');
+    console.log('📋 Initializing subscriptions for all connected guilds...');
     for (const [id, guild] of client.guilds.cache) {
-      await pool.query(`
-        INSERT INTO guilds (discord_id, name)
-        VALUES (?, ?)
-        ON DUPLICATE KEY UPDATE name = VALUES(name);
-      `, [id, guild.name]);
+      await initializeGuildSubscription(id);
     }
-    console.log(`✅ Ensured ${client.guilds.cache.size} guild(s) exist in database`);
+    console.log(`✅ Initialized subscriptions for ${client.guilds.cache.size} guild(s)`);
   } catch (error) {
-    console.error('❌ Failed to pre-insert guilds:', error);
+    console.error('❌ Failed to initialize subscriptions:', error);
   }
   
   // Create Zentro Admin role in all guilds the bot is in
@@ -132,6 +129,24 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
+
+  // Subscription enforcement - block all commands if subscription is not active
+  const { isSubscriptionActive } = require('./utils/subscriptionSystem');
+  const subscriptionActive = await isSubscriptionActive(interaction.guildId);
+  
+  if (!subscriptionActive) {
+    return interaction.reply({
+      embeds: [{
+        color: 0xFF6B35,
+        title: '❌ Subscription Required',
+        description: 'This bot is inactive for your server. Please contact support to activate your subscription.',
+        footer: {
+          text: 'Zentro Bot'
+        }
+      }],
+      ephemeral: true
+    });
+  }
   
   // Check if guild is authorized (except for player commands)
   if (command.data.name.startsWith('add-') || command.data.name.startsWith('remove-') || 
@@ -179,9 +194,10 @@ client.on('guildCreate', async (guild) => {
   
   try {
     await ensureZentroAdminRole(guild);
-    console.log(`Successfully set up Zentro Admin role in authorized guild: ${guild.name}`);
+    await initializeGuildSubscription(guild.id);
+    console.log(`Successfully set up Zentro Admin role and initialized subscription in authorized guild: ${guild.name}`);
   } catch (error) {
-    console.error(`Failed to create Zentro Admin role in guild ${guild.name}:`, error);
+    console.error(`Failed to create Zentro Admin role or initialize subscription in guild ${guild.name}:`, error);
   }
 });
 

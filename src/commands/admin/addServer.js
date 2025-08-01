@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const { errorEmbed, successEmbed } = require('../../embeds/format');
+const { canAddServer, incrementActiveServers } = require('../../utils/subscriptionSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -61,28 +62,21 @@ module.exports = {
     }
 
     try {
-      // Check if guild exists, if not create it
-      const [guildResult] = await pool.query(
-        'SELECT id FROM guilds WHERE discord_id = ?',
-        [guildId]
-      );
-
-      let guildDbId;
-      if (guildResult.length === 0) {
-        // Create guild
-        const [newGuildResult] = await pool.query(
-          'INSERT INTO guilds (discord_id, name) VALUES (?, ?)',
-          [guildId, interaction.guild.name]
-        );
-        guildDbId = newGuildResult.insertId;
-      } else {
-        guildDbId = guildResult[0].id;
+      // Check subscription limits
+      const subscriptionCheck = await canAddServer(guildId);
+      if (!subscriptionCheck.canAdd) {
+        return interaction.editReply({
+          embeds: [errorEmbed(
+            'Server Limit Reached',
+            `You can only add up to **${subscriptionCheck.allowed}** servers. You currently have **${subscriptionCheck.active}** active servers.\n\nUpgrade your subscription to add more servers.`
+          )]
+        });
       }
 
       // Check if server already exists
       const [existingServer] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
-        [guildDbId, nickname]
+        'SELECT id FROM servers WHERE guild_id = ? AND nickname = ?',
+        [guildId, nickname]
       );
 
       if (existingServer.length > 0) {
@@ -91,14 +85,14 @@ module.exports = {
         });
       }
 
-      // Generate a unique server ID (shorter to fit VARCHAR(32))
-      const serverId = `${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-
-      // Add the server
-      await pool.query(
-        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password) VALUES (?, ?, ?, ?, ?, ?)',
-        [serverId, guildDbId, nickname, ip, port, rconPassword]
+      // Add the server (using auto-increment ID)
+      const [serverResult] = await pool.query(
+        'INSERT INTO servers (guild_id, nickname, ip, port, rcon_password) VALUES (?, ?, ?, ?, ?)',
+        [guildId, nickname, ip, port, rconPassword]
       );
+
+      // Increment active servers count
+      await incrementActiveServers(guildId);
 
       const successEmbedObj = successEmbed(
         'Server Added Successfully',
