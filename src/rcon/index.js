@@ -1853,38 +1853,41 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
 
 async function handlePlayerOffline(client, guildId, serverName, playerName, ip, port, password) {
   try {
+    // Clean player name by removing quotes
+    const cleanPlayerName = playerName.replace(/^"|"$/g, '');
+    
     // Deduplication: prevent multiple calls for the same player within 30 seconds
-    const playerKey = `${guildId}_${serverName}_${playerName}`;
+    const playerKey = `${guildId}_${serverName}_${cleanPlayerName}`;
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
     if (now - lastCall < 30000) { // 30 seconds
-      console.log(`[ZORP] Skipping duplicate offline call for ${playerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
+      console.log(`[ZORP] Skipping duplicate offline call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
     
     lastOfflineCall.set(playerKey, now);
     
-    console.log(`[ZORP DEBUG] Processing offline for ${playerName} on ${serverName}`);
+    console.log(`[ZORP DEBUG] Processing offline for ${cleanPlayerName} on ${serverName}`);
     
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
       'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
-      [playerName]
+      [cleanPlayerName]
     );
     
-    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${playerName}`);
+    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${cleanPlayerName}`);
     
     if (zoneResult.length > 0) {
       // Set zone to red
-      await setZoneToRed(ip, port, password, playerName);
+      await setZoneToRed(ip, port, password, cleanPlayerName);
       
       // Send offline message to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=red`);
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=red`);
       
-      console.log(`[ZORP] Player ${playerName} went offline, zone set to red`);
+      console.log(`[ZORP] Player ${cleanPlayerName} went offline, zone set to red`);
     } else {
-      console.log(`[ZORP] Player ${playerName} went offline but has no Zorp zone`);
+      console.log(`[ZORP] Player ${cleanPlayerName} went offline but has no Zorp zone`);
     }
   } catch (error) {
     console.error('Error handling player offline:', error);
@@ -1893,38 +1896,41 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
 
 async function handlePlayerOnline(client, guildId, serverName, playerName, ip, port, password) {
   try {
+    // Clean player name by removing quotes
+    const cleanPlayerName = playerName.replace(/^"|"$/g, '');
+    
     // Deduplication: prevent multiple calls for the same player within 30 seconds
-    const playerKey = `${guildId}_${serverName}_${playerName}`;
+    const playerKey = `${guildId}_${serverName}_${cleanPlayerName}`;
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
     if (now - lastCall < 30000) { // 30 seconds
-      console.log(`[ZORP] Skipping duplicate online call for ${playerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
+      console.log(`[ZORP] Skipping duplicate online call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
     
     lastOfflineCall.set(playerKey, now);
     
-    console.log(`[ZORP DEBUG] Processing online for ${playerName} on ${serverName}`);
+    console.log(`[ZORP DEBUG] Processing online for ${cleanPlayerName} on ${serverName}`);
     
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
       'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
-      [playerName]
+      [cleanPlayerName]
     );
     
-    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${playerName}`);
+    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${cleanPlayerName}`);
     
     if (zoneResult.length > 0) {
       // Set zone to green
-      await setZoneToGreen(ip, port, password, playerName);
+      await setZoneToGreen(ip, port, password, cleanPlayerName);
       
       // Send online message to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp=green`);
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green`);
       
-      console.log(`[ZORP] Player ${playerName} came online, zone set to green`);
+      console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green`);
     } else {
-      console.log(`[ZORP] Player ${playerName} came online but has no Zorp zone`);
+      console.log(`[ZORP] Player ${cleanPlayerName} came online but has no Zorp zone`);
     }
   } catch (error) {
     console.error('Error handling player online:', error);
