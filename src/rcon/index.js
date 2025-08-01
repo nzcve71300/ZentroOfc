@@ -655,7 +655,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
     // Get position configuration
     const configResult = await pool.query(
       'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = ? AND position_type = ?',
-      [serverId, positionType]
+      [serverId.toString(), positionType]
     );
 
     if (configResult.length === 0 || !configResult[0].enabled) {
@@ -679,7 +679,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
     // Get position coordinates
     const coordResult = await pool.query(
       'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
-      [serverId, positionType]
+      [serverId.toString(), positionType]
     );
 
     if (coordResult.length === 0) {

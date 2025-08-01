@@ -77,7 +77,7 @@ module.exports = {
 
     await interaction.deferReply({ ephemeral: true });
 
-    const serverId = parseInt(interaction.options.getString('server'));
+    const serverId = interaction.options.getString('server');
     const positionType = interaction.options.getString('position');
     const coordinates = interaction.options.getString('coordinates');
     const enabled = interaction.options.getBoolean('enabled');
@@ -93,7 +93,7 @@ module.exports = {
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
          WHERE rs.id = ? AND g.discord_id = ?`,
-        [serverId, guildId]
+        [parseInt(serverId), guildId]
       );
 
       if (serverResult.length === 0) {
@@ -110,7 +110,7 @@ module.exports = {
         await pool.query(`
           CREATE TABLE IF NOT EXISTS position_configs (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            server_id INT NOT NULL,
+            server_id VARCHAR(32) NOT NULL,
             position_type VARCHAR(50) NOT NULL,
             enabled BOOLEAN DEFAULT TRUE,
             delay_seconds INT DEFAULT 0,
@@ -129,7 +129,7 @@ module.exports = {
         await pool.query(`
           CREATE TABLE IF NOT EXISTS position_coordinates (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            server_id INT NOT NULL,
+            server_id VARCHAR(32) NOT NULL,
             position_type VARCHAR(50) NOT NULL,
             x_pos DECIMAL(10,2) NOT NULL,
             y_pos DECIMAL(10,2) NOT NULL,
