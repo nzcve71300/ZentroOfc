@@ -190,6 +190,20 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         // Handle Zorp zone offline immediately
         await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
       }
+      
+      // Check for other disconnect formats
+      if (msg.match(/disconnected/) || msg.match(/left the game/) || msg.match(/quit the game/)) {
+        const player = msg.split(' ')[0];
+        console.log(`[DEBUG] Disconnect detected: ${msg}`);
+        addToBuffer(guildId, serverName, 'leaves', player);
+        // Handle Zorp zone offline immediately
+        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
+      }
+      
+      // Debug: Log all messages to see disconnect format
+      if (msg.includes('disconnect') || msg.includes('left') || msg.includes('quit')) {
+        console.log(`[DEBUG] Potential disconnect message: ${msg}`);
+      }
 
       // Handle admin loot spawns
       if (msg.match(/\[ServerVar\] giving .* x /)) {
