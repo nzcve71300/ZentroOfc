@@ -260,7 +260,7 @@ async function recordTransaction(playerId, amount, type) {
  */
 async function getServersForGuild(guildId) {
   const [result] = await pool.query(
-    'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
+    'SELECT id, nickname FROM rust_servers WHERE guild_id = ? ORDER BY nickname',
     [guildId]
   );
   return result;
@@ -271,7 +271,7 @@ async function getServersForGuild(guildId) {
  */
 async function getServerByNickname(guildId, nickname) {
   const [result] = await pool.query(
-    'SELECT * FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+    'SELECT * FROM rust_servers WHERE guild_id = ? AND nickname = ?',
     [guildId, nickname]
   );
   return result[0] || null;

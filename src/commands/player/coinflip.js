@@ -35,7 +35,7 @@ module.exports = {
 
     try {
       const [servers] = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ?',
+        'SELECT nickname FROM rust_servers WHERE guild_id = ? AND nickname LIKE ?',
         [guildId, `%${focusedValue}%`]
       );
 
