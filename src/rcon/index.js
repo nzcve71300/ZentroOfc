@@ -1141,6 +1141,27 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
       // Don't send feed message here - only when player goes offline
       // Just log the exit for debugging
     }
+    
+    // Handle zone deletion messages
+    const deleteMatch = msg.match(/Zone (.+) has been deleted/);
+    if (deleteMatch) {
+      const zoneName = deleteMatch[1];
+      console.log(`[ZORP] Zone deletion detected: ${zoneName} on server: ${serverName}`);
+      
+      // Delete from database
+      const [deleteResult] = await pool.query(
+        'DELETE FROM zorp_zones WHERE name = ?',
+        [zoneName]
+      );
+      
+      if (deleteResult.affectedRows > 0) {
+        console.log(`[ZORP] Deleted zone ${zoneName} from database`);
+        // Send to zorp feed
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${zoneName} deleted`);
+      } else {
+        console.log(`[ZORP] Zone ${zoneName} not found in database`);
+      }
+    }
   } catch (error) {
     console.error('Error handling ZORP zone status:', error);
   }
