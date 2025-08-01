@@ -1865,10 +1865,15 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
 
 async function trackTeamChanges(msg) {
   try {
+    // Helper function to clean player names
+    const cleanPlayerName = (name) => {
+      return name.replace(/^\[|\]$/g, ''); // Remove leading [ and trailing ]
+    };
+
     // Track when players join teams
     const joinMatch = msg.match(/(.+) has joined (.+)s team, ID: \[(\d+)\]/);
     if (joinMatch) {
-      const playerName = joinMatch[1];
+      const playerName = cleanPlayerName(joinMatch[1]);
       const teamId = joinMatch[3];
       playerTeamIds.set(playerName, teamId);
       console.log(`[ZORP] Player ${playerName} joined team ${teamId}`);
@@ -1878,7 +1883,7 @@ async function trackTeamChanges(msg) {
     // Track when players leave teams
     const leaveMatch = msg.match(/(.+) has left (.+)s team, ID: \[(\d+)\]/);
     if (leaveMatch) {
-      const playerName = leaveMatch[1];
+      const playerName = cleanPlayerName(leaveMatch[1]);
       const teamId = leaveMatch[3];
       playerTeamIds.delete(playerName);
       console.log(`[ZORP] Player ${playerName} left team ${teamId}`);
@@ -1895,7 +1900,7 @@ async function trackTeamChanges(msg) {
     // Track when teams are created
     const createMatch = msg.match(/(.+) created a team, ID: \[(\d+)\]/);
     if (createMatch) {
-      const playerName = createMatch[1];
+      const playerName = cleanPlayerName(createMatch[1]);
       const teamId = createMatch[2];
       playerTeamIds.set(playerName, teamId);
       console.log(`[ZORP] Player ${playerName} created team ${teamId}`);
@@ -1905,7 +1910,7 @@ async function trackTeamChanges(msg) {
     // Track when players are kicked
     const kickMatch = msg.match(/(.+) kicked (.+) from the team, ID: \[(\d+)\]/);
     if (kickMatch) {
-      const kickedPlayer = kickMatch[2];
+      const kickedPlayer = cleanPlayerName(kickMatch[2]);
       const teamId = kickMatch[3];
       playerTeamIds.delete(kickedPlayer);
       console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId}`);
