@@ -203,19 +203,19 @@ module.exports = {
 
 // Helper functions
 function drawCard() {
-  // Make blackjack more difficult by using weighted card distribution
-  // Higher chance of low cards (2-6) and lower chance of high cards (10-A)
+  // Make blackjack less difficult by using more balanced card distribution
+  // More balanced distribution for better player odds
   const weights = {
-    1: 0.05,   // Ace - 5% chance
-    2: 0.12,   // 2 - 12% chance
-    3: 0.12,   // 3 - 12% chance
-    4: 0.12,   // 4 - 12% chance
-    5: 0.12,   // 5 - 12% chance
-    6: 0.12,   // 6 - 12% chance
-    7: 0.08,   // 7 - 8% chance
-    8: 0.08,   // 8 - 8% chance
-    9: 0.08,   // 9 - 8% chance
-    10: 0.07   // 10 - 7% chance (includes J, Q, K)
+    1: 0.08,   // Ace - 8% chance (was 5%)
+    2: 0.09,   // 2 - 9% chance (was 12%)
+    3: 0.09,   // 3 - 9% chance (was 12%)
+    4: 0.09,   // 4 - 9% chance (was 12%)
+    5: 0.09,   // 5 - 9% chance (was 12%)
+    6: 0.09,   // 6 - 9% chance (was 12%)
+    7: 0.09,   // 7 - 9% chance (was 8%)
+    8: 0.09,   // 8 - 9% chance (was 8%)
+    9: 0.09,   // 9 - 9% chance (was 8%)
+    10: 0.20   // 10 - 20% chance (was 7%) - includes J, Q, K
   };
   
   const random = Math.random();
@@ -303,8 +303,8 @@ async function endGame(game, result, interaction) {
     gameResult = '❌ **BUST! You Lose!** ❌';
     winnings = 0;
   } else if (result === 'stand' || result === 'timeout') {
-    // Improved dealer AI - dealer hits on soft 17 and below
-    while (dealerTotal < 17 || (dealerTotal === 17 && hasSoft17(game.dealerCards))) {
+    // Improved dealer AI - dealer hits on 16 and below (stands on soft 17)
+    while (dealerTotal < 17) {
       const newCard = drawCard();
       game.dealerCards.push(newCard);
       dealerTotal = calculateHandValue(game.dealerCards);

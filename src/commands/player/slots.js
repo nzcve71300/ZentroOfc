@@ -265,15 +265,16 @@ async function spinSlots(game, interaction, serverName) {
   embed.setFooter({ text: '💎 Premium Gaming Experience • Keep spinning or cash out!' });
 
   // Update buttons based on remaining spins
+  const gameId = interaction.customId.split('_')[1];
   const row = game.spins >= game.maxSpins 
     ? new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(`cashout_${interaction.customId.split('_')[1]}`)
+          .setCustomId(`cashout_${gameId}`)
           .setLabel('Cash Out')
           .setEmoji('💰')
           .setStyle(ButtonStyle.Success)
       )
-    : createSlotsButtons(interaction.customId.split('_')[1]);
+    : createSlotsButtons(gameId);
 
   await interaction.update({ embeds: [embed], components: [row] });
 }
