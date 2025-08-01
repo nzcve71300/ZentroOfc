@@ -177,10 +177,10 @@ module.exports = {
             const updatedEmbed = createGameEmbed(game, server.nickname, false);
             await i.update({ embeds: [updatedEmbed], components: [row] });
           }
-        } else if (i.customId === `stand_${gameId}`) {
-          // Stand
-          await endGame(game, 'stand', i);
-        }
+              } else if (i.customId === `stand_${gameId}`) {
+        // Stand - dealer plays with improved AI
+        await endGame(game, 'stand', i);
+      }
       });
 
       collector.on('end', () => {
@@ -203,11 +203,46 @@ module.exports = {
 
 // Helper functions
 function drawCard() {
-  return Math.floor(Math.random() * 10) + 1;
+  // Make blackjack more difficult by using weighted card distribution
+  // Higher chance of low cards (2-6) and lower chance of high cards (10-A)
+  const weights = {
+    1: 0.05,   // Ace - 5% chance
+    2: 0.12,   // 2 - 12% chance
+    3: 0.12,   // 3 - 12% chance
+    4: 0.12,   // 4 - 12% chance
+    5: 0.12,   // 5 - 12% chance
+    6: 0.12,   // 6 - 12% chance
+    7: 0.08,   // 7 - 8% chance
+    8: 0.08,   // 8 - 8% chance
+    9: 0.08,   // 9 - 8% chance
+    10: 0.07   // 10 - 7% chance (includes J, Q, K)
+  };
+  
+  const random = Math.random();
+  let cumulative = 0;
+  
+  for (let card = 1; card <= 10; card++) {
+    cumulative += weights[card];
+    if (random <= cumulative) {
+      return card;
+    }
+  }
+  
+  return 10; // Default to 10 if something goes wrong
 }
 
 function calculateHandValue(cards) {
   return cards.reduce((sum, card) => sum + card, 0);
+}
+
+function hasSoft17(cards) {
+  // Check if dealer has a soft 17 (Ace + 6 or Ace + Ace + 5, etc.)
+  const aces = cards.filter(card => card === 1).length;
+  const nonAces = cards.filter(card => card !== 1);
+  const nonAceSum = nonAces.reduce((sum, card) => sum + card, 0);
+  
+  // If we have aces and the total could be 17 with aces counting as 1
+  return aces > 0 && (nonAceSum + aces === 17);
 }
 
 function formatCards(cards) {
@@ -260,7 +295,7 @@ function createGameButtons(gameId) {
 async function endGame(game, result, interaction) {
   game.gameOver = true;
   const playerTotal = calculateHandValue(game.playerCards);
-  const dealerTotal = calculateHandValue(game.dealerCards);
+  let dealerTotal = calculateHandValue(game.dealerCards);
 
   let gameResult, winnings = 0;
 
@@ -268,6 +303,13 @@ async function endGame(game, result, interaction) {
     gameResult = '❌ **BUST! You Lose!** ❌';
     winnings = 0;
   } else if (result === 'stand' || result === 'timeout') {
+    // Improved dealer AI - dealer hits on soft 17 and below
+    while (dealerTotal < 17 || (dealerTotal === 17 && hasSoft17(game.dealerCards))) {
+      const newCard = drawCard();
+      game.dealerCards.push(newCard);
+      dealerTotal = calculateHandValue(game.dealerCards);
+    }
+    
     if (dealerTotal > 21) {
       gameResult = '💥 **Dealer Bust! You Win!** 💥';
       winnings = game.betAmount * 2;
