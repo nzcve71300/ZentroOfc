@@ -47,55 +47,44 @@ module.exports = {
 
     try {
       if (focusedOption.name === 'server') {
-        const value = focusedOption.value.toLowerCase();
-        
-        // Get servers for this guild
         const [result] = await pool.query(
-          `SELECT rs.id, rs.nickname 
-           FROM rust_servers rs 
-           JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = ? AND rs.nickname LIKE ? 
-           ORDER BY rs.nickname 
-           LIMIT 25`,
-          [guildId, `%${value}%`]
+          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
+          [guildId, `%${focusedOption.value}%`]
         );
 
         const choices = result.map(row => ({
           name: row.nickname,
-          value: row.id.toString()
+          value: row.nickname
         }));
 
         await interaction.respond(choices);
       } else if (focusedOption.name === 'category') {
-        const value = focusedOption.value.toLowerCase();
-        const serverId = interaction.options.getString('server');
-
-        if (!serverId) {
+        const serverNickname = interaction.options.getString('server');
+        
+        if (!serverNickname) {
           await interaction.respond([]);
           return;
         }
 
-        // Get categories for the selected server
         const [result] = await pool.query(
-          `SELECT sc.id, sc.name 
-           FROM shop_categories sc 
+          `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = ? AND rs.id = ? AND sc.name LIKE ? 
-           ORDER BY sc.name 
-           LIMIT 25`,
-          [guildId, serverId, `%${value}%`]
+           WHERE g.discord_id = ? AND rs.nickname = ? 
+           AND (sc.type = 'kits' OR sc.type = 'both')
+           AND sc.name LIKE ? LIMIT 25`,
+          [guildId, serverNickname, `%${focusedOption.value}%`]
         );
 
         const choices = result.map(row => ({
           name: row.name,
-          value: row.id.toString()
+          value: row.name
         }));
 
         await interaction.respond(choices);
       }
     } catch (error) {
-      console.error('Error in autocomplete:', error);
+      console.error('Autocomplete error:', error);
       await interaction.respond([]);
     }
   },
@@ -108,8 +97,8 @@ module.exports = {
       return sendAccessDeniedMessage(interaction, false);
     }
 
-    const serverId = interaction.options.getString('server');
-    const categoryId = interaction.options.getString('category');
+    const serverNickname = interaction.options.getString('server');
+    const categoryName = interaction.options.getString('category');
     const displayName = interaction.options.getString('display_name');
     const kitName = interaction.options.getString('kit_name');
     const quantity = interaction.options.getInteger('quantity');
@@ -118,42 +107,26 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Verify server exists and belongs to this guild
-      const [serverResult] = await pool.query(
-        `SELECT rs.id, rs.nickname 
+      // Get server and category
+      const [result] = await pool.query(
+        `SELECT rs.id as server_id, sc.id as category_id, sc.type as category_type 
          FROM rust_servers rs 
          JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = ? AND rs.id = ?`,
-        [guildId, serverId]
+         JOIN shop_categories sc ON rs.id = sc.server_id 
+         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
+        [guildId, serverNickname, categoryName]
       );
 
-      if (serverResult.length === 0) {
+      if (result.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('Server Not Found', 'The selected server was not found.')]
+          embeds: [errorEmbed('Not Found', 'Server or category not found.')]
         });
       }
 
-      const { nickname } = serverResult[0];
-
-      // Verify category exists and belongs to the selected server
-      const [categoryResult] = await pool.query(
-        `SELECT sc.id, sc.name, sc.type 
-         FROM shop_categories sc 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE rs.id = ? AND sc.id = ?`,
-        [serverId, categoryId]
-      );
-
-      if (categoryResult.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Category Not Found', 'The selected category was not found.')]
-        });
-      }
-
-      const { name: categoryName, type: categoryType } = categoryResult[0];
+      const { server_id, category_id, category_type } = result[0];
 
       // Check if category supports kits
-      if (categoryType !== 'kits' && categoryType !== 'both') {
+      if (category_type !== 'kits' && category_type !== 'both') {
         return interaction.editReply({
           embeds: [errorEmbed('Invalid Category Type', `The category "${categoryName}" only supports items, not kits.`)]
         });
@@ -162,7 +135,7 @@ module.exports = {
       // Check if kit name already exists in this category
       const [existingKitResult] = await pool.query(
         'SELECT id FROM shop_kits WHERE category_id = ? AND kit_name = ?',
-        [categoryId, kitName]
+        [category_id, kitName]
       );
 
       if (existingKitResult.length > 0) {
@@ -172,23 +145,18 @@ module.exports = {
       }
 
       // Add the kit to the database
-      const [insertResult] = await pool.query(
-        `INSERT INTO shop_kits (category_id, display_name, kit_name, price, quantity, timer) 
-         VALUES (?, ?, ?, ?, ?, ?) 
-         RETURNING id`,
-        [categoryId, displayName, kitName, price, quantity, timer]
+      await pool.query(
+        'INSERT INTO shop_kits (category_id, display_name, kit_name, price, quantity, timer) VALUES (?, ?, ?, ?, ?, ?)',
+        [category_id, displayName, kitName, price, quantity, timer]
       );
 
-      const kitId = insertResult[0].id;
-
-      // Create success embed
-      const embed = successEmbed(
-        'Kit Added Successfully',
-        `**Kit:** ${displayName}\n**Kit Name:** ${kitName}\n**Category:** ${categoryName}\n**Server:** ${nickname}\n**Price:** ${price} coins\n**Quantity:** ${quantity}x${timer > 0 ? `\n**Cooldown:** ${timer} minutes` : ''}\n\n✅ Kit has been added to the shop!`
-      );
-
+      const timerText = timer > 0 ? ` (Timer: ${timer}m)` : '';
+      
       await interaction.editReply({
-        embeds: [embed]
+        embeds: [successEmbed(
+          'Kit Added',
+          `**${displayName}** has been added to **${categoryName}** in **${serverNickname}**'s shop.\n\n**Kit Name:** ${kitName}\n**Price:** ${price}\n**Quantity:** ${quantity}${timerText}`
+        )]
       });
 
     } catch (error) {

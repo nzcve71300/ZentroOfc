@@ -81,21 +81,22 @@ module.exports = {
       const serverId = serverResult[0].id;
       const serverName = serverResult[0].nickname;
 
-      // For now, we'll just acknowledge the configuration
-      // In a full implementation, you might want to add an eco_games_config table
-      
+      // Store configuration in database
       let message = '';
       let value = '';
+      let settingValue = '';
 
       switch (setup) {
         case 'blackjack_toggle':
           const blackjackEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          settingValue = blackjackEnabled ? 'true' : 'false';
           message = `Blackjack has been ${blackjackEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
           value = blackjackEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
 
         case 'slots_toggle':
           const slotsEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          settingValue = slotsEnabled ? 'true' : 'false';
           message = `Slots has been ${slotsEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
           value = slotsEnabled ? '🟢 Enabled' : '🔴 Disabled';
           break;
@@ -107,6 +108,7 @@ module.exports = {
               embeds: [errorEmbed('Invalid Amount', 'Daily reward amount must be a positive number.')]
             });
           }
+          settingValue = dailyAmount.toString();
           message = `Daily reward amount has been set to ${dailyAmount} coins on ${serverName}.`;
           value = `${dailyAmount} coins`;
           break;
@@ -121,6 +123,7 @@ module.exports = {
               embeds: [errorEmbed('Invalid Bet Limit', 'Bet limit must be a positive number.')]
             });
           }
+          settingValue = betLimit.toString();
           const gameType = setup.includes('blackjack') ? 'Blackjack' : 'Slots';
           const limitType = setup.includes('min') ? 'minimum' : 'maximum';
           message = `${gameType} ${limitType} bet has been set to ${betLimit} coins on ${serverName}.`;
@@ -132,6 +135,14 @@ module.exports = {
             embeds: [errorEmbed('Invalid Setting', 'Invalid setting specified.')]
           });
       }
+
+      // Insert or update the configuration
+      await pool.query(
+        `INSERT INTO eco_games_config (server_id, setting_name, setting_value) 
+         VALUES (?, ?, ?) 
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [serverId, setup, settingValue]
+      );
 
       const embed = successEmbed(
         'Economy Games Configured',

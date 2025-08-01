@@ -34,7 +34,7 @@ module.exports = {
       }
 
       let serverList = '';
-      serversResult.rows.forEach((server, index) => {
+      serversResult.forEach((server, index) => {
         serverList += `**${index + 1}. ${server.nickname}**\n`;
         serverList += `   • **IP:** ${server.ip}:${server.port}\n`;
         serverList += `   • **RCON:** ${server.password ? 'Configured' : 'Not configured'}\n\n`;

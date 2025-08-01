@@ -83,7 +83,7 @@ module.exports = {
         `**Server:** ${serverName}\n\n**Available Categories:**`
       );
 
-      for (const category of categoriesResult.rows) {
+      for (const category of categoriesResult) {
         // Count items and kits in this category
         const [itemsResult] = await pool.query(
           'SELECT COUNT(*) as count FROM shop_items WHERE category_id = ?',

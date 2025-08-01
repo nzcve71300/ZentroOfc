@@ -68,8 +68,11 @@ module.exports = {
       const serverId = serverResult[0].id;
       const serverName = serverResult[0].nickname;
 
-      // For now, we'll store currency name in a comment or note
-      // In a full implementation, you might want to add a currency_name column to rust_servers table
+      // Update the currency name for this server
+      await pool.query(
+        'UPDATE rust_servers SET currency_name = ? WHERE id = ?',
+        [currencyName, serverId]
+      );
       
       await interaction.editReply({
         embeds: [successEmbed(
