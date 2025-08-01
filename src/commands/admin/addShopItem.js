@@ -48,7 +48,7 @@ module.exports = {
     try {
       if (focusedOption.name === 'server') {
         const [result] = await pool.query(
-          'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
+          'SELECT nickname FROM rust_servers WHERE guild_id = ? AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
         );
 
@@ -69,8 +69,7 @@ module.exports = {
         const [result] = await pool.query(
           `SELECT sc.id, sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
-           JOIN guilds g ON rs.guild_id = g.id 
-           WHERE g.discord_id = ? AND rs.nickname = ? 
+           WHERE rs.guild_id = ? AND rs.nickname = ? 
            AND (sc.type = 'items' OR sc.type = 'both')
            AND sc.name LIKE ? LIMIT 25`,
           [guildId, serverNickname, `%${focusedOption.value}%`]
