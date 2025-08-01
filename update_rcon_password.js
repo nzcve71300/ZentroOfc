@@ -6,7 +6,7 @@ async function updateRconPassword() {
 
     // Update the RCON password for the server
     const [result] = await pool.query(
-      'UPDATE rust_servers SET rcon_password = ? WHERE id = ?',
+      'UPDATE rust_servers SET password = ? WHERE id = ?',
       ['JPMGiS0u', '1753965211295_c5pfupu9']
     );
 
@@ -14,7 +14,7 @@ async function updateRconPassword() {
 
     // Verify the fix
     const [servers] = await pool.query(
-      'SELECT id, nickname, ip, port, rcon_password FROM rust_servers WHERE id = ?',
+      'SELECT id, nickname, ip, port, password FROM rust_servers WHERE id = ?',
       ['1753965211295_c5pfupu9']
     );
 
@@ -25,7 +25,7 @@ async function updateRconPassword() {
       console.log(`   Nickname: ${server.nickname}`);
       console.log(`   IP: ${server.ip}`);
       console.log(`   Port: ${server.port}`);
-      console.log(`   RCON Password: ${server.rcon_password ? '***SET***' : 'NOT SET'}`);
+      console.log(`   RCON Password: ${server.password ? '***SET***' : 'NOT SET'}`);
     }
 
   } catch (error) {
