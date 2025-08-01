@@ -90,8 +90,8 @@ module.exports = {
       
       // Add the server with the generated ID
       const [serverResult] = await pool.query(
-        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, rcon_password) VALUES (?, ?, ?, ?, ?, ?)',
-        [serverId, guildId, nickname, ip, port, rconPassword]
+        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password, rcon_password) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [serverId, guildId, nickname, ip, port, rconPassword, rconPassword]
       );
 
       // Increment active servers count
