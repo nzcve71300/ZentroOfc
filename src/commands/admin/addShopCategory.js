@@ -22,8 +22,7 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Items', value: 'items' },
-          { name: 'Kits', value: 'kits' },
-          { name: 'Both', value: 'both' }
+          { name: 'Kits', value: 'kits' }
         ))
     .addRoleOption(option =>
       option.setName('role')
@@ -70,7 +69,7 @@ module.exports = {
     try {
       // Get server ID
       const [serverResult] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
+        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
         [guildId, serverNickname]
       );
 
