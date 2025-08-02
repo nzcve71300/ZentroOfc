@@ -1244,11 +1244,20 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
         
         const serverId = serverResult[0].id;
         
-        // Check if player has a zone
-        const [zoneResult] = await pool.query(
+        // Check if player has a zone (try by owner first, then by any zone if owner is Unknown)
+        let [zoneResult] = await pool.query(
           'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
           [serverId, player]
         );
+
+        // If no zone found by owner, try to find any zone for this player (for synced zones with Unknown owner)
+        if (zoneResult.length === 0) {
+          console.log(`[ZORP] No zone found by owner ${player}, checking for any available zones...`);
+          [zoneResult] = await pool.query(
+            'SELECT name FROM zorp_zones WHERE server_id = ? LIMIT 1',
+            [serverId]
+          );
+        }
 
         if (zoneResult.length === 0) {
           console.log(`[ZORP] Player ${player} has no zone to delete`);
