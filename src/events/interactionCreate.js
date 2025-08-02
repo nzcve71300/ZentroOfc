@@ -19,12 +19,16 @@ module.exports = {
 
       // Handle modals
       if (interaction.isModalSubmit()) {
+        console.log('[MODAL DEBUG] Modal submitted, customId:', interaction.customId);
         if (interaction.customId.startsWith('edit_item_modal_')) {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
         } else if (interaction.customId.startsWith('scheduler_add_modal_')) {
+          console.log('[MODAL DEBUG] Calling handleSchedulerAddModal');
           await handleSchedulerAddModal(interaction);
+        } else {
+          console.log('[MODAL DEBUG] No handler found for modal:', interaction.customId);
         }
         return;
       }
