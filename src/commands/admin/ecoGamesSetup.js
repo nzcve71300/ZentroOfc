@@ -5,8 +5,8 @@ const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('eco-games-setup')
-    .setDescription('Configure economy games settings for a server')
+    .setName('eco-configs')
+    .setDescription('Configure economy settings for a server')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('Select a server')
@@ -20,6 +20,7 @@ module.exports = {
           { name: 'Blackjack On/Off', value: 'blackjack_toggle' },
           { name: 'Coinflip On/Off', value: 'coinflip_toggle' },
           { name: 'Daily Rewards Amount', value: 'daily_amount' },
+          { name: 'Starting Balance', value: 'starting_balance' },
           { name: 'Blackjack Min Bet', value: 'blackjack_min' },
           { name: 'Blackjack Max Bet', value: 'blackjack_max' },
           { name: 'Coinflip Min Bet', value: 'coinflip_min' },
@@ -113,6 +114,18 @@ module.exports = {
           value = `${dailyAmount} coins`;
           break;
 
+        case 'starting_balance':
+          const startingBalance = parseInt(option);
+          if (isNaN(startingBalance) || startingBalance < 0) {
+            return interaction.editReply({
+              embeds: [errorEmbed('Invalid Amount', 'Starting balance must be a positive number.')]
+            });
+          }
+          settingValue = startingBalance.toString();
+          message = `Starting balance has been set to ${startingBalance} coins on ${serverName}.`;
+          value = `${startingBalance} coins`;
+          break;
+
         case 'blackjack_min':
         case 'blackjack_max':
         case 'coinflip_min':
@@ -157,7 +170,7 @@ module.exports = {
 
       embed.addFields({
         name: '💡 Available Settings',
-        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
+        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Starting Balance\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
         inline: false
       });
 

@@ -115,7 +115,38 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
     'SELECT * FROM players WHERE id = ?',
     [result.insertId]
   );
-  return playerResult[0];
+  
+  const player = playerResult[0];
+  
+  // Check if this is a new player (no existing economy record)
+  const [economyResult] = await dbPool.query(
+    'SELECT * FROM economy WHERE player_id = ?',
+    [player.id]
+  );
+  
+  // If no economy record exists, create one with starting balance
+  if (economyResult.length === 0) {
+    // Get starting balance from eco_games_config
+    const [configResult] = await dbPool.query(
+      'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+      [serverId, 'starting_balance']
+    );
+    
+    let startingBalance = 0; // Default starting balance
+    if (configResult.length > 0) {
+      startingBalance = parseInt(configResult[0].setting_value) || 0;
+    }
+    
+    // Create economy record with starting balance
+    await dbPool.query(
+      'INSERT INTO economy (player_id, balance) VALUES (?, ?)',
+      [player.id, startingBalance]
+    );
+    
+    console.log(`[LINK] Created economy record for player ${playerIgn} with starting balance: ${startingBalance}`);
+  }
+  
+  return player;
 }
 
 /**
