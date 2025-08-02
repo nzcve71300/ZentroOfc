@@ -1,6 +1,16 @@
 const pool = require('../db');
 
 /**
+ * Ensure database pool is available
+ */
+function ensurePool() {
+  if (!pool) {
+    throw new Error('Database pool is not available. Please ensure the database is properly initialized.');
+  }
+  return pool;
+}
+
+/**
  * Check if input is a numeric Discord ID
  */
 function isDiscordId(input) {
@@ -11,7 +21,8 @@ function isDiscordId(input) {
  * Get active player by Discord ID and server
  */
 async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND server_id = ?
@@ -26,7 +37,8 @@ async function getActivePlayerByDiscordId(guildId, serverId, discordId) {
  * Get active player by IGN and server
  */
 async function getActivePlayerByIgn(guildId, serverId, ign) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND server_id = ?
@@ -42,7 +54,8 @@ async function getActivePlayerByIgn(guildId, serverId, ign) {
  * Get all active players for a Discord ID across all servers
  */
 async function getAllActivePlayersByDiscordId(guildId, discordId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND discord_id = ?
@@ -56,7 +69,8 @@ async function getAllActivePlayersByDiscordId(guildId, discordId) {
  * Get all active players for an IGN across all servers
  */
 async function getAllActivePlayersByIgn(guildId, ign) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND ign IS NOT NULL
@@ -82,10 +96,11 @@ async function getAllActivePlayersByIdentifier(guildId, identifier) {
  * Create or update player link - handles both Discord ID and IGN inputs
  */
 async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = null) {
+  const dbPool = ensurePool();
   const discordId = isDiscordId(identifier) ? identifier : null;
   const playerIgn = isDiscordId(identifier) ? ign : identifier;
 
-  const [result] = await pool.query(
+  const [result] = await dbPool.query(
     `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
      VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)
      ON DUPLICATE KEY UPDATE 
@@ -96,7 +111,7 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
   );
 
   // Get the inserted/updated player
-  const [playerResult] = await pool.query(
+  const [playerResult] = await dbPool.query(
     'SELECT * FROM players WHERE id = ?',
     [result.insertId]
   );
@@ -107,7 +122,8 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
  * Unlink player from a specific server
  */
 async function unlinkPlayer(guildId, serverId, discordId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `UPDATE players 
      SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
@@ -123,7 +139,8 @@ async function unlinkPlayer(guildId, serverId, discordId) {
  * Unlink all players for a Discord ID across all servers
  */
 async function unlinkAllPlayersByDiscordId(guildId, discordId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `UPDATE players 
      SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
@@ -138,7 +155,8 @@ async function unlinkAllPlayersByDiscordId(guildId, discordId) {
  * Unlink all players for an IGN across all servers
  */
 async function unlinkAllPlayersByIgn(guildId, ign) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `UPDATE players 
      SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
@@ -155,9 +173,10 @@ async function unlinkAllPlayersByIgn(guildId, ign) {
  * This function handles both Discord IDs and IGNs with separate queries to avoid BIGINT LOWER() error
  */
 async function unlinkAllPlayersByIdentifier(guildId, identifier) {
+  const dbPool = ensurePool();
   if (isDiscordId(identifier)) {
     // Handle Discord ID (numeric) - direct comparison, always deactivate regardless of current status
-    const [result] = await pool.query(
+    const [result] = await dbPool.query(
       `UPDATE players 
        SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
@@ -169,7 +188,7 @@ async function unlinkAllPlayersByIdentifier(guildId, identifier) {
     return { rows: result, rowCount: result.affectedRows };
   } else {
     // Handle IGN (text) - case-insensitive match, always deactivate regardless of current status
-    const [result] = await pool.query(
+    const [result] = await dbPool.query(
       `UPDATE players 
        SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
@@ -187,7 +206,8 @@ async function unlinkAllPlayersByIdentifier(guildId, identifier) {
  * Check if Discord ID is already linked to a different IGN on any server
  */
 async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND discord_id = ?
@@ -203,7 +223,8 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
  * Check if IGN is already linked to a different Discord ID on any server
  */
 async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND ign IS NOT NULL
@@ -219,7 +240,8 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
  * Get player balance
  */
 async function getPlayerBalance(playerId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     'SELECT balance FROM economy WHERE player_id = ?',
     [playerId]
   );
@@ -230,7 +252,8 @@ async function getPlayerBalance(playerId) {
  * Update player balance
  */
 async function updatePlayerBalance(playerId, amount) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     `UPDATE economy 
      SET balance = balance + ? 
      WHERE player_id = ?`,
@@ -238,7 +261,7 @@ async function updatePlayerBalance(playerId, amount) {
   );
   
   // Get the updated balance
-  const [balanceResult] = await pool.query(
+  const [balanceResult] = await dbPool.query(
     'SELECT balance FROM economy WHERE player_id = ?',
     [playerId]
   );
@@ -249,7 +272,8 @@ async function updatePlayerBalance(playerId, amount) {
  * Record transaction
  */
 async function recordTransaction(playerId, amount, type) {
-  await pool.query(
+  const dbPool = ensurePool();
+  await dbPool.query(
     'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
     [playerId, amount, type]
   );
@@ -259,7 +283,8 @@ async function recordTransaction(playerId, amount, type) {
  * Get all servers for a guild
  */
 async function getServersForGuild(guildId) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
     [guildId]
   );
@@ -270,7 +295,8 @@ async function getServersForGuild(guildId) {
  * Get server by nickname
  */
 async function getServerByNickname(guildId, nickname) {
-  const [result] = await pool.query(
+  const dbPool = ensurePool();
+  const [result] = await dbPool.query(
     'SELECT * FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
     [guildId, nickname]
   );
