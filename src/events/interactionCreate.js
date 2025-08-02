@@ -823,18 +823,26 @@ async function handleSchedulerAdd(interaction) {
 }
 
 async function handleSchedulerAddModal(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  console.log('[SCHEDULER DEBUG] Modal submitted, customId:', interaction.customId);
   
-  const serverId = interaction.customId.split('_')[3];
-  const message1 = interaction.fields.getTextInputValue('message1');
-  const message2 = interaction.fields.getTextInputValue('message2');
-
   try {
+    await interaction.deferReply({ flags: 64 });
+    
+    const serverId = interaction.customId.split('_')[3];
+    const message1 = interaction.fields.getTextInputValue('message1');
+    const message2 = interaction.fields.getTextInputValue('message2');
+    
+    console.log('[SCHEDULER DEBUG] Server ID:', serverId);
+    console.log('[SCHEDULER DEBUG] Message 1:', message1);
+    console.log('[SCHEDULER DEBUG] Message 2:', message2);
+
     // Insert the message pair
     await pool.query(
       'INSERT INTO scheduler_messages (server_id, message1, message2) VALUES (?, ?, ?)',
       [serverId, message1, message2]
     );
+
+    console.log('[SCHEDULER DEBUG] Message pair inserted successfully');
 
     await interaction.editReply({
       embeds: [successEmbed(
@@ -844,7 +852,7 @@ async function handleSchedulerAddModal(interaction) {
     });
 
   } catch (error) {
-    console.error('Error adding message pair:', error);
+    console.error('[SCHEDULER DEBUG] Error adding message pair:', error);
     await interaction.editReply({
       embeds: [errorEmbed('Error', 'Failed to add message pair. Please try again.')]
     });
