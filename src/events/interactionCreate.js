@@ -239,7 +239,7 @@ async function handleShopCategorySelect(interaction) {
       embed.setDescription(`${embed.data.description}\n\nNo items or kits available in this category.`);
     }
 
-    // Create purchase options
+    // Create purchase options (Discord limit: 25 options max)
     const allOptions = [];
     
     items.forEach(item => {
@@ -258,13 +258,23 @@ async function handleShopCategorySelect(interaction) {
       });
     });
 
+    // Limit to 25 options (Discord's maximum)
+    const limitedOptions = allOptions.slice(0, 25);
+    const totalItems = items.length + kits.length;
+    const hasMoreItems = totalItems > 25;
+
     const row = new ActionRowBuilder()
       .addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('shop_item_' + categoryId)
-          .setPlaceholder('Select an item or kit to purchase')
-          .addOptions(allOptions)
+          .setPlaceholder(`Select an item or kit to purchase${hasMoreItems ? ' (showing first 25)' : ''}`)
+          .addOptions(limitedOptions)
       );
+
+    // Update embed description if there are more items than can be shown
+    if (hasMoreItems) {
+      embed.setDescription(`${embed.data.description}\n\n⚠️ **Note:** Only showing first 25 items. There are ${totalItems} total items in this category.`);
+    }
 
     await interaction.editReply({
       embeds: [embed],
