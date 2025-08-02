@@ -1,4 +1,5 @@
 const { errorEmbed } = require('../embeds/format');
+const { PermissionsBitField } = require('discord.js');
 const authConfig = require('../config/authorization');
 const pool = require('../db');
 
@@ -13,7 +14,7 @@ function hasZentroAdminRole(member) {
  * Check if a user has admin permissions
  */
 function hasAdminPermissions(member) {
-  return member.permissions.has('ADMINISTRATOR') || hasZentroAdminRole(member);
+  return member.permissions.has(PermissionsBitField.Flags.Administrator) || hasZentroAdminRole(member);
 }
 
 /**
@@ -73,7 +74,7 @@ async function isAuthorizedGuild(guild) {
 async function sendAccessDeniedMessage(interaction, ephemeral = true) {
   const embed = errorEmbed(
     'Access Denied',
-    'You need the **Zentro Admin** role or **Administrator** permission to use this command.'
+    'You dont have zentroAdmin permissions'
   );
   if (interaction.deferred) {
     await interaction.editReply({ embeds: [embed] });
