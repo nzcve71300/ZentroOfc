@@ -545,9 +545,9 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     if (kitKey === 'VIPkit') {
       console.log('[KIT CLAIM DEBUG] Checking VIP authorization for player:', player);
       
-      // For VIP kits, we need to check if the player has the in-game VIP role
+      // For VIP kits, we need to check if the player has been added to the VIP kit list
       // This is managed through the kit_auth table with kitlist = 'VIPkit'
-      const [playerResult] = await pool.execute(
+      const [playerResult] = await pool.query(
         'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
@@ -559,7 +559,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       }
       
       // Check if player is authorized for VIP kit
-      const [authResult] = await pool.execute(
+      const [authResult] = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
          WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
@@ -570,7 +570,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       
       if (authResult.length === 0) {
         console.log('[KIT CLAIM DEBUG] Not authorized for VIP kit, player:', player);
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you need VIP role to claim</color> <color=#800080>VIP kits</color>`);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you need to be added to VIP list to claim</color> <color=#800080>VIP kits</color>`);
         return;
       }
     }
@@ -584,7 +584,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       const kitlistName = `Elite${eliteNumber}`;
       
       // First check if player is linked
-      const [playerResult] = await pool.execute(
+      const [playerResult] = await pool.query(
         'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
@@ -596,7 +596,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       }
       
       // Then check if player is authorized for this elite kit list
-      const [authResult] = await pool.execute(
+      const [authResult] = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
          WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
@@ -613,7 +613,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     }
 
     // Record claim in database and give kit
-    await pool.execute(
+    await pool.query(
       'INSERT INTO kit_cooldowns (server_id, kit_name, player_name) VALUES (?, ?, ?)',
       [serverId, kitKey, player]
     );
