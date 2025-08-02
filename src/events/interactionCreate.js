@@ -359,14 +359,21 @@ async function handleShopItemSelect(interaction) {
     const { balance, player_id } = balanceResult[0][0];
     console.log('Extracted balance:', balance, 'player_id:', player_id);
 
-    // If balance is null, create economy record with 0 balance
+    // If balance is null, create or update economy record
     if (balance === null) {
-      console.log('Creating economy record for player:', player_id);
+      console.log('Creating/updating economy record for player:', player_id);
       await pool.query(
-        'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)',
+        'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0) ON DUPLICATE KEY UPDATE balance = COALESCE(balance, 0)',
         [player_id, player_id]
       );
-      balance = 0; // Set balance to 0 for this transaction
+      
+      // Get the updated balance
+      const updatedBalanceResult = await pool.query(
+        'SELECT balance FROM economy WHERE player_id = ?',
+        [player_id]
+      );
+      balance = updatedBalanceResult[0] && updatedBalanceResult[0][0] ? updatedBalanceResult[0][0].balance : 0;
+      console.log('Updated balance:', balance);
     }
 
     if (balance < item.price) {
