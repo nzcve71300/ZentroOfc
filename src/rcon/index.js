@@ -686,9 +686,9 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId.toString(), positionType]
     );
 
-    console.log(`[TELEPORT DEBUG] Config result: ${configResult.length} records found`);
-    if (configResult.length > 0) {
-      const config = configResult[0];
+    console.log(`[TELEPORT DEBUG] Config result: ${configResult[0].length} records found`);
+    if (configResult[0].length > 0) {
+      const config = configResult[0][0];
       console.log(`[TELEPORT DEBUG] Config: enabled=${config.enabled}, delay=${config.delay_seconds}, cooldown=${config.cooldown_minutes}`);
       console.log(`[TELEPORT DEBUG] Raw config object:`, config);
       
@@ -704,7 +704,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       return; // Position teleport is not configured
     }
 
-    const config = configResult[0];
+    const config = configResult[0][0];
 
     // Check cooldown
     const cooldownKey = `${serverId}_${positionType}_${player}`;
