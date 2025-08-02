@@ -98,6 +98,11 @@ function startRconListeners(client) {
     checkAllPlayerOnlineStatus(client);
   }, 120000);
   
+  // Display scheduled messages every 2 minutes
+  setInterval(() => {
+    displayScheduledMessages(client);
+  }, 120000);
+  
   // Sync zones from game to database every 10 minutes to ensure future-proof tracking
   setInterval(() => {
     syncAllZonesToDatabase(client);
@@ -2553,6 +2558,56 @@ async function getZonesFromGameServer(server) {
       // Connection closed
     });
   });
+}
+
+// Track current message pair index for each server
+const currentMessagePairIndex = new Map();
+
+async function displayScheduledMessages(client) {
+  try {
+    // Get all servers with their message pairs
+    const [servers] = await pool.query(
+      `SELECT DISTINCT rs.id, rs.nickname, rs.ip, rs.port, rs.password 
+       FROM rust_servers rs 
+       INNER JOIN scheduler_messages sm ON rs.id = sm.server_id`
+    );
+
+    for (const server of servers) {
+      try {
+        // Get all message pairs for this server
+        const [messages] = await pool.query(
+          'SELECT id, message1, message2 FROM scheduler_messages WHERE server_id = ? ORDER BY created_at ASC',
+          [server.id]
+        );
+
+        if (messages.length > 0) {
+          // Get current index for this server
+          const currentIndex = currentMessagePairIndex.get(server.id) || 0;
+          
+          // Get the current message pair
+          const messagePair = messages[currentIndex];
+          
+          // Send both messages to the server
+          await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
+          
+          // Wait 3 seconds between messages
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`);
+          
+          console.log(`📢 [SCHEDULER] Sent message pair ${currentIndex + 1}/${messages.length} to ${server.nickname}: "${messagePair.message1.substring(0, 50)}..." / "${messagePair.message2.substring(0, 50)}..."`);
+          
+          // Move to next pair (cycle back to 0 if at the end)
+          const nextIndex = (currentIndex + 1) % messages.length;
+          currentMessagePairIndex.set(server.id, nextIndex);
+        }
+      } catch (error) {
+        console.error(`❌ [SCHEDULER] Failed to send messages to ${server.nickname}:`, error.message);
+      }
+    }
+  } catch (error) {
+    console.error('❌ [SCHEDULER] Error displaying scheduled messages:', error);
+  }
 }
 
 // Export functions for use in commands

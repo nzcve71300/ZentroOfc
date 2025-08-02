@@ -23,6 +23,8 @@ module.exports = {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
+        } else if (interaction.customId.startsWith('scheduler_add_modal_')) {
+          await handleSchedulerAddModal(interaction);
         }
         return;
       }
@@ -34,6 +36,8 @@ module.exports = {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
+        } else if (interaction.customId.startsWith('scheduler_delete_select_')) {
+          await handleSchedulerDeleteSelect(interaction);
         } else {
           console.log('⚠️ Unhandled StringSelectMenu interaction:', interaction.customId);
         }
@@ -53,6 +57,12 @@ module.exports = {
           await handleLinkConfirm(interaction);
         } else if (interaction.customId === 'link_cancel') {
           await handleLinkCancel(interaction);
+        } else if (interaction.customId.startsWith('scheduler_add_')) {
+          await handleSchedulerAdd(interaction);
+        } else if (interaction.customId.startsWith('scheduler_view_')) {
+          await handleSchedulerView(interaction);
+        } else if (interaction.customId.startsWith('scheduler_delete_')) {
+          await handleSchedulerDelete(interaction);
         }
         return;
       }
@@ -767,6 +777,196 @@ async function handleEditKitModal(interaction) {
   }
 }
 
+// Scheduler handlers
+async function handleSchedulerAdd(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  
+  const serverId = interaction.customId.split('_')[2];
+  
+  // Check if server already has 6 message pairs
+  const [countResult] = await pool.query(
+    'SELECT COUNT(*) as count FROM scheduler_messages WHERE server_id = ?',
+    [serverId]
+  );
+  
+  if (countResult[0].count >= 6) {
+    return interaction.editReply({
+      embeds: [errorEmbed('Limit Reached', 'Maximum of 6 message pairs allowed per server.')]
+    });
+  }
+  
+  const modal = new ModalBuilder()
+    .setCustomId(`scheduler_add_modal_${serverId}`)
+    .setTitle('Add Message Pair');
 
+  const message1Input = new TextInputBuilder()
+    .setCustomId('message1')
+    .setLabel('Message 1')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Enter your first message (supports color tags, etc.)')
+    .setRequired(true)
+    .setMaxLength(1000);
 
- 
+  const message2Input = new TextInputBuilder()
+    .setCustomId('message2')
+    .setLabel('Message 2')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Enter your second message (supports color tags, etc.)')
+    .setRequired(true)
+    .setMaxLength(1000);
+
+  const firstActionRow = new ActionRowBuilder().addComponents(message1Input);
+  const secondActionRow = new ActionRowBuilder().addComponents(message2Input);
+
+  modal.addComponents(firstActionRow, secondActionRow);
+
+  await interaction.showModal(modal);
+}
+
+async function handleSchedulerAddModal(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  
+  const serverId = interaction.customId.split('_')[3];
+  const message1 = interaction.fields.getTextInputValue('message1');
+  const message2 = interaction.fields.getTextInputValue('message2');
+
+  try {
+    // Insert the message pair
+    await pool.query(
+      'INSERT INTO scheduler_messages (server_id, message1, message2) VALUES (?, ?, ?)',
+      [serverId, message1, message2]
+    );
+
+    await interaction.editReply({
+      embeds: [successEmbed(
+        'Message Pair Added',
+        'Your message pair has been added successfully!\n\n**Message 1:** ' + message1.substring(0, 100) + (message1.length > 100 ? '...' : '') + '\n**Message 2:** ' + message2.substring(0, 100) + (message2.length > 100 ? '...' : '')
+      )]
+    });
+
+  } catch (error) {
+    console.error('Error adding message pair:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to add message pair. Please try again.')]
+    });
+  }
+}
+
+async function handleSchedulerView(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  
+  const serverId = interaction.customId.split('_')[2];
+  
+  try {
+    const [result] = await pool.query(
+      'SELECT * FROM scheduler_messages WHERE server_id = ? ORDER BY created_at ASC',
+      [serverId]
+    );
+
+    if (result.length === 0) {
+      return interaction.editReply({
+        embeds: [orangeEmbed('Message Pairs', 'No message pairs found for this server.')]
+      });
+    }
+
+    let description = '**Here are all your message pairs:**\n\n';
+    result.forEach((pair, index) => {
+      description += `**${index + 1}.** Message 1: ${pair.message1.substring(0, 50)}${pair.message1.length > 50 ? '...' : ''}\n`;
+      description += `    Message 2: ${pair.message2.substring(0, 50)}${pair.message2.length > 50 ? '...' : ''}\n\n`;
+    });
+
+    await interaction.editReply({
+      embeds: [orangeEmbed('Message Pairs', description)]
+    });
+
+  } catch (error) {
+    console.error('Error viewing message pairs:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to load message pairs. Please try again.')]
+    });
+  }
+}
+
+async function handleSchedulerDelete(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  
+  const serverId = interaction.customId.split('_')[2];
+  
+  try {
+    const [result] = await pool.query(
+      'SELECT * FROM scheduler_messages WHERE server_id = ? ORDER BY created_at ASC',
+      [serverId]
+    );
+
+    if (result.length === 0) {
+      return interaction.editReply({
+        embeds: [orangeEmbed('Delete Message Pairs', 'No message pairs found for this server.')]
+      });
+    }
+
+    const options = result.map((pair, index) => ({
+      label: `Pair ${index + 1}: ${pair.message1.substring(0, 30)}... / ${pair.message2.substring(0, 30)}...`,
+      value: pair.id.toString()
+    }));
+
+    const row = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`scheduler_delete_select_${serverId}`)
+          .setPlaceholder('Choose a message pair to delete')
+          .addOptions(options)
+      );
+
+    await interaction.editReply({
+      embeds: [orangeEmbed('Delete Message Pairs', 'Choose a message pair to delete:')],
+      components: [row]
+    });
+
+  } catch (error) {
+    console.error('Error loading message pairs for deletion:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to load message pairs. Please try again.')]
+    });
+  }
+}
+
+async function handleSchedulerDeleteSelect(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  
+  const messageId = interaction.values[0];
+  
+  try {
+    // Get the message pair before deleting
+    const [result] = await pool.query(
+      'SELECT * FROM scheduler_messages WHERE id = ?',
+      [messageId]
+    );
+
+    if (result.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Message pair not found.')]
+      });
+    }
+
+    const messagePair = result[0];
+
+    // Delete the message pair
+    await pool.query(
+      'DELETE FROM scheduler_messages WHERE id = ?',
+      [messageId]
+    );
+
+    await interaction.editReply({
+      embeds: [successEmbed(
+        'Message Pair Deleted',
+        'The message pair has been deleted successfully!\n\n**Deleted Messages:**\n**Message 1:** ' + messagePair.message1.substring(0, 100) + (messagePair.message1.length > 100 ? '...' : '') + '\n**Message 2:** ' + messagePair.message2.substring(0, 100) + (messagePair.message2.length > 100 ? '...' : '')
+      )]
+    });
+
+  } catch (error) {
+    console.error('Error deleting message pair:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to delete message pair. Please try again.')]
+    });
+  }
+}
