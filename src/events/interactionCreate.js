@@ -34,6 +34,11 @@ module.exports = {
         }
         return;
       }
+      
+      // Catch-all for any unhandled interactions
+      if (interaction.type !== 'ApplicationCommand' && interaction.type !== 'MessageComponent' && interaction.type !== 'ModalSubmit') {
+        console.log('[INTERACTION DEBUG] Unhandled interaction type:', interaction.type, 'customId:', interaction.customId);
+      }
 
       // Handle shop dropdown selection
       if (interaction.isStringSelectMenu()) {
@@ -72,6 +77,10 @@ module.exports = {
         }
         return;
       }
+      
+      // If we get here, no handler was found
+      console.log('[INTERACTION DEBUG] No handler found for interaction:', interaction.type, 'customId:', interaction.customId);
+      
     } catch (error) {
       console.error('Error handling interaction:', error);
       try {
