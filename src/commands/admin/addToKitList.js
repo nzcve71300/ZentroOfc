@@ -81,14 +81,14 @@ module.exports = {
       const serverId = serverResult[0].id;
       const serverName = serverResult[0].nickname;
 
-      // Find player by exact in-game name match only
+      // Find player by exact in-game name match only, prioritize linked players
       const [playerResult] = await pool.query(
         `SELECT p.id, p.discord_id, p.ign
          FROM players p
          JOIN rust_servers rs ON p.server_id = rs.id
          JOIN guilds g ON rs.guild_id = g.id
          WHERE g.discord_id = ? AND rs.id = ? AND LOWER(p.ign) = LOWER(?)
-         ORDER BY p.ign`,
+         ORDER BY CASE WHEN p.discord_id IS NOT NULL THEN 0 ELSE 1 END, p.ign`,
         [guildId, serverId, playerName]
       );
 
