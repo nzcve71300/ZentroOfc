@@ -467,7 +467,7 @@ async function handleConfirmPurchase(interaction) {
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
-      command = `kit givetoplayer ${playerIgn} ${itemData.kit_name}`;
+      command = `kit givetoplayer ${itemData.kit_name} ${playerIgn}`;
     }
 
     if (!itemData) {
