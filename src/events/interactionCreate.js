@@ -779,47 +779,63 @@ async function handleEditKitModal(interaction) {
 
 // Scheduler handlers
 async function handleSchedulerAdd(interaction) {
+  console.log('[SCHEDULER DEBUG] Add button clicked, customId:', interaction.customId);
+  
   const serverId = interaction.customId.split('_')[2];
+  console.log('[SCHEDULER DEBUG] Server ID:', serverId);
   
-  // Check if server already has 6 message pairs
-  const [countResult] = await pool.query(
-    'SELECT COUNT(*) as count FROM scheduler_messages WHERE server_id = ?',
-    [serverId]
-  );
-  
-  if (countResult[0].count >= 6) {
-    return interaction.reply({
-      embeds: [errorEmbed('Limit Reached', 'Maximum of 6 message pairs allowed per server.')],
+  try {
+    // Check if server already has 6 message pairs
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) as count FROM scheduler_messages WHERE server_id = ?',
+      [serverId]
+    );
+    
+    console.log('[SCHEDULER DEBUG] Current message pairs count:', countResult[0].count);
+    
+    if (countResult[0].count >= 6) {
+      return interaction.reply({
+        embeds: [errorEmbed('Limit Reached', 'Maximum of 6 message pairs allowed per server.')],
+        ephemeral: true
+      });
+    }
+    
+    const modal = new ModalBuilder()
+      .setCustomId(`scheduler_add_modal_${serverId}`)
+      .setTitle('Add Message Pair');
+
+    const message1Input = new TextInputBuilder()
+      .setCustomId('message1')
+      .setLabel('Message 1')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Enter your first message (supports color tags, etc.)')
+      .setRequired(true)
+      .setMaxLength(1000);
+
+    const message2Input = new TextInputBuilder()
+      .setCustomId('message2')
+      .setLabel('Message 2')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Enter your second message (supports color tags, etc.)')
+      .setRequired(true)
+      .setMaxLength(1000);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(message1Input);
+    const secondActionRow = new ActionRowBuilder().addComponents(message2Input);
+
+    modal.addComponents(firstActionRow, secondActionRow);
+
+    console.log('[SCHEDULER DEBUG] Showing modal with customId:', `scheduler_add_modal_${serverId}`);
+    await interaction.showModal(modal);
+    console.log('[SCHEDULER DEBUG] Modal shown successfully');
+    
+  } catch (error) {
+    console.error('[SCHEDULER DEBUG] Error in handleSchedulerAdd:', error);
+    await interaction.reply({
+      embeds: [errorEmbed('Error', 'Failed to show modal. Please try again.')],
       ephemeral: true
     });
   }
-  
-  const modal = new ModalBuilder()
-    .setCustomId(`scheduler_add_modal_${serverId}`)
-    .setTitle('Add Message Pair');
-
-  const message1Input = new TextInputBuilder()
-    .setCustomId('message1')
-    .setLabel('Message 1')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Enter your first message (supports color tags, etc.)')
-    .setRequired(true)
-    .setMaxLength(1000);
-
-  const message2Input = new TextInputBuilder()
-    .setCustomId('message2')
-    .setLabel('Message 2')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Enter your second message (supports color tags, etc.)')
-    .setRequired(true)
-    .setMaxLength(1000);
-
-  const firstActionRow = new ActionRowBuilder().addComponents(message1Input);
-  const secondActionRow = new ActionRowBuilder().addComponents(message2Input);
-
-  modal.addComponents(firstActionRow, secondActionRow);
-
-  await interaction.showModal(modal);
 }
 
 async function handleSchedulerAddModal(interaction) {
