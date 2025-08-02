@@ -314,11 +314,13 @@ async function handleShopItemSelect(interaction) {
       itemType = 'kit';
     }
 
-    if (!itemData) {
+    if (!itemData || itemData.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Item Not Found', 'The selected item was not found.')]
       });
     }
+
+    const item = itemData[0]; // Get the first item from the result
 
          // Get player balance - first get the server_id from the category
      const serverResult = await pool.query(
@@ -326,14 +328,14 @@ async function handleShopItemSelect(interaction) {
        [categoryId]
      );
 
-     if (serverResult.rows.length === 0) {
+     if (serverResult[0].length === 0) {
        return interaction.editReply({
          embeds: [errorEmbed('Server Not Found', 'The server for this category was not found.')]
        });
      }
 
-     const serverId = serverResult.rows[0].server_id;
-     const nickname = serverResult.rows[0].nickname;
+     const serverId = serverResult[0][0].server_id;
+     const nickname = serverResult[0][0].nickname;
 
      // Now get player balance (single Discord balance)
      const balanceResult = await pool.query(
@@ -347,26 +349,26 @@ async function handleShopItemSelect(interaction) {
        [userId, interaction.guildId]
      );
      
-     console.log('Balance result:', balanceResult.rows);
+     console.log('Balance result:', balanceResult[0]);
 
-    if (balanceResult.rows.length === 0) {
+    if (balanceResult[0].length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    const { balance, player_id } = balanceResult.rows[0];
+    const { balance, player_id } = balanceResult[0][0];
 
-    if (balance < itemData.price) {
+    if (balance < item.price) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You need ${itemData.price} coins but only have ${balance} coins.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You need ${item.price} coins but only have ${balance} coins.`)]
       });
     }
 
     // Create confirmation embed
     const embed = orangeEmbed(
       '🛒 Purchase Confirmation',
-      `**Item:** ${itemData.display_name}\n**Price:** ${itemData.price} coins\n**Server:** ${nickname}\n**Your Balance:** ${balance} coins\n**New Balance:** ${balance - itemData.price} coins\n\nDo you want to confirm this purchase?`
+      `**Item:** ${item.display_name}\n**Price:** ${item.price} coins\n**Server:** ${nickname}\n**Your Balance:** ${balance} coins\n**New Balance:** ${balance - item.price} coins\n\nDo you want to confirm this purchase?`
     );
 
     // Create confirmation buttons
