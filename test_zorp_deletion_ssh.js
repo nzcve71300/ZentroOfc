@@ -6,9 +6,9 @@ console.log('========================================');
 
 async function testRealZorpDeletion() {
   try {
-    // Test with EMPEROR 3X server (Guild ID: 337)
+    // Test with EMPEROR 3X server (Guild ID: 337, Discord ID: 1342235198175182921)
     const serverName = 'EMPEROR 3X';
-    const guildId = '337';
+    const guildId = '1342235198175182921'; // Correct discord_id for guild 337
     
     console.log(`\n🧪 Testing with real server data:`);
     console.log(`   Server: ${serverName}`);
@@ -81,7 +81,7 @@ async function testRealZorpDeletion() {
     }
 
     console.log('\n🎯 ANALYSIS:');
-    console.log('1. Server lookup works with correct guild ID');
+    console.log('1. Server lookup works with correct discord_id');
     console.log('2. Zones exist in database');
     console.log('3. The issue might be in the bot\'s guild ID lookup');
     console.log('4. Or the player name extraction from the emote message');
