@@ -350,9 +350,15 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       
       // Handle coin rewards for kills (both player kills and scientist kills)
       if (killData.isPlayerKill) {
-        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
+        const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
+        if (rewardResult && rewardResult.reward > 0) {
+          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for the kill!</color>`);
+        }
       } else if (killData.isScientistKill) {
-        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
+        const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
+        if (rewardResult && rewardResult.reward > 0) {
+          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for killing a scientist!</color>`);
+        }
       }
     } else {
       // Killfeed is disabled - only process stats and rewards without sending messages
@@ -368,9 +374,15 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
         const isScientistKill = await killfeedProcessor.isScientistKill(victim, serverId);
         
         if (isPlayerKill) {
-          await handleKillRewards(guildId, serverName, killer, victim, false);
+          const rewardResult = await handleKillRewards(guildId, serverName, killer, victim, false);
+          if (rewardResult && rewardResult.reward > 0) {
+            sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for the kill!</color>`);
+          }
         } else if (isScientistKill) {
-          await handleKillRewards(guildId, serverName, killer, victim, true);
+          const rewardResult = await handleKillRewards(guildId, serverName, killer, victim, true);
+          if (rewardResult && rewardResult.reward > 0) {
+            sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for killing a scientist!</color>`);
+          }
         }
       }
     }
@@ -474,23 +486,38 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
     if (playerResult.length > 0) {
       const playerId = playerResult[0].id;
       
-      // Update player balance
-      await pool.query(
-        'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
-        [reward, playerId]
+      // Get guild_id for the transaction
+      const [guildResult] = await pool.query(
+        'SELECT guild_id FROM rust_servers WHERE id = ?',
+        [serverId]
       );
       
-      // Record transaction
-      await pool.query(
-        'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
-        [playerId, reward, 'kill_reward']
-      );
-      
-      const killType = isScientist ? 'scientist' : 'player';
-      console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} coins for killing ${sanitizedVictim} (${killType} kill)`);
+      if (guildResult.length > 0) {
+        const guildIdForTransaction = guildResult[0].guild_id;
+        
+        // Update player balance
+        await pool.query(
+          'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+          [reward, playerId]
+        );
+        
+        // Record transaction with guild_id
+        await pool.query(
+          'INSERT INTO transactions (player_id, amount, type, guild_id) VALUES (?, ?, ?, ?)',
+          [playerId, reward, 'kill_reward', guildIdForTransaction]
+        );
+        
+        const killType = isScientist ? 'scientist' : 'player';
+        console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} coins for killing ${sanitizedVictim} (${killType} kill)`);
+        
+        return { reward, playerId: playerId };
+      }
     }
+    
+    return { reward: 0, playerId: null };
   } catch (error) {
     console.error('Error handling kill rewards:', error);
+    return { reward: 0, playerId: null };
   }
 }
 
