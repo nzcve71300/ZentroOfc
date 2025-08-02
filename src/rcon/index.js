@@ -1225,8 +1225,8 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
 
     console.log(`[ZORP DEBUG] Checking message for delete emote: ${msg}`);
 
-    // Check for ZORP delete emote (multiple variations)
-    if (msg.includes(ZORP_DELETE_EMOTE) || msg.includes(GOODBYE_EMOTE)) {
+    // Check for ZORP delete emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_responses_slot_6
+    if (msg.includes('[CHAT LOCAL]') && msg.includes('d11_quick_chat_responses_slot_6')) {
       const player = extractPlayerName(msg);
       if (player) {
         console.log(`[ZORP] Delete emote detected for player: ${player} on server: ${serverName}`);
