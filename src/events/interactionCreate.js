@@ -337,13 +337,12 @@ async function handleShopItemSelect(interaction) {
      const serverId = serverResult[0][0].server_id;
      const nickname = serverResult[0][0].nickname;
 
-     // Now get player balance (single Discord balance)
+     // Now get player balance (guild-wide balance)
      const balanceResult = await pool.query(
        `SELECT e.balance, p.id as player_id
         FROM players p
         JOIN economy e ON p.id = e.player_id
-        JOIN rust_servers rs ON p.server_id = rs.id
-        JOIN guilds g ON rs.guild_id = g.id
+        JOIN guilds g ON p.guild_id = g.id
         WHERE p.discord_id = ? AND g.discord_id = ?
         LIMIT 1`,
        [userId, interaction.guildId]
@@ -358,6 +357,7 @@ async function handleShopItemSelect(interaction) {
     }
 
     const { balance, player_id } = balanceResult[0][0];
+    console.log('Extracted balance:', balance, 'player_id:', player_id);
 
     if (balance < item.price) {
       return interaction.editReply({
