@@ -724,12 +724,12 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId.toString(), positionType]
     );
 
-    console.log(`[TELEPORT DEBUG] Coordinates result: ${coordResult.length} records found`);
-    if (coordResult.length > 0) {
-      console.log(`[TELEPORT DEBUG] Coordinates: X=${coordResult[0].x_pos}, Y=${coordResult[0].y_pos}, Z=${coordResult[0].z_pos}`);
+    console.log(`[TELEPORT DEBUG] Coordinates result: ${coordResult[0].length} records found`);
+    if (coordResult[0].length > 0) {
+      console.log(`[TELEPORT DEBUG] Coordinates: X=${coordResult[0][0].x_pos}, Y=${coordResult[0][0].y_pos}, Z=${coordResult[0][0].z_pos}`);
     }
 
-    if (coordResult.length === 0) {
+    if (coordResult[0].length === 0) {
       console.log(`[TELEPORT DEBUG] No coordinates found for ${positionType}`);
       sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleport coordinates not configured</color>`);
       return;
@@ -737,7 +737,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
 
     console.log(`[TELEPORT DEBUG] Proceeding with teleport for ${player} to ${positionType}`);
 
-    const coords = coordResult[0];
+    const coords = coordResult[0][0];
     const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
 
     // If there's a delay, show countdown
