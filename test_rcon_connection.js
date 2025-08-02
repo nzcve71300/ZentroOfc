@@ -1,72 +1,61 @@
-const mysql = require('mysql2/promise');
-const WebRCON = require('webrcon');
-require('dotenv').config();
+const { sendRconCommand } = require('./src/rcon');
+const pool = require('./src/db');
 
 async function testRconConnection() {
-  console.log('🔧 Test RCON Connection');
-  console.log('=======================\n');
-
   try {
-    const connection = await mysql.createConnection({
-      host: process.env.DB_HOST,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      port: process.env.DB_PORT || 3306
-    });
+    console.log('🧪 Testing RCON Connection...\n');
 
-    console.log('✅ Database connected successfully!');
+    // Get a server from database
+    const [servers] = await pool.query(
+      'SELECT nickname, ip, port, password FROM rust_servers LIMIT 1'
+    );
 
-    console.log('\n📋 Step 1: Getting server details...');
-    const [serverResult] = await connection.execute('SELECT * FROM rust_servers WHERE guild_id = 176');
-    const server = serverResult[0];
-    
-    console.log('Server details:');
-    console.log(`- Nickname: ${server.nickname}`);
-    console.log(`- IP: ${server.ip}`);
-    console.log(`- Port: ${server.port}`);
-    console.log(`- Password: ${server.password}`);
+    if (servers.length === 0) {
+      console.log('❌ No servers found in database');
+      return;
+    }
 
-    console.log('\n📋 Step 2: Testing RCON connection...');
-    
-    const rcon = new WebRCON(server.ip, server.port, server.password);
-    
-    rcon.on('connected', () => {
-      console.log('✅ RCON connected successfully!');
-      
-      // Test a simple command
-      rcon.command('echo "RCON test successful"').then(response => {
-        console.log('✅ Command response:', response);
-        rcon.disconnect();
-      }).catch(err => {
-        console.log('❌ Command failed:', err.message);
-        rcon.disconnect();
-      });
-    });
+    const server = servers[0];
+    console.log(`📡 Testing connection to: ${server.nickname} (${server.ip}:${server.port})`);
 
-    rcon.on('disconnected', () => {
-      console.log('❌ RCON disconnected');
-    });
+    // Test basic RCON connection
+    try {
+      console.log('🔍 Testing basic RCON connection...');
+      const result = await sendRconCommand(server.ip, server.port, server.password, 'echo "RCON Test"');
+      console.log('✅ RCON connection successful');
+      console.log('📝 Response:', result);
+    } catch (error) {
+      console.error('❌ RCON connection failed:', error.message);
+      return;
+    }
 
-    rcon.on('error', (error) => {
-      console.log('❌ RCON error:', error.message);
-    });
+    // Test zones.listcustomzones command
+    try {
+      console.log('\n🔍 Testing zones.listcustomzones command...');
+      const zonesResult = await sendRconCommand(server.ip, server.port, server.password, 'zones.listcustomzones');
+      console.log('✅ Zones list command successful');
+      console.log('📝 Zones response:', zonesResult);
+    } catch (error) {
+      console.error('❌ Zones list command failed:', error.message);
+    }
 
-    // Connect with timeout
-    rcon.connect();
-    
-    setTimeout(() => {
-      if (rcon.connected) {
-        console.log('✅ Connection test completed');
-      } else {
-        console.log('❌ Connection failed - check password and server status');
-      }
-    }, 5000);
+    // Test zone deletion with a test zone
+    try {
+      console.log('\n🔍 Testing zone deletion command...');
+      const testZoneName = 'TEST_ZONE_DELETE';
+      const deleteResult = await sendRconCommand(server.ip, server.port, server.password, `zones.deletecustomzone "${testZoneName}"`);
+      console.log('✅ Zone deletion command sent (test zone)');
+      console.log('📝 Delete response:', deleteResult);
+    } catch (error) {
+      console.error('❌ Zone deletion command failed:', error.message);
+    }
 
-    await connection.end();
+    console.log('\n✅ RCON connection test completed!');
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Test failed:', error);
+  } finally {
+    await pool.end();
   }
 }
 

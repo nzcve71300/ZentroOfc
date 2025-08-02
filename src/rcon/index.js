@@ -918,30 +918,50 @@ function extractPlayerName(logLine) {
 
 function sendRconCommand(ip, port, password, command) {
   return new Promise((resolve, reject) => {
+    console.log(`[RCON] Sending command to ${ip}:${port}: ${command}`);
+    
     const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
     
+    let responseReceived = false;
+    
     ws.on('open', () => {
+      console.log(`[RCON] Connected to ${ip}:${port}`);
       ws.send(JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' }));
-      setTimeout(() => {
-        ws.close();
-        resolve('Command sent');
-      }, 500);
     });
     
     ws.on('error', (error) => {
-      reject(error);
+      console.error(`[RCON] WebSocket error for ${ip}:${port}:`, error.message);
+      if (!responseReceived) {
+        reject(new Error(`RCON connection failed: ${error.message}`));
+      }
     });
     
     ws.on('message', (data) => {
       try {
         const parsed = JSON.parse(data);
+        console.log(`[RCON] Received response from ${ip}:${port}:`, parsed);
+        
         if (parsed.Message) {
+          responseReceived = true;
+          ws.close();
           resolve(parsed.Message);
         }
       } catch (err) {
-        // Ignore parsing errors
+        console.error(`[RCON] Failed to parse response from ${ip}:${port}:`, err);
+        if (!responseReceived) {
+          reject(new Error(`Invalid RCON response: ${err.message}`));
+        }
       }
     });
+    
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (!responseReceived) {
+        console.error(`[RCON] Timeout for command to ${ip}:${port}: ${command}`);
+        ws.close();
+        reject(new Error('RCON command timeout'));
+      }
+    }, 10000);
   });
 }
 

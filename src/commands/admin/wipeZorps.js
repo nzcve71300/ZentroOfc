@@ -37,6 +37,12 @@ module.exports = {
     await interaction.deferReply();
 
     // Check admin permissions
+    if (!interaction.member) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Unable to verify permissions. Please try again.')]
+      });
+    }
+    
     if (!hasAdminPermissions(interaction.member)) {
       return sendAccessDeniedMessage(interaction);
     }
@@ -80,16 +86,24 @@ module.exports = {
       // Delete each zone
       for (const zone of zonesResult) {
         try {
+          console.log(`[ZORP WIPE] Attempting to delete zone: ${zone.name} owned by ${zone.owner}`);
+          console.log(`[ZORP WIPE] Server connection: ${server.ip}:${server.port}`);
+          
           // Delete zone from game server
-          await sendRconCommand(server.ip, server.port, server.password, `zones.deletecustomzone "${zone.name}"`);
+          const deleteCommand = `zones.deletecustomzone "${zone.name}"`;
+          console.log(`[ZORP WIPE] Sending RCON command: ${deleteCommand}`);
+          
+          await sendRconCommand(server.ip, server.port, server.password, deleteCommand);
+          console.log(`[ZORP WIPE] RCON command sent successfully for zone: ${zone.name}`);
           
           // Delete from database
           await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zone.name]);
+          console.log(`[ZORP WIPE] Deleted zone from database: ${zone.name}`);
           
           deletedCount++;
           deletedZones.push(`${zone.name} (${zone.owner})`);
           
-          console.log(`[ZORP WIPE] Deleted zone: ${zone.name} owned by ${zone.owner}`);
+          console.log(`[ZORP WIPE] Successfully deleted zone: ${zone.name} owned by ${zone.owner}`);
         } catch (error) {
           console.error(`[ZORP WIPE] Failed to delete zone ${zone.name}:`, error);
           failedCount++;
