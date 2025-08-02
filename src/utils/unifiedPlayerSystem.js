@@ -288,7 +288,7 @@ async function updatePlayerBalance(playerId, amount) {
   const dbPool = ensurePool();
   const [result] = await dbPool.query(
     `UPDATE economy 
-     SET balance = balance + ? 
+     SET balance = GREATEST(0, balance + ?) 
      WHERE player_id = ?`,
     [amount, playerId]
   );
