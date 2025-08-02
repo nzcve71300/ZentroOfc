@@ -47,7 +47,7 @@ async function getActivePlayerByIgn(guildId, serverId, ign) {
      AND is_active = true`,
     [guildId, serverId, ign]
   );
-  return result[0] || null;
+  return result[0] && result[0][0] ? result[0][0] : null;
 }
 
 /**
@@ -265,7 +265,7 @@ async function updatePlayerBalance(playerId, amount) {
     'SELECT balance FROM economy WHERE player_id = ?',
     [playerId]
   );
-  return balanceResult[0]?.balance || 0;
+  return balanceResult[0] && balanceResult[0][0] ? balanceResult[0][0].balance : 0;
 }
 
 /**
@@ -300,7 +300,7 @@ async function getServerByNickname(guildId, nickname) {
     'SELECT * FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
     [guildId, nickname]
   );
-  return result[0] || null;
+  return result[0] && result[0][0] ? result[0][0] : null;
 }
 
 module.exports = {

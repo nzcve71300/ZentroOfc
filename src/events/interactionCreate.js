@@ -328,7 +328,7 @@ async function handleShopItemSelect(interaction) {
        [categoryId]
      );
 
-     if (serverResult[0].length === 0) {
+     if (!serverResult[0] || serverResult[0].length === 0) {
        return interaction.editReply({
          embeds: [errorEmbed('Server Not Found', 'The server for this category was not found.')]
        });
@@ -351,7 +351,7 @@ async function handleShopItemSelect(interaction) {
      
      console.log('Balance result:', balanceResult[0]);
 
-    if (balanceResult[0].length === 0) {
+    if (!balanceResult[0] || balanceResult[0].length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
