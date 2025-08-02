@@ -410,10 +410,4 @@ class KillfeedProcessor {
   }
 }
 
-const processor = new KillfeedProcessor();
-module.exports = {
-  ...processor,
-  parseKillMessage: processor.parseKillMessage.bind(processor),
-  processKillStats: processor.processKillStats.bind(processor),
-  isPlayerKill: processor.isPlayerKill.bind(processor)
-}; 
+module.exports = new KillfeedProcessor(); 
