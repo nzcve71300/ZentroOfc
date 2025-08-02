@@ -424,8 +424,16 @@ async function handleConfirmPurchase(interaction) {
         [itemId]
       );
       console.log('Confirm purchase - item query result:', result);
-      itemData = result[0];
-      command = `inventory.giveto "${interaction.user.username}" "${itemData.short_name}" 1`;
+      itemData = result[0] && result[0][0] ? result[0][0] : null;
+      
+      // Get player's IGN for the command
+      const playerResult = await pool.query(
+        'SELECT ign FROM players WHERE id = ?',
+        [playerId]
+      );
+      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+      
+      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" 1`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
@@ -433,8 +441,16 @@ async function handleConfirmPurchase(interaction) {
         [itemId]
       );
       console.log('Confirm purchase - kit query result:', result);
-      itemData = result[0];
-      command = `kit givetoplayer ${itemData.kit_name} ${interaction.user.username}`;
+      itemData = result[0] && result[0][0] ? result[0][0] : null;
+      
+      // Get player's IGN for the command
+      const playerResult = await pool.query(
+        'SELECT ign FROM players WHERE id = ?',
+        [playerId]
+      );
+      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+      
+      command = `kit givetoplayer ${playerIgn} ${itemData.kit_name}`;
     }
 
     if (!itemData) {
@@ -451,8 +467,8 @@ async function handleConfirmPurchase(interaction) {
 
     // Record transaction
     await pool.query(
-      'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
-      [playerId, -itemData.price, 'shop_purchase']
+      'INSERT INTO transactions (player_id, guild_id, amount, type, timestamp) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?, ?, CURRENT_TIMESTAMP)',
+      [playerId, playerId, -itemData.price, 'shop_purchase']
     );
 
          // Send RCON command to server
