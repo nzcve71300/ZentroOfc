@@ -99,23 +99,8 @@ module.exports = {
       }
 
       if (playerResult.length > 1) {
-        // Multiple players found - show options
-        const embed = orangeEmbed(
-          'Multiple Players Found',
-          `Found ${playerResult.length} players matching "${playerName}". Please be more specific:`
-        );
-
-        for (const player of playerResult) {
-          embed.addFields({
-            name: `👤 ${player.ign || 'Unknown'}`,
-            value: `**Discord ID:** ${player.discord_id || 'Not linked'}`,
-            inline: true
-          });
-        }
-
-        return interaction.editReply({
-          embeds: [embed]
-        });
+        // Multiple players found - automatically select the first one (prioritized by ORDER BY)
+        console.log(`[ADD-TO-KIT-LIST] Multiple players found for "${playerName}", selecting first (linked) player`);
       }
 
       const player = playerResult[0];
