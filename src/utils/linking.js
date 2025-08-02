@@ -214,12 +214,12 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
       await pool.query(playerUpdateQuery, [discordIdBigInt, existing.id]);
       // Ensure economy record
       const economyInsertQuery = `
-        INSERT INTO economy (player_id, balance)
-        VALUES (?, 0)
+        INSERT INTO economy (player_id, guild_id, balance)
+        VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)
         ON DUPLICATE KEY UPDATE balance = balance
       `;
-      console.log('🟧 Query:', economyInsertQuery, [existing.id]);
-      await pool.query(economyInsertQuery, [existing.id]);
+      console.log('🟧 Query:', economyInsertQuery, [existing.id, existing.id]);
+      await pool.query(economyInsertQuery, [existing.id, existing.id]);
       console.log('✅ Reactivated existing inactive player:', ignText);
       return { id: existing.id };
     }
@@ -248,12 +248,12 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
     // Ensure economy record exists
     const playerId = playerResult.insertId || playerResult.id;
     const economyInsertQuery = `
-      INSERT INTO economy (player_id, balance)
-      VALUES (?, 0)
+      INSERT INTO economy (player_id, guild_id, balance)
+      VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)
       ON DUPLICATE KEY UPDATE balance = balance
     `;
-    console.log('🟧 Query:', economyInsertQuery, [playerId]);
-    await pool.query(economyInsertQuery, [playerId]);
+    console.log('🟧 Query:', economyInsertQuery, [playerId, playerId]);
+    await pool.query(economyInsertQuery, [playerId, playerId]);
     console.log('✅ Economy record ensured for player:', playerId);
 
     return { id: playerId };
