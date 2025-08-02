@@ -545,12 +545,25 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     if (kitKey === 'VIPkit') {
       console.log('[KIT CLAIM DEBUG] Checking VIP authorization for player:', player);
       
+      // Debug: Check what's in kit_auth table
+      const [debugKitAuth] = await pool.query(
+        'SELECT * FROM kit_auth WHERE kitlist = ?',
+        ['VIPkit']
+      );
+      console.log('[KIT CLAIM DEBUG] All VIP kit_auth entries:', debugKitAuth);
+      
+      // Debug: Check server ID format
+      console.log('[KIT CLAIM DEBUG] Server ID type:', typeof serverId);
+      console.log('[KIT CLAIM DEBUG] Server ID value:', serverId);
+      
       // For VIP kits, we need to check if the player has been added to the VIP kit list
       // This is managed through the kit_auth table with kitlist = 'VIPkit'
       const [playerResult] = await pool.query(
         'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
         [serverId, player]
       );
+      
+      console.log('[KIT CLAIM DEBUG] Player lookup result:', playerResult);
       
       if (playerResult.length === 0 || !playerResult[0].discord_id) {
         console.log('[KIT CLAIM DEBUG] Player not linked for VIP kit:', player);
@@ -567,6 +580,8 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       );
       
       console.log('[KIT CLAIM DEBUG] VIP auth result:', authResult);
+      console.log('[KIT CLAIM DEBUG] Server ID used:', serverId);
+      console.log('[KIT CLAIM DEBUG] Player name used:', player);
       
       if (authResult.length === 0) {
         console.log('[KIT CLAIM DEBUG] Not authorized for VIP kit, player:', player);
@@ -604,6 +619,8 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       );
       
       console.log('[KIT CLAIM DEBUG] Elite auth result for', kitlistName, ':', authResult);
+      console.log('[KIT CLAIM DEBUG] Server ID used:', serverId);
+      console.log('[KIT CLAIM DEBUG] Player name used:', player);
       
       if (authResult.length === 0) {
         console.log('[KIT CLAIM DEBUG] Not authorized for elite kit', kitKey, 'player:', player);
