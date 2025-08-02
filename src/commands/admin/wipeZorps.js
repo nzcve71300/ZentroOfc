@@ -37,7 +37,7 @@ module.exports = {
     await interaction.deferReply();
 
     // Check admin permissions
-    if (!hasAdminPermissions(interaction)) {
+    if (!hasAdminPermissions(interaction.member)) {
       return sendAccessDeniedMessage(interaction);
     }
 
