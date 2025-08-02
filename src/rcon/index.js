@@ -436,7 +436,28 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
     if (serverResult.length === 0) return;
     
     const serverId = serverResult[0].id;
-    const reward = isScientist ? 50 : 25; // Default rewards, could be configurable
+    
+    // Get configurable reward amounts from eco_games_config
+    let reward = 0;
+    const rewardType = isScientist ? 'misckills_amount' : 'playerkills_amount';
+    
+    const [configResult] = await pool.query(
+      'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+      [serverId, rewardType]
+    );
+    
+    if (configResult.length > 0) {
+      reward = parseInt(configResult[0].setting_value) || 0;
+    } else {
+      // Fallback to default values if not configured
+      reward = isScientist ? 50 : 25;
+    }
+
+    // Only process if reward is greater than 0
+    if (reward <= 0) {
+      console.log(`💰 Kill reward: ${sanitizedKiller} killed ${sanitizedVictim} but no reward configured for ${rewardType}`);
+      return;
+    }
 
     // Find player by IGN
     const [playerResult] = await pool.query(
@@ -459,7 +480,8 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
         [playerId, reward, 'kill_reward']
       );
       
-      console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} coins for killing ${sanitizedVictim}`);
+      const killType = isScientist ? 'scientist' : 'player';
+      console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} coins for killing ${sanitizedVictim} (${killType} kill)`);
     }
   } catch (error) {
     console.error('Error handling kill rewards:', error);

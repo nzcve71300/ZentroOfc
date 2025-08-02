@@ -21,6 +21,8 @@ module.exports = {
           { name: 'Coinflip On/Off', value: 'coinflip_toggle' },
           { name: 'Daily Rewards Amount', value: 'daily_amount' },
           { name: 'Starting Balance', value: 'starting_balance' },
+          { name: 'Playerkills Amount', value: 'playerkills_amount' },
+          { name: 'Misckills Amount', value: 'misckills_amount' },
           { name: 'Blackjack Min Bet', value: 'blackjack_min' },
           { name: 'Blackjack Max Bet', value: 'blackjack_max' },
           { name: 'Coinflip Min Bet', value: 'coinflip_min' },
@@ -126,6 +128,30 @@ module.exports = {
           value = `${startingBalance} coins`;
           break;
 
+        case 'playerkills_amount':
+          const playerkillsAmount = parseInt(option);
+          if (isNaN(playerkillsAmount) || playerkillsAmount < 0) {
+            return interaction.editReply({
+              embeds: [errorEmbed('Invalid Amount', 'Player kills reward amount must be a positive number.')]
+            });
+          }
+          settingValue = playerkillsAmount.toString();
+          message = `Player kills reward has been set to ${playerkillsAmount} coins on ${serverName}.`;
+          value = `${playerkillsAmount} coins`;
+          break;
+
+        case 'misckills_amount':
+          const misckillsAmount = parseInt(option);
+          if (isNaN(misckillsAmount) || misckillsAmount < 0) {
+            return interaction.editReply({
+              embeds: [errorEmbed('Invalid Amount', 'Scientist kills reward amount must be a positive number.')]
+            });
+          }
+          settingValue = misckillsAmount.toString();
+          message = `Scientist kills reward has been set to ${misckillsAmount} coins on ${serverName}.`;
+          value = `${misckillsAmount} coins`;
+          break;
+
         case 'blackjack_min':
         case 'blackjack_max':
         case 'coinflip_min':
@@ -170,7 +196,7 @@ module.exports = {
 
       embed.addFields({
         name: '💡 Available Settings',
-        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Starting Balance\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
+        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Starting Balance\n• Playerkills Amount\n• Misckills Amount\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
         inline: false
       });
 
