@@ -356,7 +356,7 @@ async function handleShopItemSelect(interaction) {
       });
     }
 
-    const { balance, player_id } = balanceResult[0][0];
+    let { balance, player_id } = balanceResult[0][0];
     console.log('Extracted balance:', balance, 'player_id:', player_id);
 
     // If balance is null, create or update economy record
