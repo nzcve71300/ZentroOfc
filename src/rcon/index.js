@@ -587,13 +587,13 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       // For VIP kits, we need to check if the player has been added to the VIP kit list
       // This is managed through the kit_auth table with kitlist = 'VIPkit'
       const [playerResult] = await pool.query(
-        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
+        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ? AND discord_id IS NOT NULL',
         [serverId, player]
       );
       
       console.log('[KIT CLAIM DEBUG] Player lookup result:', playerResult);
       
-      if (playerResult.length === 0 || !playerResult[0].discord_id) {
+      if (playerResult.length === 0) {
         console.log('[KIT CLAIM DEBUG] Player not linked for VIP kit:', player);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you must link your Discord account first</color> <color=#800080>to claim VIP kits</color>`);
         return;
@@ -628,11 +628,11 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       
       // First check if player is linked
       const [playerResult] = await pool.query(
-        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ?',
+        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ? AND discord_id IS NOT NULL',
         [serverId, player]
       );
       
-      if (playerResult.length === 0 || !playerResult[0].discord_id) {
+      if (playerResult.length === 0) {
         console.log('[KIT CLAIM DEBUG] Player not linked for elite kit:', kitKey, 'player:', player);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you must link your Discord account first</color> <color=#800080>to claim elite kits</color>`);
         return;
