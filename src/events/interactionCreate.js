@@ -7,6 +7,8 @@ const { sendRconCommand } = require('../rcon');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
+    console.log('[INTERACTION DEBUG] Interaction received:', interaction.type, 'customId:', interaction.customId);
+    
     try {
       // Handle autocomplete
       if (interaction.isAutocomplete()) {
