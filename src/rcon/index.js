@@ -1217,12 +1217,14 @@ async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, pa
     const msg = parsed.Message;
     if (!msg) return;
 
-    // Check for ZORP emote
-    if (msg.includes(ZORP_EMOTE)) {
+    // Check for ZORP emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_questions_slot_1
+    if (msg.includes('[CHAT LOCAL]') && msg.includes(ZORP_EMOTE)) {
       const player = extractPlayerName(msg);
       if (player) {
         console.log(`[ZORP] Emote detected for player: ${player} on server: ${serverName}`);
         await createZorpZone(client, guildId, serverName, ip, port, password, player);
+      } else {
+        console.log(`[ZORP] Emote detected but could not extract player name from: ${msg}`);
       }
     }
   } catch (error) {
