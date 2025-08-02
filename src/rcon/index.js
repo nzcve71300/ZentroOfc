@@ -1262,6 +1262,8 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
           [serverId, player]
         );
 
+        console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones by owner ${player}`);
+
         // If no zone found by owner, try to find any zone for this player (for synced zones with Unknown owner)
         if (zoneResult.length === 0) {
           console.log(`[ZORP] No zone found by owner ${player}, checking for any available zones...`);
@@ -1269,6 +1271,7 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
             'SELECT name FROM zorp_zones WHERE server_id = ? LIMIT 1',
             [serverId]
           );
+          console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones by server lookup`);
         }
 
         if (zoneResult.length === 0) {

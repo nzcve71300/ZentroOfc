@@ -96,6 +96,9 @@ module.exports = {
           await sendRconCommand(server.ip, server.port, server.password, deleteCommand);
           console.log(`[ZORP WIPE] RCON command sent successfully for zone: ${zone.name}`);
           
+          // Send in-game deletion message
+          await sendRconCommand(server.ip, server.port, server.password, `say <color=#FF69B4>[ZORP]${zone.owner}</color> <color=white>Zorp successfully deleted!</color>`);
+          
           // Delete from database
           await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zone.name]);
           console.log(`[ZORP WIPE] Deleted zone from database: ${zone.name}`);
@@ -164,6 +167,11 @@ module.exports = {
       embed.setFooter({ text: '💎 Admin Command • All zorp zones have been removed' });
 
       await interaction.editReply({ embeds: [embed] });
+
+      // Send summary message to game
+      if (deletedCount > 0) {
+        await sendRconCommand(server.ip, server.port, server.password, `say <color=#FF69B4>[ZORP WIPE]</color> <color=white>All zorp zones have been deleted from ${server.nickname} (${deletedCount} zones)</color>`);
+      }
 
       console.log(`[ZORP WIPE] Completed wipe on ${server.nickname}: ${deletedCount} deleted, ${failedCount} failed`);
 
