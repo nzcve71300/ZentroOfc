@@ -341,7 +341,7 @@ async function handleShopItemSelect(interaction) {
      const balanceResult = await pool.query(
        `SELECT e.balance, p.id as player_id
         FROM players p
-        JOIN economy e ON p.id = e.player_id
+        LEFT JOIN economy e ON p.id = e.player_id
         JOIN guilds g ON p.guild_id = g.id
         WHERE p.discord_id = ? AND g.discord_id = ?
         LIMIT 1`,
@@ -358,6 +358,16 @@ async function handleShopItemSelect(interaction) {
 
     const { balance, player_id } = balanceResult[0][0];
     console.log('Extracted balance:', balance, 'player_id:', player_id);
+
+    // If balance is null, create economy record with 0 balance
+    if (balance === null) {
+      console.log('Creating economy record for player:', player_id);
+      await pool.query(
+        'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)',
+        [player_id, player_id]
+      );
+      balance = 0; // Set balance to 0 for this transaction
+    }
 
     if (balance < item.price) {
       return interaction.editReply({
