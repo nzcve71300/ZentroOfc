@@ -779,8 +779,6 @@ async function handleEditKitModal(interaction) {
 
 // Scheduler handlers
 async function handleSchedulerAdd(interaction) {
-  await interaction.deferReply({ flags: 64 });
-  
   const serverId = interaction.customId.split('_')[2];
   
   // Check if server already has 6 message pairs
@@ -790,8 +788,9 @@ async function handleSchedulerAdd(interaction) {
   );
   
   if (countResult[0].count >= 6) {
-    return interaction.editReply({
-      embeds: [errorEmbed('Limit Reached', 'Maximum of 6 message pairs allowed per server.')]
+    return interaction.reply({
+      embeds: [errorEmbed('Limit Reached', 'Maximum of 6 message pairs allowed per server.')],
+      ephemeral: true
     });
   }
   
