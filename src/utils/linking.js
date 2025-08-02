@@ -157,20 +157,21 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
     await pool.query(guildInsertQuery, [guildIdText, guildName]);
     console.log('✅ Guild ensured:', guildIdText);
 
-    // Ensure server exists - guild_id subquery now uses BIGINT for discord_id
-    const serverInsertQuery = `
-      INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password)
-      VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        nickname = VALUES(nickname),
-        ip = VALUES(ip),
-        port = VALUES(port),
-        password = VALUES(password);
+    // Check if server already exists
+    const serverCheckQuery = `
+      SELECT id FROM rust_servers 
+      WHERE id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
     `;
-    // Use placeholder values - these need to be updated by admin commands
-    console.log('🟧 Query:', serverInsertQuery, [serverIdText, guildIdText, serverName, 'PLACEHOLDER_IP', 28016, 'PLACEHOLDER_PASSWORD']);
-    await pool.query(serverInsertQuery, [serverIdText, guildIdText, serverName, 'PLACEHOLDER_IP', 28016, 'PLACEHOLDER_PASSWORD']);
-    console.log('✅ Server ensured:', serverIdText);
+    const [existingServers] = await pool.query(serverCheckQuery, [serverIdText, guildIdText]);
+    
+    if (existingServers.length === 0) {
+      // Server doesn't exist, skip insertion to avoid placeholder data
+      console.log('⚠️ Server not found in database:', serverIdText);
+      console.log('💡 Please add the server using admin commands first');
+      throw new Error("❌ Server not found. Please contact an admin to add this server first.");
+    }
+    
+    console.log('✅ Server found:', serverIdText);
 
     // Update link request status - guild_id subquery uses BIGINT for discord_id
     const linkRequestUpdateQuery = `
