@@ -274,8 +274,8 @@ async function updatePlayerBalance(playerId, amount) {
 async function recordTransaction(playerId, amount, type) {
   const dbPool = ensurePool();
   await dbPool.query(
-    'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
-    [playerId, amount, type]
+    'INSERT INTO transactions (player_id, guild_id, amount, type) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?, ?)',
+    [playerId, playerId, amount, type]
   );
 }
 
