@@ -187,13 +187,14 @@ async function unlinkAllPlayersByIdentifier(guildId, identifier) {
     console.log(`Unlinked ${result.affectedRows} player(s) for Discord ID: ${identifier}`);
     return { rows: result, rowCount: result.affectedRows };
   } else {
-    // Handle IGN (text) - case-insensitive match, always deactivate regardless of current status
+    // Handle IGN (text) - only unlink players that are actually linked (have Discord ID)
     const [result] = await dbPool.query(
       `UPDATE players 
        SET unlinked_at = CURRENT_TIMESTAMP, is_active = false
        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
        AND ign IS NOT NULL
-       AND LOWER(ign) = LOWER(?)`,
+       AND LOWER(ign) = LOWER(?)
+       AND discord_id IS NOT NULL`,
       [guildId, identifier]
     );
     
@@ -229,6 +230,7 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
      AND ign IS NOT NULL
      AND LOWER(ign) = LOWER(?)
+     AND discord_id IS NOT NULL
      AND discord_id != ?
      AND is_active = true`,
     [guildId, ign, discordId]
