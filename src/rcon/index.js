@@ -77,6 +77,13 @@ function zonesOverlap(zone1Pos, zone1Size, zone2Pos, zone2Size) {
 
 function startRconListeners(client) {
   refreshConnections(client);
+  
+  // Initial sync on startup to ensure all zones are tracked
+  setTimeout(() => {
+    console.log('🚀 Performing initial zone sync on startup...');
+    syncAllZonesToDatabase(client);
+  }, 10000); // Wait 10 seconds after startup
+  
   setInterval(() => {
     refreshConnections(client);
     pollPlayerCounts(client);
@@ -90,6 +97,11 @@ function startRconListeners(client) {
   setInterval(() => {
     checkAllPlayerOnlineStatus(client);
   }, 120000);
+  
+  // Sync zones from game to database every 10 minutes to ensure future-proof tracking
+  setInterval(() => {
+    syncAllZonesToDatabase(client);
+  }, 600000); // 10 minutes
 }
 
 async function refreshConnections(client) {
@@ -2371,6 +2383,116 @@ async function checkIfAllTeamMembersOffline(ip, port, password, playerName) {
     console.error('Error checking team offline status:', error);
     return false; // Assume someone is online if there's an error
   }
+}
+
+// FUTURE-PROOF ZONE SYNC FUNCTION
+async function syncAllZonesToDatabase(client) {
+  try {
+    console.log('🔄 SYNCING ALL ZONES TO DATABASE (Future-proof)...');
+    
+    // Get all servers
+    const [servers] = await pool.query(
+      'SELECT id, nickname, ip, port, password, guild_id FROM rust_servers'
+    );
+
+    let totalZonesFound = 0;
+    let totalZonesAdded = 0;
+
+    for (const server of servers) {
+      try {
+        console.log(`📡 Syncing zones for ${server.nickname}...`);
+        
+        // Get zones from game server
+        const gameZoneNames = await getZonesFromGameServer(server);
+        console.log(`   🎯 Found ${gameZoneNames.length} ZORP zones in game for ${server.nickname}`);
+        
+        totalZonesFound += gameZoneNames.length;
+        
+        // Add missing zones to database
+        for (const zoneName of gameZoneNames) {
+          try {
+            // Check if zone already exists in database
+            const [existingZone] = await pool.query(
+              'SELECT id FROM zorp_zones WHERE name = ? AND server_id = ?',
+              [zoneName, server.id]
+            );
+            
+            if (existingZone.length === 0) {
+              // Add zone to database with 'Unknown' owner
+              console.log(`   ➕ Adding missing zone to database: ${zoneName}`);
+              await pool.query(
+                'INSERT INTO zorp_zones (name, owner, server_id, created_at, expire) VALUES (?, ?, ?, NOW(), 86400)',
+                [zoneName, 'Unknown', server.id]
+              );
+              console.log(`   ✅ Added zone: ${zoneName}`);
+              totalZonesAdded++;
+            }
+          } catch (error) {
+            console.log(`   ❌ Failed to add zone ${zoneName}:`, error.message);
+          }
+        }
+        
+      } catch (error) {
+        console.log(`   ❌ Failed to sync ${server.nickname}:`, error.message);
+      }
+    }
+
+    if (totalZonesAdded > 0) {
+      console.log(`✅ SYNC COMPLETE: Added ${totalZonesAdded} missing zones to database`);
+    } else {
+      console.log(`✅ SYNC COMPLETE: All zones already tracked in database`);
+    }
+
+  } catch (error) {
+    console.error('❌ Zone sync failed:', error);
+  }
+}
+
+async function getZonesFromGameServer(server) {
+  return new Promise((resolve) => {
+    const ws = new WebSocket(`ws://${server.ip}:${server.port}/${server.password}`);
+    
+    ws.on('open', () => {
+      // Get zones from game
+      const zonesCommand = JSON.stringify({ Identifier: 1, Message: 'zones.listcustomzones', Name: 'WebRcon' });
+      ws.send(zonesCommand);
+    });
+    
+    ws.on('message', (data) => {
+      try {
+        const parsed = JSON.parse(data.toString());
+        
+        if (parsed.Message) {
+          const zones = parsed.Message.split('\n').filter(line => line.trim());
+          
+          // Extract ZORP zones
+          const zorpZones = zones.filter(zone => zone.includes('ZORP_'));
+          
+          // Extract zone names
+          const gameZoneNames = zorpZones.map(zone => {
+            const match = zone.match(/Name \[([^\]]+)\]/);
+            return match ? match[1] : null;
+          }).filter(name => name);
+          
+          ws.close();
+          resolve(gameZoneNames);
+        }
+      } catch (err) {
+        console.log(`   ❌ Failed to parse response from ${server.nickname}:`, err.message);
+        ws.close();
+        resolve([]); // Return empty array on error
+      }
+    });
+    
+    ws.on('error', (error) => {
+      console.error(`   ❌ WebSocket error for ${server.nickname}:`, error.message);
+      resolve([]); // Return empty array on error
+    });
+    
+    ws.on('close', () => {
+      // Connection closed
+    });
+  });
 }
 
 // Export functions for use in commands
