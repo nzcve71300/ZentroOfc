@@ -348,9 +348,11 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       // Add to Discord killfeed buffer with clean format
       addToKillFeedBuffer(guildId, serverName, discordMessage);
       
-      // Handle coin rewards for kills (only for player kills)
+      // Handle coin rewards for kills (both player kills and scientist kills)
       if (killData.isPlayerKill) {
         await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
+      } else if (killData.isScientistKill) {
+        await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
       }
     } else {
       // Killfeed is disabled - only process stats and rewards without sending messages
@@ -361,10 +363,14 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
         // Process stats even when killfeed is disabled
         await killfeedProcessor.processKillStats(killer, victim, serverId);
         
-        // Handle coin rewards for player kills (even when killfeed is disabled)
+        // Handle coin rewards for kills (both player kills and scientist kills, even when killfeed is disabled)
         const isPlayerKill = await killfeedProcessor.isPlayerKill(victim, serverId);
+        const isScientistKill = await killfeedProcessor.isScientistKill(victim, serverId);
+        
         if (isPlayerKill) {
           await handleKillRewards(guildId, serverName, killer, victim, false);
+        } else if (isScientistKill) {
+          await handleKillRewards(guildId, serverName, killer, victim, true);
         }
       }
     }

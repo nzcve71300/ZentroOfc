@@ -46,7 +46,8 @@ class KillfeedProcessor {
         victim,
         killerStats,
         victimStats,
-        isPlayerKill: await this.isPlayerKill(victim, serverId)
+        isPlayerKill: await this.isPlayerKill(victim, serverId),
+        isScientistKill: await this.isScientistKill(victim, serverId)
       };
 
     } catch (error) {
@@ -174,6 +175,31 @@ class KillfeedProcessor {
       return result.length > 0;
     } catch (error) {
       console.error('Error checking if victim is player:', error);
+      return false;
+    }
+  }
+
+  async isScientistKill(victimName, serverId) {
+    try {
+      // Sanitize the victim name to remove null bytes and invalid characters
+      const sanitizedName = victimName.replace(/\0/g, '').trim();
+      
+      if (!sanitizedName) {
+        return false;
+      }
+      
+      // Check if victim is a scientist (numeric ID or "Scientist")
+      if (sanitizedName === 'Scientist' || /^\d+$/.test(sanitizedName)) {
+        return true;
+      }
+      
+      // Also check if it's a known NPC/scientist name
+      const scientistNames = ['scientist', 'bandit', 'bradley', 'heli', 'helicopter'];
+      const lowerVictim = sanitizedName.toLowerCase();
+      
+      return scientistNames.some(name => lowerVictim.includes(name));
+    } catch (error) {
+      console.error('Error checking if scientist kill:', error);
       return false;
     }
   }
