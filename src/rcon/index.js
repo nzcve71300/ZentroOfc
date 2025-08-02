@@ -1262,9 +1262,9 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
         await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
         console.log(`[ZORP] Sent delete command for zone: ${zoneName}`);
 
-        // Delete zone from database
-        await pool.query('DELETE FROM zorp_zones WHERE server_id = ? AND owner = ?', [serverId, player]);
-        console.log(`[ZORP] Deleted zone from database for player: ${player}`);
+        // Delete zone from database by zone name (more reliable than owner)
+        await pool.query('DELETE FROM zorp_zones WHERE name = ? AND server_id = ?', [zoneName, serverId]);
+        console.log(`[ZORP] Deleted zone from database: ${zoneName}`);
 
         // Send success message
         await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${player}</color> <color=white>Zorp successfully deleted!</color>`);
