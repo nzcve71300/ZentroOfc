@@ -258,10 +258,26 @@ async function handleShopCategorySelect(interaction) {
       });
     });
 
+    console.log('[SHOP DEBUG] Total items:', items.length, 'Total kits:', kits.length);
+    console.log('[SHOP DEBUG] All options length:', allOptions.length);
+
     // Limit to 25 options (Discord's maximum)
     const limitedOptions = allOptions.slice(0, 25);
     const totalItems = items.length + kits.length;
     const hasMoreItems = totalItems > 25;
+    
+    console.log('[SHOP DEBUG] Limited options length:', limitedOptions.length);
+    console.log('[SHOP DEBUG] Has more items:', hasMoreItems);
+
+    // Check if we have any options to show
+    if (limitedOptions.length === 0) {
+      embed.setDescription(`${embed.data.description}\n\n❌ **No items or kits available in this category.**`);
+      await interaction.editReply({
+        embeds: [embed],
+        components: []
+      });
+      return;
+    }
 
     const row = new ActionRowBuilder()
       .addComponents(
