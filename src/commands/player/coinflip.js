@@ -187,12 +187,26 @@ function createCoinflipEmbed(game, serverName) {
 
   if (!game.flipped) {
     embed.addFields(
-      { name: '🪙 **Coin Status**', value: '```\n    ╭─────────╮\n    │  🪙  │\n    │ COIN │\n    │  🪙  │\n    ╰─────────╯\n```', inline: false }
+      { name: '🪙 **Coin Status**', value: createCoinDisplay(), inline: false }
     );
   }
 
   embed.setFooter({ text: '💎 Premium Gaming Experience • Flip to win big!' });
   return embed;
+}
+
+function createCoinDisplay() {
+  return `\`\`\`
+    ╭─────────────────╮
+    │  ████████████  │
+    │ ██████████████ │
+    │ ████ 🪙 ██████ │
+    │ ████ COIN ████ │
+    │ ████ 🪙 ██████ │
+    │ ██████████████ │
+    │  ████████████  │
+    ╰─────────────────╯
+\`\`\``;
 }
 
 function createCoinflipButtons(gameId) {
@@ -278,18 +292,18 @@ async function flipCoin(game, interaction, serverName) {
 }
 
 function create3DCoin(side) {
-  const coinSymbol = side === 'heads' ? '🪙' : '🪙';
   const sideText = side.toUpperCase();
+  const coinSymbol = '🪙';
   
   return `\`\`\`
     ╭─────────────────╮
-    │                 │
-    │    ${coinSymbol} ${coinSymbol} ${coinSymbol}    │
-    │                 │
-    │   ${sideText.padStart(6, ' ')}   │
-    │                 │
-    │    ${coinSymbol} ${coinSymbol} ${coinSymbol}    │
-    │                 │
+    │  ████████████  │
+    │ ██████████████ │
+    │ ████ ${coinSymbol} ██████ │
+    │ ████ ${sideText.padStart(6, ' ')} ████ │
+    │ ████ ${coinSymbol} ██████ │
+    │ ██████████████ │
+    │  ████████████  │
     ╰─────────────────╯
 \`\`\``;
 } 
