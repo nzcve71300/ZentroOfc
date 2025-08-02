@@ -459,15 +459,17 @@ async function handleConfirmPurchase(interaction) {
   try {
     let itemData;
     let command;
+    let timer = null;
 
     if (type === 'item') {
       console.log('Confirm purchase - querying item with ID:', itemId);
       const result = await pool.query(
-        'SELECT si.display_name, si.short_name, si.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
+        'SELECT si.display_name, si.short_name, si.price, si.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
         [itemId]
       );
       console.log('Confirm purchase - item query result:', result);
       itemData = result[0] && result[0][0] ? result[0][0] : null;
+      timer = itemData ? itemData.timer : null;
       
       // Get player's IGN for the command
       const playerResult = await pool.query(
@@ -480,11 +482,12 @@ async function handleConfirmPurchase(interaction) {
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
-        'SELECT sk.display_name, sk.kit_name, sk.price, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
+        'SELECT sk.display_name, sk.kit_name, sk.price, sk.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
         [itemId]
       );
       console.log('Confirm purchase - kit query result:', result);
       itemData = result[0] && result[0][0] ? result[0][0] : null;
+      timer = itemData ? itemData.timer : null;
       
       // Get player's IGN for the command
       const playerResult = await pool.query(
@@ -502,6 +505,32 @@ async function handleConfirmPurchase(interaction) {
       });
     }
 
+    // Check timer/cooldown if item has one
+    if (timer && timer > 0) {
+      console.log(`[SHOP TIMER] Checking cooldown for ${type} ${itemId}, timer: ${timer} minutes`);
+      
+      // Check if player has purchased this item recently
+      const cooldownResult = await pool.query(
+        'SELECT purchased_at FROM shop_cooldowns WHERE player_id = ? AND item_type = ? AND item_id = ? ORDER BY purchased_at DESC LIMIT 1',
+        [playerId, type, itemId]
+      );
+      
+      if (cooldownResult[0] && cooldownResult[0].length > 0) {
+        const lastPurchase = new Date(cooldownResult[0][0].purchased_at);
+        const now = new Date();
+        const timeDiff = (now - lastPurchase) / (1000 * 60); // Convert to minutes
+        
+        console.log(`[SHOP TIMER] Last purchase: ${lastPurchase}, Time diff: ${timeDiff} minutes, Timer: ${timer} minutes`);
+        
+        if (timeDiff < timer) {
+          const remaining = Math.ceil(timer - timeDiff);
+          return interaction.editReply({
+            embeds: [errorEmbed('Cooldown Active', `You must wait ${remaining} more minutes before purchasing this item again.`)]
+          });
+        }
+      }
+    }
+
     // Deduct balance
     await pool.query(
       'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
@@ -513,6 +542,15 @@ async function handleConfirmPurchase(interaction) {
       'INSERT INTO transactions (player_id, guild_id, amount, type, timestamp) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?, ?, CURRENT_TIMESTAMP)',
       [playerId, playerId, -itemData.price, 'shop_purchase']
     );
+
+    // Record cooldown if item has timer
+    if (timer && timer > 0) {
+      await pool.query(
+        'INSERT INTO shop_cooldowns (player_id, item_type, item_id, purchased_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+        [playerId, type, itemId]
+      );
+      console.log(`[SHOP TIMER] Recorded cooldown for ${type} ${itemId} for player ${playerId}`);
+    }
 
          // Send RCON command to server
      try {
