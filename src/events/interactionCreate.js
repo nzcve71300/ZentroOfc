@@ -171,32 +171,32 @@ async function handleShopCategorySelect(interaction) {
       [categoryId]
     );
 
-    if (categoryResult.rows.length === 0) {
+    if (categoryResult[0].length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Category Not Found', 'The selected category was not found.')]
       });
     }
 
-    const { name, type, nickname, server_id } = categoryResult.rows[0];
+    const { name, type, nickname, server_id } = categoryResult[0][0];
 
     // Get items and kits
     let items = [];
     let kits = [];
 
-    if (type === 'items' || type === 'both') {
+    if (type === 'items') {
       const itemsResult = await pool.query(
         'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE category_id = ? ORDER BY display_name',
         [categoryId]
       );
-      items = itemsResult.rows;
+      items = itemsResult[0];
     }
 
-    if (type === 'kits' || type === 'both') {
+    if (type === 'kits') {
       const kitsResult = await pool.query(
         'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE category_id = ? ORDER BY display_name',
         [categoryId]
       );
-      kits = kitsResult.rows;
+      kits = kitsResult[0];
     }
 
     // Get player balance for the specific server
@@ -210,7 +210,7 @@ async function handleShopCategorySelect(interaction) {
       [userId, server_id]
     );
 
-    const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;
+    const balance = balanceResult[0].length > 0 ? balanceResult[0][0].balance : 0;
     const serverId = server_id;
 
     // Create embed
