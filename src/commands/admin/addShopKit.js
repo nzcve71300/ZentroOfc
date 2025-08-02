@@ -71,7 +71,7 @@ module.exports = {
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
            WHERE g.discord_id = ? AND rs.nickname = ? 
-           AND (sc.type = 'kits' OR sc.type = 'both')
+           AND sc.type = 'kits'
            AND sc.name LIKE ? LIMIT 25`,
           [guildId, serverNickname, `%${focusedOption.value}%`]
         );
@@ -111,9 +111,8 @@ module.exports = {
       const [result] = await pool.query(
         `SELECT rs.id as server_id, sc.id as category_id, sc.type as category_type 
          FROM rust_servers rs 
-         JOIN guilds g ON rs.guild_id = g.id 
          JOIN shop_categories sc ON rs.id = sc.server_id 
-         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
+         WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? AND sc.name = ?`,
         [guildId, serverNickname, categoryName]
       );
 
@@ -126,7 +125,7 @@ module.exports = {
       const { server_id, category_id, category_type } = result[0];
 
       // Check if category supports kits
-      if (category_type !== 'kits' && category_type !== 'both') {
+      if (category_type !== 'kits') {
         return interaction.editReply({
           embeds: [errorEmbed('Invalid Category Type', `The category "${categoryName}" only supports items, not kits.`)]
         });
