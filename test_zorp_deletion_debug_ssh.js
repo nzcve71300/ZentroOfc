@@ -135,10 +135,18 @@ async function testZorpDeletionDebug() {
       console.log(`   🔌 Connection closed`);
     });
 
+    // Keep the process alive for 10 seconds to allow async operations to complete
+    setTimeout(() => {
+      console.log('\n⏰ Test completed');
+    }, 10000);
+
   } catch (error) {
     console.error('❌ Test failed:', error);
   } finally {
-    await pool.end();
+    // Don't close the pool here - let it stay open
+    setTimeout(() => {
+      pool.end();
+    }, 5000);
   }
 }
 
