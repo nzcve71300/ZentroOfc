@@ -35,7 +35,7 @@ module.exports = {
 
     try {
       const [servers] = await pool.query(
-        'SELECT nickname FROM rust_servers WHERE guild_id = ? AND nickname LIKE ?',
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ?',
         [guildId, `%${focusedValue}%`]
       );
 
@@ -212,7 +212,7 @@ async function flipCoin(game, interaction, serverName) {
 
   // Get difficulty settings from database
   const [settingsResult] = await pool.query(
-    'SELECT option_value FROM eco_games WHERE server_id = ? AND setup = "coinflip" AND option IN ("win_probability", "payout_multiplier")',
+    'SELECT setting_name, setting_value FROM eco_games_config WHERE server_id = ? AND setting_name IN ("coinflip_win_probability", "coinflip_payout_multiplier")',
     [game.serverId]
   );
 
@@ -222,10 +222,10 @@ async function flipCoin(game, interaction, serverName) {
 
   // Parse settings from database
   settingsResult.forEach(row => {
-    if (row.option === 'win_probability') {
-      winProbability = parseFloat(row.option_value);
-    } else if (row.option === 'payout_multiplier') {
-      payoutMultiplier = parseFloat(row.option_value);
+    if (row.setting_name === 'coinflip_win_probability') {
+      winProbability = parseFloat(row.setting_value);
+    } else if (row.setting_name === 'coinflip_payout_multiplier') {
+      payoutMultiplier = parseFloat(row.setting_value);
     }
   });
 
@@ -244,8 +244,8 @@ async function flipCoin(game, interaction, serverName) {
 
   // Record transaction
   await pool.query(
-    'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
-    [game.playerId, winnings - game.betAmount, 'coinflip']
+    'INSERT INTO transactions (player_id, amount, type, timestamp, guild_id) VALUES (?, ?, ?, NOW(), (SELECT guild_id FROM players WHERE id = ?))',
+    [game.playerId, winnings - game.betAmount, 'coinflip', game.playerId]
   );
 
   // Create rich 3D coin result

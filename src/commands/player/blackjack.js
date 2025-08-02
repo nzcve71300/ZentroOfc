@@ -135,8 +135,8 @@ module.exports = {
           [winnings, player.id]
         );
         await pool.query(
-          'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
-          [player.id, winnings - betAmount, 'blackjack']
+          'INSERT INTO transactions (player_id, amount, type, timestamp, guild_id) VALUES (?, ?, ?, NOW(), (SELECT guild_id FROM players WHERE id = ?))',
+          [player.id, winnings - betAmount, 'blackjack', player.id]
         );
 
         const embed = orangeEmbed('🎰 **BLACKJACK WIN!** 🎰', 'Congratulations! You got a Blackjack!');
@@ -182,10 +182,10 @@ module.exports = {
             const updatedEmbed = createGameEmbed(game, server.nickname, false);
             await i.update({ embeds: [updatedEmbed], components: [row] });
           }
-              } else if (i.customId === `stand_${gameId}`) {
-        // Stand - dealer plays with improved AI
-        await endGame(game, 'stand', i);
-      }
+        } else if (i.customId === `stand_${gameId}`) {
+          // Stand - dealer plays with improved AI
+          await endGame(game, 'stand', i);
+        }
       });
 
       collector.on('end', () => {
@@ -340,8 +340,8 @@ async function endGame(game, result, interaction) {
 
   // Record transaction
   await pool.query(
-    'INSERT INTO transactions (player_id, amount, type, timestamp) VALUES (?, ?, ?, NOW())',
-    [game.playerId, winnings - game.betAmount, 'blackjack']
+    'INSERT INTO transactions (player_id, amount, type, timestamp, guild_id) VALUES (?, ?, ?, NOW(), (SELECT guild_id FROM players WHERE id = ?))',
+    [game.playerId, winnings - game.betAmount, 'blackjack', game.playerId]
   );
 
   const finalEmbed = orangeEmbed('🎰 **BLACKJACK** 🎰', gameResult);
