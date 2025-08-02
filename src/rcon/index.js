@@ -45,6 +45,7 @@ const BOOKARIDE_CHOICES = {
 // ZORP constants
 const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
 const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
+const GOODBYE_EMOTE = 'd11_quick_chat_responses_slot_6'; // Alternative name for clarity
 
 // Track online players per server
 const onlinePlayers = new Map(); // serverKey -> Set of player names
@@ -1202,12 +1203,58 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
     const msg = parsed.Message;
     if (!msg) return;
 
-    // Check for ZORP delete emote
-    if (msg.includes(ZORP_DELETE_EMOTE)) {
+    console.log(`[ZORP DEBUG] Checking message for delete emote: ${msg}`);
+
+    // Check for ZORP delete emote (multiple variations)
+    if (msg.includes(ZORP_DELETE_EMOTE) || msg.includes(GOODBYE_EMOTE)) {
       const player = extractPlayerName(msg);
       if (player) {
         console.log(`[ZORP] Delete emote detected for player: ${player} on server: ${serverName}`);
-        await deleteZorpZone(client, guildId, serverName, ip, port, password, player);
+        
+        // Get server ID for database operations
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+        
+        if (serverResult.length === 0) {
+          console.log(`[ZORP] Server not found: ${serverName}`);
+          return;
+        }
+        
+        const serverId = serverResult[0].id;
+        
+        // Check if player has a zone
+        const [zoneResult] = await pool.query(
+          'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
+          [serverId, player]
+        );
+
+        if (zoneResult.length === 0) {
+          console.log(`[ZORP] Player ${player} has no zone to delete`);
+          return;
+        }
+
+        const zoneName = zoneResult[0].name;
+        console.log(`[ZORP] Deleting zone: ${zoneName} for player: ${player}`);
+
+        // Delete zone from game
+        await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
+        console.log(`[ZORP] Sent delete command for zone: ${zoneName}`);
+
+        // Delete zone from database
+        await pool.query('DELETE FROM zorp_zones WHERE server_id = ? AND owner = ?', [serverId, player]);
+        console.log(`[ZORP] Deleted zone from database for player: ${player}`);
+
+        // Send success message
+        await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${player}</color> <color=white>Zorp successfully deleted!</color>`);
+
+        // Log to zorp feed
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${player} Zorp deleted`);
+
+        console.log(`[ZORP] Zone deleted successfully for ${player}: ${zoneName}`);
+      } else {
+        console.log(`[ZORP] Delete emote detected but could not extract player name from: ${msg}`);
       }
     }
   } catch (error) {
@@ -1965,13 +2012,21 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${cleanPlayerName}`);
     
     if (zoneResult.length > 0) {
-      // Set zone to red
-      await setZoneToRed(ip, port, password, cleanPlayerName);
+      // Check if ALL team members are offline (not just the owner)
+      const allTeamOffline = await checkIfAllTeamMembersOffline(ip, port, password, cleanPlayerName);
       
-      // Send offline message to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=red`);
-      
-      console.log(`[ZORP] Player ${cleanPlayerName} went offline, zone set to red`);
+      if (allTeamOffline) {
+        // Set zone to red only when ALL team members are offline
+        await setZoneToRed(ip, port, password, cleanPlayerName);
+        
+        // Send offline message to zorp feed
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=red (All team offline)`);
+        
+        console.log(`[ZORP] Player ${cleanPlayerName} went offline, ALL team members offline, zone set to red`);
+      } else {
+        // At least one team member is still online, keep zone green
+        console.log(`[ZORP] Player ${cleanPlayerName} went offline, but other team members are still online, keeping zone green`);
+      }
     } else {
       console.log(`[ZORP] Player ${cleanPlayerName} went offline but has no Zorp zone`);
     }
@@ -2008,15 +2063,35 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${cleanPlayerName}`);
     
     if (zoneResult.length > 0) {
-      // Set zone to green
+      // Set zone to green when ANY team member comes online
       await setZoneToGreen(ip, port, password, cleanPlayerName);
       
       // Send online message to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green`);
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green (Team member online)`);
       
       console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green`);
     } else {
-      console.log(`[ZORP] Player ${cleanPlayerName} came online but has no Zorp zone`);
+      // Check if this player is part of a team that has a zorp zone
+      const teamInfo = await getPlayerTeam(ip, port, password, cleanPlayerName);
+      if (teamInfo && teamInfo.owner) {
+        // Check if team owner has a zorp zone
+        const [teamZoneResult] = await pool.query(
+          'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          [teamInfo.owner]
+        );
+        
+        if (teamZoneResult.length > 0) {
+          // Set team owner's zone to green since a team member came online
+          await setZoneToGreen(ip, port, password, teamInfo.owner);
+          
+          // Send online message to zorp feed
+          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} Zorp=green (Team member ${cleanPlayerName} online)`);
+          
+          console.log(`[ZORP] Team member ${cleanPlayerName} came online, set team owner ${teamInfo.owner}'s zone to green`);
+        }
+      } else {
+        console.log(`[ZORP] Player ${cleanPlayerName} came online but has no Zorp zone and is not in a team with a zorp`);
+      }
     }
   } catch (error) {
     console.error('Error handling player online:', error);
@@ -2226,6 +2301,46 @@ async function checkAllPlayerOnlineStatus(client) {
     console.log('✅ Player online status check completed');
   } catch (error) {
     console.error('❌ Error in checkAllPlayerOnlineStatus:', error);
+  }
+}
+
+// Add this function after the existing helper functions
+async function checkIfAllTeamMembersOffline(ip, port, password, playerName) {
+  try {
+    console.log(`[ZORP DEBUG] Checking if all team members are offline for: ${playerName}`);
+    
+    // Get player's team info
+    const teamInfo = await getPlayerTeam(ip, port, password, playerName);
+    
+    if (!teamInfo) {
+      console.log(`[ZORP DEBUG] No team found for ${playerName}`);
+      return true; // No team = consider as "all offline"
+    }
+    
+    console.log(`[ZORP DEBUG] Team info for ${playerName}:`, teamInfo);
+    
+    // Get online players
+    const onlinePlayers = await getOnlinePlayers(ip, port, password);
+    if (!onlinePlayers) {
+      console.log(`[ZORP DEBUG] Could not get online players list`);
+      return false; // Assume someone is online if we can't check
+    }
+    
+    console.log(`[ZORP DEBUG] Online players:`, onlinePlayers);
+    
+    // Check if any team member is online
+    for (const member of teamInfo.members) {
+      if (onlinePlayers.includes(member)) {
+        console.log(`[ZORP DEBUG] Team member ${member} is online`);
+        return false; // At least one team member is online
+      }
+    }
+    
+    console.log(`[ZORP DEBUG] All team members are offline for ${playerName}`);
+    return true; // All team members are offline
+  } catch (error) {
+    console.error('Error checking team offline status:', error);
+    return false; // Assume someone is online if there's an error
   }
 }
 
