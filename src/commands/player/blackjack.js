@@ -71,19 +71,24 @@ module.exports = {
       // Get balance
       const balance = await getPlayerBalance(player.id);
 
-      // Get bet limits from eco_games table
+      // Get bet limits from eco_games_config table
       const [limitsResult] = await pool.query(
-        'SELECT option_value FROM eco_games WHERE server_id = ? AND setup = "blackjack" AND option = "min_max_bet"',
+        'SELECT setting_name, setting_value FROM eco_games_config WHERE server_id = ? AND setting_name IN ("blackjack_min", "blackjack_max")',
         [server.id]
       );
 
-      if (!limitsResult || limitsResult.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Configuration Error', 'Blackjack is not configured for this server.')]
-        });
-      }
+      // Set default values if not configured
+      let minBet = 50;
+      let maxBet = 1000;
 
-      const [minBet, maxBet] = limitsResult[0].option_value.split(',').map(Number);
+      // Parse the results
+      limitsResult.forEach(row => {
+        if (row.setting_name === 'blackjack_min') {
+          minBet = parseInt(row.setting_value) || 50;
+        } else if (row.setting_name === 'blackjack_max') {
+          maxBet = parseInt(row.setting_value) || 1000;
+        }
+      });
       if (betAmount < minBet || betAmount > maxBet) {
         return interaction.editReply({
           embeds: [errorEmbed('Invalid Bet', `Bet must be between ${minBet.toLocaleString()} and ${maxBet.toLocaleString()} coins.`)]

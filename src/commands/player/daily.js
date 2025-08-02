@@ -13,7 +13,7 @@ module.exports = {
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
-    const dailyAmount = 100;
+    // const dailyAmount = 100; // REMOVE this line
 
     try {
       // Check last claim across all servers
@@ -47,22 +47,35 @@ module.exports = {
 
       let totalAdded = 0;
       const serverList = [];
+      let perServerAmounts = {};
+
+      // Get daily amount for each server
+      const serverIds = [...new Set(players.map(p => p.server_id))];
+      if (serverIds.length > 0) {
+        const [configRows] = await pool.query(
+          `SELECT server_id, setting_value FROM eco_games_config WHERE server_id IN (${serverIds.map(() => '?').join(',')}) AND setting_name = 'daily_amount'`,
+          serverIds
+        );
+        for (const row of configRows) {
+          perServerAmounts[row.server_id] = parseInt(row.setting_value) || 100;
+        }
+      }
 
       for (const player of players) {
+        // Use config value if present, else default to 100
+        const dailyAmount = perServerAmounts[player.server_id] || 100;
         // Update balance using unified system
         await updatePlayerBalance(player.id, dailyAmount);
-        
         // Record transaction using unified system
         await recordTransaction(player.id, dailyAmount, 'daily_reward');
-        
         totalAdded += dailyAmount;
-        serverList.push(player.nickname);
+        serverList.push(player.nickname + ` (+${dailyAmount})`);
       }
 
       const uniqueServers = [...new Set(serverList)];
       await interaction.editReply({
         embeds: [successEmbed('Daily Reward Claimed', 
-          `+${dailyAmount} coins added to **${players.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} coins\n**Servers:** ${uniqueServers.join(', ')}`)]
+          `Coins added to **${players.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} coins\n**Servers:** ${uniqueServers.join(', ')}`)]
       });
 
     } catch (err) {

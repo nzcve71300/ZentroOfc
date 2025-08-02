@@ -323,8 +323,8 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
     const killData = await killfeedProcessor.processKill(msg, serverId);
     
     if (killData) {
-      // Create game server message with HTML formatting
-      const gameMessage = `<color=#ff0000>${killData.killer} ${killData.killerStats?.kd_ratio || '0.00'}</color> Killed <color=#00ff00>${killData.victim} ${killData.victimStats?.kd_ratio || '0.00'}</color>`;
+      // Use the custom formatted message from killfeed processor
+      const gameMessage = killData.message;
       
       // Create Discord message with clean formatting
       const discordMessage = `${killData.killer} ☠️ ${killData.victim}`;
@@ -338,6 +338,21 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       // Handle coin rewards for kills (only for player kills)
       if (killData.isPlayerKill) {
         await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
+      }
+    } else {
+      // Killfeed is disabled - only process stats and rewards without sending messages
+      // Extract killer and victim for stats processing
+      const { killer, victim } = killfeedProcessor.parseKillMessage(msg);
+      
+      if (killer && victim) {
+        // Process stats even when killfeed is disabled
+        await killfeedProcessor.processKillStats(killer, victim, serverId);
+        
+        // Handle coin rewards for player kills (even when killfeed is disabled)
+        const isPlayerKill = await killfeedProcessor.isPlayerKill(victim, serverId);
+        if (isPlayerKill) {
+          await handleKillRewards(guildId, serverName, killer, victim, false);
+        }
       }
     }
 

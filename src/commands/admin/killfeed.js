@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const pool = require('../../db');
+const { sendRconCommand } = require('../../rcon');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -98,6 +99,42 @@ module.exports = {
         'UPDATE killfeed_configs SET enabled = ? WHERE id = ?',
         [enabled, killfeed.id]
       );
+
+      // Get server connection info for RCON
+      const [serverInfo] = await pool.query(
+        'SELECT ip, port, password FROM rust_servers WHERE id = ?',
+        [serverId]
+      );
+
+      if (serverInfo.length > 0) {
+        const { ip, port, password } = serverInfo[0];
+        
+        if (enabled) {
+          // Enable custom killfeed - disable game's default killfeed
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Hide"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Off"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Stop"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "false"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+          console.log(`✅ Disabled game's default killfeed for ${serverName}`);
+        } else {
+          // Disable custom killfeed - enable game's default killfeed
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Show"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "On"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Start"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "true"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+          sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+          console.log(`✅ Enabled game's default killfeed for ${serverName}`);
+        }
+      }
 
       const embed = successEmbed(
         'Killfeed Updated',
