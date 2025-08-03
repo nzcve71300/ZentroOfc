@@ -98,10 +98,10 @@ function startRconListeners(client) {
     checkAllPlayerOnlineStatus(client);
   }, 120000);
   
-  // Display scheduled messages every 2 minutes
+  // Display scheduled messages every 30 seconds
   setInterval(() => {
     displayScheduledMessages(client);
-  }, 120000);
+  }, 30000);
   
   // Sync zones from game to database every 10 minutes to ensure future-proof tracking
   setInterval(() => {
@@ -2599,8 +2599,19 @@ async function displayScheduledMessages(client) {
             console.log(`📢 [SCHEDULER] Sent message pair ${messagePair.pair_number} to ${server.nickname}: "${messagePair.message1.substring(0, 50)}..." / "${messagePair.message2.substring(0, 50)}..."`);
           }
           
-          // Move to next pair number (cycle through 1-6)
-          const nextPairNumber = currentPairNumber >= 6 ? 1 : currentPairNumber + 1;
+          // Move to next pair number - if only one pair exists, cycle back to it immediately
+          let nextPairNumber;
+          if (messages.length === 1) {
+            // If only one pair exists, always send that pair
+            nextPairNumber = messages[0].pair_number;
+          } else {
+            // Cycle through available pairs
+            const availablePairs = messages.map(m => m.pair_number).sort((a, b) => a - b);
+            const currentIndex = availablePairs.indexOf(currentPairNumber);
+            const nextIndex = (currentIndex + 1) % availablePairs.length;
+            nextPairNumber = availablePairs[nextIndex];
+          }
+          
           currentMessagePairIndex.set(server.id, nextPairNumber);
         }
       } catch (error) {
