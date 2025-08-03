@@ -822,16 +822,16 @@ async function handleSchedulerAdd(interaction) {
     const message1Input = new TextInputBuilder()
       .setCustomId('message1')
       .setLabel('Message 1')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Enter your first message (supports color tags, etc.)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter your first message')
       .setRequired(true)
       .setMaxLength(1000);
 
     const message2Input = new TextInputBuilder()
       .setCustomId('message2')
       .setLabel('Message 2')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Enter your second message (supports color tags, etc.)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter your second message')
       .setRequired(true)
       .setMaxLength(1000);
 
