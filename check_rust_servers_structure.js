@@ -1,31 +1,26 @@
 const pool = require('./src/db');
 
+console.log('🔍 Checking rust_servers table structure...\n');
+
 async function checkRustServersStructure() {
   try {
-    console.log('🔍 Checking rust_servers table structure...');
-
-    // Get table structure
+    // Check the table structure
     const [columns] = await pool.query('DESCRIBE rust_servers');
-    console.log(`Found ${columns.length} columns in rust_servers table:`);
+    console.log('📋 rust_servers table structure:');
+    console.table(columns);
     
-    columns.forEach((column, index) => {
-      console.log(`\n${index + 1}. Column:`);
-      console.log(`   Field: ${column.Field}`);
-      console.log(`   Type: ${column.Type}`);
-      console.log(`   Null: ${column.Null}`);
-      console.log(`   Key: ${column.Key}`);
-      console.log(`   Default: ${column.Default}`);
-    });
-
-    // Check current server data
-    const [servers] = await pool.query('SELECT * FROM rust_servers LIMIT 1');
-    if (servers.length > 0) {
-      console.log(`\n📋 Sample server data:`);
-      console.log(JSON.stringify(servers[0], null, 2));
-    }
-
+    // Check what columns contain server names
+    const [sampleData] = await pool.query('SELECT * FROM rust_servers LIMIT 3');
+    console.log('\n📋 Sample rust_servers data:');
+    console.table(sampleData);
+    
+    // Look for the server with name "EMPEROR 3X"
+    const [emperorServer] = await pool.query('SELECT * FROM rust_servers WHERE id = ?', ['1754071898933_jg45hm1wj']);
+    console.log('\n📋 EMPEROR 3X server data:');
+    console.table(emperorServer);
+    
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.log('❌ Error checking rust_servers structure:', error.message);
   } finally {
     await pool.end();
   }
