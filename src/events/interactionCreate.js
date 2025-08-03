@@ -531,7 +531,7 @@ async function handleConfirmPurchase(interaction) {
     if (type === 'item') {
       console.log('Confirm purchase - querying item with ID:', itemId);
       const result = await pool.query(
-        'SELECT si.display_name, si.short_name, si.price, si.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
+        'SELECT si.display_name, si.short_name, si.price, si.quantity, si.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
         [itemId]
       );
       console.log('Confirm purchase - item query result:', result);
@@ -545,11 +545,11 @@ async function handleConfirmPurchase(interaction) {
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
-      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" 1`;
+      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${itemData.quantity}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
-        'SELECT sk.display_name, sk.kit_name, sk.price, sk.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
+        'SELECT sk.display_name, sk.kit_name, sk.price, sk.quantity, sk.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
         [itemId]
       );
       console.log('Confirm purchase - kit query result:', result);

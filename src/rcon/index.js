@@ -2576,30 +2576,32 @@ async function displayScheduledMessages(client) {
       try {
         // Get all message pairs for this server
         const [messages] = await pool.query(
-          'SELECT id, message1, message2 FROM scheduler_messages WHERE server_id = ? ORDER BY created_at ASC',
+          'SELECT id, pair_number, message1, message2 FROM scheduler_messages WHERE server_id = ? ORDER BY pair_number ASC',
           [server.id]
         );
 
         if (messages.length > 0) {
-          // Get current index for this server
-          const currentIndex = currentMessagePairIndex.get(server.id) || 0;
+          // Get current pair number for this server
+          const currentPairNumber = currentMessagePairIndex.get(server.id) || 1;
           
-          // Get the current message pair
-          const messagePair = messages[currentIndex];
+          // Find the message pair with the current pair number
+          const messagePair = messages.find(m => m.pair_number === currentPairNumber);
           
-          // Send both messages to the server
-          await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
+          if (messagePair && messagePair.message1 && messagePair.message2) {
+            // Send both messages to the server
+            await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
+            
+            // Wait 3 seconds between messages
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`);
+            
+            console.log(`📢 [SCHEDULER] Sent message pair ${messagePair.pair_number} to ${server.nickname}: "${messagePair.message1.substring(0, 50)}..." / "${messagePair.message2.substring(0, 50)}..."`);
+          }
           
-          // Wait 3 seconds between messages
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`);
-          
-          console.log(`📢 [SCHEDULER] Sent message pair ${currentIndex + 1}/${messages.length} to ${server.nickname}: "${messagePair.message1.substring(0, 50)}..." / "${messagePair.message2.substring(0, 50)}..."`);
-          
-          // Move to next pair (cycle back to 0 if at the end)
-          const nextIndex = (currentIndex + 1) % messages.length;
-          currentMessagePairIndex.set(server.id, nextIndex);
+          // Move to next pair number (cycle through 1-6)
+          const nextPairNumber = currentPairNumber >= 6 ? 1 : currentPairNumber + 1;
+          currentMessagePairIndex.set(server.id, nextPairNumber);
         }
       } catch (error) {
         console.error(`❌ [SCHEDULER] Failed to send messages to ${server.nickname}:`, error.message);
