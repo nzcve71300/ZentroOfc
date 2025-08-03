@@ -42,6 +42,22 @@ module.exports = {
           await handleSchedulerMsg2Modal(interaction);
         } else {
           console.log('[MODAL DEBUG] No handler found for modal:', interaction.customId);
+          // Fallback: try to handle any modal submission
+          try {
+            const message1 = interaction.fields.getTextInputValue('message1');
+            const message2 = interaction.fields.getTextInputValue('message2');
+            console.log('[MODAL DEBUG] Fallback - message1:', message1, 'message2:', message2);
+            await interaction.reply({
+              embeds: [successEmbed('Modal Submitted', `Message 1: ${message1 || 'N/A'}\nMessage 2: ${message2 || 'N/A'}`)],
+              ephemeral: true
+            });
+          } catch (error) {
+            console.log('[MODAL DEBUG] Fallback error:', error.message);
+            await interaction.reply({
+              embeds: [errorEmbed('Error', 'Modal submission failed.')],
+              ephemeral: true
+            });
+          }
         }
         return;
       }
@@ -1041,8 +1057,8 @@ async function handleSchedulerAddMsg1(interaction) {
   const messageInput = new TextInputBuilder()
     .setCustomId('message1')
     .setLabel('Message 1')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Enter your first message (supports color tags, etc.)')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Enter your first message')
     .setRequired(true)
     .setMaxLength(1000);
 
@@ -1063,8 +1079,8 @@ async function handleSchedulerAddMsg2(interaction) {
   const messageInput = new TextInputBuilder()
     .setCustomId('message2')
     .setLabel('Message 2')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Enter your second message (supports color tags, etc.)')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Enter your second message')
     .setRequired(true)
     .setMaxLength(1000);
 
