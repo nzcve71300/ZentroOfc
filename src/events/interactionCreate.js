@@ -850,7 +850,7 @@ async function handleSchedulerAdd(interaction) {
           .setDisabled(true)
       );
     
-    await interaction.editReply({
+    await interaction.update({
       embeds: [embed],
       components: [row]
     });
