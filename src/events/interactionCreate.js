@@ -77,12 +77,6 @@ module.exports = {
           await handleLinkConfirm(interaction);
         } else if (interaction.customId === 'link_cancel') {
           await handleLinkCancel(interaction);
-        } else if (interaction.customId.startsWith('scheduler_add_')) {
-          await handleSchedulerAdd(interaction);
-        } else if (interaction.customId.startsWith('scheduler_view_')) {
-          await handleSchedulerView(interaction);
-        } else if (interaction.customId.startsWith('scheduler_delete_')) {
-          await handleSchedulerDelete(interaction);
         } else if (interaction.customId.startsWith('scheduler_add_msg1_')) {
           console.log('Handling scheduler_add_msg1 button');
           await handleSchedulerAddMsg1(interaction);
@@ -92,6 +86,12 @@ module.exports = {
         } else if (interaction.customId.startsWith('scheduler_save_pair_')) {
           console.log('Handling scheduler_save_pair button');
           await handleSchedulerSavePair(interaction);
+        } else if (interaction.customId.startsWith('scheduler_add_')) {
+          await handleSchedulerAdd(interaction);
+        } else if (interaction.customId.startsWith('scheduler_view_')) {
+          await handleSchedulerView(interaction);
+        } else if (interaction.customId.startsWith('scheduler_delete_')) {
+          await handleSchedulerDelete(interaction);
         } else {
           console.log('No handler found for button:', interaction.customId);
         }
