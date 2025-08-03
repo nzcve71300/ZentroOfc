@@ -850,10 +850,9 @@ async function handleSchedulerAdd(interaction) {
           .setDisabled(true)
       );
     
-    await interaction.reply({
+    await interaction.update({
       embeds: [embed],
-      components: [row],
-      ephemeral: true
+      components: [row]
     });
     
   } catch (error) {
