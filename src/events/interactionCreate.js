@@ -40,6 +40,12 @@ module.exports = {
         } else if (interaction.customId.startsWith('scheduler_msg2_modal_')) {
           console.log('[MODAL DEBUG] Calling handleSchedulerMsg2Modal');
           await handleSchedulerMsg2Modal(interaction);
+        } else if (interaction.customId.startsWith('scheduler_custom_msg1_')) {
+          console.log('[MODAL DEBUG] Calling handleSchedulerCustomMsg1');
+          await handleSchedulerCustomMsg1(interaction);
+        } else if (interaction.customId.startsWith('scheduler_custom_msg2_')) {
+          console.log('[MODAL DEBUG] Calling handleSchedulerCustomMsg2');
+          await handleSchedulerCustomMsg2(interaction);
         } else {
           console.log('[MODAL DEBUG] No handler found for modal:', interaction.customId);
           // Fallback: try to handle any modal submission
@@ -862,9 +868,7 @@ async function handleSchedulerAdd(interaction) {
           .addOptions([
             { label: 'Join Discord', value: '<b><size=45><color=#00ffff>Join our Discord!</color></size></b>', description: 'Discord invite message' },
             { label: 'Welcome Message', value: '<b><size=45><color=#00ff00>Welcome to the server!</color></size></b>', description: 'Welcome message' },
-            { label: 'Custom Message 1', value: 'custom1', description: 'Enter custom message' },
-            { label: 'Custom Message 2', value: 'custom2', description: 'Enter custom message' },
-            { label: 'Custom Message 3', value: 'custom3', description: 'Enter custom message' }
+            { label: 'Custom Message', value: 'custom', description: 'Enter your own custom message' }
           ])
       );
     
@@ -876,9 +880,7 @@ async function handleSchedulerAdd(interaction) {
           .addOptions([
             { label: 'Server Info', value: '<b><size=45><color=#ffff00>Check out our website!</color></size></b>', description: 'Server info message' },
             { label: 'Rules Reminder', value: '<b><size=45><color=#ff0000>Remember to follow the rules!</color></size></b>', description: 'Rules reminder' },
-            { label: 'Custom Message 1', value: 'custom1', description: 'Enter custom message' },
-            { label: 'Custom Message 2', value: 'custom2', description: 'Enter custom message' },
-            { label: 'Custom Message 3', value: 'custom3', description: 'Enter custom message' }
+            { label: 'Custom Message', value: 'custom', description: 'Enter your own custom message' }
           ])
       );
     
@@ -1140,30 +1142,102 @@ async function handleSchedulerSelectMsg1(interaction) {
   const serverId = interaction.customId.split('_')[3];
   const selectedValue = interaction.values[0];
   
-  // Store message 1 in temp data
-  if (!tempMessages.has(serverId)) {
-    tempMessages.set(serverId, {});
+  if (selectedValue === 'custom') {
+    // Show a simple modal for custom message
+    const modal = new ModalBuilder()
+      .setCustomId(`scheduler_custom_msg1_${serverId}`)
+      .setTitle('Enter Custom Message 1');
+
+    const messageInput = new TextInputBuilder()
+      .setCustomId('custom_message1')
+      .setLabel('Custom Message 1')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter your custom message (supports color tags)')
+      .setRequired(true)
+      .setMaxLength(1000);
+
+    const actionRow = new ActionRowBuilder().addComponents(messageInput);
+    modal.addComponents(actionRow);
+
+    await interaction.showModal(modal);
+  } else {
+    // Store predefined message 1 in temp data
+    if (!tempMessages.has(serverId)) {
+      tempMessages.set(serverId, {});
+    }
+    tempMessages.get(serverId).message1 = selectedValue;
+    
+    await interaction.reply({
+      embeds: [successEmbed('Message 1 Selected', `Message 1 set to: ${selectedValue.substring(0, 50)}${selectedValue.length > 50 ? '...' : ''}`)],
+      ephemeral: true
+    });
   }
-  tempMessages.get(serverId).message1 = selectedValue;
-  
-  await interaction.reply({
-    embeds: [successEmbed('Message 1 Selected', `Message 1 set to: ${selectedValue.substring(0, 50)}${selectedValue.length > 50 ? '...' : ''}`)],
-    ephemeral: true
-  });
 }
 
 async function handleSchedulerSelectMsg2(interaction) {
   const serverId = interaction.customId.split('_')[3];
   const selectedValue = interaction.values[0];
   
-  // Store message 2 in temp data
+  if (selectedValue === 'custom') {
+    // Show a simple modal for custom message
+    const modal = new ModalBuilder()
+      .setCustomId(`scheduler_custom_msg2_${serverId}`)
+      .setTitle('Enter Custom Message 2');
+
+    const messageInput = new TextInputBuilder()
+      .setCustomId('custom_message2')
+      .setLabel('Custom Message 2')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter your custom message (supports color tags)')
+      .setRequired(true)
+      .setMaxLength(1000);
+
+    const actionRow = new ActionRowBuilder().addComponents(messageInput);
+    modal.addComponents(actionRow);
+
+    await interaction.showModal(modal);
+  } else {
+    // Store predefined message 2 in temp data
+    if (!tempMessages.has(serverId)) {
+      tempMessages.set(serverId, {});
+    }
+    tempMessages.get(serverId).message2 = selectedValue;
+    
+    await interaction.reply({
+      embeds: [successEmbed('Message 2 Selected', `Message 2 set to: ${selectedValue.substring(0, 50)}${selectedValue.length > 50 ? '...' : ''}`)],
+      ephemeral: true
+    });
+  }
+}
+
+async function handleSchedulerCustomMsg1(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const customMessage = interaction.fields.getTextInputValue('custom_message1');
+  
+  // Store custom message 1 in temp data
   if (!tempMessages.has(serverId)) {
     tempMessages.set(serverId, {});
   }
-  tempMessages.get(serverId).message2 = selectedValue;
+  tempMessages.get(serverId).message1 = customMessage;
   
   await interaction.reply({
-    embeds: [successEmbed('Message 2 Selected', `Message 2 set to: ${selectedValue.substring(0, 50)}${selectedValue.length > 50 ? '...' : ''}`)],
+    embeds: [successEmbed('Custom Message 1 Set', `Your custom message has been set: ${customMessage.substring(0, 50)}${customMessage.length > 50 ? '...' : ''}`)],
+    ephemeral: true
+  });
+}
+
+async function handleSchedulerCustomMsg2(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const customMessage = interaction.fields.getTextInputValue('custom_message2');
+  
+  // Store custom message 2 in temp data
+  if (!tempMessages.has(serverId)) {
+    tempMessages.set(serverId, {});
+  }
+  tempMessages.get(serverId).message2 = customMessage;
+  
+  await interaction.reply({
+    embeds: [successEmbed('Custom Message 2 Set', `Your custom message has been set: ${customMessage.substring(0, 50)}${customMessage.length > 50 ? '...' : ''}`)],
     ephemeral: true
   });
 }
