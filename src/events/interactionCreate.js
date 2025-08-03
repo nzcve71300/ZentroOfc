@@ -7,7 +7,12 @@ const { sendRconCommand } = require('../rcon');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
-    console.log('[INTERACTION DEBUG] Interaction received:', interaction.type, 'customId:', interaction.customId);
+    console.log('[INTERACTION DEBUG] Interaction received:', interaction.type, 'customId:', interaction.customId, 'isModalSubmit:', interaction.isModalSubmit());
+    
+    // Log ALL interactions for debugging
+    if (interaction.type === 5) {
+      console.log('[MODAL SUBMIT DEBUG] Modal submission detected!');
+    }
     
     try {
       // Handle autocomplete
@@ -29,6 +34,10 @@ module.exports = {
         } else if (interaction.customId.startsWith('scheduler_add_modal_')) {
           console.log('[MODAL DEBUG] Calling handleSchedulerAddModal');
           await handleSchedulerAddModal(interaction);
+        } else if (interaction.customId.startsWith('scheduler_msg1_modal_')) {
+          await handleSchedulerMsg1Modal(interaction);
+        } else if (interaction.customId.startsWith('scheduler_msg2_modal_')) {
+          await handleSchedulerMsg2Modal(interaction);
         } else {
           console.log('[MODAL DEBUG] No handler found for modal:', interaction.customId);
         }
@@ -74,6 +83,12 @@ module.exports = {
           await handleSchedulerView(interaction);
         } else if (interaction.customId.startsWith('scheduler_delete_')) {
           await handleSchedulerDelete(interaction);
+        } else if (interaction.customId.startsWith('scheduler_add_msg1_')) {
+          await handleSchedulerAddMsg1(interaction);
+        } else if (interaction.customId.startsWith('scheduler_add_msg2_')) {
+          await handleSchedulerAddMsg2(interaction);
+        } else if (interaction.customId.startsWith('scheduler_save_pair_')) {
+          await handleSchedulerSavePair(interaction);
         }
         return;
       }
@@ -815,39 +830,36 @@ async function handleSchedulerAdd(interaction) {
       });
     }
     
-    const modal = new ModalBuilder()
-      .setCustomId(`scheduler_add_modal_${serverId}`)
-      .setTitle('Add Message Pair');
-
-    const message1Input = new TextInputBuilder()
-      .setCustomId('message1')
-      .setLabel('Message 1')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter your first message')
-      .setRequired(true)
-      .setMaxLength(1000);
-
-    const message2Input = new TextInputBuilder()
-      .setCustomId('message2')
-      .setLabel('Message 2')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter your second message')
-      .setRequired(true)
-      .setMaxLength(1000);
-
-    const firstActionRow = new ActionRowBuilder().addComponents(message1Input);
-    const secondActionRow = new ActionRowBuilder().addComponents(message2Input);
-
-    modal.addComponents(firstActionRow, secondActionRow);
-
-    console.log('[SCHEDULER DEBUG] Showing modal with customId:', `scheduler_add_modal_${serverId}`);
-    await interaction.showModal(modal);
-    console.log('[SCHEDULER DEBUG] Modal shown successfully');
+    // Show a simple form with buttons instead of modal
+    const embed = orangeEmbed('Add Message Pair', 'Click the buttons below to add your messages step by step.');
+    
+    const row = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`scheduler_add_msg1_${serverId}`)
+          .setLabel('Set Message 1')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`scheduler_add_msg2_${serverId}`)
+          .setLabel('Set Message 2')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`scheduler_save_pair_${serverId}`)
+          .setLabel('Save Pair')
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(true)
+      );
+    
+    await interaction.reply({
+      embeds: [embed],
+      components: [row],
+      ephemeral: true
+    });
     
   } catch (error) {
     console.error('[SCHEDULER DEBUG] Error in handleSchedulerAdd:', error);
     await interaction.reply({
-      embeds: [errorEmbed('Error', 'Failed to show modal. Please try again.')],
+      embeds: [errorEmbed('Error', 'Failed to show form. Please try again.')],
       ephemeral: true
     });
   }
@@ -1007,4 +1019,163 @@ async function handleSchedulerDeleteSelect(interaction) {
       embeds: [errorEmbed('Error', 'Failed to delete message pair. Please try again.')]
     });
   }
+}
+
+// Store temporary message data
+const tempMessages = new Map();
+
+async function handleSchedulerAddMsg1(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  
+  // Show a modal for message 1
+  const modal = new ModalBuilder()
+    .setCustomId(`scheduler_msg1_modal_${serverId}`)
+    .setTitle('Set Message 1');
+
+  const messageInput = new TextInputBuilder()
+    .setCustomId('message1')
+    .setLabel('Message 1')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Enter your first message (supports color tags, etc.)')
+    .setRequired(true)
+    .setMaxLength(1000);
+
+  const actionRow = new ActionRowBuilder().addComponents(messageInput);
+  modal.addComponents(actionRow);
+
+  await interaction.showModal(modal);
+}
+
+async function handleSchedulerAddMsg2(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  
+  // Show a modal for message 2
+  const modal = new ModalBuilder()
+    .setCustomId(`scheduler_msg2_modal_${serverId}`)
+    .setTitle('Set Message 2');
+
+  const messageInput = new TextInputBuilder()
+    .setCustomId('message2')
+    .setLabel('Message 2')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Enter your second message (supports color tags, etc.)')
+    .setRequired(true)
+    .setMaxLength(1000);
+
+  const actionRow = new ActionRowBuilder().addComponents(messageInput);
+  modal.addComponents(actionRow);
+
+  await interaction.showModal(modal);
+}
+
+async function handleSchedulerSavePair(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const tempData = tempMessages.get(serverId);
+  
+  if (!tempData || !tempData.message1 || !tempData.message2) {
+    return interaction.reply({
+      embeds: [errorEmbed('Error', 'Please set both messages before saving.')],
+      ephemeral: true
+    });
+  }
+  
+  try {
+    // Insert the message pair
+    await pool.query(
+      'INSERT INTO scheduler_messages (server_id, message1, message2) VALUES (?, ?, ?)',
+      [serverId, tempData.message1, tempData.message2]
+    );
+
+    // Clear temp data
+    tempMessages.delete(serverId);
+
+    await interaction.reply({
+      embeds: [successEmbed(
+        'Message Pair Added',
+        'Your message pair has been added successfully!\n\n**Message 1:** ' + tempData.message1.substring(0, 100) + (tempData.message1.length > 100 ? '...' : '') + '\n**Message 2:** ' + tempData.message2.substring(0, 100) + (tempData.message2.length > 100 ? '...' : '')
+      )],
+      ephemeral: true
+    });
+
+  } catch (error) {
+    console.error('Error adding message pair:', error);
+    await interaction.reply({
+      embeds: [errorEmbed('Error', 'Failed to add message pair. Please try again.')],
+      ephemeral: true
+    });
+  }
+}
+
+async function handleSchedulerMsg1Modal(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const message1 = interaction.fields.getTextInputValue('message1');
+  
+  // Store message 1 in temp data
+  if (!tempMessages.has(serverId)) {
+    tempMessages.set(serverId, {});
+  }
+  tempMessages.get(serverId).message1 = message1;
+  
+  // Update the original message to show progress
+  const embed = orangeEmbed('Add Message Pair', `✅ Message 1 set\n⏳ Message 2 pending\n\nClick "Set Message 2" to continue.`);
+  
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`scheduler_add_msg1_${serverId}`)
+        .setLabel('Set Message 1')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`scheduler_add_msg2_${serverId}`)
+        .setLabel('Set Message 2')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`scheduler_save_pair_${serverId}`)
+        .setLabel('Save Pair')
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(true)
+    );
+  
+  await interaction.update({
+    embeds: [embed],
+    components: [row]
+  });
+}
+
+async function handleSchedulerMsg2Modal(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const message2 = interaction.fields.getTextInputValue('message2');
+  
+  // Store message 2 in temp data
+  if (!tempMessages.has(serverId)) {
+    tempMessages.set(serverId, {});
+  }
+  tempMessages.get(serverId).message2 = message2;
+  
+  // Update the original message to show progress and enable save button
+  const embed = orangeEmbed('Add Message Pair', `✅ Message 1 set\n✅ Message 2 set\n\nClick "Save Pair" to save both messages.`);
+  
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`scheduler_add_msg1_${serverId}`)
+        .setLabel('Set Message 1')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`scheduler_add_msg2_${serverId}`)
+        .setLabel('Set Message 2')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`scheduler_save_pair_${serverId}`)
+        .setLabel('Save Pair')
+        .setStyle(ButtonStyle.Success)
+    );
+  
+  await interaction.update({
+    embeds: [embed],
+    components: [row]
+  });
 }
