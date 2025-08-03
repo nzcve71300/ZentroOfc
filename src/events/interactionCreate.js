@@ -20,8 +20,8 @@ module.exports = {
       }
 
       // Handle modals
-      if (interaction.isModalSubmit()) {
-        console.log('[MODAL DEBUG] Modal submitted, customId:', interaction.customId);
+      if (interaction.isModalSubmit() || interaction.type === 5) {
+        console.log('[MODAL DEBUG] Modal submitted, customId:', interaction.customId, 'type:', interaction.type);
         if (interaction.customId.startsWith('edit_item_modal_')) {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
@@ -36,7 +36,7 @@ module.exports = {
       }
       
       // Catch-all for any unhandled interactions
-      if (interaction.type !== 'ApplicationCommand' && interaction.type !== 'MessageComponent' && interaction.type !== 'ModalSubmit') {
+      if (interaction.type !== 2 && interaction.type !== 3 && interaction.type !== 5) {
         console.log('[INTERACTION DEBUG] Unhandled interaction type:', interaction.type, 'customId:', interaction.customId);
       }
 
