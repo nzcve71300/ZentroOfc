@@ -76,6 +76,10 @@ module.exports = {
           await handleShopItemSelect(interaction);
         } else if (interaction.customId.startsWith('scheduler_delete_select_')) {
           await handleSchedulerDeleteSelect(interaction);
+        } else if (interaction.customId.startsWith('scheduler_select_msg1_')) {
+          await handleSchedulerSelectMsg1(interaction);
+        } else if (interaction.customId.startsWith('scheduler_select_msg2_')) {
+          await handleSchedulerSelectMsg2(interaction);
         } else {
           console.log('⚠️ Unhandled StringSelectMenu interaction:', interaction.customId);
         }
@@ -95,12 +99,6 @@ module.exports = {
           await handleLinkConfirm(interaction);
         } else if (interaction.customId === 'link_cancel') {
           await handleLinkCancel(interaction);
-        } else if (interaction.customId.startsWith('scheduler_add_msg1_')) {
-          console.log('Handling scheduler_add_msg1 button');
-          await handleSchedulerAddMsg1(interaction);
-        } else if (interaction.customId.startsWith('scheduler_add_msg2_')) {
-          console.log('Handling scheduler_add_msg2 button');
-          await handleSchedulerAddMsg2(interaction);
         } else if (interaction.customId.startsWith('scheduler_save_pair_')) {
           console.log('Handling scheduler_save_pair button');
           await handleSchedulerSavePair(interaction);
@@ -853,29 +851,49 @@ async function handleSchedulerAdd(interaction) {
       });
     }
     
-    // Show a simple form with buttons instead of modal
-    const embed = orangeEmbed('Add Message Pair', 'Click the buttons below to add your messages step by step.');
+    // Show a simple form with predefined message options
+    const embed = orangeEmbed('Add Message Pair', 'Select your messages from the dropdowns below.');
     
-    const row = new ActionRowBuilder()
+    const row1 = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`scheduler_select_msg1_${serverId}`)
+          .setPlaceholder('Select Message 1')
+          .addOptions([
+            { label: 'Join Discord', value: '<b><size=45><color=#00ffff>Join our Discord!</color></size></b>', description: 'Discord invite message' },
+            { label: 'Welcome Message', value: '<b><size=45><color=#00ff00>Welcome to the server!</color></size></b>', description: 'Welcome message' },
+            { label: 'Custom Message 1', value: 'custom1', description: 'Enter custom message' },
+            { label: 'Custom Message 2', value: 'custom2', description: 'Enter custom message' },
+            { label: 'Custom Message 3', value: 'custom3', description: 'Enter custom message' }
+          ])
+      );
+    
+    const row2 = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`scheduler_select_msg2_${serverId}`)
+          .setPlaceholder('Select Message 2')
+          .addOptions([
+            { label: 'Server Info', value: '<b><size=45><color=#ffff00>Check out our website!</color></size></b>', description: 'Server info message' },
+            { label: 'Rules Reminder', value: '<b><size=45><color=#ff0000>Remember to follow the rules!</color></size></b>', description: 'Rules reminder' },
+            { label: 'Custom Message 1', value: 'custom1', description: 'Enter custom message' },
+            { label: 'Custom Message 2', value: 'custom2', description: 'Enter custom message' },
+            { label: 'Custom Message 3', value: 'custom3', description: 'Enter custom message' }
+          ])
+      );
+    
+    const row3 = new ActionRowBuilder()
       .addComponents(
         new ButtonBuilder()
-          .setCustomId(`scheduler_add_msg1_${serverId}`)
-          .setLabel('Set Message 1')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(`scheduler_add_msg2_${serverId}`)
-          .setLabel('Set Message 2')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
           .setCustomId(`scheduler_save_pair_${serverId}`)
-          .setLabel('Save Pair')
+          .setLabel('Save Message Pair')
           .setStyle(ButtonStyle.Success)
           .setDisabled(true)
       );
     
     await interaction.update({
       embeds: [embed],
-      components: [row]
+      components: [row1, row2, row3]
     });
     
   } catch (error) {
@@ -1046,49 +1064,7 @@ async function handleSchedulerDeleteSelect(interaction) {
 // Store temporary message data
 const tempMessages = new Map();
 
-async function handleSchedulerAddMsg1(interaction) {
-  const serverId = interaction.customId.split('_')[3];
-  
-  // Show a modal for message 1
-  const modal = new ModalBuilder()
-    .setCustomId(`scheduler_msg1_modal_${serverId}`)
-    .setTitle('Set Message 1');
 
-  const messageInput = new TextInputBuilder()
-    .setCustomId('message1')
-    .setLabel('Message 1')
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder('Enter your first message')
-    .setRequired(true)
-    .setMaxLength(1000);
-
-  const actionRow = new ActionRowBuilder().addComponents(messageInput);
-  modal.addComponents(actionRow);
-
-  await interaction.showModal(modal);
-}
-
-async function handleSchedulerAddMsg2(interaction) {
-  const serverId = interaction.customId.split('_')[3];
-  
-  // Show a modal for message 2
-  const modal = new ModalBuilder()
-    .setCustomId(`scheduler_msg2_modal_${serverId}`)
-    .setTitle('Set Message 2');
-
-  const messageInput = new TextInputBuilder()
-    .setCustomId('message2')
-    .setLabel('Message 2')
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder('Enter your second message')
-    .setRequired(true)
-    .setMaxLength(1000);
-
-  const actionRow = new ActionRowBuilder().addComponents(messageInput);
-  modal.addComponents(actionRow);
-
-  await interaction.showModal(modal);
-}
 
 async function handleSchedulerSavePair(interaction) {
   const serverId = interaction.customId.split('_')[3];
@@ -1156,6 +1132,38 @@ async function handleSchedulerMsg2Modal(interaction) {
   
   await interaction.reply({
     embeds: [successEmbed('Message 2 Set', 'Your second message has been set. Now click "Save Pair" to save both messages.')],
+    ephemeral: true
+  });
+}
+
+async function handleSchedulerSelectMsg1(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const selectedValue = interaction.values[0];
+  
+  // Store message 1 in temp data
+  if (!tempMessages.has(serverId)) {
+    tempMessages.set(serverId, {});
+  }
+  tempMessages.get(serverId).message1 = selectedValue;
+  
+  await interaction.reply({
+    embeds: [successEmbed('Message 1 Selected', `Message 1 set to: ${selectedValue.substring(0, 50)}${selectedValue.length > 50 ? '...' : ''}`)],
+    ephemeral: true
+  });
+}
+
+async function handleSchedulerSelectMsg2(interaction) {
+  const serverId = interaction.customId.split('_')[3];
+  const selectedValue = interaction.values[0];
+  
+  // Store message 2 in temp data
+  if (!tempMessages.has(serverId)) {
+    tempMessages.set(serverId, {});
+  }
+  tempMessages.get(serverId).message2 = selectedValue;
+  
+  await interaction.reply({
+    embeds: [successEmbed('Message 2 Selected', `Message 2 set to: ${selectedValue.substring(0, 50)}${selectedValue.length > 50 ? '...' : ''}`)],
     ephemeral: true
   });
 }
