@@ -1120,30 +1120,9 @@ async function handleSchedulerMsg1Modal(interaction) {
   }
   tempMessages.get(serverId).message1 = message1;
   
-  // Update the original message to show progress
-  const embed = orangeEmbed('Add Message Pair', `✅ Message 1 set\n⏳ Message 2 pending\n\nClick "Set Message 2" to continue.`);
-  
-  const row = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(`scheduler_add_msg1_${serverId}`)
-        .setLabel('Set Message 1')
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`scheduler_add_msg2_${serverId}`)
-        .setLabel('Set Message 2')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`scheduler_save_pair_${serverId}`)
-        .setLabel('Save Pair')
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(true)
-    );
-  
-  await interaction.update({
-    embeds: [embed],
-    components: [row]
+  await interaction.reply({
+    embeds: [successEmbed('Message 1 Set', 'Your first message has been set. Now click "Set Message 2" to continue.')],
+    ephemeral: true
   });
 }
 
@@ -1157,29 +1136,8 @@ async function handleSchedulerMsg2Modal(interaction) {
   }
   tempMessages.get(serverId).message2 = message2;
   
-  // Update the original message to show progress and enable save button
-  const embed = orangeEmbed('Add Message Pair', `✅ Message 1 set\n✅ Message 2 set\n\nClick "Save Pair" to save both messages.`);
-  
-  const row = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(`scheduler_add_msg1_${serverId}`)
-        .setLabel('Set Message 1')
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`scheduler_add_msg2_${serverId}`)
-        .setLabel('Set Message 2')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`scheduler_save_pair_${serverId}`)
-        .setLabel('Save Pair')
-        .setStyle(ButtonStyle.Success)
-    );
-  
-  await interaction.update({
-    embeds: [embed],
-    components: [row]
+  await interaction.reply({
+    embeds: [successEmbed('Message 2 Set', 'Your second message has been set. Now click "Save Pair" to save both messages.')],
+    ephemeral: true
   });
 }
