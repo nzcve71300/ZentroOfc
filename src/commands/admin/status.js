@@ -75,17 +75,22 @@ module.exports = {
         fpsResponse = null;
       }
       
-      // Try to get additional info (but don't fail if they timeout)
+      // Get player count from the existing system (like the player count channel)
+      let playerCount = '0';
       try {
-        playersResponse = await Promise.race([
-          sendRconCommand(server.ip, server.port, server.password, 'players'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-        ]);
+        const [players] = await pool.query(
+          'SELECT COUNT(*) as count FROM players WHERE server_id = ?',
+          [server.id]
+        );
+        playerCount = players[0].count.toString();
+        console.log(`[STATUS] Player count from database: ${playerCount}`);
       } catch (error) {
-        console.log(`[STATUS] Players command failed: ${error.message}`);
-        playersResponse = null;
+        console.log(`[STATUS] Database player count failed: ${error.message}`);
+        playerCount = '0';
       }
       
+      // Try to get entities from console log
+      let entitiesResponse = null;
       try {
         entitiesResponse = await Promise.race([
           sendRconCommand(server.ip, server.port, server.password, 'ents'),
@@ -96,38 +101,9 @@ module.exports = {
         entitiesResponse = null;
       }
       
-      try {
-        memoryResponse = await Promise.race([
-          sendRconCommand(server.ip, server.port, server.password, 'memory'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-        ]);
-      } catch (error) {
-        console.log(`[STATUS] Memory command failed: ${error.message}`);
-        memoryResponse = null;
-      }
-      
-      try {
-        uptimeResponse = await Promise.race([
-          sendRconCommand(server.ip, server.port, server.password, 'uptime'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-        ]);
-      } catch (error) {
-        console.log(`[STATUS] Uptime command failed: ${error.message}`);
-        uptimeResponse = null;
-      }
-      
       // Parse responses
       const fpsValue = fpsResponse ? fpsResponse.match(/(\d+)\s+FPS/i)?.[1] || 'Unknown' : 'Unknown';
-      const playerCount = playersResponse ? playersResponse.match(/(\d+)\s+players/i)?.[1] || '0' : '0';
       const entityCount = entitiesResponse ? entitiesResponse.match(/(\d+)\s+entities/i)?.[1] || '0' : '0';
-      const memoryUsage = memoryResponse ? memoryResponse.match(/(\d+(?:\.\d+)?)\s*MB/i)?.[1] || 'Unknown' : 'Unknown';
-      const uptimeValue = uptimeResponse ? uptimeResponse.match(/(\d+)\s+seconds/i)?.[1] || 'Unknown' : 'Unknown';
-      
-      // Convert uptime to readable format
-      const uptimeSeconds = parseInt(uptimeValue);
-      const uptimeFormatted = !isNaN(uptimeSeconds) ? 
-        `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${uptimeSeconds % 60}s` : 
-        'Unknown';
       
       // Determine status color and emoji based on FPS
       const fpsNum = parseInt(fpsValue);
@@ -154,9 +130,7 @@ module.exports = {
         statusImage = await createStatusImage(server.nickname, {
           fps: fpsValue,
           players: playerCount,
-          entities: entityCount,
-          memory: memoryUsage,
-          uptime: uptimeFormatted
+          entities: entityCount
         });
         console.log(`[STATUS] Image generation successful`);
       } catch (error) {
@@ -174,8 +148,6 @@ module.exports = {
           { name: '📊 **FPS**', value: `**${fpsValue}**`, inline: true },
           { name: '👥 **Players**', value: `**${playerCount}**`, inline: true },
           { name: '🏗️ **Entities**', value: `**${entityCount}**`, inline: true },
-          { name: '💾 **Memory**', value: `**${memoryUsage} MB**`, inline: true },
-          { name: '⏱️ **Uptime**', value: `**${uptimeFormatted}**`, inline: true },
           { name: '👤 **Checked By**', value: `${interaction.user.tag}`, inline: true },
           { name: '🌐 **Connection**', value: `***.***.***.***:${server.port}`, inline: true },
           { name: '⏰ **Timestamp**', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
@@ -270,9 +242,7 @@ async function createStatusImage(serverName, stats) {
     const statsData = [
       { label: 'FPS', value: stats.fps, x: 80, y: 620 },
       { label: 'Players', value: stats.players, x: 80, y: 560 },
-      { label: 'Entities', value: stats.entities, x: 80, y: 500 },
-      { label: 'Memory', value: stats.memory, x: 80, y: 440 },
-      { label: 'Uptime', value: stats.uptime, x: 80, y: 380 }
+      { label: 'Entities', value: stats.entities, x: 80, y: 500 }
     ];
     
     // Draw stats with orange highlights for values
