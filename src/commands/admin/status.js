@@ -59,25 +59,61 @@ module.exports = {
         });
       }
 
-      // Send multiple RCON commands to get comprehensive status
+      // Send RCON commands to get status (with timeout handling)
       console.log(`[STATUS] ${interaction.user.tag} (${userId}) checking status for ${server.nickname}`);
       
       const { sendRconCommand } = require('../../rcon');
       
-      // Get FPS
-      const fpsResponse = await sendRconCommand(server.ip, server.port, server.password, 'server.fps');
+      // Get FPS (primary command)
+      let fpsResponse, playersResponse, entitiesResponse, memoryResponse, uptimeResponse;
       
-      // Get player count
-      const playersResponse = await sendRconCommand(server.ip, server.port, server.password, 'players');
+      try {
+        fpsResponse = await sendRconCommand(server.ip, server.port, server.password, 'server.fps');
+      } catch (error) {
+        console.log(`[STATUS] FPS command failed: ${error.message}`);
+        fpsResponse = null;
+      }
       
-      // Get entity count
-      const entitiesResponse = await sendRconCommand(server.ip, server.port, server.password, 'ents');
+      // Try to get additional info (but don't fail if they timeout)
+      try {
+        playersResponse = await Promise.race([
+          sendRconCommand(server.ip, server.port, server.password, 'players'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+      } catch (error) {
+        console.log(`[STATUS] Players command failed: ${error.message}`);
+        playersResponse = null;
+      }
       
-      // Get memory usage
-      const memoryResponse = await sendRconCommand(server.ip, server.port, server.password, 'memory');
+      try {
+        entitiesResponse = await Promise.race([
+          sendRconCommand(server.ip, server.port, server.password, 'ents'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+      } catch (error) {
+        console.log(`[STATUS] Entities command failed: ${error.message}`);
+        entitiesResponse = null;
+      }
       
-      // Get uptime
-      const uptimeResponse = await sendRconCommand(server.ip, server.port, server.password, 'uptime');
+      try {
+        memoryResponse = await Promise.race([
+          sendRconCommand(server.ip, server.port, server.password, 'memory'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+      } catch (error) {
+        console.log(`[STATUS] Memory command failed: ${error.message}`);
+        memoryResponse = null;
+      }
+      
+      try {
+        uptimeResponse = await Promise.race([
+          sendRconCommand(server.ip, server.port, server.password, 'uptime'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+      } catch (error) {
+        console.log(`[STATUS] Uptime command failed: ${error.message}`);
+        uptimeResponse = null;
+      }
       
       // Parse responses
       const fpsValue = fpsResponse ? fpsResponse.match(/(\d+)\s+FPS/i)?.[1] || 'Unknown' : 'Unknown';
@@ -110,22 +146,35 @@ module.exports = {
         }
       }
       
-      // Create visual status image
-      const statusImage = await createStatusImage(server.nickname, {
-        fps: fpsValue,
-        players: playerCount,
-        entities: entityCount,
-        memory: memoryUsage,
-        uptime: uptimeFormatted
-      });
+      // Create visual status image (only if we have FPS data)
+      let statusImage = null;
+      if (fpsValue !== 'Unknown') {
+        try {
+          statusImage = await createStatusImage(server.nickname, {
+            fps: fpsValue,
+            players: playerCount,
+            entities: entityCount,
+            memory: memoryUsage,
+            uptime: uptimeFormatted
+          });
+        } catch (error) {
+          console.log(`[STATUS] Image generation failed: ${error.message}`);
+          statusImage = null;
+        }
+      }
       
       // Create rich embed
       const embed = new EmbedBuilder()
         .setColor(statusColor)
         .setTitle(`${statusEmoji} **SERVER STATUS DASHBOARD** ${statusEmoji}`)
         .setDescription(`**${server.nickname}** - Real-time Performance Monitoring`)
-        .setImage('attachment://status.png')
         .addFields(
+          { name: '🖥️ **Server**', value: `${server.nickname}`, inline: true },
+          { name: '📊 **FPS**', value: `**${fpsValue}**`, inline: true },
+          { name: '👥 **Players**', value: `**${playerCount}**`, inline: true },
+          { name: '🏗️ **Entities**', value: `**${entityCount}**`, inline: true },
+          { name: '💾 **Memory**', value: `**${memoryUsage} MB**`, inline: true },
+          { name: '⏱️ **Uptime**', value: `**${uptimeFormatted}**`, inline: true },
           { name: '👤 **Checked By**', value: `${interaction.user.tag}`, inline: true },
           { name: '🌐 **Connection**', value: `***.***.***.***:${server.port}`, inline: true },
           { name: '⏰ **Timestamp**', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
@@ -147,13 +196,21 @@ module.exports = {
         { name: '📈 **Performance Summary**', value: performanceStatus, inline: false }
       );
 
+      // Add image if available
+      if (statusImage) {
+        embed.setImage('attachment://status.png');
+      }
+
       embed.setFooter({ text: '🔧 Admin Status Check • Zentro Bot Dashboard' });
       embed.setTimestamp();
 
-      // Create attachment
-      const attachment = new AttachmentBuilder(statusImage, { name: 'status.png' });
-
-      return interaction.editReply({ embeds: [embed], files: [attachment] });
+      // Return with or without attachment
+      if (statusImage) {
+        const attachment = new AttachmentBuilder(statusImage, { name: 'status.png' });
+        return interaction.editReply({ embeds: [embed], files: [attachment] });
+      } else {
+        return interaction.editReply({ embeds: [embed] });
+      }
 
     } catch (err) {
       console.error('Status command error:', err);
