@@ -97,7 +97,7 @@ module.exports = {
           { name: '🖥️ **Server**', value: `${server.nickname}`, inline: true },
           { name: '📊 **FPS**', value: `**${fpsValue}**`, inline: true },
           { name: '👤 **Checked By**', value: `${interaction.user.tag}`, inline: true },
-          { name: '🌐 **Connection**', value: `${server.ip}:${server.port}`, inline: true },
+          { name: '🌐 **Connection**', value: `***.***.***.***:${server.port}`, inline: true },
           { name: '⏰ **Timestamp**', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
           { name: '📡 **Status**', value: response ? '✅ **Online**' : '❌ **Offline**', inline: true }
         );
