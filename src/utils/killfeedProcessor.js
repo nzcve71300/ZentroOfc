@@ -1,4 +1,5 @@
 const pool = require('../db');
+const { getKillfeedClanNames } = require('./clanSystem');
 
 class KillfeedProcessor {
   constructor() {
@@ -382,6 +383,11 @@ class KillfeedProcessor {
       const killerStats = await this.getPlayerStats(killer, serverId);
       const victimStats = await this.getPlayerStats(victim, serverId);
 
+      // Get clan names for both players
+      const killerPlayerId = await this.getPlayerIdByName(killer, serverId);
+      const victimPlayerId = await this.getPlayerIdByName(victim, serverId);
+      const { killerClanName, victimClanName } = await getKillfeedClanNames(killerPlayerId, victimPlayerId, serverId);
+
       // Replace variables in format string
       let formatted = formatString
         .replace(/{Killer}/g, killer)
@@ -391,7 +397,9 @@ class KillfeedProcessor {
         .replace(/{KillerStreak}/g, killerStats.kill_streak.toString())
         .replace(/{VictimStreak}/g, victimStats.kill_streak.toString())
         .replace(/{KillerHighest}/g, killerStats.highest_streak.toString())
-        .replace(/{VictimHighest}/g, victimStats.highest_streak.toString());
+        .replace(/{VictimHighest}/g, victimStats.highest_streak.toString())
+        .replace(/{KillerClanName}/g, killerClanName || '')
+        .replace(/{VictimClanName}/g, victimClanName || '');
 
       // Apply randomizer if enabled
       const killfeedConfig = await this.getKillfeedConfig(serverId);
@@ -403,6 +411,34 @@ class KillfeedProcessor {
     } catch (error) {
       console.error('Error formatting killfeed message:', error);
       return originalMessage;
+    }
+  }
+
+  async getPlayerIdByName(playerName, serverId) {
+    try {
+      // Sanitize the player name to remove null bytes and invalid characters
+      const sanitizedName = playerName.replace(/\0/g, '').trim();
+      
+      if (!sanitizedName) {
+        return null;
+      }
+      
+      // If it's a scientist, return null
+      if (sanitizedName.toLowerCase() === 'scientist') {
+        return null;
+      }
+      
+      const [result] = await pool.query(
+        `SELECT p.id FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
+        [serverId, sanitizedName]
+      );
+
+      return result.length > 0 ? result[0].id : null;
+    } catch (error) {
+      console.error('Error getting player ID by name:', error);
+      return null;
     }
   }
 
