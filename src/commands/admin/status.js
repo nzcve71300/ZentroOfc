@@ -224,72 +224,94 @@ module.exports = {
 
 // Function to create the visual status image
 async function createStatusImage(serverName, stats) {
-  const width = 1280;
-  const height = 720;
-  
-  // Create canvas
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-  
-  // Create a gradient background
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#1a1a1a');
-  gradient.addColorStop(1, '#2d2d2d');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-  
-  // Add Zentro branding
-  ctx.fillStyle = '#FF8C00';
-  ctx.font = 'bold 48px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('ZENTRO BOT', width / 2, 80);
-  
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '24px Arial';
-  ctx.fillText('SERVER STATUS DASHBOARD', width / 2, 120);
-  
-  // Draw server name
-  ctx.fillStyle = '#FF8C00';
-  ctx.font = 'bold 36px Arial';
-  ctx.fillText(serverName, width / 2, 180);
-  
-  // Set font properties for stats
-  ctx.font = 'bold 32px Arial';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'left';
-  
-  // Draw stats at specified coordinates
-  const statsData = [
-    { label: 'FPS', value: stats.fps, x: 80, y: 620 },
-    { label: 'Players', value: stats.players, x: 80, y: 560 },
-    { label: 'Entities', value: stats.entities, x: 80, y: 500 },
-    { label: 'Memory', value: stats.memory, x: 80, y: 440 },
-    { label: 'Uptime', value: stats.uptime, x: 80, y: 380 }
-  ];
-  
-  // Draw stats with orange highlights for values
-  statsData.forEach(stat => {
-    // Draw label
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(`${stat.label}:`, stat.x, stat.y);
+  try {
+    console.log(`[STATUS] Starting image creation for ${serverName}`);
+    const width = 1280;
+    const height = 720;
     
-    // Draw value in orange
+    // Create canvas
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    
+    console.log(`[STATUS] Canvas created successfully`);
+    
+    // Create a gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#1a1a1a');
+    gradient.addColorStop(1, '#2d2d2d');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    
+    console.log(`[STATUS] Background gradient applied`);
+    
+    // Add Zentro branding
     ctx.fillStyle = '#FF8C00';
-    const labelWidth = ctx.measureText(`${stat.label}:`).width;
-    ctx.fillText(stat.value, stat.x + labelWidth + 10, stat.y);
-  });
-  
-  // Create chart data (simulated performance data)
-  const chartData = generateChartData(stats.fps);
-  
-  // Create chart using Chart.js
-  const chartCanvas = await createChart(chartData);
-  
-  // Draw chart in the central rectangle area
-  ctx.drawImage(chartCanvas, 132, 170, 918, 478);
-  
-  // Convert to buffer
-  return canvas.toBuffer('image/png');
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('ZENTRO BOT', width / 2, 80);
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '24px Arial';
+    ctx.fillText('SERVER STATUS DASHBOARD', width / 2, 120);
+    
+    // Draw server name
+    ctx.fillStyle = '#FF8C00';
+    ctx.font = 'bold 36px Arial';
+    ctx.fillText(serverName, width / 2, 180);
+    
+    console.log(`[STATUS] Text elements drawn`);
+    
+    // Set font properties for stats
+    ctx.font = 'bold 32px Arial';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'left';
+    
+    // Draw stats at specified coordinates
+    const statsData = [
+      { label: 'FPS', value: stats.fps, x: 80, y: 620 },
+      { label: 'Players', value: stats.players, x: 80, y: 560 },
+      { label: 'Entities', value: stats.entities, x: 80, y: 500 },
+      { label: 'Memory', value: stats.memory, x: 80, y: 440 },
+      { label: 'Uptime', value: stats.uptime, x: 80, y: 380 }
+    ];
+    
+    // Draw stats with orange highlights for values
+    statsData.forEach(stat => {
+      // Draw label
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(`${stat.label}:`, stat.x, stat.y);
+      
+      // Draw value in orange
+      ctx.fillStyle = '#FF8C00';
+      const labelWidth = ctx.measureText(`${stat.label}:`).width;
+      ctx.fillText(stat.value, stat.x + labelWidth + 10, stat.y);
+    });
+    
+    console.log(`[STATUS] Stats drawn, creating chart...`);
+    
+    // Create chart data (simulated performance data)
+    const chartData = generateChartData(stats.fps);
+    
+    // Create chart using Chart.js
+    const chartCanvas = await createChart(chartData);
+    
+    console.log(`[STATUS] Chart created, drawing to main canvas...`);
+    
+    // Draw chart in the central rectangle area
+    ctx.drawImage(chartCanvas, 132, 170, 918, 478);
+    
+    console.log(`[STATUS] Chart drawn to main canvas, converting to buffer...`);
+    
+    // Convert to buffer
+    const buffer = canvas.toBuffer('image/png');
+    console.log(`[STATUS] Image buffer created, size: ${buffer.length} bytes`);
+    return buffer;
+    
+  } catch (error) {
+    console.log(`[STATUS] Image creation failed: ${error.message}`);
+    console.log(`[STATUS] Error stack: ${error.stack}`);
+    throw error;
+  }
 }
 
 // Function to generate chart data based on FPS
@@ -311,54 +333,86 @@ function generateChartData(fps) {
 
 // Function to create Chart.js chart
 async function createChart(data) {
-  const width = 918;
-  const height = 478;
-  
-  const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'transparent' });
-  
-  const configuration = {
-    type: 'line',
-    data: {
-      labels: data.map((_, i) => i + 1),
-      datasets: [{
-        label: 'FPS Performance',
-        data: data,
-        borderColor: data[data.length - 1] >= data[0] ? '#00FF00' : '#FF0000',
-        backgroundColor: data[data.length - 1] >= data[0] ? 'rgba(0, 255, 0, 0.1)' : 'rgba(255, 0, 0, 0.1)',
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        pointHoverBackgroundColor: '#FF8C00',
-        pointHoverBorderColor: '#FFFFFF'
-      }]
-    },
-    options: {
-      responsive: false,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false
-        }
+  try {
+    const width = 918;
+    const height = 478;
+    
+    const chartJSNodeCanvas = new ChartJSNodeCanvas({ 
+      width, 
+      height, 
+      backgroundColour: 'transparent',
+      chartCallback: (ChartJS) => {
+        ChartJS.defaults.responsive = false;
+        ChartJS.defaults.maintainAspectRatio = false;
+      }
+    });
+    
+    const configuration = {
+      type: 'line',
+      data: {
+        labels: data.map((_, i) => i + 1),
+        datasets: [{
+          label: 'FPS Performance',
+          data: data,
+          borderColor: data[data.length - 1] >= data[0] ? '#00FF00' : '#FF0000',
+          backgroundColor: data[data.length - 1] >= data[0] ? 'rgba(0, 255, 0, 0.1)' : 'rgba(255, 0, 0, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#FF8C00',
+          pointHoverBorderColor: '#FFFFFF'
+        }]
       },
-      scales: {
-        x: {
-          display: false
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
         },
-        y: {
-          display: false
-        }
-      },
-      elements: {
-        point: {
-          radius: 0
+        scales: {
+          x: {
+            display: false
+          },
+          y: {
+            display: false
+          }
+        },
+        elements: {
+          point: {
+            radius: 0
+          }
         }
       }
-    }
-  };
-  
-  return await chartJSNodeCanvas.renderToBuffer(configuration);
+    };
+    
+    const buffer = await chartJSNodeCanvas.renderToBuffer(configuration);
+    console.log(`[STATUS] Chart generated successfully, buffer size: ${buffer.length}`);
+    return buffer;
+  } catch (error) {
+    console.log(`[STATUS] Chart generation failed: ${error.message}`);
+    // Return a simple colored rectangle as fallback
+    const canvas = createCanvas(918, 478);
+    const ctx = canvas.getContext('2d');
+    
+    // Create a simple gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 0, 478);
+    gradient.addColorStop(0, '#1a1a1a');
+    gradient.addColorStop(1, '#2d2d2d');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 918, 478);
+    
+    // Add some text
+    ctx.fillStyle = '#FF8C00';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Performance Chart', 459, 239);
+    
+    return canvas.toBuffer('image/png');
+  }
 }
 
  
