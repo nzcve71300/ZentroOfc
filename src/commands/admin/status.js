@@ -65,7 +65,7 @@ module.exports = {
       const { sendRconCommand } = require('../../rcon');
       
       // Get FPS (primary command) - this is the most important one
-      let fpsResponse, playersResponse, entitiesResponse, memoryResponse, uptimeResponse;
+      let fpsResponse;
       
       try {
         fpsResponse = await sendRconCommand(server.ip, server.port, server.password, 'server.fps');
