@@ -75,35 +75,10 @@ module.exports = {
         fpsResponse = null;
       }
       
-      // Get player count from the existing system (like the player count channel)
-      let playerCount = '0';
-      try {
-        const [players] = await pool.query(
-          'SELECT COUNT(*) as count FROM players WHERE server_id = ?',
-          [server.id]
-        );
-        playerCount = players[0].count.toString();
-        console.log(`[STATUS] Player count from database: ${playerCount}`);
-      } catch (error) {
-        console.log(`[STATUS] Database player count failed: ${error.message}`);
-        playerCount = '0';
-      }
-      
-      // Try to get entities from console log
-      let entitiesResponse = null;
-      try {
-        entitiesResponse = await Promise.race([
-          sendRconCommand(server.ip, server.port, server.password, 'ents'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-        ]);
-      } catch (error) {
-        console.log(`[STATUS] Entities command failed: ${error.message}`);
-        entitiesResponse = null;
-      }
+
       
       // Parse responses
       const fpsValue = fpsResponse ? fpsResponse.match(/(\d+)\s+FPS/i)?.[1] || 'Unknown' : 'Unknown';
-      const entityCount = entitiesResponse ? entitiesResponse.match(/(\d+)\s+entities/i)?.[1] || '0' : '0';
       
       // Determine status color and emoji based on FPS
       const fpsNum = parseInt(fpsValue);
@@ -112,13 +87,13 @@ module.exports = {
       
       if (!isNaN(fpsNum)) {
         if (fpsNum >= 50) {
-          statusColor = 0x00FF00; // Green
+          statusColor = 0xFF8C00; // Orange
           statusEmoji = '🟢';
         } else if (fpsNum >= 30) {
-          statusColor = 0xFFFF00; // Yellow
+          statusColor = 0xFF8C00; // Orange
           statusEmoji = '🟡';
         } else {
-          statusColor = 0xFF0000; // Red
+          statusColor = 0xFF8C00; // Orange
           statusEmoji = '🔴';
         }
       }
@@ -128,9 +103,7 @@ module.exports = {
       try {
         console.log(`[STATUS] Attempting to create visual image for ${server.nickname}`);
         statusImage = await createStatusImage(server.nickname, {
-          fps: fpsValue,
-          players: playerCount,
-          entities: entityCount
+          fps: fpsValue
         });
         console.log(`[STATUS] Image generation successful`);
       } catch (error) {
@@ -146,8 +119,6 @@ module.exports = {
         .addFields(
           { name: '🖥️ **Server**', value: `${server.nickname}`, inline: true },
           { name: '📊 **FPS**', value: `**${fpsValue}**`, inline: true },
-          { name: '👥 **Players**', value: `**${playerCount}**`, inline: true },
-          { name: '🏗️ **Entities**', value: `**${entityCount}**`, inline: true },
           { name: '👤 **Checked By**', value: `${interaction.user.tag}`, inline: true },
           { name: '🌐 **Connection**', value: `***.***.***.***:${server.port}`, inline: true },
           { name: '⏰ **Timestamp**', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
@@ -218,31 +189,29 @@ async function createStatusImage(serverName, stats) {
     
     // Add Zentro branding
     ctx.fillStyle = '#FF8C00';
-    ctx.font = 'bold 48px Arial';
+    ctx.font = 'bold 48px "Segoe UI", "Helvetica Neue", Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('ZENTRO BOT', width / 2, 80);
     
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '24px Arial';
+    ctx.font = '24px "Segoe UI", "Helvetica Neue", Arial, sans-serif';
     ctx.fillText('SERVER STATUS DASHBOARD', width / 2, 120);
     
     // Draw server name
     ctx.fillStyle = '#FF8C00';
-    ctx.font = 'bold 36px Arial';
+    ctx.font = 'bold 36px "Segoe UI", "Helvetica Neue", Arial, sans-serif';
     ctx.fillText(serverName, width / 2, 180);
     
     console.log(`[STATUS] Text elements drawn`);
     
     // Set font properties for stats
-    ctx.font = 'bold 32px Arial';
+    ctx.font = 'bold 32px "Segoe UI", "Helvetica Neue", Arial, sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'left';
     
     // Draw stats at specified coordinates
     const statsData = [
-      { label: 'FPS', value: stats.fps, x: 80, y: 620 },
-      { label: 'Players', value: stats.players, x: 80, y: 560 },
-      { label: 'Entities', value: stats.entities, x: 80, y: 500 }
+      { label: 'FPS', value: stats.fps, x: 80, y: 620 }
     ];
     
     // Draw stats with orange highlights for values
