@@ -64,11 +64,12 @@ module.exports = {
       
       const { sendRconCommand } = require('../../rcon');
       
-      // Get FPS (primary command)
+      // Get FPS (primary command) - this is the most important one
       let fpsResponse, playersResponse, entitiesResponse, memoryResponse, uptimeResponse;
       
       try {
         fpsResponse = await sendRconCommand(server.ip, server.port, server.password, 'server.fps');
+        console.log(`[STATUS] FPS response: ${fpsResponse}`);
       } catch (error) {
         console.log(`[STATUS] FPS command failed: ${error.message}`);
         fpsResponse = null;
@@ -78,7 +79,7 @@ module.exports = {
       try {
         playersResponse = await Promise.race([
           sendRconCommand(server.ip, server.port, server.password, 'players'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
         ]);
       } catch (error) {
         console.log(`[STATUS] Players command failed: ${error.message}`);
@@ -88,7 +89,7 @@ module.exports = {
       try {
         entitiesResponse = await Promise.race([
           sendRconCommand(server.ip, server.port, server.password, 'ents'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
         ]);
       } catch (error) {
         console.log(`[STATUS] Entities command failed: ${error.message}`);
@@ -98,7 +99,7 @@ module.exports = {
       try {
         memoryResponse = await Promise.race([
           sendRconCommand(server.ip, server.port, server.password, 'memory'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
         ]);
       } catch (error) {
         console.log(`[STATUS] Memory command failed: ${error.message}`);
@@ -108,7 +109,7 @@ module.exports = {
       try {
         uptimeResponse = await Promise.race([
           sendRconCommand(server.ip, server.port, server.password, 'uptime'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
         ]);
       } catch (error) {
         console.log(`[STATUS] Uptime command failed: ${error.message}`);
@@ -146,21 +147,21 @@ module.exports = {
         }
       }
       
-      // Create visual status image (only if we have FPS data)
+      // Create visual status image (always try to create it)
       let statusImage = null;
-      if (fpsValue !== 'Unknown') {
-        try {
-          statusImage = await createStatusImage(server.nickname, {
-            fps: fpsValue,
-            players: playerCount,
-            entities: entityCount,
-            memory: memoryUsage,
-            uptime: uptimeFormatted
-          });
-        } catch (error) {
-          console.log(`[STATUS] Image generation failed: ${error.message}`);
-          statusImage = null;
-        }
+      try {
+        console.log(`[STATUS] Attempting to create visual image for ${server.nickname}`);
+        statusImage = await createStatusImage(server.nickname, {
+          fps: fpsValue,
+          players: playerCount,
+          entities: entityCount,
+          memory: memoryUsage,
+          uptime: uptimeFormatted
+        });
+        console.log(`[STATUS] Image generation successful`);
+      } catch (error) {
+        console.log(`[STATUS] Image generation failed: ${error.message}`);
+        statusImage = null;
       }
       
       // Create rich embed
