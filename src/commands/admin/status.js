@@ -293,12 +293,17 @@ async function createStatusImage(serverName, stats) {
     const chartData = generateChartData(stats.fps);
     
     // Create chart using Chart.js
-    const chartCanvas = await createChart(chartData);
+    const chartBuffer = await createChart(chartData);
     
-    console.log(`[STATUS] Chart created, drawing to main canvas...`);
+    console.log(`[STATUS] Chart created, converting buffer to image...`);
+    
+    // Convert buffer to image that can be drawn
+    const chartImage = await loadImage(chartBuffer);
+    
+    console.log(`[STATUS] Chart image loaded, drawing to main canvas...`);
     
     // Draw chart in the central rectangle area
-    ctx.drawImage(chartCanvas, 132, 170, 918, 478);
+    ctx.drawImage(chartImage, 132, 170, 918, 478);
     
     console.log(`[STATUS] Chart drawn to main canvas, converting to buffer...`);
     
