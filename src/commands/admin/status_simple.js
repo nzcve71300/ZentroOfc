@@ -5,8 +5,8 @@ const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('status')
-    .setDescription('Get server FPS status via RCON')
+    .setName('status-simple')
+    .setDescription('Get server FPS status via RCON (simple version)')
     .addStringOption(option =>
       option.setName('server')
         .setDescription('The server to check status for')
@@ -154,7 +154,7 @@ module.exports = {
         );
       }
 
-      embed.setFooter({ text: '🔧 Admin Status Check • Zentro Bot Dashboard' });
+      embed.setFooter({ text: '🔧 Admin Status Check • Zentro Bot Dashboard (Simple)' });
       embed.setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });
@@ -166,6 +166,4 @@ module.exports = {
       });
     }
   }
-};
-
- 
+}; 

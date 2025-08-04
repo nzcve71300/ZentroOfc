@@ -23,9 +23,6 @@
     "discord-api-types": "^0.37.64",
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
-    "mysql2": "^3.14.3",
-    "canvas": "^2.11.2",
-    "chart.js": "^4.4.1",
-    "chartjs-node-canvas": "^4.1.6"
+    "mysql2": "^3.14.3"
   }
 }
