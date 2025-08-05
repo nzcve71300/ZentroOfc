@@ -72,48 +72,30 @@ module.exports = {
         });
       }
 
-      // Use server.guild_id instead of server.id for the database server_id
+      // Use server.guild_id (Discord guild ID) directly for database operations
       const serverId = server.guild_id;
 
       console.log('[DEBUG] Server object:', server);
       console.log('[DEBUG] Server ID (guild_id):', serverId);
       console.log('[DEBUG] Server ID type:', typeof serverId);
 
-      // Get the actual server ID for database operations
-      const [serverInfo] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = ?',
-        [serverId]
-      );
-      
-      console.log('[DEBUG] Server info query result:', serverInfo);
-      
-      if (serverInfo.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Server Error', 'Could not find server information.')]
-        });
-      }
-      
-      const actualServerId = serverInfo[0].id;
-      console.log('[DEBUG] Actual server ID for database:', actualServerId);
-      console.log('[DEBUG] Actual server ID type:', typeof actualServerId);
-
       // Check if clan settings exist
       const [existingSettings] = await pool.query(
         'SELECT * FROM clan_settings WHERE server_id = ?',
-        [actualServerId]
+        [serverId]
       );
 
       if (existingSettings.length > 0) {
         // Update existing settings
         await pool.query(
           'UPDATE clan_settings SET enabled = ?, max_members = ?, updated_at = NOW() WHERE server_id = ?',
-          [option, maxMembers, actualServerId]
+          [option, maxMembers, serverId]
         );
       } else {
         // Create new settings
         await pool.query(
           'INSERT INTO clan_settings (server_id, enabled, max_members) VALUES (?, ?, ?)',
-          [actualServerId, option, maxMembers]
+          [serverId, option, maxMembers]
         );
       }
 

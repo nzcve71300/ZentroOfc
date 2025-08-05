@@ -89,27 +89,13 @@ module.exports = {
         });
       }
 
-      // Use server.guild_id instead of server.id for the database server_id
+      // Use server.guild_id (Discord guild ID) directly for database operations
       const serverId = server.guild_id;
-
-      // Get the actual server ID for database operations
-      const [serverInfo] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = ?',
-        [serverId]
-      );
-      
-      if (serverInfo.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Server Error', 'Could not find server information.')]
-        });
-      }
-      
-      const actualServerId = serverInfo[0].id;
 
       // Check if clan system is enabled
       const [settings] = await pool.query(
         'SELECT enabled FROM clan_settings WHERE server_id = ?',
-        [actualServerId]
+        [serverId]
       );
       
       if (!settings.length || !settings[0].enabled) {
@@ -156,7 +142,7 @@ module.exports = {
       // Create clan
       const [result] = await pool.query(
         'INSERT INTO clans (server_id, name, tag, color, owner_id) VALUES (?, ?, ?, ?, ?)',
-        [actualServerId, clanName, tag, colorHex, player.id]
+        [serverId, clanName, tag, colorHex, player.id]
       );
 
       const clanId = result.insertId;
