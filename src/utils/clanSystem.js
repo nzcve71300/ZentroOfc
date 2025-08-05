@@ -110,11 +110,13 @@ async function getPlayerClan(playerId, serverId) {
   try {
     // serverId here is the Discord guild ID (string)
     // Use it directly for clan operations
+    console.log(`[CLAN DEBUG] getPlayerClan called with playerId: ${playerId}, serverId: ${serverId}`);
     const [clans] = await pool.query(`
       SELECT c.* FROM clans c
       INNER JOIN clan_members cm ON c.id = cm.clan_id
       WHERE cm.player_id = ? AND c.server_id = ?
     `, [playerId, serverId]);
+    console.log(`[CLAN DEBUG] getPlayerClan result:`, clans);
     return clans[0] || null;
   } catch (error) {
     console.error('Error getting player clan:', error);

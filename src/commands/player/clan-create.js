@@ -114,6 +114,7 @@ module.exports = {
 
       // Check if player is already in a clan
       const existingClan = await getPlayerClan(player.id, serverId);
+      console.log(`[CLAN CREATE DEBUG] Player ${player.id} (${player.name}) existing clan:`, existingClan);
       if (existingClan) {
         return interaction.editReply({
           embeds: [errorEmbed('Already in Clan', `You are already a member of **${existingClan.name}**. You must leave your current clan first.`)]

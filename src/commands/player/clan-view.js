@@ -101,8 +101,14 @@ module.exports = {
       const members = await getClanMembers(clan.id);
 
       // Get owner and co-owner info
-      const [owner] = await pool.query('SELECT * FROM players WHERE id = ?', [clan.owner_id]);
-      const [coOwner] = clan.co_owner_id ? await pool.query('SELECT * FROM players WHERE id = ?', [clan.co_owner_id]) : [null];
+      const [ownerResult] = await pool.query('SELECT * FROM players WHERE id = ?', [clan.owner_id]);
+      const owner = ownerResult.length > 0 ? ownerResult[0] : null;
+      
+      let coOwner = null;
+      if (clan.co_owner_id) {
+        const [coOwnerResult] = await pool.query('SELECT * FROM players WHERE id = ?', [clan.co_owner_id]);
+        coOwner = coOwnerResult.length > 0 ? coOwnerResult[0] : null;
+      }
 
       console.log(`[CLAN] ${interaction.user.tag} (${userId}) viewed clan "${clan.name}" members on ${server.nickname}`);
 
@@ -115,8 +121,8 @@ module.exports = {
           { name: '🏷️ **Clan Tag**', value: `**[${clan.tag}]**`, inline: true },
           { name: '🎨 **Color**', value: `${getEmojiByClanColor(clan.color)} ${clan.color}`, inline: true },
           { name: '👥 **Total Members**', value: `**${members.length}**`, inline: true },
-          { name: '👑 **Owner**', value: `**${owner[0]?.name || 'Unknown'}**`, inline: true },
-          { name: '👑 **Co-Owner**', value: coOwner[0] ? `**${coOwner[0].name}**` : '**None**', inline: true },
+          { name: '👑 **Owner**', value: `**${owner?.name || 'Unknown'}**`, inline: true },
+          { name: '👑 **Co-Owner**', value: coOwner ? `**${coOwner.name}**` : '**None**', inline: true },
           { name: '📅 **Created**', value: `<t:${Math.floor(new Date(clan.created_at).getTime() / 1000)}:R>`, inline: true }
         );
 
