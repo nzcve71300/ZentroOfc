@@ -34,13 +34,31 @@ function getEmojiByClanColor(color) {
 // Get player by Discord ID
 async function getPlayerByDiscordId(discordId, serverId) {
   try {
+    // Convert serverId to guild_id if it's a string (Discord guild ID)
+    const actualServerId = typeof serverId === 'string' ? 
+      await getServerGuildId(serverId) : serverId;
+    
     const [players] = await pool.query(
       'SELECT * FROM players WHERE discord_id = ? AND server_id = ?',
-      [discordId, serverId]
+      [discordId, actualServerId]
     );
     return players[0] || null;
   } catch (error) {
     console.error('Error getting player by Discord ID:', error);
+    return null;
+  }
+}
+
+// Helper function to get guild_id from server nickname
+async function getServerGuildId(serverNickname) {
+  try {
+    const [servers] = await pool.query(
+      'SELECT guild_id FROM rust_servers WHERE nickname = ?',
+      [serverNickname]
+    );
+    return servers[0]?.guild_id || null;
+  } catch (error) {
+    console.error('Error getting server guild ID:', error);
     return null;
   }
 }

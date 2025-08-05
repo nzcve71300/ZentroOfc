@@ -72,27 +72,26 @@ module.exports = {
         });
       }
 
-      // Debug: Log server object to see what we're getting
-      console.log('[DEBUG] Server object:', server);
-      console.log('[DEBUG] Server ID type:', typeof server.id, 'Value:', server.id);
+      // Use server.guild_id instead of server.id for the database server_id
+      const serverId = server.guild_id;
 
       // Check if clan settings exist
       const [existingSettings] = await pool.query(
         'SELECT * FROM clan_settings WHERE server_id = ?',
-        [server.id]
+        [serverId]
       );
 
       if (existingSettings.length > 0) {
         // Update existing settings
         await pool.query(
           'UPDATE clan_settings SET enabled = ?, max_members = ?, updated_at = NOW() WHERE server_id = ?',
-          [option, maxMembers, server.id]
+          [option, maxMembers, serverId]
         );
       } else {
         // Create new settings
         await pool.query(
           'INSERT INTO clan_settings (server_id, enabled, max_members) VALUES (?, ?, ?)',
-          [server.id, option, maxMembers]
+          [serverId, option, maxMembers]
         );
       }
 

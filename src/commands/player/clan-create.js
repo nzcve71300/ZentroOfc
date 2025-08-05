@@ -89,10 +89,13 @@ module.exports = {
         });
       }
 
+      // Use server.guild_id instead of server.id for the database server_id
+      const serverId = server.guild_id;
+
       // Check if clan system is enabled
       const [settings] = await pool.query(
         'SELECT enabled FROM clan_settings WHERE server_id = ?',
-        [server.id]
+        [serverId]
       );
       
       if (!settings.length || !settings[0].enabled) {
@@ -102,7 +105,7 @@ module.exports = {
       }
 
       // Get player
-      const player = await getPlayerByDiscordId(userId, server.id);
+      const player = await getPlayerByDiscordId(userId, serverId);
       if (!player) {
         return interaction.editReply({
           embeds: [errorEmbed('Player Not Found', 'You need to be linked to use clan commands.')]
@@ -110,7 +113,7 @@ module.exports = {
       }
 
       // Check if player is already in a clan
-      const existingClan = await getPlayerClan(player.id, server.id);
+      const existingClan = await getPlayerClan(player.id, serverId);
       if (existingClan) {
         return interaction.editReply({
           embeds: [errorEmbed('Already in Clan', `You are already a member of **${existingClan.name}**. You must leave your current clan first.`)]
@@ -118,7 +121,7 @@ module.exports = {
       }
 
       // Check if clan name already exists
-      const existingClanByName = await getClanByServerAndName(server.id, clanName);
+      const existingClanByName = await getClanByServerAndName(serverId, clanName);
       if (existingClanByName) {
         return interaction.editReply({
           embeds: [errorEmbed('Clan Name Taken', `A clan with the name **${clanName}** already exists on this server.`)]
@@ -126,7 +129,7 @@ module.exports = {
       }
 
       // Check if clan tag already exists
-      const existingClanByTag = await getClanByServerAndTag(server.id, tag);
+      const existingClanByTag = await getClanByServerAndTag(serverId, tag);
       if (existingClanByTag) {
         return interaction.editReply({
           embeds: [errorEmbed('Clan Tag Taken', `A clan with the tag **[${tag}]** already exists on this server.`)]
@@ -139,7 +142,7 @@ module.exports = {
       // Create clan
       const [result] = await pool.query(
         'INSERT INTO clans (server_id, name, tag, color, owner_id) VALUES (?, ?, ?, ?, ?)',
-        [server.id, clanName, tag, colorHex, player.id]
+        [serverId, clanName, tag, colorHex, player.id]
       );
 
       const clanId = result.insertId;
