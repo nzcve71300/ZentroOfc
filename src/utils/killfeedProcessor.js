@@ -428,15 +428,15 @@ class KillfeedProcessor {
         return null;
       }
       
-      // serverId here is the guild_id from rust_servers table
-      // We need to find the actual server_id that matches this guild_id
+      // serverId here is the rust_servers.id (string like '176', '337')
+      // We need to find the actual server_id for the players table
       const [servers] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = ?',
+        'SELECT id FROM rust_servers WHERE id = ?',
         [serverId]
       );
       
       if (servers.length === 0) {
-        console.error('No server found for guild_id:', serverId);
+        console.error('No server found for server_id:', serverId);
         return null;
       }
       

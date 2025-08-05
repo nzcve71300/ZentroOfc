@@ -54,8 +54,8 @@ module.exports = {
         });
       }
 
-      // Use server.guild_id (Discord guild ID) directly for database operations
-      const serverId = server.guild_id;
+      // Use server.id (rust_servers.id) directly for database operations
+      const serverId = server.id;
 
       // Check if clan system is enabled
       const [settings] = await pool.query(

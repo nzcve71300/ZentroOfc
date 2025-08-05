@@ -72,8 +72,8 @@ module.exports = {
         });
       }
 
-      // Use server.guild_id (Discord guild ID) directly for database operations
-      const serverId = server.guild_id;
+      // Use server.id (rust_servers.id) directly for database operations
+      const serverId = server.id;
 
       console.log('[DEBUG] Server object:', server);
       console.log('[DEBUG] Server ID (guild_id):', serverId);
