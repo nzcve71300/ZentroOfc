@@ -19,7 +19,13 @@ module.exports = {
         .addChoices(
           { name: '✅ Enable', value: 'true' },
           { name: '❌ Disable', value: 'false' }
-        )),
+        ))
+    .addIntegerOption(option =>
+      option.setName('max')
+        .setDescription('Maximum number of players per clan (default: 10)')
+        .setRequired(false)
+        .setMinValue(2)
+        .setMaxValue(50)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -47,6 +53,7 @@ module.exports = {
     const guildId = interaction.guildId;
     const serverOption = interaction.options.getString('server');
     const option = interaction.options.getString('option') === 'true';
+    const maxMembers = interaction.options.getInteger('max') || 10;
 
     try {
       // Check if user has admin permissions
@@ -74,18 +81,18 @@ module.exports = {
       if (existingSettings.length > 0) {
         // Update existing settings
         await pool.query(
-          'UPDATE clan_settings SET enabled = ?, updated_at = NOW() WHERE server_id = ?',
-          [option, server.id]
+          'UPDATE clan_settings SET enabled = ?, max_members = ?, updated_at = NOW() WHERE server_id = ?',
+          [option, maxMembers, server.id]
         );
       } else {
         // Create new settings
         await pool.query(
-          'INSERT INTO clan_settings (server_id, enabled) VALUES (?, ?)',
-          [server.id, option]
+          'INSERT INTO clan_settings (server_id, enabled, max_members) VALUES (?, ?, ?)',
+          [server.id, option, maxMembers]
         );
       }
 
-      console.log(`[CLAN] ${interaction.user.tag} (${userId}) ${option ? 'enabled' : 'disabled'} clan system for ${server.nickname}`);
+      console.log(`[CLAN] ${interaction.user.tag} (${userId}) ${option ? 'enabled' : 'disabled'} clan system for ${server.nickname} with max ${maxMembers} members`);
 
       // Create success embed
       const embed = new EmbedBuilder()
@@ -95,6 +102,7 @@ module.exports = {
         .addFields(
           { name: '🖥️ **Server**', value: `${server.nickname}`, inline: true },
           { name: '⚙️ **Status**', value: option ? '**✅ Enabled**' : '**❌ Disabled**', inline: true },
+          { name: '👥 **Max Members**', value: `**${maxMembers}** players`, inline: true },
           { name: '👑 **Configured By**', value: `${interaction.user.tag}`, inline: true },
           { name: '📅 **Updated**', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
         )

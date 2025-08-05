@@ -62,7 +62,7 @@ module.exports = {
 
       // Check if clan system is enabled
       const [settings] = await pool.query(
-        'SELECT enabled FROM clan_settings WHERE server_id = ?',
+        'SELECT enabled, max_members FROM clan_settings WHERE server_id = ?',
         [server.id]
       );
       
@@ -114,6 +114,18 @@ module.exports = {
       if (targetClan.length > 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Already in Clan', `${targetUser.tag} is already a member of **${targetClan[0].name}**.`)]
+        });
+      }
+
+      // Check if clan is at max capacity
+      const [memberCount] = await pool.query(
+        'SELECT COUNT(*) as count FROM clan_members WHERE clan_id = ?',
+        [clan.id]
+      );
+      
+      if (memberCount[0].count >= settings[0].max_members) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Clan Full', `**${clan.name}** is at maximum capacity (${settings[0].max_members} members). You cannot invite more players.`)]
         });
       }
 

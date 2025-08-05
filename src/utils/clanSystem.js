@@ -164,13 +164,13 @@ async function getClanInvite(clanId, playerId) {
 async function getClanSettings(serverId) {
   try {
     const [settings] = await pool.query(
-      'SELECT * FROM clan_settings WHERE server_id = ?',
+      'SELECT enabled, max_members FROM clan_settings WHERE server_id = ?',
       [serverId]
     );
-    return settings[0] || { enabled: false };
+    return settings[0] || { enabled: false, max_members: 10 };
   } catch (error) {
     console.error('Error getting clan settings:', error);
-    return { enabled: false };
+    return { enabled: false, max_members: 10 };
   }
 }
 
