@@ -72,6 +72,10 @@ module.exports = {
         });
       }
 
+      // Debug: Log server object to see what we're getting
+      console.log('[DEBUG] Server object:', server);
+      console.log('[DEBUG] Server ID type:', typeof server.id, 'Value:', server.id);
+
       // Check if clan settings exist
       const [existingSettings] = await pool.query(
         'SELECT * FROM clan_settings WHERE server_id = ?',
