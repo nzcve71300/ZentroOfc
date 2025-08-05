@@ -75,11 +75,17 @@ module.exports = {
       // Use server.guild_id instead of server.id for the database server_id
       const serverId = server.guild_id;
 
+      console.log('[DEBUG] Server object:', server);
+      console.log('[DEBUG] Server ID (guild_id):', serverId);
+      console.log('[DEBUG] Server ID type:', typeof serverId);
+
       // Get the actual server ID for database operations
       const [serverInfo] = await pool.query(
         'SELECT id FROM rust_servers WHERE guild_id = ?',
         [serverId]
       );
+      
+      console.log('[DEBUG] Server info query result:', serverInfo);
       
       if (serverInfo.length === 0) {
         return interaction.editReply({
@@ -88,6 +94,8 @@ module.exports = {
       }
       
       const actualServerId = serverInfo[0].id;
+      console.log('[DEBUG] Actual server ID for database:', actualServerId);
+      console.log('[DEBUG] Actual server ID type:', typeof actualServerId);
 
       // Check if clan settings exist
       const [existingSettings] = await pool.query(
