@@ -6,47 +6,39 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('force-link')
     .setDescription('Forcefully link a Discord user to an in-game player name (Admin only)')
-    .addStringOption(option =>
-      option.setName('server')
-        .setDescription('The server nickname')
-        .setRequired(true)
-        .setAutocomplete(true))
-    .addStringOption(option =>
-      option.setName('name')
-        .setDescription('The in-game player name to link')
-        .setRequired(true))
     .addUserOption(option =>
-      option.setName('user')
-        .setDescription('The Discord user to link')
+      option.setName('member')
+        .setDescription('The Discord member to link (@ mention)')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('ign')
+        .setDescription('The in-game player name')
         .setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-  async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
-    const choices = ['Rise 3x', 'EMPEROR 3X'];
-    const filtered = choices.filter(choice => choice.toLowerCase().includes(focusedValue.toLowerCase()));
-    await interaction.respond(
-      filtered.map(choice => ({ name: choice, value: choice })).slice(0, 25)
-    );
-  },
-
   async execute(interaction) {
     try {
-      const serverNickname = interaction.options.getString('server');
-      const playerName = interaction.options.getString('name');
-      const discordUser = interaction.options.getUser('user');
+      const discordUser = interaction.options.getUser('member');
+      const playerName = interaction.options.getString('ign');
 
-      // Get server information
-      const server = await getServerByNickname(serverNickname);
-      if (!server) {
+      // Get server information from the current guild
+      const guildId = interaction.guildId;
+      
+      // Find the server by guild ID
+      const [servers] = await pool.query(
+        'SELECT * FROM rust_servers WHERE guild_id = ?',
+        [guildId]
+      );
+
+      if (servers.length === 0) {
         return interaction.reply({
-          content: '❌ **Server not found!** Please check the server nickname.',
+          content: '❌ **Server not found!** This Discord server is not linked to any Rust server.',
           ephemeral: true
         });
       }
 
-      // Use server.id (rust_servers.id string) for database operations
-      const serverId = server.id;
+      const server = servers[0];
+      const serverId = server.id; // This is the string ID for players table
 
       // Check if player already exists in the database
       const [existingPlayers] = await pool.query(
@@ -61,19 +53,45 @@ module.exports = {
           [discordUser.id, existingPlayers[0].id]
         );
 
+        // Update or create economy record with guild_id
+        const [economyRecords] = await pool.query(
+          'SELECT * FROM economy WHERE player_id = ?',
+          [existingPlayers[0].id]
+        );
+
+        if (economyRecords.length > 0) {
+          await pool.query(
+            'UPDATE economy SET guild_id = ? WHERE player_id = ?',
+            [guildId, existingPlayers[0].id]
+          );
+        } else {
+          await pool.query(
+            'INSERT INTO economy (player_id, balance, guild_id) VALUES (?, 5000, ?)',
+            [existingPlayers[0].id, guildId]
+          );
+        }
+
         return interaction.reply({
-          content: `✅ **Successfully force-linked!**\n\n**Player:** ${playerName}\n**Discord User:** ${discordUser}\n**Server:** ${serverNickname}\n\n*Updated existing player record.*`,
+          content: `✅ **Successfully force-linked!**\n\n**Player:** ${playerName}\n**Discord User:** ${discordUser}\n**Server:** ${server.nickname}\n\n*Updated existing player record.*`,
           ephemeral: true
         });
       } else {
         // Create new player record
-        await pool.query(
+        const [result] = await pool.query(
           'INSERT INTO players (ign, discord_id, server_id, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
           [playerName, discordUser.id, serverId]
         );
 
+        const playerId = result.insertId;
+
+        // Create economy record with guild_id
+        await pool.query(
+          'INSERT INTO economy (player_id, balance, guild_id) VALUES (?, 5000, ?)',
+          [playerId, guildId]
+        );
+
         return interaction.reply({
-          content: `✅ **Successfully force-linked!**\n\n**Player:** ${playerName}\n**Discord User:** ${discordUser}\n**Server:** ${serverNickname}\n\n*Created new player record.*`,
+          content: `✅ **Successfully force-linked!**\n\n**Player:** ${playerName}\n**Discord User:** ${discordUser}\n**Server:** ${server.nickname}\n\n*Created new player record.*`,
           ephemeral: true
         });
       }
