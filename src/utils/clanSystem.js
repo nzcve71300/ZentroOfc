@@ -34,9 +34,19 @@ function getEmojiByClanColor(color) {
 // Get player by Discord ID
 async function getPlayerByDiscordId(discordId, serverId) {
   try {
-    // Convert serverId to guild_id if it's a string (Discord guild ID)
-    const actualServerId = typeof serverId === 'string' ? 
-      await getServerGuildId(serverId) : serverId;
+    // serverId here is the guild_id from rust_servers table
+    // We need to find the actual server_id that matches this guild_id
+    const [servers] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = ?',
+      [serverId]
+    );
+    
+    if (servers.length === 0) {
+      console.error('No server found for guild_id:', serverId);
+      return null;
+    }
+    
+    const actualServerId = servers[0].id;
     
     const [players] = await pool.query(
       'SELECT * FROM players WHERE discord_id = ? AND server_id = ?',
@@ -66,9 +76,23 @@ async function getServerGuildId(serverNickname) {
 // Get clan by server and name
 async function getClanByServerAndName(serverId, clanName) {
   try {
+    // serverId here is the guild_id from rust_servers table
+    // We need to find the actual server_id that matches this guild_id
+    const [servers] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = ?',
+      [serverId]
+    );
+    
+    if (servers.length === 0) {
+      console.error('No server found for guild_id:', serverId);
+      return null;
+    }
+    
+    const actualServerId = servers[0].id;
+    
     const [clans] = await pool.query(
       'SELECT * FROM clans WHERE server_id = ? AND name = ?',
-      [serverId, clanName]
+      [actualServerId, clanName]
     );
     return clans[0] || null;
   } catch (error) {
@@ -80,9 +104,23 @@ async function getClanByServerAndName(serverId, clanName) {
 // Get clan by server and tag
 async function getClanByServerAndTag(serverId, tag) {
   try {
+    // serverId here is the guild_id from rust_servers table
+    // We need to find the actual server_id that matches this guild_id
+    const [servers] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = ?',
+      [serverId]
+    );
+    
+    if (servers.length === 0) {
+      console.error('No server found for guild_id:', serverId);
+      return null;
+    }
+    
+    const actualServerId = servers[0].id;
+    
     const [clans] = await pool.query(
       'SELECT * FROM clans WHERE server_id = ? AND tag = ?',
-      [serverId, tag]
+      [actualServerId, tag]
     );
     return clans[0] || null;
   } catch (error) {
@@ -94,11 +132,25 @@ async function getClanByServerAndTag(serverId, tag) {
 // Get player's clan
 async function getPlayerClan(playerId, serverId) {
   try {
+    // serverId here is the guild_id from rust_servers table
+    // We need to find the actual server_id that matches this guild_id
+    const [servers] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = ?',
+      [serverId]
+    );
+    
+    if (servers.length === 0) {
+      console.error('No server found for guild_id:', serverId);
+      return null;
+    }
+    
+    const actualServerId = servers[0].id;
+    
     const [clans] = await pool.query(`
       SELECT c.* FROM clans c
       INNER JOIN clan_members cm ON c.id = cm.clan_id
       WHERE cm.player_id = ? AND c.server_id = ?
-    `, [playerId, serverId]);
+    `, [playerId, actualServerId]);
     return clans[0] || null;
   } catch (error) {
     console.error('Error getting player clan:', error);
@@ -181,9 +233,23 @@ async function getClanInvite(clanId, playerId) {
 // Get clan settings
 async function getClanSettings(serverId) {
   try {
+    // serverId here is the guild_id from rust_servers table
+    // We need to find the actual server_id that matches this guild_id
+    const [servers] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = ?',
+      [serverId]
+    );
+    
+    if (servers.length === 0) {
+      console.error('No server found for guild_id:', serverId);
+      return { enabled: false, max_members: 10 };
+    }
+    
+    const actualServerId = servers[0].id;
+    
     const [settings] = await pool.query(
       'SELECT enabled, max_members FROM clan_settings WHERE server_id = ?',
-      [serverId]
+      [actualServerId]
     );
     return settings[0] || { enabled: false, max_members: 10 };
   } catch (error) {
