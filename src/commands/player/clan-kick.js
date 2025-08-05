@@ -60,10 +60,13 @@ module.exports = {
         });
       }
 
+      // Use server.guild_id (Discord guild ID) directly for database operations
+      const serverId = server.guild_id;
+
       // Check if clan system is enabled
       const [settings] = await pool.query(
         'SELECT enabled FROM clan_settings WHERE server_id = ?',
-        [server.id]
+        [serverId]
       );
       
       if (!settings.length || !settings[0].enabled) {
@@ -73,7 +76,7 @@ module.exports = {
       }
 
       // Get player
-      const player = await getPlayerByDiscordId(userId, server.id);
+      const player = await getPlayerByDiscordId(userId, serverId);
       if (!player) {
         return interaction.editReply({
           embeds: [errorEmbed('Player Not Found', 'You need to be linked to use clan commands.')]
@@ -81,7 +84,7 @@ module.exports = {
       }
 
       // Get player's clan
-      const clan = await getPlayerClan(player.id, server.id);
+      const clan = await getPlayerClan(player.id, serverId);
       if (!clan) {
         return interaction.editReply({
           embeds: [errorEmbed('Not in Clan', 'You are not a member of any clan on this server.')]
@@ -97,7 +100,7 @@ module.exports = {
       }
 
       // Get target player
-      const targetPlayer = await getPlayerByDiscordId(targetUser.id, server.id);
+      const targetPlayer = await getPlayerByDiscordId(targetUser.id, serverId);
       if (!targetPlayer) {
         return interaction.editReply({
           embeds: [errorEmbed('Player Not Linked', `${targetUser.tag} is not linked to this server.`)]
