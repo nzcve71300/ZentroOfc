@@ -73,10 +73,14 @@ module.exports = {
       }
 
       const uniqueServers = [...new Set(serverList)];
-      await interaction.editReply({
-        embeds: [successEmbed('Daily Reward Claimed', 
-          `Coins added to **${players.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} coins\n**Servers:** ${uniqueServers.join(', ')}`)]
-      });
+              // Get currency name for the first server (they should all be the same)
+        const { getCurrencyName } = require('../../utils/economy');
+        const currencyName = await getCurrencyName(players[0].server_id);
+        
+        await interaction.editReply({
+          embeds: [successEmbed('Daily Reward Claimed', 
+            `${currencyName} added to **${players.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} ${currencyName}\n**Servers:** ${uniqueServers.join(', ')}`)]
+        });
 
     } catch (err) {
       console.error('Daily error:', err);

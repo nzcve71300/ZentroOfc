@@ -112,8 +112,12 @@ module.exports = {
             });
           }
           settingValue = dailyAmount.toString();
-          message = `Daily reward amount has been set to ${dailyAmount} coins on ${serverName}.`;
-          value = `${dailyAmount} coins`;
+          // Get currency name for this server
+          const { getCurrencyName } = require('../../utils/economy');
+          const currencyName = await getCurrencyName(serverId);
+          
+          message = `Daily reward amount has been set to ${dailyAmount} ${currencyName} on ${serverName}.`;
+          value = `${dailyAmount} ${currencyName}`;
           break;
 
         case 'starting_balance':
@@ -123,13 +127,13 @@ module.exports = {
               embeds: [errorEmbed('Invalid Amount', 'Starting balance must be a positive number.')]
             });
           }
-          settingValue = startingBalance.toString();
-                  // Get currency name for this server
-        const { getCurrencyName } = require('../../utils/economy');
-        const currencyName = await getCurrencyName(server.id);
-        
-        message = `Starting balance has been set to ${startingBalance} ${currencyName} on ${serverName}.`;
-        value = `${startingBalance} ${currencyName}`;
+                    settingValue = startingBalance.toString();
+          // Get currency name for this server
+          const { getCurrencyName } = require('../../utils/economy');
+          const currencyName = await getCurrencyName(serverId);
+          
+          message = `Starting balance has been set to ${startingBalance} ${currencyName} on ${serverName}.`;
+          value = `${startingBalance} ${currencyName}`;
           break;
 
         case 'playerkills_amount':
@@ -140,8 +144,12 @@ module.exports = {
             });
           }
           settingValue = playerkillsAmount.toString();
-          message = `Player kills reward has been set to ${playerkillsAmount} coins on ${serverName}.`;
-          value = `${playerkillsAmount} coins`;
+          // Get currency name for this server
+          const { getCurrencyName } = require('../../utils/economy');
+          const currencyName = await getCurrencyName(serverId);
+          
+          message = `Player kills reward has been set to ${playerkillsAmount} ${currencyName} on ${serverName}.`;
+          value = `${playerkillsAmount} ${currencyName}`;
           break;
 
         case 'misckills_amount':
@@ -152,25 +160,33 @@ module.exports = {
             });
           }
           settingValue = misckillsAmount.toString();
-          message = `Scientist kills reward has been set to ${misckillsAmount} coins on ${serverName}.`;
-          value = `${misckillsAmount} coins`;
+          // Get currency name for this server
+          const { getCurrencyName } = require('../../utils/economy');
+          const currencyName = await getCurrencyName(serverId);
+          
+          message = `Scientist kills reward has been set to ${misckillsAmount} ${currencyName} on ${serverName}.`;
+          value = `${misckillsAmount} ${currencyName}`;
           break;
 
-        case 'blackjack_min':
-        case 'blackjack_max':
-        case 'coinflip_min':
-        case 'coinflip_max':
-          const betLimit = parseInt(option);
-          if (isNaN(betLimit) || betLimit < 0) {
-            return interaction.editReply({
-              embeds: [errorEmbed('Invalid Bet Limit', 'Bet limit must be a positive number.')]
-            });
-          }
-          settingValue = betLimit.toString();
-          const gameType = setup.includes('blackjack') ? 'Blackjack' : 'Coinflip';
-          const limitType = setup.includes('min') ? 'minimum' : 'maximum';
-          message = `${gameType} ${limitType} bet has been set to ${betLimit} coins on ${serverName}.`;
-          value = `${betLimit} coins`;
+                 case 'blackjack_min':
+         case 'blackjack_max':
+         case 'coinflip_min':
+         case 'coinflip_max':
+           const betLimit = parseInt(option);
+           if (isNaN(betLimit) || betLimit < 0) {
+             return interaction.editReply({
+               embeds: [errorEmbed('Invalid Bet Limit', 'Bet limit must be a positive number.')]
+             });
+           }
+           settingValue = betLimit.toString();
+           // Get currency name for this server
+           const { getCurrencyName } = require('../../utils/economy');
+           const currencyName = await getCurrencyName(serverId);
+           
+           const gameType = setup.includes('blackjack') ? 'Blackjack' : 'Coinflip';
+           const limitType = setup.includes('min') ? 'minimum' : 'maximum';
+           message = `${gameType} ${limitType} bet has been set to ${betLimit} ${currencyName} on ${serverName}.`;
+           value = `${betLimit} ${currencyName}`;
           break;
 
         default:

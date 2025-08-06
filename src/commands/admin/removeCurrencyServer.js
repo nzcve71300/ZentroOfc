@@ -77,10 +77,10 @@ module.exports = {
         affectedPlayers.push({ ign: player.ign, balance: newBalance });
       }
 
-      const embed = successEmbed(
-        'Currency Removed from Server', 
-        `Removed **${amount} coins** from all players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
-      );
+             const embed = successEmbed(
+         'Currency Removed from Server', 
+         `Removed **${amount} ${currencyName}** from all players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
+       );
 
       // Add player details if there are 10 or fewer players
               // Get currency name for this server
@@ -91,9 +91,9 @@ module.exports = {
           affectedPlayers.forEach(player => {
             embed.addFields({ name: player.ign, value: `${player.balance} ${currencyName}`, inline: true });
           });
-      } else {
-        embed.addFields({ name: 'Players Updated', value: `${affectedPlayers.length} players lost ${amount} coins each.` });
-      }
+             } else {
+         embed.addFields({ name: 'Players Updated', value: `${affectedPlayers.length} players lost ${amount} ${currencyName} each.` });
+       }
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {

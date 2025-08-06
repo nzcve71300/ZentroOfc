@@ -357,14 +357,22 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       if (killData.isPlayerKill) {
         const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, false);
         if (rewardResult && rewardResult.reward > 0) {
-          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for the kill!</color>`);
+          // Get currency name for this server
+          const { getCurrencyName } = require('../utils/economy');
+          const currencyName = await getCurrencyName(serverId);
+          
+          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for the kill!</color>`);
         }
-      } else if (killData.isScientistKill) {
-        const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
-        if (rewardResult && rewardResult.reward > 0) {
-          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for killing a scientist!</color>`);
+              } else if (killData.isScientistKill) {
+          const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
+          if (rewardResult && rewardResult.reward > 0) {
+            // Get currency name for this server
+            const { getCurrencyName } = require('../utils/economy');
+            const currencyName = await getCurrencyName(serverId);
+            
+            sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for killing a scientist!</color>`);
+          }
         }
-      }
     } else {
       // Killfeed is disabled - only process stats and rewards without sending messages
       // Extract killer and victim for stats processing
@@ -381,12 +389,20 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
         if (isPlayerKill) {
           const rewardResult = await handleKillRewards(guildId, serverName, killer, victim, false);
           if (rewardResult && rewardResult.reward > 0) {
-            sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for the kill!</color>`);
+            // Get currency name for this server
+            const { getCurrencyName } = require('../utils/economy');
+            const currencyName = await getCurrencyName(serverId);
+            
+            sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for the kill!</color>`);
           }
         } else if (isScientistKill) {
           const rewardResult = await handleKillRewards(guildId, serverName, killer, victim, true);
           if (rewardResult && rewardResult.reward > 0) {
-            sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} coins</color> <color=white>for killing a scientist!</color>`);
+            // Get currency name for this server
+            const { getCurrencyName } = require('../utils/economy');
+            const currencyName = await getCurrencyName(serverId);
+            
+            sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for killing a scientist!</color>`);
           }
         }
       }
@@ -513,7 +529,11 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
         );
         
         const killType = isScientist ? 'scientist' : 'player';
-        console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} coins for killing ${sanitizedVictim} (${killType} kill)`);
+        // Get currency name for this server
+      const { getCurrencyName } = require('../utils/economy');
+      const currencyName = await getCurrencyName(serverId);
+      
+      console.log(`💰 Kill reward: ${sanitizedKiller} earned ${reward} ${currencyName} for killing ${sanitizedVictim} (${killType} kill)`);
         
         return { reward, playerId: playerId };
       }

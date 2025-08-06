@@ -319,7 +319,7 @@ async function handleShopCategorySelect(interaction) {
     
     items.forEach(item => {
       allOptions.push({
-        label: `${item.display_name} - ${item.price} coins`,
+        label: `${item.display_name} - ${item.price} ${currencyName}`,
         description: `Item: ${item.short_name} (${item.quantity}x)`,
         value: `item_${item.id}`
       });
@@ -327,7 +327,7 @@ async function handleShopCategorySelect(interaction) {
 
     kits.forEach(kit => {
       allOptions.push({
-        label: `${kit.display_name} - ${kit.price} coins`,
+        label: `${kit.display_name} - ${kit.price} ${currencyName}`,
         description: `Kit: ${kit.kit_name} (${kit.quantity}x)`,
         value: `kit_${kit.id}`
       });
@@ -658,6 +658,10 @@ async function handleConfirmPurchase(interaction) {
        sendRconCommand(itemData.ip, itemData.port, itemData.password, command);
        console.log(`RCON Command sent to ${itemData.nickname}: ${command}`);
        
+       // Get currency name for this server
+       const { getCurrencyName } = require('../utils/economy');
+       const currencyName = await getCurrencyName(itemData.server_id);
+       
        // Send confirmation message to player in-game
        const playerName = interaction.user.username;
        const confirmMessage = `say <color=green>${playerName}</color> <color=green>Your purchase was successful</color>`;
@@ -667,7 +671,7 @@ async function handleConfirmPurchase(interaction) {
        // Send to admin feed
        const guildId = interaction.guildId;
        const { sendFeedEmbed } = require('../rcon');
-       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} for ${itemData.price} coins`);
+       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} for ${itemData.price} ${currencyName}`);
      } catch (error) {
        console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
      }
@@ -678,10 +682,6 @@ async function handleConfirmPurchase(interaction) {
        [playerId]
      );
      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
-     
-     // Get currency name for this server
-     const { getCurrencyName } = require('../utils/economy');
-     const currencyName = await getCurrencyName(itemData.server_id);
      
      // Create embed with player info and avatar
      const { EmbedBuilder } = require('discord.js');
