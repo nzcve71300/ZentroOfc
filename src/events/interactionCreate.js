@@ -653,14 +653,14 @@ async function handleConfirmPurchase(interaction) {
       console.log(`[SHOP TIMER] Recorded cooldown for ${type} ${itemId} for player ${playerId}`);
     }
 
-         // Send RCON command to server
+         // Get currency name for this server
+     const { getCurrencyName } = require('../utils/economy');
+     const currencyName = await getCurrencyName(itemData.server_id);
+     
+     // Send RCON command to server
      try {
        sendRconCommand(itemData.ip, itemData.port, itemData.password, command);
        console.log(`RCON Command sent to ${itemData.nickname}: ${command}`);
-       
-       // Get currency name for this server
-       const { getCurrencyName } = require('../utils/economy');
-       const currencyName = await getCurrencyName(itemData.server_id);
        
        // Send confirmation message to player in-game
        const playerName = interaction.user.username;
