@@ -611,7 +611,8 @@ async function handleConfirmPurchase(interaction) {
             })
             .setTimestamp();
           
-          return interaction.editReply({
+          // Send a new public message instead of editing the ephemeral one
+          return interaction.followUp({
             embeds: [cooldownEmbed],
             components: []
           });
@@ -678,7 +679,8 @@ async function handleConfirmPurchase(interaction) {
        })
        .setTimestamp();
      
-     await interaction.editReply({
+     // Send a new public message instead of editing the ephemeral one
+     await interaction.followUp({
        embeds: [purchaseEmbed],
        components: []
      });
@@ -705,7 +707,8 @@ async function handleConfirmPurchase(interaction) {
       })
       .setTimestamp();
     
-    await interaction.editReply({
+    // Send a new public message instead of editing the ephemeral one
+    await interaction.followUp({
       embeds: [errorEmbed],
       components: []
     });
