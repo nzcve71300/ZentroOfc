@@ -137,10 +137,10 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
       startingBalance = parseInt(configResult[0].setting_value) || 0;
     }
     
-    // Create economy record with starting balance
+    // Create economy record with starting balance and guild_id
     await dbPool.query(
-      'INSERT INTO economy (player_id, balance) VALUES (?, ?)',
-      [player.id, startingBalance]
+      'INSERT INTO economy (player_id, balance, guild_id) VALUES (?, ?, ?)',
+      [player.id, startingBalance, guildId]
     );
     
     console.log(`[LINK] Created economy record for player ${playerIgn} with starting balance: ${startingBalance}`);

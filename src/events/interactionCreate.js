@@ -668,10 +668,13 @@ async function handleLinkConfirm(interaction) {
   const [, , guildId, discordId, ign] = interaction.customId.split('_');
   
   try {
-    const { confirmLinkRequest, getServersForGuild } = require('../utils/linking');
+    const pool = require('../db');
     
     // Get all servers for this guild
-    const servers = await getServersForGuild(guildId);
+    const [servers] = await pool.query(
+      'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
+      [guildId]
+    );
     
     if (servers.length === 0) {
       return interaction.editReply({
@@ -686,14 +689,53 @@ async function handleLinkConfirm(interaction) {
     
     for (const server of servers) {
       try {
-        await confirmLinkRequest(guildId, discordId, ign, server.id);
+        // Ensure guild exists
+        await pool.query(
+          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+          [guildId, interaction.guild?.name || 'Unknown Guild']
+        );
+
+        // Check if player already exists
+        const [existingPlayers] = await pool.query(
+          'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?)',
+          [guildId, server.id, ign]
+        );
+
+        if (existingPlayers.length > 0) {
+          const existing = existingPlayers[0];
+          if (existing.is_active) {
+            throw new Error(`❌ This IGN is already linked and active on ${server.nickname}. Contact an admin to unlink.`);
+          }
+          // Reactivate inactive player
+          await pool.query(
+            'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
+            [discordId, existing.id]
+          );
+          // Ensure economy record
+          await pool.query(
+            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
+            [existing.id, existing.id]
+          );
+        } else {
+          // Insert new player
+          const [playerResult] = await pool.query(
+            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
+            [guildId, server.id, discordId, ign]
+          );
+          
+          // Create economy record
+          await pool.query(
+            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)',
+            [playerResult.insertId, playerResult.insertId]
+          );
+        }
+        
         linkedServers.push(server.nickname);
       } catch (error) {
         console.error(`Failed to link to server ${server.nickname}:`, error);
-        // If it's our custom error about IGN already linked, show it
         if (error.message.includes('already linked')) {
           errorMessage = error.message;
-          break; // Stop trying other servers
+          break;
         }
       }
     }

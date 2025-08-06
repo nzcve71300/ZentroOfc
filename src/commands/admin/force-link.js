@@ -8,7 +8,7 @@ module.exports = {
     .setDescription('Forcefully link a Discord user to an in-game player name (Admin only)')
     .addUserOption(option =>
       option.setName('member')
-        .setDescription('The Discord member to link (@ mention)')
+        .setDescription('The Discord member to link')
         .setRequired(true))
     .addStringOption(option =>
       option.setName('ign')
@@ -26,7 +26,7 @@ module.exports = {
       
       // Find the server by guild ID
       const [servers] = await pool.query(
-        'SELECT * FROM rust_servers WHERE guild_id = ?',
+        'SELECT * FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)',
         [guildId]
       );
 
@@ -42,8 +42,8 @@ module.exports = {
 
       // Check if player already exists in the database
       const [existingPlayers] = await pool.query(
-        'SELECT * FROM players WHERE LOWER(ign) = LOWER(?) AND server_id = ?',
-        [playerName, serverId]
+        'SELECT * FROM players WHERE LOWER(ign) = LOWER(?) AND server_id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)',
+        [playerName, serverId, guildId]
       );
 
       if (existingPlayers.length > 0) {
@@ -78,8 +78,8 @@ module.exports = {
       } else {
         // Create new player record
         const [result] = await pool.query(
-          'INSERT INTO players (ign, discord_id, server_id, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
-          [playerName, discordUser.id, serverId]
+          'INSERT INTO players (ign, discord_id, server_id, guild_id, created_at, updated_at) VALUES (?, ?, ?, (SELECT id FROM guilds WHERE discord_id = ?), NOW(), NOW())',
+          [playerName, discordUser.id, serverId, guildId]
         );
 
         const playerId = result.insertId;
