@@ -84,12 +84,16 @@ module.exports = {
       const serverId = serverResult[0].id;
       const serverName = serverResult[0].nickname;
 
-      // Store configuration in database
-      let message = '';
-      let value = '';
-      let settingValue = '';
+             // Get currency name for this server (used by multiple cases)
+       const { getCurrencyName } = require('../../utils/economy');
+       const currencyName = await getCurrencyName(serverId);
+       
+       // Store configuration in database
+       let message = '';
+       let value = '';
+       let settingValue = '';
 
-      switch (setup) {
+       switch (setup) {
         case 'blackjack_toggle':
           const blackjackEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
           settingValue = blackjackEnabled ? 'true' : 'false';
@@ -111,13 +115,9 @@ module.exports = {
               embeds: [errorEmbed('Invalid Amount', 'Daily reward amount must be a positive number.')]
             });
           }
-          settingValue = dailyAmount.toString();
-          // Get currency name for this server
-          const { getCurrencyName } = require('../../utils/economy');
-          const currencyName = await getCurrencyName(serverId);
-          
-          message = `Daily reward amount has been set to ${dailyAmount} ${currencyName} on ${serverName}.`;
-          value = `${dailyAmount} ${currencyName}`;
+                     settingValue = dailyAmount.toString();
+           message = `Daily reward amount has been set to ${dailyAmount} ${currencyName} on ${serverName}.`;
+           value = `${dailyAmount} ${currencyName}`;
           break;
 
         case 'starting_balance':
@@ -127,13 +127,9 @@ module.exports = {
               embeds: [errorEmbed('Invalid Amount', 'Starting balance must be a positive number.')]
             });
           }
-                    settingValue = startingBalance.toString();
-          // Get currency name for this server
-          const { getCurrencyName } = require('../../utils/economy');
-          const currencyName = await getCurrencyName(serverId);
-          
-          message = `Starting balance has been set to ${startingBalance} ${currencyName} on ${serverName}.`;
-          value = `${startingBalance} ${currencyName}`;
+                                         settingValue = startingBalance.toString();
+         message = `Starting balance has been set to ${startingBalance} ${currencyName} on ${serverName}.`;
+         value = `${startingBalance} ${currencyName}`;
           break;
 
         case 'playerkills_amount':
@@ -144,10 +140,6 @@ module.exports = {
             });
           }
           settingValue = playerkillsAmount.toString();
-          // Get currency name for this server
-          const { getCurrencyName } = require('../../utils/economy');
-          const currencyName = await getCurrencyName(serverId);
-          
           message = `Player kills reward has been set to ${playerkillsAmount} ${currencyName} on ${serverName}.`;
           value = `${playerkillsAmount} ${currencyName}`;
           break;
@@ -160,10 +152,6 @@ module.exports = {
             });
           }
           settingValue = misckillsAmount.toString();
-          // Get currency name for this server
-          const { getCurrencyName } = require('../../utils/economy');
-          const currencyName = await getCurrencyName(serverId);
-          
           message = `Scientist kills reward has been set to ${misckillsAmount} ${currencyName} on ${serverName}.`;
           value = `${misckillsAmount} ${currencyName}`;
           break;
@@ -179,10 +167,6 @@ module.exports = {
              });
            }
            settingValue = betLimit.toString();
-           // Get currency name for this server
-           const { getCurrencyName } = require('../../utils/economy');
-           const currencyName = await getCurrencyName(serverId);
-           
            const gameType = setup.includes('blackjack') ? 'Blackjack' : 'Coinflip';
            const limitType = setup.includes('min') ? 'minimum' : 'maximum';
            message = `${gameType} ${limitType} bet has been set to ${betLimit} ${currencyName} on ${serverName}.`;
