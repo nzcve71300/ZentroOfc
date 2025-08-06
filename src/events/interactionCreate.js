@@ -591,8 +591,29 @@ async function handleConfirmPurchase(interaction) {
         
         if (timeDiff < timer) {
           const remaining = Math.ceil(timer - timeDiff);
+          
+          // Get player's IGN for display
+          const playerResult = await pool.query(
+            'SELECT ign FROM players WHERE id = ?',
+            [playerId]
+          );
+          const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+          
+          // Create embed with player info and avatar
+          const { EmbedBuilder } = require('discord.js');
+          const cooldownEmbed = new EmbedBuilder()
+            .setColor(0xFF6B35)
+            .setTitle('⏰ Cooldown Active')
+            .setDescription(`You must wait **${remaining} more minutes** before purchasing this item again.`)
+            .setAuthor({
+              name: playerIgn,
+              iconURL: interaction.user.displayAvatarURL({ dynamic: true })
+            })
+            .setTimestamp();
+          
           return interaction.editReply({
-            embeds: [errorEmbed('Cooldown Active', `You must wait ${remaining} more minutes before purchasing this item again.`)]
+            embeds: [cooldownEmbed],
+            components: []
           });
         }
       }
@@ -638,18 +659,55 @@ async function handleConfirmPurchase(interaction) {
        console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
      }
 
+     // Get player's IGN for display
+     const playerResult = await pool.query(
+       'SELECT ign FROM players WHERE id = ?',
+       [playerId]
+     );
+     const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+     
+     // Create embed with player info and avatar
+     const { EmbedBuilder } = require('discord.js');
+     const purchaseEmbed = new EmbedBuilder()
+       .setColor(0x00FF00)
+       .setTitle('✅ Purchase Successful')
+       .setDescription(`**${itemData.display_name}** has been purchased for ${itemData.price} coins!\n\n✅ **Item delivered in-game!**`)
+       .setAuthor({
+         name: playerIgn,
+         iconURL: interaction.user.displayAvatarURL({ dynamic: true })
+       })
+       .setTimestamp();
+     
      await interaction.editReply({
-       embeds: [successEmbed(
-         'Purchase Successful',
-         `**${itemData.display_name}** has been purchased for ${itemData.price} coins!\n\n✅ **Item delivered in-game!**`
-       )],
+       embeds: [purchaseEmbed],
        components: []
      });
 
   } catch (error) {
     console.error('Error confirming purchase:', error);
+    
+    // Get player's IGN for display
+    const playerResult = await pool.query(
+      'SELECT ign FROM players WHERE id = ?',
+      [playerId]
+    );
+    const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+    
+    // Create embed with player info and avatar
+    const { EmbedBuilder } = require('discord.js');
+    const errorEmbed = new EmbedBuilder()
+      .setColor(0xFF0000)
+      .setTitle('❌ Purchase Failed')
+      .setDescription('Failed to process purchase. Please try again.')
+      .setAuthor({
+        name: playerIgn,
+        iconURL: interaction.user.displayAvatarURL({ dynamic: true })
+      })
+      .setTimestamp();
+    
     await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to process purchase. Please try again.')]
+      embeds: [errorEmbed],
+      components: []
     });
   }
 }
