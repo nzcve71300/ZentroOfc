@@ -68,8 +68,12 @@ module.exports = {
       const newBalance = await updatePlayerBalance(player.id, -amount);
       await recordTransaction(player.id, -amount, 'admin_remove');
 
+      // Get currency name for this server
+      const { getCurrencyName } = require('../../utils/economy');
+      const currencyName = await getCurrencyName(server.id);
+      
       await interaction.editReply({
-        embeds: [successEmbed('Currency Removed', `Removed **${amount} coins** from **${player.ign}** on **${server.nickname}**.\n\n**New Balance:** ${newBalance} coins`)]
+        embeds: [successEmbed('Currency Removed', `Removed **${amount} ${currencyName}** from **${player.ign}** on **${server.nickname}**.\n\n**New Balance:** ${newBalance} ${currencyName}`)]
       });
     } catch (err) {
       console.error('Error in remove-currency-player:', err);

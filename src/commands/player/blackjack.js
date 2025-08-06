@@ -95,9 +95,13 @@ module.exports = {
         });
       }
 
+      // Get currency name for this server
+      const { getCurrencyName } = require('../../utils/economy');
+      const currencyName = await getCurrencyName(server.id);
+      
       if (balance < betAmount) {
         return interaction.editReply({
-          embeds: [errorEmbed('Insufficient Balance', `You only have ${balance.toLocaleString()} coins. Please bet less or earn more coins.`)]
+          embeds: [errorEmbed('Insufficient Balance', `You only have ${balance.toLocaleString()} ${currencyName}. Please bet less or earn more ${currencyName}.`)]
         });
       }
 
@@ -143,7 +147,7 @@ module.exports = {
         embed.addFields(
           { name: '🎯 **Your Cards**', value: formatCards(playerCards), inline: true },
           { name: '🎯 **Dealer Cards**', value: formatCards(dealerCards), inline: true },
-          { name: '💰 **Winnings**', value: `**${winnings.toLocaleString()}** coins`, inline: true }
+          { name: '💰 **Winnings**', value: `**${winnings.toLocaleString()}** ${currencyName}`, inline: true }
         );
         embed.setFooter({ text: '💎 Premium Gaming Experience • Blackjack pays 2.5x!' });
 
@@ -301,6 +305,10 @@ async function endGame(game, result, interaction) {
   game.gameOver = true;
   const playerTotal = calculateHandValue(game.playerCards);
   let dealerTotal = calculateHandValue(game.dealerCards);
+  
+  // Get currency name for this server
+  const { getCurrencyName } = require('../../utils/economy');
+  const currencyName = await getCurrencyName(game.serverId);
 
   let gameResult, winnings = 0;
 
@@ -348,14 +356,14 @@ async function endGame(game, result, interaction) {
   finalEmbed.addFields(
     { name: '🎯 **Your Cards**', value: formatCards(game.playerCards), inline: true },
     { name: '🎯 **Dealer Cards**', value: formatCards(game.dealerCards), inline: true },
-    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** coins`, inline: true }
+    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${currencyName}`, inline: true }
   );
 
   const balanceText = winnings > game.betAmount 
-    ? `**💰 Winnings:** +${(winnings - game.betAmount).toLocaleString()} coins\n**💰 New Balance:** ${(game.balance + winnings).toLocaleString()} coins`
+    ? `**💰 Winnings:** +${(winnings - game.betAmount).toLocaleString()} ${currencyName}\n**💰 New Balance:** ${(game.balance + winnings).toLocaleString()} ${currencyName}`
     : winnings === game.betAmount
-    ? `**🤝 Push:** Bet returned\n**💰 New Balance:** ${(game.balance + winnings).toLocaleString()} coins`
-    : `**💸 Loss:** -${game.betAmount.toLocaleString()} coins\n**💰 New Balance:** ${game.balance.toLocaleString()} coins`;
+    ? `**🤝 Push:** Bet returned\n**💰 New Balance:** ${(game.balance + winnings).toLocaleString()} ${currencyName}`
+    : `**💸 Loss:** -${game.betAmount.toLocaleString()} ${currencyName}\n**💰 New Balance:** ${game.balance.toLocaleString()} ${currencyName}`;
 
   finalEmbed.addFields({ name: '💰 **Result**', value: balanceText, inline: false });
   finalEmbed.setFooter({ text: '💎 Premium Gaming Experience • Good luck next time!' });

@@ -104,9 +104,13 @@ module.exports = {
         });
       }
 
+      // Get currency name for this server
+      const { getCurrencyName } = require('../../utils/economy');
+      const currencyName = await getCurrencyName(server.id);
+      
       if (balance < betAmount) {
         return interaction.editReply({
-          embeds: [errorEmbed('Insufficient Balance', `You only have ${balance.toLocaleString()} coins. Please bet less or earn more coins.`)]
+          embeds: [errorEmbed('Insufficient Balance', `You only have ${balance.toLocaleString()} ${currencyName}. Please bet less or earn more ${currencyName}.`)]
         });
       }
 
@@ -126,6 +130,7 @@ module.exports = {
         guildId,
         userId,
         balance: balance - betAmount,
+        currencyName,
         gameOver: false,
         flipped: false
       };
@@ -180,9 +185,9 @@ function createCoinflipEmbed(game, serverName) {
   const embed = orangeEmbed('🪙 **COINFLIP** 🪙', `Ready to flip on **${serverName}**`);
   
   embed.addFields(
-    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** coins`, inline: true },
+    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName || 'coins'}`, inline: true },
     { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
-    { name: '🎲 **Current Balance**', value: `**${game.balance.toLocaleString()}** coins`, inline: true }
+    { name: '🎲 **Current Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName || 'coins'}`, inline: true }
   );
 
   if (!game.flipped) {
@@ -271,18 +276,18 @@ async function flipCoin(game, interaction, serverName) {
     { name: '🪙 **Coin Result**', value: coinDisplay, inline: false },
     { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
     { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
-    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** coins`, inline: true }
+    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
   );
 
   if (won) {
     embed.addFields(
-      { name: '🎉 **Winnings**', value: `**+${game.betAmount.toLocaleString()}** coins`, inline: true },
-      { name: '💰 **New Balance**', value: `**${(game.balance + winnings).toLocaleString()}** coins`, inline: true }
+      { name: '🎉 **Winnings**', value: `**+${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
+      { name: '💰 **New Balance**', value: `**${(game.balance + winnings).toLocaleString()}** ${game.currencyName}`, inline: true }
     );
   } else {
     embed.addFields(
-      { name: '💸 **Loss**', value: `**-${game.betAmount.toLocaleString()}** coins`, inline: true },
-      { name: '💰 **New Balance**', value: `**${game.balance.toLocaleString()}** coins`, inline: true }
+      { name: '💸 **Loss**', value: `**-${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
+      { name: '💰 **New Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
     );
   }
 

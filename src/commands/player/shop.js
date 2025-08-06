@@ -89,9 +89,13 @@ module.exports = {
           .addOptions(categoryOptions)
       );
 
+      // Get currency name for this server
+      const { getCurrencyName } = require('../../utils/economy');
+      const currencyName = await getCurrencyName(server.id);
+      
       const embed = orangeEmbed(
         'Shop',
-        `**Server:** ${server.nickname}\n**Your Balance:** ${balance} coins\n\nSelect a category below to browse items and kits!`
+        `**Server:** ${server.nickname}\n**Your Balance:** ${balance} ${currencyName}\n\nSelect a category below to browse items and kits!`
       );
 
       await interaction.editReply({

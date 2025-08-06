@@ -32,7 +32,11 @@ module.exports = {
           [player.server_id]
         );
         const serverName = serverResult[0]?.nickname || 'Unknown Server';
-        embed.addFields({ name: serverName, value: `${balance} coins`, inline: true });
+        // Get currency name for this server
+      const { getCurrencyName } = require('../../utils/economy');
+      const currencyName = await getCurrencyName(server.id);
+      
+      embed.addFields({ name: serverName, value: `${balance} ${currencyName}`, inline: true });
       }
 
       await interaction.editReply({ embeds: [embed] });

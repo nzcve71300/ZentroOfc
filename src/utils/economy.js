@@ -1,6 +1,50 @@
 const pool = require('../db');
 
 /**
+ * Get the currency name for a specific server
+ */
+async function getCurrencyName(serverId) {
+  try {
+    const [result] = await pool.query(
+      'SELECT currency_name FROM rust_servers WHERE id = ?',
+      [serverId]
+    );
+    
+    if (result.length > 0 && result[0].currency_name) {
+      return result[0].currency_name;
+    }
+    
+    // Default to 'coins' if no currency name is set
+    return 'coins';
+  } catch (error) {
+    console.error('Error getting currency name:', error);
+    return 'coins';
+  }
+}
+
+/**
+ * Get the currency name for a server by guild ID and server nickname
+ */
+async function getCurrencyNameByGuildAndNickname(guildId, nickname) {
+  try {
+    const [result] = await pool.query(
+      'SELECT rs.currency_name FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
+      [guildId, nickname]
+    );
+    
+    if (result.length > 0 && result[0].currency_name) {
+      return result[0].currency_name;
+    }
+    
+    // Default to 'coins' if no currency name is set
+    return 'coins';
+  } catch (error) {
+    console.error('Error getting currency name by guild and nickname:', error);
+    return 'coins';
+  }
+}
+
+/**
  * Get server by nickname and guild
  */
 async function getServerByNickname(guildId, nickname) {
@@ -108,6 +152,8 @@ async function searchServersByNickname(guildId, searchTerm) {
 }
 
 module.exports = {
+  getCurrencyName,
+  getCurrencyNameByGuildAndNickname,
   getServerByNickname,
   getServerById,
   getPlayerByIgn,

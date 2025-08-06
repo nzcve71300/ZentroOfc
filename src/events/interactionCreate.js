@@ -206,10 +206,14 @@ async function handleShopServerSelect(interaction) {
           .addOptions(categoryOptions)
       );
 
+    // Get currency name for this server
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(serverId);
+    
     await interaction.editReply({
       embeds: [orangeEmbed(
         '💰 Shop',
-        `**Server:** ${nickname}\n**Your Balance:** ${balance} coins\n\nSelect a category to browse items and kits:`
+        `**Server:** ${nickname}\n**Your Balance:** ${balance} ${currencyName}\n\nSelect a category to browse items and kits:`
       )],
       components: [row]
     });
@@ -280,16 +284,20 @@ async function handleShopCategorySelect(interaction) {
     const balance = balanceResult[0].length > 0 ? balanceResult[0][0].balance : 0;
     const serverId = server_id;
 
+    // Get currency name for this server
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(serverId);
+    
     // Create embed
     const embed = orangeEmbed(
       `🛒 ${name}`,
-      `**Server:** ${nickname}\n**Type:** ${type}\n**Your Balance:** ${balance} coins\n\nSelect an item or kit to purchase:`
+      `**Server:** ${nickname}\n**Type:** ${type}\n**Your Balance:** ${balance} ${currencyName}\n\nSelect an item or kit to purchase:`
     );
 
     // Add items to embed
     if (items.length > 0) {
       const itemsList = items.map(item => 
-        `**${item.display_name}** - ${item.price} coins (${item.quantity}x)${item.timer ? ` - ${item.timer}m cooldown` : ''}`
+        `**${item.display_name}** - ${item.price} ${currencyName} (${item.quantity}x)${item.timer ? ` - ${item.timer}m cooldown` : ''}`
       ).join('\n');
       embed.addFields({ name: '📦 Items', value: itemsList, inline: false });
     }
@@ -297,7 +305,7 @@ async function handleShopCategorySelect(interaction) {
     // Add kits to embed
     if (kits.length > 0) {
       const kitsList = kits.map(kit => 
-        `**${kit.display_name}** - ${kit.price} coins (${kit.quantity}x)${kit.timer ? ` - ${kit.timer}m cooldown` : ''}`
+        `**${kit.display_name}** - ${kit.price} ${currencyName} (${kit.quantity}x)${kit.timer ? ` - ${kit.timer}m cooldown` : ''}`
       ).join('\n');
       embed.addFields({ name: '🎒 Kits', value: kitsList, inline: false });
     }
@@ -469,16 +477,20 @@ async function handleShopItemSelect(interaction) {
       console.log('Updated balance:', balance);
     }
 
+    // Get currency name for this server
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(serverId);
+    
     if (balance < item.price) {
       return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You need ${item.price} coins but only have ${balance} coins.`)]
+        embeds: [errorEmbed('Insufficient Balance', `You need ${item.price} ${currencyName} but only have ${balance} ${currencyName}.`)]
       });
     }
 
     // Create confirmation embed
     const embed = orangeEmbed(
       '🛒 Purchase Confirmation',
-      `**Item:** ${item.display_name}\n**Price:** ${item.price} coins\n**Server:** ${nickname}\n**Your Balance:** ${balance} coins\n**New Balance:** ${balance - item.price} coins\n\nDo you want to confirm this purchase?`
+      `**Item:** ${item.display_name}\n**Price:** ${item.price} ${currencyName}\n**Server:** ${nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - item.price} ${currencyName}\n\nDo you want to confirm this purchase?`
     );
 
     // Create confirmation buttons
@@ -667,12 +679,16 @@ async function handleConfirmPurchase(interaction) {
      );
      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
      
+     // Get currency name for this server
+     const { getCurrencyName } = require('../utils/economy');
+     const currencyName = await getCurrencyName(itemData.server_id);
+     
      // Create embed with player info and avatar
      const { EmbedBuilder } = require('discord.js');
      const purchaseEmbed = new EmbedBuilder()
        .setColor(0x00FF00)
        .setTitle('✅ Purchase Successful')
-       .setDescription(`**${itemData.display_name}** has been purchased for ${itemData.price} coins!\n\n✅ **Item delivered in-game!**`)
+       .setDescription(`**${itemData.display_name}** has been purchased for ${itemData.price} ${currencyName}!\n\n✅ **Item delivered in-game!**`)
        .setAuthor({
          name: playerIgn,
          iconURL: interaction.user.displayAvatarURL({ dynamic: true })

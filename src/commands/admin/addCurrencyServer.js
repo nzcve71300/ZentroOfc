@@ -83,10 +83,14 @@ module.exports = {
       );
 
       // Add player details if there are 10 or fewer players
-      if (affectedPlayers.length <= 10) {
-        affectedPlayers.forEach(player => {
-          embed.addFields({ name: player.ign, value: `${player.balance} coins`, inline: true });
-        });
+              // Get currency name for this server
+        const { getCurrencyName } = require('../../utils/economy');
+        const currencyName = await getCurrencyName(server.id);
+        
+        if (affectedPlayers.length <= 10) {
+          affectedPlayers.forEach(player => {
+            embed.addFields({ name: player.ign, value: `${player.balance} ${currencyName}`, inline: true });
+          });
       } else {
         embed.addFields({ name: 'Players Updated', value: `${affectedPlayers.length} players received ${amount} coins each.` });
       }

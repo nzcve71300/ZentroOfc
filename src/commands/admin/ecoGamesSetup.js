@@ -124,8 +124,12 @@ module.exports = {
             });
           }
           settingValue = startingBalance.toString();
-          message = `Starting balance has been set to ${startingBalance} coins on ${serverName}.`;
-          value = `${startingBalance} coins`;
+                  // Get currency name for this server
+        const { getCurrencyName } = require('../../utils/economy');
+        const currencyName = await getCurrencyName(server.id);
+        
+        message = `Starting balance has been set to ${startingBalance} ${currencyName} on ${serverName}.`;
+        value = `${startingBalance} ${currencyName}`;
           break;
 
         case 'playerkills_amount':
