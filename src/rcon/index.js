@@ -1046,14 +1046,14 @@ function sendRconCommand(ip, port, password, command) {
       }
     });
     
-    // Timeout after 10 seconds
+    // Timeout after 20 seconds (increased from 10)
     setTimeout(() => {
       if (!responseReceived) {
         console.error(`[RCON] Timeout for command to ${ip}:${port}: ${command}`);
         ws.close();
         reject(new Error('RCON command timeout'));
       }
-    }, 10000);
+    }, 20000);
   });
 }
 
@@ -2052,8 +2052,14 @@ async function enableTeamActionLogging(ip, port, password) {
 async function getOnlinePlayers(ip, port, password) {
   try {
     // Try 'status' command first (most reliable for player list)
-    let result = await sendRconCommand(ip, port, password, 'status');
+    let result = null;
     let players = new Set();
+    
+    try {
+      result = await sendRconCommand(ip, port, password, 'status');
+    } catch (error) {
+      console.log('[ZORP DEBUG] status command failed, trying players command...');
+    }
     
     if (result) {
       const lines = result.split('\n');
@@ -2079,8 +2085,11 @@ async function getOnlinePlayers(ip, port, password) {
     
     // If 'status' command failed or returned no results, try 'players' as fallback
     if (players.size === 0) {
-      console.log('[ZORP DEBUG] status command returned no results, trying players command...');
-      result = await sendRconCommand(ip, port, password, 'players');
+      try {
+        result = await sendRconCommand(ip, port, password, 'players');
+      } catch (error) {
+        console.log('[ZORP DEBUG] players command failed, trying users command...');
+      }
       
       if (result) {
         const lines = result.split('\n');
@@ -2105,8 +2114,11 @@ async function getOnlinePlayers(ip, port, password) {
     
     // If 'players' command failed or returned no results, try 'users' as last resort
     if (players.size === 0) {
-      console.log('[ZORP DEBUG] players command returned no results, trying users command...');
-      result = await sendRconCommand(ip, port, password, 'users');
+      try {
+        result = await sendRconCommand(ip, port, password, 'users');
+      } catch (error) {
+        console.log('[ZORP DEBUG] users command failed, returning empty player list');
+      }
       
       if (result) {
         const lines = result.split('\n');
