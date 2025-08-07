@@ -2051,19 +2051,24 @@ async function enableTeamActionLogging(ip, port, password) {
 
 async function getOnlinePlayers(ip, port, password) {
   try {
-    // Try 'players' command first (more reliable)
-    let result = await sendRconCommand(ip, port, password, 'players');
+    // Try 'status' command first (most reliable for player list)
+    let result = await sendRconCommand(ip, port, password, 'status');
     let players = new Set();
     
     if (result) {
       const lines = result.split('\n');
       for (const line of lines) {
-        if (line.trim() && line.includes('(') && line.includes(')')) {
+        // Look for lines that contain player info (usually have steam ID)
+        if (line.trim() && line.includes('(') && line.includes(')') && !line.includes('died')) {
           // Extract player name from format like "PlayerName (SteamID)"
           const match = line.match(/^([^(]+)/);
           if (match) {
             const playerName = match[1].trim();
-            if (playerName) {
+            // Filter out death messages and other non-player data
+            if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
+                !playerName.includes('<slot:') && !playerName.includes('1users') && 
+                !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
+                !playerName.includes('status') && !playerName.includes('players')) {
               players.add(playerName);
             }
           }
@@ -2071,7 +2076,32 @@ async function getOnlinePlayers(ip, port, password) {
       }
     }
     
-    // If 'players' command failed or returned no results, try 'users' as fallback
+    // If 'status' command failed or returned no results, try 'players' as fallback
+    if (players.size === 0) {
+      console.log('[ZORP DEBUG] status command returned no results, trying players command...');
+      result = await sendRconCommand(ip, port, password, 'players');
+      
+      if (result) {
+        const lines = result.split('\n');
+        for (const line of lines) {
+          if (line.trim() && line.includes('(') && line.includes(')')) {
+            // Extract player name from format like "PlayerName (SteamID)"
+            const match = line.match(/^([^(]+)/);
+            if (match) {
+              const playerName = match[1].trim();
+              // Filter out death messages and other non-player data
+              if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
+                  !playerName.includes('<slot:') && !playerName.includes('1users') && 
+                  !playerName.includes('id ;name') && !playerName.includes('NA ;')) {
+                players.add(playerName);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // If 'players' command failed or returned no results, try 'users' as last resort
     if (players.size === 0) {
       console.log('[ZORP DEBUG] players command returned no results, trying users command...');
       result = await sendRconCommand(ip, port, password, 'users');
@@ -2081,7 +2111,10 @@ async function getOnlinePlayers(ip, port, password) {
         for (const line of lines) {
           if (line.trim() && !line.includes('Users:') && !line.includes('Total:')) {
             const playerName = line.trim();
-            if (playerName) {
+            // Filter out death messages and other non-player data
+            if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
+                !playerName.includes('<slot:') && !playerName.includes('1users') && 
+                !playerName.includes('id ;name') && !playerName.includes('NA ;')) {
               players.add(playerName);
             }
           }
