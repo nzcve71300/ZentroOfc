@@ -282,10 +282,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         }
       }
 
-      // Check online status every 30 seconds (increased frequency for better Zorp detection)
+      // Check online status every 15 seconds (increased frequency for better Zorp detection)
       const now = Date.now();
       const lastCheck = onlineStatusChecks.get(key) || 0;
-      if (now - lastCheck > 30000) { // 30 seconds instead of 5 minutes
+      if (now - lastCheck > 15000) { // 15 seconds instead of 30 seconds
         await checkPlayerOnlineStatus(client, guildId, serverName, ip, port, password);
         onlineStatusChecks.set(key, now);
       }
@@ -2051,21 +2051,45 @@ async function enableTeamActionLogging(ip, port, password) {
 
 async function getOnlinePlayers(ip, port, password) {
   try {
-    const result = await sendRconCommand(ip, port, password, 'users');
-    if (!result) return new Set();
+    // Try 'players' command first (more reliable)
+    let result = await sendRconCommand(ip, port, password, 'players');
+    let players = new Set();
     
-    const lines = result.split('\n');
-    const players = new Set();
-    
-    for (const line of lines) {
-      if (line.trim() && !line.includes('Users:') && !line.includes('Total:')) {
-        const playerName = line.trim();
-        if (playerName) {
-          players.add(playerName);
+    if (result) {
+      const lines = result.split('\n');
+      for (const line of lines) {
+        if (line.trim() && line.includes('(') && line.includes(')')) {
+          // Extract player name from format like "PlayerName (SteamID)"
+          const match = line.match(/^([^(]+)/);
+          if (match) {
+            const playerName = match[1].trim();
+            if (playerName) {
+              players.add(playerName);
+            }
+          }
         }
       }
     }
     
+    // If 'players' command failed or returned no results, try 'users' as fallback
+    if (players.size === 0) {
+      console.log('[ZORP DEBUG] players command returned no results, trying users command...');
+      result = await sendRconCommand(ip, port, password, 'users');
+      
+      if (result) {
+        const lines = result.split('\n');
+        for (const line of lines) {
+          if (line.trim() && !line.includes('Users:') && !line.includes('Total:')) {
+            const playerName = line.trim();
+            if (playerName) {
+              players.add(playerName);
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`[ZORP DEBUG] Found ${players.size} online players: ${Array.from(players).join(', ')}`);
     return players;
   } catch (error) {
     console.error('Error getting online players:', error);
