@@ -1401,7 +1401,6 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
       // Just log the entry for debugging
     } else if (exitMatch) {
       const zoneOwner = exitMatch[1];
-      console.log(`[ZORP] Zone exit detected for: ${zoneOwner} on server: ${serverName}`);
       // Don't send feed message here - only when player goes offline
       // Just log the exit for debugging
     }
