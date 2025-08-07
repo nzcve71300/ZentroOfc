@@ -282,10 +282,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         }
       }
 
-      // Check online status every 5 minutes (reduced frequency)
+      // Check online status every 30 seconds (increased frequency for better Zorp detection)
       const now = Date.now();
       const lastCheck = onlineStatusChecks.get(key) || 0;
-      if (now - lastCheck > 300000) { // 5 minutes
+      if (now - lastCheck > 30000) { // 30 seconds instead of 5 minutes
         await checkPlayerOnlineStatus(client, guildId, serverName, ip, port, password);
         onlineStatusChecks.set(key, now);
       }
@@ -2080,6 +2080,10 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
     const currentOnline = await getOnlinePlayers(ip, port, password);
     const previousOnline = onlinePlayers.get(serverKey) || new Set();
     
+    console.log(`[ZORP DEBUG] Checking online status for ${serverName}:`);
+    console.log(`  Previous online: ${Array.from(previousOnline).join(', ')}`);
+    console.log(`  Current online: ${Array.from(currentOnline).join(', ')}`);
+    
     // Only process if we have valid data
     if (currentOnline.size === 0 && previousOnline.size === 0) {
       return; // Skip if no players detected
@@ -2115,12 +2119,12 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     // Clean player name by removing quotes
     const cleanPlayerName = playerName.replace(/^"|"$/g, '');
     
-    // Deduplication: prevent multiple calls for the same player within 30 seconds
+    // Deduplication: prevent multiple calls for the same player within 10 seconds
     const playerKey = `${guildId}_${serverName}_${cleanPlayerName}`;
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
-    if (now - lastCall < 30000) { // 30 seconds
+    if (now - lastCall < 10000) { // 10 seconds instead of 30 seconds
       console.log(`[ZORP] Skipping duplicate offline call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
@@ -2166,12 +2170,12 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     // Clean player name by removing quotes
     const cleanPlayerName = playerName.replace(/^"|"$/g, '');
     
-    // Deduplication: prevent multiple calls for the same player within 30 seconds
+    // Deduplication: prevent multiple calls for the same player within 10 seconds
     const playerKey = `${guildId}_${serverName}_${cleanPlayerName}`;
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
-    if (now - lastCall < 30000) { // 30 seconds
+    if (now - lastCall < 10000) { // 10 seconds instead of 30 seconds
       console.log(`[ZORP] Skipping duplicate online call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
@@ -2456,7 +2460,7 @@ async function checkIfAllTeamMembersOffline(ip, port, password, playerName) {
     
     // Check if any team member is online
     for (const member of teamInfo.members) {
-      if (onlinePlayers.includes(member)) {
+      if (onlinePlayers.has(member)) {
         console.log(`[ZORP DEBUG] Team member ${member} is online`);
         return false; // At least one team member is online
       }
