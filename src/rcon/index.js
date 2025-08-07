@@ -2068,7 +2068,8 @@ async function getOnlinePlayers(ip, port, password) {
             if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
                 !playerName.includes('<slot:') && !playerName.includes('1users') && 
                 !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
-                !playerName.includes('status') && !playerName.includes('players')) {
+                !playerName.includes('status') && !playerName.includes('players') &&
+                !playerName.includes('0users') && !playerName.includes('users')) {
               players.add(playerName);
             }
           }
@@ -2092,7 +2093,8 @@ async function getOnlinePlayers(ip, port, password) {
               // Filter out death messages and other non-player data
               if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
                   !playerName.includes('<slot:') && !playerName.includes('1users') && 
-                  !playerName.includes('id ;name') && !playerName.includes('NA ;')) {
+                  !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
+                  !playerName.includes('0users') && !playerName.includes('users')) {
                 players.add(playerName);
               }
             }
@@ -2114,7 +2116,8 @@ async function getOnlinePlayers(ip, port, password) {
             // Filter out death messages and other non-player data
             if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
                 !playerName.includes('<slot:') && !playerName.includes('1users') && 
-                !playerName.includes('id ;name') && !playerName.includes('NA ;')) {
+                !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
+                !playerName.includes('0users') && !playerName.includes('users')) {
               players.add(playerName);
             }
           }
