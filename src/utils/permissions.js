@@ -7,7 +7,7 @@ const pool = require('../db');
  * Check if a user has the "Zentro Admin" role
  */
 function hasZentroAdminRole(member) {
-  return member.roles.cache.some(role => role.name === 'Zentro Admin');
+  return member.roles.cache.some(role => role.name === 'ZentroAdmin' || role.name === 'Zentro Admin');
 }
 
 /**

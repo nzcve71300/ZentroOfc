@@ -110,10 +110,16 @@ module.exports = {
       try {
         if (existingResult.length > 0) {
           // Update existing setting
-          await pool.query(
-            'UPDATE channel_settings SET channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?',
-            [channel.id, serverId, channelType]
-          );
+          let updateQuery = 'UPDATE channel_settings SET channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?';
+          let updateParams = [channel.id, serverId, channelType];
+          
+          // If this is a playercount channel and no original_name is stored, store it now
+          if (channelType === 'playercount' && !existingResult[0].original_name) {
+            updateQuery = 'UPDATE channel_settings SET channel_id = ?, original_name = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND channel_type = ?';
+            updateParams = [channel.id, channel.name, serverId, channelType];
+          }
+          
+          await pool.query(updateQuery, updateParams);
 
           await interaction.editReply({
             embeds: [successEmbed(
@@ -123,10 +129,19 @@ module.exports = {
           });
         } else {
           // Create new setting
-          await pool.query(
-            'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-            [serverId, channelType, channel.id]
-          );
+          if (channelType === 'playercount') {
+            // Store original name for playercount channels
+            await pool.query(
+              'INSERT INTO channel_settings (server_id, channel_type, channel_id, original_name, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [serverId, channelType, channel.id, channel.name]
+            );
+          } else {
+            // Other channel types don't need original name
+            await pool.query(
+              'INSERT INTO channel_settings (server_id, channel_type, channel_id, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [serverId, channelType, channel.id]
+            );
+          }
 
           await interaction.editReply({
             embeds: [successEmbed(

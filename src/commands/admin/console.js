@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { getServerByNickname } = require('../../utils/unifiedPlayerSystem');
+const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const pool = require('../../db');
 
 module.exports = {
@@ -45,12 +46,10 @@ module.exports = {
     const commandInput = interaction.options.getString('input');
 
     try {
-      // Check if user has admin permissions
+      // Check if user has admin permissions (Administrator OR ZentroAdmin role)
       const member = await interaction.guild.members.fetch(userId);
-      if (!member.permissions.has('Administrator')) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Permission Denied', 'You need Administrator permissions to use this command.')]
-        });
+      if (!hasAdminPermissions(member)) {
+        return sendAccessDeniedMessage(interaction, false);
       }
 
       // Get server

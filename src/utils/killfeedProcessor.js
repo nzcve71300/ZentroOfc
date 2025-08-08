@@ -81,12 +81,12 @@ class KillfeedProcessor {
         
         console.log('After cleanup - victim:', victim, 'killer:', killer);
         
-        // Check if victim is a scientist ID (numeric)
+        // Check if victim is a scientist ID (any numeric value = scientist)
         if (/^\d+$/.test(victim)) {
           victim = 'Scientist';
         }
         
-        // Check if killer is a scientist ID (numeric)
+        // Check if killer is a scientist ID (any numeric value = scientist)
         if (/^\d+$/.test(killer)) {
           killer = 'Scientist';
         }
@@ -109,12 +109,12 @@ class KillfeedProcessor {
         
         console.log('Normal format match - killer:', killer, 'victim:', victim);
         
-        // Check if victim is a scientist ID (numeric)
+        // Check if victim is a scientist ID (any numeric value = scientist)
         if (/^\d+$/.test(victim)) {
           victim = 'Scientist';
         }
         
-        // Check if killer is a scientist ID (numeric)
+        // Check if killer is a scientist ID (any numeric value = scientist)
         if (/^\d+$/.test(killer)) {
           killer = 'Scientist';
         }

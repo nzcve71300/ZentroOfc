@@ -1041,9 +1041,9 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
 
 async function updatePlayerCountChannel(client, guildId, serverName, online, queued) {
   try {
-    // Get the channel ID from database
+    // Get the channel ID and original name from database
     const [result] = await pool.query(
-      `SELECT cs.channel_id 
+      `SELECT cs.channel_id, cs.original_name 
        FROM channel_settings cs 
        JOIN rust_servers rs ON cs.server_id = rs.id 
        JOIN guilds g ON rs.guild_id = g.id 
@@ -1057,6 +1057,7 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
     }
 
     const channelId = result[0].channel_id;
+    const originalName = result[0].original_name;
     const channel = await client.channels.fetch(channelId);
     
     if (!channel) {
@@ -1069,8 +1070,15 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
       return;
     }
 
-    // Update voice channel name
-    const newName = `🌐${online}🕑${queued}`;
+    // Update voice channel name - append to original name if available, otherwise use current logic
+    let newName;
+    if (originalName) {
+      newName = `${originalName} 🌐${online} 🕑${queued}`;
+    } else {
+      // Fallback for channels without stored original name
+      newName = `🌐${online}🕑${queued}`;
+    }
+    
     await channel.setName(newName);
     console.log(`[PLAYER COUNT] Updated ${serverName}: ${newName}`);
   } catch (error) {
