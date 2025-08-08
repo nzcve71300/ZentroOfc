@@ -2683,15 +2683,22 @@ async function displayScheduledMessages(client) {
           const messagePair = messages.find(m => m.pair_number === currentPairNumber);
           
           if (messagePair && messagePair.message1 && messagePair.message2) {
-            // Send both messages to the server with minimal delay
-            await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
-            
-            // Small delay to ensure first message is processed
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`);
-            
-            console.log(`📢 [SCHEDULER] Sent message pair ${messagePair.pair_number} to ${server.nickname}: "${messagePair.message1.substring(0, 50)}..." / "${messagePair.message2.substring(0, 50)}..."`);
+            try {
+              // Send first message
+              console.log(`📢 [SCHEDULER] Sending message 1 to ${server.nickname}: ${messagePair.message1.substring(0, 50)}...`);
+              await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
+              
+              // Small delay to ensure first message is processed
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              // Send second message
+              console.log(`📢 [SCHEDULER] Sending message 2 to ${server.nickname}: ${messagePair.message2.substring(0, 50)}...`);
+              await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`);
+              
+              console.log(`📢 [SCHEDULER] Successfully sent message pair ${messagePair.pair_number} to ${server.nickname}`);
+            } catch (error) {
+              console.error(`❌ [SCHEDULER] Failed to send message pair ${messagePair.pair_number} to ${server.nickname}:`, error.message);
+            }
           }
           
           // Move to next pair number - if only one pair exists, cycle back to it immediately
