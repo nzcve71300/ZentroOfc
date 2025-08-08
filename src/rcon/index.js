@@ -2688,8 +2688,8 @@ async function displayScheduledMessages(client) {
               console.log(`📢 [SCHEDULER] Sending message 1 to ${server.nickname}: ${messagePair.message1.substring(0, 50)}...`);
               await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
               
-              // Small delay to ensure first message is processed
-              await new Promise(resolve => setTimeout(resolve, 500));
+              // Wait 5 seconds to respect server cooldown
+              await new Promise(resolve => setTimeout(resolve, 5000));
               
               // Send second message
               console.log(`📢 [SCHEDULER] Sending message 2 to ${server.nickname}: ${messagePair.message2.substring(0, 50)}...`);
