@@ -643,82 +643,27 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
         if (now - lastClaimTime < cooldownSeconds) {
           const remaining = Math.ceil((cooldownSeconds - (now - lastClaimTime)) / 60);
           console.log('[KIT CLAIM DEBUG] Cooldown active for:', kitKey, 'player:', player, 'remaining:', remaining, 'minutes');
-          sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> please wait <color=white>before claiming again</color> <color=#800080>${remaining}m</color>`);
+          sendRconCommand(ip, port, password, `say [AUTOKITS] <color=#FF69B4>${player}</color> please wait <color=white>before claiming again</color> <color=#800080>${remaining}m</color>`);
           return;
         }
       }
     }
 
-    // Handle VIP kit authorization (in-game VIP role check)
-    if (kitKey === 'VIPkit') {
-      console.log('[KIT CLAIM DEBUG] Checking VIP authorization for player:', player);
+    // Check if player is in the kit list for VIP and ELITE kits
+    if (kitKey === 'VIPkit' || kitKey.startsWith('ELITEkit')) {
+      console.log('[KIT CLAIM DEBUG] Checking kit list authorization for:', kitKey, 'player:', player);
       
-      // Debug: Check what's in kit_auth table
-      const [debugKitAuth] = await pool.query(
-        'SELECT * FROM kit_auth WHERE kitlist = ?',
-        ['VIPkit']
-      );
-      console.log('[KIT CLAIM DEBUG] All VIP kit_auth entries:', debugKitAuth);
-      
-      // Debug: Check server ID format
-      console.log('[KIT CLAIM DEBUG] Server ID type:', typeof serverId);
-      console.log('[KIT CLAIM DEBUG] Server ID value:', serverId);
-      
-      // For VIP kits, we need to check if the player has been added to the VIP kit list
-      // This is managed through the kit_auth table with kitlist = 'VIPkit'
-      const [playerResult] = await pool.query(
-        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ? AND discord_id IS NOT NULL',
-        [serverId, player]
-      );
-      
-      console.log('[KIT CLAIM DEBUG] Player lookup result:', playerResult);
-      
-      if (playerResult.length === 0) {
-        console.log('[KIT CLAIM DEBUG] Player not linked for VIP kit:', player);
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you must link your Discord account first</color> <color=#800080>to claim VIP kits</color>`);
-        return;
+      // Get the kitlist name
+      let kitlistName;
+      if (kitKey === 'VIPkit') {
+        kitlistName = 'VIPkit';
+      } else {
+        // ELITEkit1 -> Elite1, ELITEkit2 -> Elite2, etc.
+        const eliteNumber = kitKey.replace('ELITEkit', '');
+        kitlistName = `Elite${eliteNumber}`;
       }
       
-      // Check if player is authorized for VIP kit
-      const [authResult] = await pool.query(
-        `SELECT ka.* FROM kit_auth ka 
-         JOIN players p ON ka.discord_id = p.discord_id 
-         WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
-        [serverId, player, 'VIPkit']
-      );
-      
-      console.log('[KIT CLAIM DEBUG] VIP auth result:', authResult);
-      console.log('[KIT CLAIM DEBUG] Server ID used:', serverId);
-      console.log('[KIT CLAIM DEBUG] Player name used:', player);
-      
-      if (authResult.length === 0) {
-        console.log('[KIT CLAIM DEBUG] Not authorized for VIP kit, player:', player);
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you need to be added to VIP list to claim</color> <color=#800080>VIP kits</color>`);
-        return;
-      }
-    }
-
-    // Handle ELITE kit authorization (requires being added to kit list)
-    if (kitKey.startsWith('ELITEkit')) {
-      console.log('[KIT CLAIM DEBUG] Checking elite authorization for:', kitKey, 'player:', player);
-      
-      // Extract elite number from kit name (ELITEkit1 -> Elite1, ELITEkit2 -> Elite2, etc.)
-      const eliteNumber = kitKey.replace('ELITEkit', '');
-      const kitlistName = `Elite${eliteNumber}`;
-      
-      // First check if player is linked
-      const [playerResult] = await pool.query(
-        'SELECT discord_id FROM players WHERE server_id = ? AND ign = ? AND discord_id IS NOT NULL',
-        [serverId, player]
-      );
-      
-      if (playerResult.length === 0) {
-        console.log('[KIT CLAIM DEBUG] Player not linked for elite kit:', kitKey, 'player:', player);
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you must link your Discord account first</color> <color=#800080>to claim elite kits</color>`);
-        return;
-      }
-      
-      // Then check if player is authorized for this elite kit list
+      // Check if player is in the kit list
       const [authResult] = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
          JOIN players p ON ka.discord_id = p.discord_id 
@@ -726,13 +671,11 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
         [serverId, player, kitlistName]
       );
       
-      console.log('[KIT CLAIM DEBUG] Elite auth result for', kitlistName, ':', authResult);
-      console.log('[KIT CLAIM DEBUG] Server ID used:', serverId);
-      console.log('[KIT CLAIM DEBUG] Player name used:', player);
+      console.log('[KIT CLAIM DEBUG] Kit list check for', kitlistName, ':', authResult.length > 0 ? 'AUTHORIZED' : 'NOT AUTHORIZED');
       
       if (authResult.length === 0) {
-        console.log('[KIT CLAIM DEBUG] Not authorized for elite kit', kitKey, 'player:', player);
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not authorized for</color> <color=#800080>${kitName}</color>`);
+        console.log('[KIT CLAIM DEBUG] Player not in kit list:', player, 'for kit:', kitKey);
+        // Don't send any message - just silently ignore
         return;
       }
     }
@@ -744,7 +687,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     );
     console.log('[KIT CLAIM DEBUG] Giving kit:', kitName, 'to player:', player);
     sendRconCommand(ip, port, password, `kit givetoplayer ${kitName} ${player}`);
-    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>claimed</color> <color=#800080>${kitName}</color>`);
+    sendRconCommand(ip, port, password, `say [AUTOKITS] <color=#FF69B4>${player}</color> <color=white>claimed</color> <color=#800080>${kitName}</color>`);
 
     // Log to admin feed
     await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🛡️ **Kit Claim:** ${player} claimed ${kitName}`);
