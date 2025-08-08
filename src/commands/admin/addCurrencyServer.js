@@ -70,6 +70,10 @@ module.exports = {
         return interaction.editReply({ embeds: [errorEmbed('No Players Found', `No active players found on **${serverName}**.`)] });
       }
 
+      // Get currency name for this server
+      const { getCurrencyName } = require('../../utils/economy');
+      const currencyName = await getCurrencyName(server.id);
+
       const affectedPlayers = [];
       for (const player of players) {
         const newBalance = await updatePlayerBalance(player.id, amount);
@@ -77,15 +81,12 @@ module.exports = {
         affectedPlayers.push({ ign: player.ign, balance: newBalance });
       }
 
-             const embed = successEmbed(
-         'Currency Added to Server', 
-         `Added **${amount} ${currencyName}** to all players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
-       );
+      const embed = successEmbed(
+        'Currency Added to Server', 
+        `Added **${amount} ${currencyName}** to all players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
+      );
 
       // Add player details if there are 10 or fewer players
-              // Get currency name for this server
-        const { getCurrencyName } = require('../../utils/economy');
-        const currencyName = await getCurrencyName(server.id);
         
         if (affectedPlayers.length <= 10) {
           affectedPlayers.forEach(player => {
