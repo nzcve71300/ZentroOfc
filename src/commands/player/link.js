@@ -31,7 +31,7 @@ module.exports = {
         });
       }
 
-      // Check if Discord ID is already linked to a different IGN
+      // Check if Discord ID is already linked to a different IGN (only active records)
       const [existingDiscordLinks] = await pool.query(
         `SELECT p.*, rs.nickname 
          FROM players p
@@ -50,7 +50,7 @@ module.exports = {
         });
       }
 
-      // Check if IGN is already linked to a different Discord ID
+      // Check if IGN is already linked to a different Discord ID (only active records)
       const [existingIgnLinks] = await pool.query(
         `SELECT p.*, rs.nickname 
          FROM players p
@@ -66,6 +66,25 @@ module.exports = {
         const serverList = existingIgnLinks.map(p => p.nickname).join(', ');
         return await interaction.editReply({
           embeds: [orangeEmbed('IGN Already Linked', `This in-game name is already linked to another Discord account on: ${serverList}`)]
+        });
+      }
+
+      // Check if this exact link already exists (active)
+      const [existingExactLink] = await pool.query(
+        `SELECT p.*, rs.nickname 
+         FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+         AND p.discord_id = ? 
+         AND LOWER(p.ign) = LOWER(?) 
+         AND p.is_active = true`,
+        [guildId, discordId, ign]
+      );
+
+      if (existingExactLink.length > 0) {
+        const serverList = existingExactLink.map(p => p.nickname).join(', ');
+        return await interaction.editReply({
+          embeds: [orangeEmbed('Already Linked', `You are already linked to **${ign}** on: ${serverList}`)]
         });
       }
 

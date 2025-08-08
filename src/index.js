@@ -14,6 +14,7 @@ const { discordToken } = require('./config');
 const { startRconListeners } = require('./rcon');
 const { ensureZentroAdminRole, isAuthorizedGuild, sendUnauthorizedGuildMessage } = require('./utils/permissions');
 const { initializeGuildSubscription } = require('./utils/subscriptionSystem');
+const LeaderboardScheduler = require('./utils/leaderboardScheduler');
 const pool = require('./db');
 const fs = require('fs');
 const path = require('path');
@@ -82,6 +83,15 @@ client.once('ready', async () => {
   
   // Start RCON listeners after bot is ready
   startRconListeners(client);
+  
+  // Initialize leaderboard scheduler
+  try {
+    const leaderboardScheduler = new LeaderboardScheduler(client);
+    leaderboardScheduler.startScheduler();
+    console.log('📊 Leaderboard scheduler initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize leaderboard scheduler:', error);
+  }
   
   // Restore zones after a short delay to ensure RCON connections are established
   setTimeout(async () => {

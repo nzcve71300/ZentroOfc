@@ -772,40 +772,67 @@ async function handleLinkConfirm(interaction) {
           [guildId, interaction.guild?.name || 'Unknown Guild']
         );
 
-        // Check if player already exists
-        const [existingPlayers] = await pool.query(
-          'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?)',
+        // Check if this exact link already exists (active)
+        const [existingExactLink] = await pool.query(
+          'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND LOWER(ign) = LOWER(?)',
+          [guildId, server.id, discordId, ign]
+        );
+
+        if (existingExactLink.length > 0) {
+          const existing = existingExactLink[0];
+          if (existing.is_active) {
+            // Already linked - this shouldn't happen due to the check in /link command
+            console.log(`Player already linked: ${ign} on ${server.nickname}`);
+            linkedServers.push(server.nickname);
+            continue;
+          } else {
+            // Reactivate inactive player
+            await pool.query(
+              'UPDATE players SET linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
+              [existing.id]
+            );
+            linkedServers.push(server.nickname);
+            continue;
+          }
+        }
+
+        // Check if IGN is already linked to a different Discord ID
+        const [existingIgnLink] = await pool.query(
+          'SELECT id, discord_id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
           [guildId, server.id, ign]
         );
 
-        if (existingPlayers.length > 0) {
-          const existing = existingPlayers[0];
-          if (existing.is_active) {
-            throw new Error(`❌ This IGN is already linked and active on ${server.nickname}. Contact an admin to unlink.`);
+        if (existingIgnLink.length > 0) {
+          const existing = existingIgnLink[0];
+          if (existing.discord_id != discordId) {
+            throw new Error(`❌ This IGN is already linked to another Discord account on ${server.nickname}. Contact an admin to unlink.`);
           }
-          // Reactivate inactive player
-          await pool.query(
-            'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-            [discordId, existing.id]
-          );
-          // Ensure economy record
-          await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
-            [existing.id, existing.id]
-          );
-        } else {
-          // Insert new player
-          const [playerResult] = await pool.query(
-            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [guildId, server.id, discordId, ign]
-          );
-          
-          // Create economy record
-          await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)',
-            [playerResult.insertId, playerResult.insertId]
-          );
         }
+
+        // Check if Discord ID is already linked to a different IGN
+        const [existingDiscordLink] = await pool.query(
+          'SELECT id, ign FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND is_active = true',
+          [guildId, server.id, discordId]
+        );
+
+        if (existingDiscordLink.length > 0) {
+          const existing = existingDiscordLink[0];
+          if (existing.ign.toLowerCase() !== ign.toLowerCase()) {
+            throw new Error(`❌ Your Discord is already linked to a different IGN on ${server.nickname}. Use /unlink first.`);
+          }
+        }
+
+        // Insert new player
+        const [playerResult] = await pool.query(
+          'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
+          [guildId, server.id, discordId, ign]
+        );
+        
+        // Create economy record
+        await pool.query(
+          'INSERT INTO economy (player_id, balance) VALUES (?, 0)',
+          [playerResult.insertId]
+        );
         
         linkedServers.push(server.nickname);
       } catch (error) {
