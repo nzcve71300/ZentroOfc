@@ -26,7 +26,7 @@ async function diagnoseZorpIssues() {
     console.log(`📊 Recent ZORP zones (last hour): ${recentZones.length}`);
     recentZones.forEach((zone, index) => {
       console.log(`  ${index + 1}. ${zone.owner} on ${zone.server_name}`);
-      console.log(`     Zone ID: ${zone.zone_id}`);
+      console.log(`     Zone ID: ${zone.name}`);
       console.log(`     Status: ${zone.created_at + zone.expire * 1000 > Date.now() ? 'Active' : 'Expired'}`);
       console.log(`     Created: ${zone.created_at}`);
     });
@@ -45,7 +45,7 @@ async function diagnoseZorpIssues() {
     activeZones.forEach((zone, index) => {
       const timeLeft = Math.floor((new Date(zone.created_at).getTime() + zone.expire * 1000 - Date.now()) / 1000);
       console.log(`  ${index + 1}. ${zone.owner} on ${zone.server_name}`);
-      console.log(`     Zone ID: ${zone.zone_id}`);
+      console.log(`     Zone ID: ${zone.name}`);
       console.log(`     Time left: ${Math.floor(timeLeft / 3600)}h ${Math.floor((timeLeft % 3600) / 60)}m`);
     });
     
