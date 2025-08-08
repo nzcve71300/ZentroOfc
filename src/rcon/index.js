@@ -548,6 +548,8 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
 
 async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, password) {
   let kitMsg = parsed.Message;
+  let foundEmotes = new Set(); // Track found emotes to prevent double processing
+  
   if (typeof kitMsg === 'string' && kitMsg.trim().startsWith('{')) {
     try {
       kitMsg = JSON.parse(kitMsg);
@@ -560,15 +562,24 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
 
   for (const [kitKey, emote] of Object.entries(KIT_EMOTES)) {
     let player = null;
+    let processedEmote = false;
+    
+    // Check string format first (more reliable for player name extraction)
     if (typeof kitMsg === 'string' && kitMsg.includes(emote)) {
       player = extractPlayerName(kitMsg);
+      processedEmote = true;
       console.log('[KIT EMOTE DEBUG] Found kit emote in string:', kitKey, 'player:', player, 'emote:', emote);
-    } else if (typeof kitMsg === 'object' && kitMsg.Message && kitMsg.Message.includes(emote)) {
+    } 
+    // Only check object format if string format didn't match
+    else if (typeof kitMsg === 'object' && kitMsg.Message && kitMsg.Message.includes(emote)) {
       player = kitMsg.Username || null;
+      processedEmote = true;
       console.log('[KIT EMOTE DEBUG] Found kit emote in object:', kitKey, 'player:', player, 'emote:', emote);
     }
     
-    if (player) {
+    // Only process if we found a valid player and haven't processed this emote yet
+    if (player && processedEmote && !foundEmotes.has(kitKey)) {
+      foundEmotes.add(kitKey);
       console.log('[KIT EMOTE DEBUG] Processing kit claim for:', kitKey, 'player:', player);
       await handleKitClaim(client, guildId, serverName, ip, port, password, kitKey, player);
     }
@@ -579,12 +590,12 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
   try {
     console.log('[KIT CLAIM DEBUG] Processing claim for:', kitKey, 'player:', player, 'server:', serverName);
     
-    // Deduplication check - prevent same kit claim within 5 seconds
+    // Deduplication check - prevent same kit claim within 10 seconds
     const dedupKey = `${serverName}:${player}:${kitKey}`;
     const now = Date.now();
     const lastClaim = kitClaimDeduplication.get(dedupKey);
     
-    if (lastClaim && (now - lastClaim) < 5000) {
+    if (lastClaim && (now - lastClaim) < 10000) {
       console.log('[KIT CLAIM DEBUG] Duplicate claim detected, skipping:', dedupKey);
       return;
     }
@@ -592,9 +603,9 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     // Record this claim attempt
     kitClaimDeduplication.set(dedupKey, now);
     
-    // Clean up old entries (older than 10 seconds)
+    // Clean up old entries (older than 20 seconds)
     for (const [key, timestamp] of kitClaimDeduplication.entries()) {
-      if (now - timestamp > 10000) {
+      if (now - timestamp > 20000) {
         kitClaimDeduplication.delete(key);
       }
     }
@@ -944,9 +955,28 @@ function extractPlayerName(logLine) {
     }
   }
   
-  // Try direct format
+  // Try direct format but exclude chat server messages
   match = logLine.match(/^([^:]+) :/);
-  if (match) return match[1];
+  if (match) {
+    let playerName = match[1];
+    // Filter out chat server prefixes and system messages
+    if (playerName.includes('[CHAT SERVER]')) {
+      // Extract actual player name from "[CHAT SERVER] PlayerName"
+      const serverMatch = playerName.match(/\[CHAT SERVER\]\s*(.+)/);
+      if (serverMatch) {
+        playerName = serverMatch[1].trim();
+      } else {
+        return null; // Invalid format
+      }
+    }
+    
+    // Filter out other system prefixes
+    if (playerName.startsWith('[') || playerName.includes('SERVER') || playerName.length < 2) {
+      return null;
+    }
+    
+    return playerName;
+  }
   
   return null;
 }
