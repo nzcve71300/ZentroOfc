@@ -9,7 +9,7 @@ const {
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('force-link')
+    .setName('force-link-player')
     .setDescription('Force link a player (Admin only)')
     .addStringOption(option =>
       option.setName('identifier')

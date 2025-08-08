@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const pool = require('../../utils/database');
+const pool = require('../../db');
 const LeaderboardScheduler = require('../../utils/leaderboardScheduler');
 
 module.exports = {

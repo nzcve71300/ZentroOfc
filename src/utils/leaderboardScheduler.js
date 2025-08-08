@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const pool = require('./database');
+const pool = require('../db');
 const LeaderboardGenerator = require('./leaderboardGenerator');
 
 class LeaderboardScheduler {
