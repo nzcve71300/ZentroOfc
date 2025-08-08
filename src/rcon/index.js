@@ -2683,13 +2683,11 @@ async function displayScheduledMessages(client) {
           const messagePair = messages.find(m => m.pair_number === currentPairNumber);
           
           if (messagePair && messagePair.message1 && messagePair.message2) {
-            // Send both messages to the server
-            await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`);
-            
-            // Wait 3 seconds between messages
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            await sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`);
+            // Send both messages to the server at the same time
+            await Promise.all([
+              sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message1}`),
+              sendRconCommand(server.ip, server.port, server.password, `say ${messagePair.message2}`)
+            ]);
             
             console.log(`📢 [SCHEDULER] Sent message pair ${messagePair.pair_number} to ${server.nickname}: "${messagePair.message1.substring(0, 50)}..." / "${messagePair.message2.substring(0, 50)}..."`);
           }

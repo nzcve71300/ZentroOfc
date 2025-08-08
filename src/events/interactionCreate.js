@@ -664,7 +664,7 @@ async function handleConfirmPurchase(interaction) {
        
        // Send confirmation message to player in-game
        const playerName = interaction.user.username;
-       const confirmMessage = `say <b><size=keep it the same><color=#00FF00>[SHOP]</color><color=#FFD700>${playerName}</color><color=#00FF00>Successfully delivered</color>`;
+       const confirmMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>Successfully delivered</color>`;
        sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
        console.log(`Confirmation message sent to ${itemData.nickname}: ${confirmMessage}`);
        

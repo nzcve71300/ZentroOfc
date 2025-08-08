@@ -35,7 +35,7 @@ module.exports = {
         ))
     .addStringOption(option =>
       option.setName('input')
-        .setDescription('Enter your message (supports color tags)')
+        .setDescription('Enter your message (supports color tags and <br> for line breaks)')
         .setRequired(true)),
 
   async autocomplete(interaction) {
