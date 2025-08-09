@@ -924,8 +924,6 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         const shortestWait = Math.min(horseRemaining, rhibRemaining);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>you must wait</color> <color=#ffa500>${shortestWait}</color> <color=white>seconds before booking another ride</color>`);
         
-        // Log cooldown attempt to admin feed
-        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${player} attempted to book a ride but both vehicles are on cooldown (${shortestWait}s remaining)`);
         return;
       }
 
@@ -942,12 +940,6 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         horseAvailable: horseAvailable,
         rhibAvailable: rhibAvailable
       });
-
-      // Log ride request to admin feed
-      const availableVehicles = [];
-      if (horseAvailable) availableVehicles.push('Horse');
-      if (rhibAvailable) availableVehicles.push('Rhib');
-      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${player} requested a ride (Available: ${availableVehicles.join(', ') || 'None'})`);
 
       // Set timeout to clean up state
       setTimeout(() => {
@@ -1014,18 +1006,37 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
 async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
   try {
-    // Check if this is a position response (format: "PlayerName at (x, y, z)")
-    const positionMatch = msg.match(/^(.+?) at \(([^)]+)\)$/);
+    // Check if this is a position response (format: "(x, y, z)")
+    const positionMatch = msg.match(/^\(([^)]+)\)$/);
     if (!positionMatch) return;
 
-    const playerName = positionMatch[1].trim();
-    const positionStr = positionMatch[2];
+    const positionStr = positionMatch[1];
+    console.log(`[BOOK-A-RIDE DEBUG] Position response received: ${positionStr}`);
 
-    console.log(`[BOOK-A-RIDE DEBUG] Position response for ${playerName}: ${positionStr}`);
+    // Find any pending Book-a-Ride requests for this server
+    const serverStateKey = `${guildId}:${serverName}:`;
+    let foundPlayerState = null;
+    let foundStateKey = null;
+    
+    for (const [stateKey, playerState] of bookARideState.entries()) {
+      if (stateKey.startsWith(serverStateKey) && playerState.step === 'waiting_for_position') {
+        foundPlayerState = playerState;
+        foundStateKey = stateKey;
+        break;
+      }
+    }
 
-    // Check if we have a pending Book-a-Ride request for this player
-    const stateKey = `${guildId}:${serverName}:${playerName}`;
-    const playerState = bookARideState.get(stateKey);
+    if (!foundPlayerState) {
+      console.log(`[BOOK-A-RIDE DEBUG] No pending position request found for server ${serverName}`);
+      return;
+    }
+
+    const playerName = foundPlayerState.player;
+    console.log(`[BOOK-A-RIDE DEBUG] Matched position to player: ${playerName}`);
+
+    // Use the found player state
+    const stateKey = foundStateKey;
+    const playerState = foundPlayerState;
 
     if (playerState && playerState.step === 'waiting_for_position') {
       console.log(`[BOOK-A-RIDE DEBUG] Found pending request for ${playerName}`);
@@ -1068,14 +1079,11 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
       }
 
       // Update timeout for choice selection
-      setTimeout(async () => {
+      setTimeout(() => {
         const currentState = bookARideState.get(stateKey);
         if (currentState && currentState.step === 'waiting_for_choice') {
           bookARideState.delete(stateKey);
           sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${playerName}</color> <color=white>ride request timed out</color>`);
-          
-          // Log timeout to admin feed
-          await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${playerName}'s ride request timed out (no vehicle selected)`);
         }
       }, 30000); // 30 second timeout for choice
     }
