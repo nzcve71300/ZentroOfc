@@ -281,7 +281,11 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       await trackTeamChanges(msg);
 
       // Handle position responses for Book-a-Ride
-      await handlePositionResponse(client, guildId, serverName, msg, ip, port, password);
+      try {
+        await handlePositionResponse(client, guildId, serverName, msg, ip, port, password);
+      } catch (error) {
+        console.error('[BOOK-A-RIDE DEBUG] Error in handlePositionResponse:', error);
+      }
 
       // Handle save messages - specifically "Saving X entities"
       if (msg.includes("[ SAVE ] Saving") && msg.includes("entities")) {
