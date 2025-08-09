@@ -1,8 +1,9 @@
 const WebSocket = require('ws');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const pool = require('../db');
 const { orangeEmbed } = require('../embeds/format');
 const killfeedProcessor = require('../utils/killfeedProcessor');
+const path = require('path');
 
 let activeConnections = {};
 let joinLeaveBuffer = {};
@@ -1614,23 +1615,21 @@ async function handleAirdropEvent(client, guildId, serverName, ip, port, passwor
       return;
     }
 
-    // Create embed with image
+    // Create embed with local image attachment
     const embed = new EmbedBuilder()
       .setColor(0xFF8C00) // Orange color
       .setTitle(`${serverName} - An Airdrop Is Inbound`)
       .setDescription('An Air Drop Is Falling From The Sky, Can You Find It?')
-      .setImage('https://cdn.discordapp.com/attachments/1389281978867646564/1403875445375635466/OIP_3.webp?ex=68992464&is=6897d2e4&hm=90edf6d974c8be9a7ae48028b3762d488bbf954f2eb0a893d6c1e4b7efe97cd6&')
+      .setImage('attachment://airdrop.png')
       .setTimestamp();
 
     console.log(`[EVENTS] Sending airdrop embed to channel ${channelId} for ${serverName}`);
-    console.log(`[EVENTS] Embed data:`, {
-      title: embed.data.title,
-      description: embed.data.description,
-      image: embed.data.image,
-      color: embed.data.color
-    });
     
-    await channel.send({ embeds: [embed] });
+    // Create file attachment
+    const airdropImagePath = path.join(__dirname, '../../assets/images/airdrop.png');
+    const attachment = new AttachmentBuilder(airdropImagePath, { name: 'airdrop.png' });
+    
+    await channel.send({ embeds: [embed], files: [attachment] });
     console.log(`[EVENTS] Airdrop event message sent to Discord for ${serverName}`);
     
   } catch (error) {
@@ -1665,15 +1664,19 @@ async function handleLockedCrateEvent(client, guildId, serverName, ip, port, pas
       return;
     }
 
-    // Create embed with image
+    // Create embed with local image attachment
     const embed = new EmbedBuilder()
       .setColor(0xFF8C00) // Orange color
       .setTitle(`${serverName} - A Locked Crate Is Inbound`)
       .setDescription('A locked crate is dropping somewhere on the map can you find it?')
-      .setThumbnail('https://cdn.discordapp.com/attachments/1389281978867646564/1403877324834869389/OIP_4.webp?ex=68992625&is=6897d4a5&hm=428e2c930009cdf4aa75998827dfcba19030df1729fad08fda68aa36fed76283&')
+      .setImage('attachment://locked_crate.png')
       .setTimestamp();
 
-    await channel.send({ embeds: [embed] });
+    // Create file attachment
+    const lockedCrateImagePath = path.join(__dirname, '../../assets/images/locked_crate.png');
+    const attachment = new AttachmentBuilder(lockedCrateImagePath, { name: 'locked_crate.png' });
+    
+    await channel.send({ embeds: [embed], files: [attachment] });
     console.log(`[EVENTS] Locked crate event message sent to Discord for ${serverName}`);
     
   } catch (error) {
