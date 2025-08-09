@@ -1239,12 +1239,30 @@ function sendRconCommand(ip, port, password, command) {
       }
     });
     
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       try {
         const parsed = JSON.parse(data);
         console.log(`[RCON] Received response from ${ip}:${port}:`, parsed);
         
         if (parsed.Message) {
+          // Check if this is a position response and inject it into main message handler
+          if (parsed.Message.match(/^\([^)]+\)$/)) {
+            console.log(`[BOOK-A-RIDE DEBUG] Position response from command handler: "${parsed.Message}"`);
+            // Inject this message into the main WebSocket handler by triggering it manually
+            // Find the main connection for this server
+            const connectionKey = Object.keys(activeConnections).find(key => key.includes(`${ip}:${port}`));
+            if (connectionKey) {
+              const mainConnection = activeConnections[connectionKey];
+              if (mainConnection && mainConnection.readyState === 1) {
+                // Simulate a message event on the main connection
+                const simulatedData = JSON.stringify({ Message: parsed.Message });
+                console.log(`[BOOK-A-RIDE DEBUG] Injecting position response into main handler`);
+                // We'll trigger the main handler by emitting a message event
+                mainConnection.emit('message', simulatedData);
+              }
+            }
+          }
+          
           responseReceived = true;
           ws.close();
           resolve(parsed.Message);
