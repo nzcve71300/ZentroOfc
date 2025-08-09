@@ -986,15 +986,12 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         const vehicleKey = `${serverId}:${player}:${chosenRide}`;
         bookARideCooldowns.set(vehicleKey, Date.now());
 
-        // Try to spawn at a slightly offset position to avoid proximity issues
-        const [x, y, z] = playerState.position.split(', ').map(coord => parseFloat(coord));
-        const offsetPosition = `${x + Math.random() * 4 - 2}, ${y + 1}, ${z + Math.random() * 4 - 2}`;
-        
+        // Spawn vehicles at exact player position as requested
         if (chosenRide === 'horse') {
-          sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${offsetPosition}`);
+          sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${playerState.position}`);
           sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#8b4513>Horse</color> <color=white>has been delivered!</color>`);
         } else if (chosenRide === 'rhib') {
-          sendRconCommand(ip, port, password, `entity.spawn rhib ${offsetPosition}`);
+          sendRconCommand(ip, port, password, `entity.spawn rhib ${playerState.position}`);
           sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
         }
 
