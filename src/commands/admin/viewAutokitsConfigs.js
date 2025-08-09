@@ -71,7 +71,7 @@ module.exports = {
         );
 
         // Define expected kit names in order
-        const expectedKits = ['FREEkit1', 'FREEkit2', 'VIPkit', 'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5', 'ELITEkit6'];
+        const expectedKits = ['FREEkit1', 'FREEkit2', 'VIPkit', 'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5', 'ELITEkit6', 'ELITEkit7', 'ELITEkit8', 'ELITEkit9', 'ELITEkit10', 'ELITEkit11', 'ELITEkit12', 'ELITEkit13'];
         
         // Create a map of existing configurations
         const configMap = {};
@@ -94,7 +94,7 @@ module.exports = {
         // Add server summary
         embed.addFields({
           name: `🏠 ${server.nickname}`,
-          value: `**Configured:** ${configuredCount}/9 kits\n**Enabled:** ${enabledCount} kits\n**Status:** ${configuredCount > 0 ? '🟢 Configured' : '⚪ Not configured'}`,
+          value: `**Configured:** ${configuredCount}/16 kits\n**Enabled:** ${enabledCount} kits\n**Status:** ${configuredCount > 0 ? '🟢 Configured' : '⚪ Not configured'}`,
           inline: false
         });
 

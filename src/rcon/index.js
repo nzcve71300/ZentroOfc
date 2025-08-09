@@ -19,6 +19,13 @@ const KIT_EMOTES = {
   ELITEkit4: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
   ELITEkit5: 'd11_quick_chat_i_need_phrase_format d11_Food',
   ELITEkit6: 'd11_quick_chat_i_have_phrase_format hatchet',
+  ELITEkit7: 'd11_quick_chat_i_have_phrase_format metal.refined',
+  ELITEkit8: 'd11_quick_chat_i_have_phrase_format d11_Scrap',
+  ELITEkit9: 'd11_quick_chat_i_have_phrase_format lowgradefuel',
+  ELITEkit10: 'd11_quick_chat_i_have_phrase_format d11_Food',
+  ELITEkit11: 'd11_quick_chat_i_have_phrase_format d11_Water',
+  ELITEkit12: 'd11_quick_chat_i_have_phrase_format bow.hunting',
+  ELITEkit13: 'd11_quick_chat_i_have_phrase_format pickaxe',
 };
 
 // Teleport emote mappings

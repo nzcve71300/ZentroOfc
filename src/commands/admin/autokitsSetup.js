@@ -25,7 +25,14 @@ module.exports = {
           { name: 'ELITEkit3', value: 'ELITEkit3' },
           { name: 'ELITEkit4', value: 'ELITEkit4' },
           { name: 'ELITEkit5', value: 'ELITEkit5' },
-          { name: 'ELITEkit6', value: 'ELITEkit6' }
+          { name: 'ELITEkit6', value: 'ELITEkit6' },
+          { name: 'ELITEkit7', value: 'ELITEkit7' },
+          { name: 'ELITEkit8', value: 'ELITEkit8' },
+          { name: 'ELITEkit9', value: 'ELITEkit9' },
+          { name: 'ELITEkit10', value: 'ELITEkit10' },
+          { name: 'ELITEkit11', value: 'ELITEkit11' },
+          { name: 'ELITEkit12', value: 'ELITEkit12' },
+          { name: 'ELITEkit13', value: 'ELITEkit13' }
         ))
     .addStringOption(option =>
       option.setName('option')
