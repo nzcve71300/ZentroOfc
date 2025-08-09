@@ -1625,11 +1625,20 @@ async function handleAirdropEvent(client, guildId, serverName, ip, port, passwor
 
     console.log(`[EVENTS] Sending airdrop embed to channel ${channelId} for ${serverName}`);
     
-    // Create file attachment
-    const airdropImagePath = path.join(__dirname, '../../assets/images/airdrop.png');
-    const attachment = new AttachmentBuilder(airdropImagePath, { name: 'airdrop.png' });
-    
-    await channel.send({ embeds: [embed], files: [attachment] });
+    // Create file attachment with error handling
+    try {
+      const airdropImagePath = path.join(__dirname, '../../assets/images/airdrop.png');
+      console.log(`[EVENTS] Attempting to load airdrop image from: ${airdropImagePath}`);
+      
+      const attachment = new AttachmentBuilder(airdropImagePath, { name: 'airdrop.png' });
+      await channel.send({ embeds: [embed], files: [attachment] });
+      console.log(`[EVENTS] Airdrop event message sent with image attachment for ${serverName}`);
+    } catch (imageError) {
+      console.error(`[EVENTS] Failed to send airdrop with image, sending without image: ${imageError.message}`);
+      // Fallback: send embed without image
+      await channel.send({ embeds: [embed] });
+      console.log(`[EVENTS] Airdrop event message sent without image for ${serverName}`);
+    }
     console.log(`[EVENTS] Airdrop event message sent to Discord for ${serverName}`);
     
   } catch (error) {
@@ -1672,11 +1681,20 @@ async function handleLockedCrateEvent(client, guildId, serverName, ip, port, pas
       .setImage('attachment://locked_crate.png')
       .setTimestamp();
 
-    // Create file attachment
-    const lockedCrateImagePath = path.join(__dirname, '../../assets/images/locked_crate.png');
-    const attachment = new AttachmentBuilder(lockedCrateImagePath, { name: 'locked_crate.png' });
-    
-    await channel.send({ embeds: [embed], files: [attachment] });
+    // Create file attachment with error handling
+    try {
+      const lockedCrateImagePath = path.join(__dirname, '../../assets/images/locked_crate.png');
+      console.log(`[EVENTS] Attempting to load locked crate image from: ${lockedCrateImagePath}`);
+      
+      const attachment = new AttachmentBuilder(lockedCrateImagePath, { name: 'locked_crate.png' });
+      await channel.send({ embeds: [embed], files: [attachment] });
+      console.log(`[EVENTS] Locked crate event message sent with image attachment for ${serverName}`);
+    } catch (imageError) {
+      console.error(`[EVENTS] Failed to send locked crate with image, sending without image: ${imageError.message}`);
+      // Fallback: send embed without image
+      await channel.send({ embeds: [embed] });
+      console.log(`[EVENTS] Locked crate event message sent without image for ${serverName}`);
+    }
     console.log(`[EVENTS] Locked crate event message sent to Discord for ${serverName}`);
     
   } catch (error) {
