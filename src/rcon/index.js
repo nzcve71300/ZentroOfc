@@ -1006,12 +1006,18 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
 async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
   try {
-    console.log(`[BOOK-A-RIDE DEBUG] Checking message for position response: "${msg}"`);
+    // Only debug position-like messages to reduce spam
+    if (msg.includes('(') && msg.includes(')')) {
+      console.log(`[BOOK-A-RIDE DEBUG] Checking potential position: "${msg}"`);
+      console.log(`[BOOK-A-RIDE DEBUG] Message length: ${msg.length}, first char code: ${msg.charCodeAt(0)}, last char code: ${msg.charCodeAt(msg.length-1)}`);
+    }
     
     // Check if this is a position response (format: "(x, y, z)")
     const positionMatch = msg.match(/^\(([^)]+)\)$/);
     if (!positionMatch) {
-      console.log(`[BOOK-A-RIDE DEBUG] Not a position response`);
+      if (msg.includes('(') && msg.includes(')')) {
+        console.log(`[BOOK-A-RIDE DEBUG] Position-like message but regex failed`);
+      }
       return;
     }
 
