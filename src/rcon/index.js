@@ -310,6 +310,12 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         await handleLockedCrateEvent(client, guildId, serverName, ip, port, password);
       }
 
+      // Handle event detection - specifically patrol helicopter events
+      if (msg.includes("[EVENT] Spawning [patrolhelicopter] for [event_helicopter]")) {
+        console.log(`[EVENT] Patrol helicopter event detected on ${serverName}`);
+        await handlePatrolHelicopterEvent(client, guildId, serverName, ip, port, password);
+      }
+
       // Check online status every 15 seconds (increased frequency for better Zorp detection)
       const now = Date.now();
       const lastCheck = onlineStatusChecks.get(key) || 0;
@@ -1699,6 +1705,62 @@ async function handleLockedCrateEvent(client, guildId, serverName, ip, port, pas
     
   } catch (error) {
     console.error(`[EVENT] Error handling locked crate event on ${serverName}:`, error.message);
+  }
+}
+
+async function handlePatrolHelicopterEvent(client, guildId, serverName, ip, port, password) {
+  try {
+    console.log(`[EVENT] Processing patrol helicopter event for ${serverName}`);
+    
+    // Get the channel ID from database
+    const [result] = await pool.query(
+      `SELECT cs.channel_id 
+       FROM channel_settings cs 
+       JOIN rust_servers rs ON cs.server_id = rs.id 
+       JOIN guilds g ON rs.guild_id = g.id 
+       WHERE g.discord_id = ? AND rs.nickname = ? AND cs.channel_type = ?`,
+      [guildId, serverName, 'events']
+    );
+
+    if (result.length === 0) {
+      console.log(`[EVENTS] No events channel configured for ${serverName}`);
+      return;
+    }
+
+    const channelId = result[0].channel_id;
+    const channel = await client.channels.fetch(channelId);
+    
+    if (!channel) {
+      console.error(`[EVENTS] Channel not found: ${channelId}`);
+      return;
+    }
+
+    // Create embed with local image attachment
+    const embed = new EmbedBuilder()
+      .setColor(0xFF8C00) // Orange color
+      .setTitle(`${serverName} - Gear up and get ready`)
+      .setDescription('A Patrol Helicopter Is Circling The Map, Ready To Take It Down?')
+      .setImage('attachment://patrol_helicopter.png')
+      .setTimestamp();
+
+    // Create file attachment with error handling
+    try {
+      const patrolHelicopterImagePath = path.join(__dirname, '../../assets/images/patrol_helicopter.png');
+      console.log(`[EVENTS] Attempting to load patrol helicopter image from: ${patrolHelicopterImagePath}`);
+      
+      const attachment = new AttachmentBuilder(patrolHelicopterImagePath, { name: 'patrol_helicopter.png' });
+      await channel.send({ embeds: [embed], files: [attachment] });
+      console.log(`[EVENTS] Patrol helicopter event message sent with image attachment for ${serverName}`);
+    } catch (imageError) {
+      console.error(`[EVENTS] Failed to send patrol helicopter with image, sending without image: ${imageError.message}`);
+      // Fallback: send embed without image
+      await channel.send({ embeds: [embed] });
+      console.log(`[EVENTS] Patrol helicopter event message sent without image for ${serverName}`);
+    }
+    console.log(`[EVENTS] Patrol helicopter event message sent to Discord for ${serverName}`);
+    
+  } catch (error) {
+    console.error(`[EVENT] Error handling patrol helicopter event on ${serverName}:`, error.message);
   }
 }
 
