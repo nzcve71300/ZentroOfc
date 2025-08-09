@@ -26,7 +26,8 @@ module.exports = {
           { name: 'Admin feed (Text Channel)', value: 'adminfeed' },
           { name: 'Note feed (Text Channel)', value: 'notefeed' },
           { name: 'Killfeed (Text Channel)', value: 'killfeed' },
-          { name: 'ZORP feed (Text Channel)', value: 'zorpfeed' }
+          { name: 'ZORP feed (Text Channel)', value: 'zorpfeed' },
+          { name: 'Events (Text Channel)', value: 'events' }
         )),
 
   async autocomplete(interaction) {
