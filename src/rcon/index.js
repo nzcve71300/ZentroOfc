@@ -682,12 +682,15 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
         kitlistName = `Elite${eliteNumber}`;
       }
       
-      // Check if player is in the kit list
+      // Check if player is in the kit list (support both old and new schema)
       const [authResult] = await pool.query(
         `SELECT ka.* FROM kit_auth ka 
-         JOIN players p ON ka.discord_id = p.discord_id 
-         WHERE ka.server_id = ? AND p.ign = ? AND ka.kitlist = ?`,
-        [serverId, player, kitlistName]
+         LEFT JOIN players p ON ka.discord_id = p.discord_id 
+         WHERE ka.server_id = ? AND (
+           (ka.kit_name = ? AND LOWER(ka.player_name) = LOWER(?)) OR
+           (p.ign = ? AND ka.kitlist = ?)
+         )`,
+        [serverId, kitKey, player, player, kitlistName]
       );
       
       console.log('[KIT CLAIM DEBUG] Kit list check for', kitlistName, ':', authResult.length > 0 ? 'AUTHORIZED' : 'NOT AUTHORIZED');
