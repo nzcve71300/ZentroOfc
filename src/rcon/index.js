@@ -18,6 +18,7 @@ const KIT_EMOTES = {
   ELITEkit3: 'd11_quick_chat_i_need_phrase_format d11_Scrap',
   ELITEkit4: 'd11_quick_chat_i_need_phrase_format lowgradefuel',
   ELITEkit5: 'd11_quick_chat_i_need_phrase_format d11_Food',
+  ELITEkit6: 'd11_quick_chat_i_have_phrase_format hatchet',
 };
 
 // Teleport emote mappings

@@ -25,7 +25,8 @@ module.exports = {
           { name: 'Elite List 2', value: 'Elite2' },
           { name: 'Elite List 3', value: 'Elite3' },
           { name: 'Elite List 4', value: 'Elite4' },
-          { name: 'Elite List 5', value: 'Elite5' }
+          { name: 'Elite List 5', value: 'Elite5' },
+          { name: 'Elite List 6', value: 'Elite6' }
         )),
 
   async autocomplete(interaction) {
