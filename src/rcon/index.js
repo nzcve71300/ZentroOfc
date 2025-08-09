@@ -1006,9 +1006,14 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
 async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
   try {
+    console.log(`[BOOK-A-RIDE DEBUG] Checking message for position response: "${msg}"`);
+    
     // Check if this is a position response (format: "(x, y, z)")
     const positionMatch = msg.match(/^\(([^)]+)\)$/);
-    if (!positionMatch) return;
+    if (!positionMatch) {
+      console.log(`[BOOK-A-RIDE DEBUG] Not a position response`);
+      return;
+    }
 
     const positionStr = positionMatch[1];
     console.log(`[BOOK-A-RIDE DEBUG] Position response received: ${positionStr}`);
