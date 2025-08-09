@@ -280,6 +280,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Track team changes for ZORP system
       await trackTeamChanges(msg);
 
+      // Handle position responses for Book-a-Ride
+      await handlePositionResponse(client, guildId, serverName, msg, ip, port, password);
+
       // Handle save messages - specifically "Saving X entities"
       if (msg.includes("[ SAVE ] Saving") && msg.includes("entities")) {
         const saveMatch = msg.match(/\[ SAVE \] Saving (\d+) entities/);
@@ -879,8 +882,207 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
 }
 
 async function handleBookARide(client, guildId, serverName, parsed, ip, port, password) {
-  // Implementation for book-a-ride functionality
-  // This would handle ride booking emotes and entity spawning
+  try {
+    const msg = parsed.Message;
+    if (!msg) return;
+
+    // Get server ID and check if Book-a-Ride is enabled
+    const [serverResult] = await pool.query(
+      'SELECT rs.id, rc.enabled, rc.cooldown FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) return;
+    
+    const serverId = serverResult[0].id;
+    const isEnabled = serverResult[0].enabled !== 0; // Default to enabled if no config
+    const cooldown = serverResult[0].cooldown || 300; // Default 5 minutes
+
+    if (!isEnabled) return;
+
+    // Check for Book-a-Ride request emote
+    if (msg.includes(BOOKARIDE_EMOTE)) {
+      const player = extractPlayerName(msg);
+      if (!player) return;
+
+      console.log(`[BOOK-A-RIDE DEBUG] Player ${player} requested a ride on ${serverName}`);
+
+      // Check cooldowns for both vehicle types
+      const now = Date.now();
+      const horseKey = `${serverId}:${player}:horse`;
+      const rhibKey = `${serverId}:${player}:rhib`;
+      
+      const horseLastUsed = bookARideCooldowns.get(horseKey) || 0;
+      const rhibLastUsed = bookARideCooldowns.get(rhibKey) || 0;
+      
+      const horseAvailable = (now - horseLastUsed) >= cooldown * 1000;
+      const rhibAvailable = (now - rhibLastUsed) >= cooldown * 1000;
+      
+      if (!horseAvailable && !rhibAvailable) {
+        const horseRemaining = Math.ceil((cooldown * 1000 - (now - horseLastUsed)) / 1000);
+        const rhibRemaining = Math.ceil((cooldown * 1000 - (now - rhibLastUsed)) / 1000);
+        const shortestWait = Math.min(horseRemaining, rhibRemaining);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>you must wait</color> <color=#ffa500>${shortestWait}</color> <color=white>seconds before booking another ride</color>`);
+        
+        // Log cooldown attempt to admin feed
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${player} attempted to book a ride but both vehicles are on cooldown (${shortestWait}s remaining)`);
+        return;
+      }
+
+      // Get player position
+      sendRconCommand(ip, port, password, `printpos "${player}"`);
+      
+      // Store the player's request state with availability info
+      const stateKey = `${guildId}:${serverName}:${player}`;
+      bookARideState.set(stateKey, {
+        player: player,
+        serverId: serverId,
+        timestamp: now,
+        step: 'waiting_for_position',
+        horseAvailable: horseAvailable,
+        rhibAvailable: rhibAvailable
+      });
+
+      // Log ride request to admin feed
+      const availableVehicles = [];
+      if (horseAvailable) availableVehicles.push('Horse');
+      if (rhibAvailable) availableVehicles.push('Rhib');
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${player} requested a ride (Available: ${availableVehicles.join(', ') || 'None'})`);
+
+      // Set timeout to clean up state
+      setTimeout(() => {
+        bookARideState.delete(stateKey);
+      }, 30000); // 30 second timeout
+
+      return;
+    }
+
+    // Check for ride choice responses (yes/no emotes)
+    const player = extractPlayerName(msg);
+    if (!player) return;
+
+    const stateKey = `${guildId}:${serverName}:${player}`;
+    const playerState = bookARideState.get(stateKey);
+
+    if (playerState && playerState.step === 'waiting_for_choice') {
+      let chosenRide = null;
+
+      if (msg.includes(BOOKARIDE_CHOICES.horse)) {
+        chosenRide = 'horse';
+      } else if (msg.includes(BOOKARIDE_CHOICES.rhib)) {
+        chosenRide = 'rhib';
+      }
+
+      if (chosenRide && playerState.position) {
+        console.log(`[BOOK-A-RIDE DEBUG] Player ${player} chose ${chosenRide} at position ${playerState.position}`);
+
+        // Check if the chosen vehicle is available (double-check)
+        const isAvailable = (chosenRide === 'horse' && playerState.horseAvailable) || 
+                           (chosenRide === 'rhib' && playerState.rhibAvailable);
+        
+        if (!isAvailable) {
+          sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>that vehicle is on cooldown</color>`);
+          bookARideState.delete(stateKey);
+          return;
+        }
+
+        // Set specific vehicle cooldown
+        const vehicleKey = `${serverId}:${player}:${chosenRide}`;
+        bookARideCooldowns.set(vehicleKey, Date.now());
+
+        // Spawn the vehicle
+        if (chosenRide === 'horse') {
+          sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${playerState.position}`);
+          sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#8b4513>Horse</color> <color=white>has been delivered!</color>`);
+        } else if (chosenRide === 'rhib') {
+          sendRconCommand(ip, port, password, `entity.spawn rhib ${playerState.position}`);
+          sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
+        }
+
+        // Clean up state
+        bookARideState.delete(stateKey);
+
+        // Log to admin feed
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${player} spawned a ${chosenRide} at position (${playerState.position})`);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error handling Book-a-Ride:', error);
+  }
+}
+
+async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
+  try {
+    // Check if this is a position response (format: "PlayerName at (x, y, z)")
+    const positionMatch = msg.match(/^(.+?) at \(([^)]+)\)$/);
+    if (!positionMatch) return;
+
+    const playerName = positionMatch[1].trim();
+    const positionStr = positionMatch[2];
+
+    console.log(`[BOOK-A-RIDE DEBUG] Position response for ${playerName}: ${positionStr}`);
+
+    // Check if we have a pending Book-a-Ride request for this player
+    const stateKey = `${guildId}:${serverName}:${playerName}`;
+    const playerState = bookARideState.get(stateKey);
+
+    if (playerState && playerState.step === 'waiting_for_position') {
+      console.log(`[BOOK-A-RIDE DEBUG] Found pending request for ${playerName}`);
+
+      // Store the position and update state
+      playerState.position = positionStr;
+      playerState.step = 'waiting_for_choice';
+
+      // Show ride selection message with availability
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${playerName}</color> <color=white>which ride would you like to book?</color>`);
+      
+      if (playerState.horseAvailable) {
+        sendRconCommand(ip, port, password, `say <color=#00ff00>Horse</color> <color=white>- Use Yes emote</color>`);
+      } else {
+        // Calculate remaining cooldown for horse
+        const [serverResult] = await pool.query(
+          'SELECT cooldown FROM rider_config WHERE server_id = ?',
+          [playerState.serverId]
+        );
+        const cooldown = serverResult.length > 0 ? serverResult[0].cooldown : 300;
+        const horseKey = `${playerState.serverId}:${playerName}:horse`;
+        const horseLastUsed = bookARideCooldowns.get(horseKey) || 0;
+        const horseRemaining = Math.ceil((cooldown * 1000 - (Date.now() - horseLastUsed)) / 1000);
+        sendRconCommand(ip, port, password, `say <color=#ff6b6b>Horse</color> <color=white>- Cooldown:</color> <color=#ffa500>${horseRemaining}s</color>`);
+      }
+      
+      if (playerState.rhibAvailable) {
+        sendRconCommand(ip, port, password, `say <color=#00ff00>Rhib</color> <color=white>- Use No emote</color>`);
+      } else {
+        // Calculate remaining cooldown for rhib
+        const [serverResult] = await pool.query(
+          'SELECT cooldown FROM rider_config WHERE server_id = ?',
+          [playerState.serverId]
+        );
+        const cooldown = serverResult.length > 0 ? serverResult[0].cooldown : 300;
+        const rhibKey = `${playerState.serverId}:${playerName}:rhib`;
+        const rhibLastUsed = bookARideCooldowns.get(rhibKey) || 0;
+        const rhibRemaining = Math.ceil((cooldown * 1000 - (Date.now() - rhibLastUsed)) / 1000);
+        sendRconCommand(ip, port, password, `say <color=#ff6b6b>Rhib</color> <color=white>- Cooldown:</color> <color=#ffa500>${rhibRemaining}s</color>`);
+      }
+
+      // Update timeout for choice selection
+      setTimeout(async () => {
+        const currentState = bookARideState.get(stateKey);
+        if (currentState && currentState.step === 'waiting_for_choice') {
+          bookARideState.delete(stateKey);
+          sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${playerName}</color> <color=white>ride request timed out</color>`);
+          
+          // Log timeout to admin feed
+          await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏇 **Rider:** ${playerName}'s ride request timed out (no vehicle selected)`);
+        }
+      }, 30000); // 30 second timeout for choice
+    }
+
+  } catch (error) {
+    console.error('Error handling position response:', error);
+  }
 }
 
 async function handleNotePanel(client, guildId, serverName, msg, ip, port, password) {
