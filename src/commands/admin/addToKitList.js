@@ -113,10 +113,30 @@ module.exports = {
 
       const player = playerResult[0];
 
+      // Map kitlist to actual kit names
+      const kitNameMap = {
+        'VIPkit': 'VIPkit',
+        'Elite1': 'ELITEkit1',
+        'Elite2': 'ELITEkit2',
+        'Elite3': 'ELITEkit3',
+        'Elite4': 'ELITEkit4',
+        'Elite5': 'ELITEkit5',
+        'Elite6': 'ELITEkit6',
+        'Elite7': 'ELITEkit7',
+        'Elite8': 'ELITEkit8',
+        'Elite9': 'ELITEkit9',
+        'Elite10': 'ELITEkit10',
+        'Elite11': 'ELITEkit11',
+        'Elite12': 'ELITEkit12',
+        'Elite13': 'ELITEkit13'
+      };
+
+      const kitName = kitNameMap[kitlist] || kitlist;
+
       // Check if player is already in this kit list
       const [existingResult] = await pool.query(
-        'SELECT id FROM kit_auth WHERE server_id = ? AND discord_id = ? AND kitlist = ?',
-        [serverId, player.discord_id, kitlist]
+        'SELECT id FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
+        [serverId, kitName, player.ign]
       );
 
       if (existingResult.length > 0) {
@@ -126,17 +146,10 @@ module.exports = {
         });
       }
 
-      // If player doesn't have a Discord ID, we can't add them to kit list
-      if (!player.discord_id) {
-        return interaction.editReply({
-          embeds: [errorEmbed('No Discord Link', `${player.ign || 'Player'} doesn't have a Discord account linked. They need to use \`/link <in-game-name>\` first.`)]
-        });
-      }
-
-      // Add player to kit list
+      // Add player to kit list using new schema
       await pool.query(
-        'INSERT INTO kit_auth (server_id, discord_id, kitlist) VALUES (?, ?, ?)',
-        [serverId, player.discord_id, kitlist]
+        'INSERT INTO kit_auth (server_id, kit_name, player_name) VALUES (?, ?, ?)',
+        [serverId, kitName, player.ign]
       );
 
       const kitType = kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`;
