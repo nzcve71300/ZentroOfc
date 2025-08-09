@@ -1006,6 +1006,8 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
 async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
   try {
+    console.log(`[BOOK-A-RIDE DEBUG] handlePositionResponse called with: "${msg}"`);
+    
     // Only debug position-like messages to reduce spam
     if (msg.includes('(') && msg.includes(')')) {
       console.log(`[BOOK-A-RIDE DEBUG] Checking potential position: "${msg}"`);
