@@ -1257,25 +1257,40 @@ function sendRconCommand(ip, port, password, command) {
           if (cleanMessage.match(/^\([^)]+\)$/)) {
             console.log(`[BOOK-A-RIDE DEBUG] Position response from command handler: "${cleanMessage}"`);
             // Inject this message into the main WebSocket handler by triggering it manually
-            // Find the main connection for this server
-            console.log(`[BOOK-A-RIDE DEBUG] Looking for connection: ${ip}:${port}`);
+            // Find the main connection for this server by looking up server details
+            console.log(`[BOOK-A-RIDE DEBUG] Looking for server with IP:port ${ip}:${port}`);
             console.log(`[BOOK-A-RIDE DEBUG] Available connections: ${Object.keys(activeConnections).join(', ')}`);
-            const connectionKey = Object.keys(activeConnections).find(key => key.includes(`${ip}:${port}`));
-            console.log(`[BOOK-A-RIDE DEBUG] Found connection key: ${connectionKey}`);
-            if (connectionKey) {
-              const mainConnection = activeConnections[connectionKey];
-              console.log(`[BOOK-A-RIDE DEBUG] Main connection state: ${mainConnection ? mainConnection.readyState : 'null'}`);
-              if (mainConnection && mainConnection.readyState === 1) {
-                // Simulate a message event on the main connection
-                const simulatedData = JSON.stringify({ Message: cleanMessage });
-                console.log(`[BOOK-A-RIDE DEBUG] Injecting position response into main handler`);
-                // We'll trigger the main handler by emitting a message event
-                mainConnection.emit('message', simulatedData);
+            
+            try {
+              // Look up the server details from database to get guildId and serverName
+              const [serverResult] = await pool.execute(
+                'SELECT rs.nickname, g.discord_id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE rs.ip = ? AND rs.port = ?',
+                [ip, port]
+              );
+              
+              if (serverResult.length > 0) {
+                const serverName = serverResult[0].nickname;
+                const guildId = serverResult[0].discord_id;
+                const connectionKey = `${guildId}_${serverName}`;
+                console.log(`[BOOK-A-RIDE DEBUG] Looking for connection key: ${connectionKey}`);
+                
+                const mainConnection = activeConnections[connectionKey];
+                console.log(`[BOOK-A-RIDE DEBUG] Main connection state: ${mainConnection ? mainConnection.readyState : 'null'}`);
+                
+                if (mainConnection && mainConnection.readyState === 1) {
+                  // Simulate a message event on the main connection
+                  const simulatedData = JSON.stringify({ Message: cleanMessage });
+                  console.log(`[BOOK-A-RIDE DEBUG] Injecting position response into main handler`);
+                  // We'll trigger the main handler by emitting a message event
+                  mainConnection.emit('message', simulatedData);
+                } else {
+                  console.log(`[BOOK-A-RIDE DEBUG] Main connection not ready or null`);
+                }
               } else {
-                console.log(`[BOOK-A-RIDE DEBUG] Main connection not ready or null`);
+                console.log(`[BOOK-A-RIDE DEBUG] Server not found in database for ${ip}:${port}`);
               }
-            } else {
-              console.log(`[BOOK-A-RIDE DEBUG] No matching connection found`);
+            } catch (error) {
+              console.error(`[BOOK-A-RIDE DEBUG] Error looking up server: ${error.message}`);
             }
           }
           
