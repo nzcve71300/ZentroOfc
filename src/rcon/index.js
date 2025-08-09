@@ -1258,16 +1258,24 @@ function sendRconCommand(ip, port, password, command) {
             console.log(`[BOOK-A-RIDE DEBUG] Position response from command handler: "${cleanMessage}"`);
             // Inject this message into the main WebSocket handler by triggering it manually
             // Find the main connection for this server
+            console.log(`[BOOK-A-RIDE DEBUG] Looking for connection: ${ip}:${port}`);
+            console.log(`[BOOK-A-RIDE DEBUG] Available connections: ${Object.keys(activeConnections).join(', ')}`);
             const connectionKey = Object.keys(activeConnections).find(key => key.includes(`${ip}:${port}`));
+            console.log(`[BOOK-A-RIDE DEBUG] Found connection key: ${connectionKey}`);
             if (connectionKey) {
               const mainConnection = activeConnections[connectionKey];
+              console.log(`[BOOK-A-RIDE DEBUG] Main connection state: ${mainConnection ? mainConnection.readyState : 'null'}`);
               if (mainConnection && mainConnection.readyState === 1) {
                 // Simulate a message event on the main connection
                 const simulatedData = JSON.stringify({ Message: cleanMessage });
                 console.log(`[BOOK-A-RIDE DEBUG] Injecting position response into main handler`);
                 // We'll trigger the main handler by emitting a message event
                 mainConnection.emit('message', simulatedData);
+              } else {
+                console.log(`[BOOK-A-RIDE DEBUG] Main connection not ready or null`);
               }
+            } else {
+              console.log(`[BOOK-A-RIDE DEBUG] No matching connection found`);
             }
           }
           
