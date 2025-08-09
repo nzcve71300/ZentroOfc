@@ -1246,8 +1246,16 @@ function sendRconCommand(ip, port, password, command) {
         
         if (parsed.Message) {
           // Check if this is a position response and inject it into main message handler
-          if (parsed.Message.match(/^\([^)]+\)$/)) {
-            console.log(`[BOOK-A-RIDE DEBUG] Position response from command handler: "${parsed.Message}"`);
+          console.log(`[BOOK-A-RIDE DEBUG] Checking response: "${parsed.Message}"`);
+          console.log(`[BOOK-A-RIDE DEBUG] Message length: ${parsed.Message.length}`);
+          console.log(`[BOOK-A-RIDE DEBUG] Character codes: ${Array.from(parsed.Message).map(c => c.charCodeAt(0)).join(',')}`);
+          
+          // Clean the message by removing invisible characters
+          const cleanMessage = parsed.Message.replace(/[\x00-\x1F\x7F]/g, '').trim();
+          console.log(`[BOOK-A-RIDE DEBUG] Clean message: "${cleanMessage}"`);
+          
+          if (cleanMessage.match(/^\([^)]+\)$/)) {
+            console.log(`[BOOK-A-RIDE DEBUG] Position response from command handler: "${cleanMessage}"`);
             // Inject this message into the main WebSocket handler by triggering it manually
             // Find the main connection for this server
             const connectionKey = Object.keys(activeConnections).find(key => key.includes(`${ip}:${port}`));
@@ -1255,7 +1263,7 @@ function sendRconCommand(ip, port, password, command) {
               const mainConnection = activeConnections[connectionKey];
               if (mainConnection && mainConnection.readyState === 1) {
                 // Simulate a message event on the main connection
-                const simulatedData = JSON.stringify({ Message: parsed.Message });
+                const simulatedData = JSON.stringify({ Message: cleanMessage });
                 console.log(`[BOOK-A-RIDE DEBUG] Injecting position response into main handler`);
                 // We'll trigger the main handler by emitting a message event
                 mainConnection.emit('message', simulatedData);
