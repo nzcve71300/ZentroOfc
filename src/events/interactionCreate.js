@@ -828,10 +828,10 @@ async function handleLinkConfirm(interaction) {
           [guildId, server.id, discordId, ign]
         );
         
-        // Create economy record
+        // Create economy record with guild_id
         await pool.query(
-          'INSERT INTO economy (player_id, balance) VALUES (?, 0)',
-          [playerResult.insertId]
+          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0)',
+          [playerResult.insertId, guildId]
         );
         
         linkedServers.push(server.nickname);
