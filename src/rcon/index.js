@@ -986,25 +986,16 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         const vehicleKey = `${serverId}:${player}:${chosenRide}`;
         bookARideCooldowns.set(vehicleKey, Date.now());
 
-        // Clear nearby entities first to avoid proximity issues, then spawn the vehicle
+        // Try to spawn at a slightly offset position to avoid proximity issues
         const [x, y, z] = playerState.position.split(', ').map(coord => parseFloat(coord));
+        const offsetPosition = `${x + Math.random() * 4 - 2}, ${y + 1}, ${z + Math.random() * 4 - 2}`;
         
         if (chosenRide === 'horse') {
-          // Clear nearby horses first
-          sendRconCommand(ip, port, password, `entity.kill testridablehorse ${x} ${y} ${z} 10`);
-          // Wait a moment then spawn
-          setTimeout(() => {
-            sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${playerState.position}`);
-            sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#8b4513>Horse</color> <color=white>has been delivered!</color>`);
-          }, 500);
+          sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${offsetPosition}`);
+          sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#8b4513>Horse</color> <color=white>has been delivered!</color>`);
         } else if (chosenRide === 'rhib') {
-          // Clear nearby rhibs first
-          sendRconCommand(ip, port, password, `entity.kill rhib ${x} ${y} ${z} 10`);
-          // Wait a moment then spawn
-          setTimeout(() => {
-            sendRconCommand(ip, port, password, `entity.spawn rhib ${playerState.position}`);
-            sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
-          }, 500);
+          sendRconCommand(ip, port, password, `entity.spawn rhib ${offsetPosition}`);
+          sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
         }
 
         // Clean up state
@@ -1074,45 +1065,42 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
       playerState.position = positionStr;
       playerState.step = 'waiting_for_choice';
 
-      // Show ride selection message with availability (with delays to avoid rate limiting)
-      sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${playerName}</color> <color=white>which ride would you like to book?</color>`);
+      // Show ride selection message with availability (using <br> to avoid rate limiting)
+      let horseOption = '';
+      let rhibOption = '';
       
-      // Add delays between messages to avoid server rate limiting
-      setTimeout(() => {
-        if (playerState.horseAvailable) {
-          sendRconCommand(ip, port, password, `say <color=#00ff00>Horse</color> <color=white>- Use Yes emote</color>`);
-        } else {
-          // Calculate remaining cooldown for horse
-          pool.query(
-            'SELECT cooldown FROM rider_config WHERE server_id = ?',
-            [playerState.serverId]
-          ).then(([serverResult]) => {
-            const cooldown = serverResult.length > 0 ? serverResult[0].cooldown : 300;
-            const horseKey = `${playerState.serverId}:${playerName}:horse`;
-            const horseLastUsed = bookARideCooldowns.get(horseKey) || 0;
-            const horseRemaining = Math.ceil((cooldown * 1000 - (Date.now() - horseLastUsed)) / 1000);
-            sendRconCommand(ip, port, password, `say <color=#ff6b6b>Horse</color> <color=white>- Cooldown:</color> <color=#ffa500>${horseRemaining}s</color>`);
-          });
-        }
-      }, 1500); // 1.5 second delay
+      if (playerState.horseAvailable) {
+        horseOption = `<color=#00ff00>Horse</color> <color=white>- Use Yes emote</color>`;
+      } else {
+        // Calculate remaining cooldown for horse
+        const [serverResult] = await pool.query(
+          'SELECT cooldown FROM rider_config WHERE server_id = ?',
+          [playerState.serverId]
+        );
+        const cooldown = serverResult.length > 0 ? serverResult[0].cooldown : 300;
+        const horseKey = `${playerState.serverId}:${playerName}:horse`;
+        const horseLastUsed = bookARideCooldowns.get(horseKey) || 0;
+        const horseRemaining = Math.ceil((cooldown * 1000 - (Date.now() - horseLastUsed)) / 1000);
+        horseOption = `<color=#ff6b6b>Horse</color> <color=white>- Cooldown:</color> <color=#ffa500>${horseRemaining}s</color>`;
+      }
       
-      setTimeout(() => {
-        if (playerState.rhibAvailable) {
-          sendRconCommand(ip, port, password, `say <color=#00ff00>Rhib</color> <color=white>- Use No emote</color>`);
-        } else {
-          // Calculate remaining cooldown for rhib
-          pool.query(
-            'SELECT cooldown FROM rider_config WHERE server_id = ?',
-            [playerState.serverId]
-          ).then(([serverResult]) => {
-            const cooldown = serverResult.length > 0 ? serverResult[0].cooldown : 300;
-            const rhibKey = `${playerState.serverId}:${playerName}:rhib`;
-            const rhibLastUsed = bookARideCooldowns.get(rhibKey) || 0;
-            const rhibRemaining = Math.ceil((cooldown * 1000 - (Date.now() - rhibLastUsed)) / 1000);
-            sendRconCommand(ip, port, password, `say <color=#ff6b6b>Rhib</color> <color=white>- Cooldown:</color> <color=#ffa500>${rhibRemaining}s</color>`);
-          });
-        }
-      }, 3000); // 3 second delay
+      if (playerState.rhibAvailable) {
+        rhibOption = `<color=#00ff00>Rhib</color> <color=white>- Use No emote</color>`;
+      } else {
+        // Calculate remaining cooldown for rhib
+        const [serverResult2] = await pool.query(
+          'SELECT cooldown FROM rider_config WHERE server_id = ?',
+          [playerState.serverId]
+        );
+        const cooldown = serverResult2.length > 0 ? serverResult2[0].cooldown : 300;
+        const rhibKey = `${playerState.serverId}:${playerName}:rhib`;
+        const rhibLastUsed = bookARideCooldowns.get(rhibKey) || 0;
+        const rhibRemaining = Math.ceil((cooldown * 1000 - (Date.now() - rhibLastUsed)) / 1000);
+        rhibOption = `<color=#ff6b6b>Rhib</color> <color=white>- Cooldown:</color> <color=#ffa500>${rhibRemaining}s</color>`;
+      }
+      
+      // Send all options in a single message using <br> for line breaks
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${playerName}</color> <color=white>which ride would you like to book?</color><br>${horseOption}<br>${rhibOption}`);
 
       // Update timeout for choice selection
       setTimeout(() => {
