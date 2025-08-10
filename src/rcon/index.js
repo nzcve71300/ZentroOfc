@@ -246,40 +246,18 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // This ensures consistency and reliability
 
       // Handle note panel messages FIRST (before other handlers)
-      if (msg.match(/\[NOTE PANEL\] Player \[ .*? \] changed name from \[ .*? \] to \[ .*? \]/)) {
-        Logger.debug(`[NOTEFEED] Note panel message detected: ${msg}`);
-        const match = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
-        if (match) {
-          const player = match[1];
-          const note = match[2].replace(/\\n/g, '\n').trim();
-          Logger.debug(`[NOTEFEED] Parsed - Player: ${player}, Note: ${note}`);
-          if (note) {
-            Logger.debug(`[NOTEFEED] Sending in-game message: ${note}`);
-            // Send green and bold message in-game
-            sendRconCommand(ip, port, password, `say <color=green><b>${note}</b></color>`);
-            // Send to notefeed
-            await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${note}`);
-            Logger.event(`[NOTEFEED] Note sent to Discord from ${player}: ${note}`);
-          } else {
-            Logger.debug(`[NOTEFEED] Note is empty, skipping`);
-          }
-        } else {
-          Logger.debug(`[NOTEFEED] Regex match failed for note panel message`);
-        }
-        // Return early to prevent other handlers from processing this message
-        return;
-      }
-      
-      // Alternative note panel detection (in case the format is different)
       if (msg.includes('[NOTE PANEL]') && msg.includes('changed name from')) {
-        Logger.debug(`[NOTEFEED] Alternative note panel message detected: ${msg}`);
-        // Try a more flexible regex
-        const altMatch = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ (.*?) \] to \[ (.*?) \]/);
-        if (altMatch) {
-          const player = altMatch[1];
-          const oldNote = altMatch[2];
-          const newNote = altMatch[3].replace(/\\n/g, '\n').trim();
-          Logger.debug(`[NOTEFEED] Alternative parsing - Player: ${player}, Old: "${oldNote}", New: "${newNote}"`);
+        Logger.debug(`[NOTEFEED] Note panel message detected: ${msg}`);
+        
+        // Use a more flexible regex that handles multi-line content
+        const match = msg.match(/\[NOTE PANEL\] Player \[ ([^\]]+) \] changed name from \[ ([^\]]*) \] to \[ ([^\]]*) \]/s);
+        if (match) {
+          const player = match[1].trim();
+          const oldNote = match[2].replace(/\\n/g, '\n').trim();
+          const newNote = match[3].replace(/\\n/g, '\n').trim();
+          
+          Logger.debug(`[NOTEFEED] Parsed - Player: "${player}", Old: "${oldNote}", New: "${newNote}"`);
+          
           if (newNote && newNote !== oldNote) {
             Logger.debug(`[NOTEFEED] Sending in-game message: ${newNote}`);
             // Send green and bold message in-game
@@ -291,7 +269,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
             Logger.debug(`[NOTEFEED] New note is empty or same as old note, skipping`);
           }
         } else {
-          Logger.debug(`[NOTEFEED] Alternative regex also failed`);
+          Logger.debug(`[NOTEFEED] Regex match failed for note panel message`);
         }
         // Return early to prevent other handlers from processing this message
         return;

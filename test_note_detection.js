@@ -13,36 +13,21 @@ function testNoteDetection() {
   testMessages.forEach((msg, index) => {
     console.log(`Test ${index + 1}: "${msg}"`);
     
-    // Test the main regex
-    const mainMatch = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
-    if (mainMatch) {
-      const player = mainMatch[1];
-      const note = mainMatch[2].replace(/\\n/g, '\n').trim();
-      console.log(`  ✅ Main regex matched - Player: "${player}", Note: "${note}"`);
-      if (note) {
-        console.log(`  📝 Would send message: "${note}"`);
-      } else {
-        console.log(`  ⚠️  Note is empty, would skip`);
-      }
-    } else {
-      console.log(`  ❌ Main regex failed`);
-    }
-    
-    // Test the alternative regex
+    // Test the new regex pattern
     if (msg.includes('[NOTE PANEL]') && msg.includes('changed name from')) {
-      const altMatch = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ (.*?) \] to \[ (.*?) \]/);
-      if (altMatch) {
-        const player = altMatch[1];
-        const oldNote = altMatch[2];
-        const newNote = altMatch[3].replace(/\\n/g, '\n').trim();
-        console.log(`  ✅ Alternative regex matched - Player: "${player}", Old: "${oldNote}", New: "${newNote}"`);
+      const match = msg.match(/\[NOTE PANEL\] Player \[ ([^\]]+) \] changed name from \[ ([^\]]*) \] to \[ ([^\]]*) \]/s);
+      if (match) {
+        const player = match[1].trim();
+        const oldNote = match[2].replace(/\\n/g, '\n').trim();
+        const newNote = match[3].replace(/\\n/g, '\n').trim();
+        console.log(`  ✅ New regex matched - Player: "${player}", Old: "${oldNote}", New: "${newNote}"`);
         if (newNote && newNote !== oldNote) {
           console.log(`  📝 Would send message: "${newNote}"`);
         } else {
           console.log(`  ⚠️  New note is empty or same as old note, would skip`);
         }
       } else {
-        console.log(`  ❌ Alternative regex also failed`);
+        console.log(`  ❌ New regex failed`);
       }
     }
     
