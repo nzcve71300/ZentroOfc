@@ -1110,8 +1110,9 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 
     if (!foundPlayerState) {
       // Check for home teleport position requests
+      console.log(`[HOME TELEPORT DEBUG] Checking for home teleport state, current states:`, Array.from(homeTeleportState.entries()));
       const foundHomeState = Array.from(homeTeleportState.entries()).find(([key, state]) => {
-        return key.startsWith(`${serverName}:`) && state.step === 'waiting_for_position';
+        return state.step === 'waiting_for_position';
       });
 
       if (foundHomeState) {
@@ -1139,15 +1140,18 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         const serverId = serverResult[0].id;
 
         // Save home location to database
+        console.log(`[HOME TELEPORT DEBUG] Saving home location to database: guildId=${guildId}, serverId=${serverId}, player=${playerName}, coords=(${coords[0]}, ${coords[1]}, ${coords[2]})`);
         await pool.query(
           `INSERT INTO player_homes (guild_id, server_id, player_name, x_pos, y_pos, z_pos, set_at, updated_at) 
            VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
            ON DUPLICATE KEY UPDATE x_pos = VALUES(x_pos), y_pos = VALUES(y_pos), z_pos = VALUES(z_pos), updated_at = CURRENT_TIMESTAMP`,
           [guildId, serverId, playerName, coords[0], coords[1], coords[2]]
         );
+        console.log(`[HOME TELEPORT DEBUG] Database insert completed`);
 
         // Clear state
         homeTeleportState.delete(homeStateKey);
+        console.log(`[HOME TELEPORT DEBUG] Home location saved and state cleared for ${playerName}`);
 
         // Send success message
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${playerName}</color> <color=white>home location saved successfully!</color>`);
@@ -3708,6 +3712,7 @@ async function handleHomeChoice(client, guildId, serverName, parsed, ip, port, p
       // Update state to waiting for position
       playerState.step = 'waiting_for_position';
       homeTeleportState.set(stateKey, playerState);
+      console.log(`[HOME TELEPORT DEBUG] Set state to waiting_for_position for key: ${stateKey}, state:`, playerState);
 
       // Get player position
       sendRconCommand(ip, port, password, `printpos ${player}`);
@@ -3783,10 +3788,13 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
     }
 
     // Get player's home location
+    console.log(`[HOME TELEPORT DEBUG] Looking for home for player: ${player}, serverId: ${serverId}, guildId: ${guildId}`);
     const [homeResult] = await pool.query(
       'SELECT x_pos, y_pos, z_pos FROM player_homes WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND player_name = ?',
       [guildId, serverId, player]
     );
+
+    console.log(`[HOME TELEPORT DEBUG] Home query result:`, homeResult);
 
     if (homeResult.length === 0) {
       sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you don't have a home set. Use the building emote to set your home first.</color>`);
