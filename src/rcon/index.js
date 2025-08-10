@@ -1298,9 +1298,13 @@ function getServerInfo(ip, port, password) {
 }
 
 function extractPlayerName(logLine) {
+  console.log(`[EXTRACT DEBUG] Processing logLine: ${logLine}`);
   // Try multiple formats for player name extraction
   let match = logLine.match(/\[CHAT LOCAL\] (.*?) :/);
-  if (match) return match[1];
+  if (match) {
+    console.log(`[EXTRACT DEBUG] Found match: ${match[1]}`);
+    return match[1];
+  }
   
   // Try JSON format
   if (logLine.includes('"Username"')) {
@@ -3574,10 +3578,15 @@ async function displayScheduledMessages(client) {
 
 async function handleSetHome(client, guildId, serverName, parsed, ip, port, password) {
   try {
+    console.log(`[HOME TELEPORT DEBUG] Raw message: ${parsed.Message}`);
     const player = extractPlayerName(parsed.Message);
-    if (!player) return;
+    console.log(`[HOME TELEPORT DEBUG] Extracted player: ${player}`);
+    if (!player) {
+      console.log(`[HOME TELEPORT DEBUG] No player extracted, returning`);
+      return;
+    }
 
-    Logger.info(`Set home requested: ${player} on ${serverName}`);
+    console.log(`[HOME TELEPORT DEBUG] Set home requested: ${player} on ${serverName}`);
 
     // Get server ID
     const [serverResult] = await pool.query(
