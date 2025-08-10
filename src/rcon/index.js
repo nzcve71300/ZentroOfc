@@ -254,15 +254,18 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle note panel messages
       if (msg.match(/\[NOTE PANEL\] Player \[ .*? \] changed name from \[ .*? \] to \[ .*? \]/)) {
+        Logger.debug(`[NOTEFEED] Note panel message detected: ${msg}`);
         const match = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
         if (match) {
           const player = match[1];
           const note = match[2].replace(/\\n/g, '\n').trim();
+          Logger.debug(`[NOTEFEED] Parsed - Player: ${player}, Note: ${note}`);
           if (note) {
-            // Send green message in-game
-            sendRconCommand(ip, port, password, `say <color=green>${note}</color>`);
+            // Send green and bold message in-game
+            sendRconCommand(ip, port, password, `say <color=green><b>${note}</b></color>`);
             // Send to notefeed
             await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${note}`);
+            Logger.event(`[NOTEFEED] Note sent to Discord from ${player}: ${note}`);
           }
         }
       }
@@ -1234,8 +1237,28 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 }
 
 async function handleNotePanel(client, guildId, serverName, msg, ip, port, password) {
-  // Implementation for note panel detection
-  // This would handle note panel messages and Discord embeds
+  try {
+    // Handle note panel messages - this is a backup handler for any note-related messages
+    // The main note panel detection is already handled in the main message handler
+    
+    // Check for note panel messages that might have been missed
+    if (msg.match(/\[NOTE PANEL\] Player \[ .*? \] changed name from \[ .*? \] to \[ .*? \]/)) {
+      const match = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
+      if (match) {
+        const player = match[1];
+        const note = match[2].replace(/\\n/g, '\n').trim();
+        if (note) {
+          // Send green and bold message in-game
+          sendRconCommand(ip, port, password, `say <color=green><b>${note}</b></color>`);
+          // Send to notefeed
+          await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${note}`);
+          Logger.event(`[NOTEFEED] Note from ${player}: ${note}`);
+        }
+      }
+    }
+  } catch (error) {
+    Logger.error('Error in handleNotePanel:', error);
+  }
 }
 
 function addToBuffer(guildId, serverName, type, player) {
@@ -1441,6 +1464,8 @@ function sendRconCommand(ip, port, password, command) {
 
 async function sendFeedEmbed(client, guildId, serverName, channelType, message) {
   try {
+    Logger.debug(`[SEND_FEED] Attempting to send ${channelType} message for ${serverName}: ${message}`);
+    
     // Get the channel ID from database
     const [result] = await pool.query(
       `SELECT cs.channel_id 
@@ -1457,12 +1482,16 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
     }
 
     const channelId = result[0].channel_id;
+    Logger.debug(`[SEND_FEED] Found channel ID: ${channelId} for ${channelType}`);
+    
     const channel = await client.channels.fetch(channelId);
     
     if (!channel) {
       Logger.error(`Channel not found: ${channelId}`);
       return;
     }
+
+    Logger.debug(`[SEND_FEED] Channel found: #${channel.name} (${channel.type})`);
 
     // Create embed
     const embed = new EmbedBuilder()
@@ -1473,6 +1502,7 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
 
     await channel.send({ embeds: [embed] });
     Logger.adminFeed(`Sent to ${serverName}: ${message}`);
+    Logger.debug(`[SEND_FEED] Successfully sent ${channelType} message to ${serverName}`);
   } catch (error) {
     Logger.error('Error sending feed embed:', error);
   }
