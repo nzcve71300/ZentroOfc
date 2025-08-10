@@ -43,6 +43,8 @@ const bookARideCooldowns = new Map();
 const lastPrintposRequest = new Map();
 const eventFlags = new Map(); // Track event states to prevent duplicate messages
 const kitClaimDeduplication = new Map(); // Track recent kit claims to prevent duplicates
+const nightSkipVotes = new Map(); // Track night skip voting state
+const nightSkipVoteCounts = new Map(); // Track vote counts per server
 
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
@@ -101,6 +103,11 @@ function startRconListeners(client) {
   setInterval(() => flushKillFeedBuffers(client), 60000);
   setInterval(() => checkAllEvents(client), 60000); // Check for events every 60 seconds (reduced frequency)
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
+  
+  // Check for night skip voting every 2 minutes
+  setInterval(() => {
+    checkAllServersForNightSkip(client);
+  }, 120000); // 2 minutes
   
   // Check player online status every 2 minutes (120000ms) for better Zorp detection
   setInterval(() => {
@@ -314,6 +321,12 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       if (msg.includes("[EVENT] Spawning [patrolhelicopter] for [event_helicopter]")) {
         console.log(`[EVENT] Patrol helicopter event detected on ${serverName}`);
         await handlePatrolHelicopterEvent(client, guildId, serverName, ip, port, password);
+      }
+
+      // Handle night skip voting
+      if (msg.includes("d11_quick_chat_responses_slot_0")) {
+        console.log(`[NIGHT SKIP] Vote detected on ${serverName}`);
+        await handleNightSkipVote(client, guildId, serverName, msg, ip, port, password);
       }
 
       // Check online status every 15 seconds (increased frequency for better Zorp detection)
@@ -1761,6 +1774,187 @@ async function handlePatrolHelicopterEvent(client, guildId, serverName, ip, port
     
   } catch (error) {
     console.error(`[EVENT] Error handling patrol helicopter event on ${serverName}:`, error.message);
+  }
+}
+
+async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, password) {
+  try {
+    const serverKey = `${guildId}:${serverName}`;
+    
+    // Check if night skip voting is active
+    if (!nightSkipVotes.has(serverKey)) {
+      console.log(`[NIGHT SKIP] No active voting session for ${serverName}`);
+      return;
+    }
+
+    // Extract player name from the message
+    const playerMatch = msg.match(/\[CHAT LOCAL\] ([^:]+) :/);
+    if (!playerMatch) {
+      console.log(`[NIGHT SKIP] Could not extract player name from vote message`);
+      return;
+    }
+
+    const playerName = playerMatch[1].trim();
+    console.log(`[NIGHT SKIP] Vote received from ${playerName} on ${serverName}`);
+
+    // Get current vote count
+    const voteCount = nightSkipVoteCounts.get(serverKey) || 0;
+    const newVoteCount = voteCount + 1;
+    nightSkipVoteCounts.set(serverKey, newVoteCount);
+
+    console.log(`[NIGHT SKIP] Vote count for ${serverName}: ${newVoteCount}/5`);
+
+    // Check if we reached 5 votes
+    if (newVoteCount >= 5) {
+      await finalizeNightSkipVote(client, guildId, serverName, newVoteCount, ip, port, password, true);
+    }
+
+  } catch (error) {
+    console.error(`[NIGHT SKIP] Error handling vote on ${serverName}:`, error.message);
+  }
+}
+
+async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip, port, password, success) {
+  try {
+    const serverKey = `${guildId}:${serverName}`;
+    
+    // Clear the voting session
+    nightSkipVotes.delete(serverKey);
+    nightSkipVoteCounts.delete(serverKey);
+
+    if (success) {
+      // Send success message in game
+      const successMessage = `say <color=#00FF00><b>🎉 Skipping night!! Total votes: ${voteCount}</b></color>`;
+      sendRconCommand(ip, port, password, successMessage);
+      console.log(`[NIGHT SKIP] Night skip successful on ${serverName} with ${voteCount} votes`);
+
+      // Send to admin feed
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Successful:** ${voteCount} players voted to skip night`);
+    } else {
+      // Send failure message in game
+      const failureMessage = `say <color=#FF0000><b>😴 Pretty boring! We didn't get enough votes. Total votes: ${voteCount}</b></color>`;
+      sendRconCommand(ip, port, password, failureMessage);
+      console.log(`[NIGHT SKIP] Night skip failed on ${serverName} with ${voteCount} votes`);
+
+      // Send to admin feed
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Failed:** Only ${voteCount} players voted (needed 5)`);
+    }
+
+  } catch (error) {
+    console.error(`[NIGHT SKIP] Error finalizing vote on ${serverName}:`, error.message);
+  }
+}
+
+async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, port, password) {
+  try {
+    console.log(`[NIGHT SKIP] Checking time for ${serverName}`);
+    
+    // Send time command to get current game time
+    const timeResponse = await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
+      
+      ws.on('open', () => {
+        ws.send(JSON.stringify({ Identifier: 1, Message: 'time', Name: 'WebRcon' }));
+      });
+      
+      ws.on('message', (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.Message && response.Message.includes('time')) {
+            ws.close();
+            resolve(response.Message);
+          }
+        } catch (error) {
+          console.error(`[NIGHT SKIP] Error parsing time response:`, error.message);
+        }
+      });
+      
+      ws.on('error', (error) => {
+        reject(error);
+      });
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        ws.close();
+        reject(new Error('Timeout getting time'));
+      }, 5000);
+    });
+
+    // Extract time from response (assuming format like "time: 18")
+    const timeMatch = timeResponse.match(/time:\s*(\d+)/i);
+    if (!timeMatch) {
+      console.log(`[NIGHT SKIP] Could not parse time from response: ${timeResponse}`);
+      return;
+    }
+
+    const currentTime = parseInt(timeMatch[1]);
+    console.log(`[NIGHT SKIP] Current time on ${serverName}: ${currentTime}`);
+
+    // Check if it's 18:00 (6 PM) and no voting is already active
+    const serverKey = `${guildId}:${serverName}`;
+    if (currentTime === 18 && !nightSkipVotes.has(serverKey)) {
+      console.log(`[NIGHT SKIP] Starting night skip vote on ${serverName}`);
+      
+      // Start voting session
+      nightSkipVotes.set(serverKey, true);
+      nightSkipVoteCounts.set(serverKey, 0);
+
+      // Send vote message in game
+      const voteMessage = `say <color=#FF0000><b>🌙 Bye-Bye Night, Hello Light</b></color><br><color=#00FFFF><b>VOTE TO SKIP NIGHT</b></color><br><color=#FFFF00><b>use the (YES) emote</b></color>`;
+      sendRconCommand(ip, port, password, voteMessage);
+      console.log(`[NIGHT SKIP] Vote message sent to ${serverName}`);
+
+      // Send to admin feed
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Vote Started:** Players can now vote to skip night using the YES emote`);
+
+      // Set timeout to end voting after 15 seconds
+      setTimeout(async () => {
+        const finalVoteCount = nightSkipVoteCounts.get(serverKey) || 0;
+        await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= 5);
+      }, 15000);
+
+      console.log(`[NIGHT SKIP] 15-second voting timer started for ${serverName}`);
+    }
+
+  } catch (error) {
+    console.error(`[NIGHT SKIP] Error checking time on ${serverName}:`, error.message);
+  }
+}
+
+async function checkAllServersForNightSkip(client) {
+  try {
+    console.log(`[NIGHT SKIP] Checking all servers for night skip voting`);
+    
+    const [result] = await pool.execute('SELECT * FROM rust_servers');
+    
+    for (const server of result) {
+      // Enhanced validation for server IP/port combinations
+      if (!server.ip || 
+          server.ip === '0.0.0.0' || 
+          server.ip === 'PLACEHOLDER_IP' || 
+          server.ip === 'localhost' ||
+          server.ip === '127.0.0.1' ||
+          !server.port || 
+          server.port === 0 ||
+          server.port < 1 ||
+          server.port > 65535) {
+        continue;
+      }
+      
+      // Validate IP format
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      if (!ipRegex.test(server.ip)) {
+        continue;
+      }
+      
+      const [guildResult] = await pool.execute('SELECT discord_id FROM guilds WHERE id = ?', [server.guild_id]);
+      if (guildResult.length > 0) {
+        const guildId = guildResult[0].discord_id;
+        await checkTimeAndStartNightSkipVote(client, guildId, server.nickname, server.ip, server.port, server.password);
+      }
+    }
+  } catch (error) {
+    console.error('[NIGHT SKIP] Error checking all servers for night skip:', error.message);
   }
 }
 
