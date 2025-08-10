@@ -240,6 +240,31 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Zorp will now rely on the same reliable polling system as playercount
       // This ensures consistency and reliability
 
+      // Handle note panel messages FIRST (before other handlers)
+      if (msg.match(/\[NOTE PANEL\] Player \[ .*? \] changed name from \[ .*? \] to \[ .*? \]/)) {
+        Logger.debug(`[NOTEFEED] Note panel message detected: ${msg}`);
+        const match = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
+        if (match) {
+          const player = match[1];
+          const note = match[2].replace(/\\n/g, '\n').trim();
+          Logger.debug(`[NOTEFEED] Parsed - Player: ${player}, Note: ${note}`);
+          if (note) {
+            Logger.debug(`[NOTEFEED] Sending in-game message: ${note}`);
+            // Send green and bold message in-game
+            sendRconCommand(ip, port, password, `say <color=green><b>${note}</b></color>`);
+            // Send to notefeed
+            await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${note}`);
+            Logger.event(`[NOTEFEED] Note sent to Discord from ${player}: ${note}`);
+          } else {
+            Logger.debug(`[NOTEFEED] Note is empty, skipping`);
+          }
+        } else {
+          Logger.debug(`[NOTEFEED] Regex match failed for note panel message`);
+        }
+        // Return early to prevent other handlers from processing this message
+        return;
+      }
+
       // Handle admin loot spawns
       if (msg.match(/\[ServerVar\] giving .* x /)) {
 
@@ -249,24 +274,6 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           const amount = match[2];
           const item = match[3];
           await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `**Admin spawned:** ${amount}x ${item} for **${player}**`);
-        }
-      }
-
-      // Handle note panel messages
-      if (msg.match(/\[NOTE PANEL\] Player \[ .*? \] changed name from \[ .*? \] to \[ .*? \]/)) {
-        Logger.debug(`[NOTEFEED] Note panel message detected: ${msg}`);
-        const match = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ .*? \] to \[ (.*?) \]/);
-        if (match) {
-          const player = match[1];
-          const note = match[2].replace(/\\n/g, '\n').trim();
-          Logger.debug(`[NOTEFEED] Parsed - Player: ${player}, Note: ${note}`);
-          if (note) {
-            // Send green and bold message in-game
-            sendRconCommand(ip, port, password, `say <color=green><b>${note}</b></color>`);
-            // Send to notefeed
-            await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${note}`);
-            Logger.event(`[NOTEFEED] Note sent to Discord from ${player}: ${note}`);
-          }
         }
       }
 
@@ -303,9 +310,6 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       if (msg.includes(HOME_CHOICES.yes) || msg.includes(HOME_CHOICES.no)) {
         await handleHomeChoice(client, guildId, serverName, parsed, ip, port, password);
       }
-
-      // Handle note panel
-      await handleNotePanel(client, guildId, serverName, msg, ip, port, password);
 
       // Handle ZORP emotes
       await handleZorpEmote(client, guildId, serverName, parsed, ip, port, password);
@@ -2200,10 +2204,9 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
     const msg = parsed.Message;
     if (!msg) return;
 
-    console.log(`[ZORP DEBUG] Checking message for delete emote: ${msg}`);
-
     // Check for ZORP delete emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_responses_slot_6
     if (msg.includes('[CHAT LOCAL]') && msg.includes('d11_quick_chat_responses_slot_6')) {
+      console.log(`[ZORP DEBUG] ZORP delete emote detected: ${msg}`);
       const player = extractPlayerName(msg);
       if (player) {
         console.log(`[ZORP] Delete emote detected for player: ${player} on server: ${serverName}`);
