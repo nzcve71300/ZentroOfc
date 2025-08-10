@@ -1885,9 +1885,12 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
       sendRconCommand(ip, port, password, successMessage);
       console.log(`[NIGHT SKIP] Success message sent to ${serverName}: ${successMessage}`);
       
-      // Set time to noon (12:00)
-      sendRconCommand(ip, port, password, 'time 12');
-      console.log(`[NIGHT SKIP] Time command sent to ${serverName}: time 12`);
+      // Wait 2 seconds before sending time command to avoid rate limiting
+      setTimeout(() => {
+        // Set time to noon (12:00)
+        sendRconCommand(ip, port, password, 'time 12');
+        console.log(`[NIGHT SKIP] Time command sent to ${serverName}: time 12`);
+      }, 2000);
       console.log(`[NIGHT SKIP] Night skip successful on ${serverName} with ${voteCount} votes - time set to 12:00`);
       
       // Send to admin feed
