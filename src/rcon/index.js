@@ -48,11 +48,23 @@ const nightSkipVotes = new Map(); // Track night skip voting state
 const nightSkipVoteCounts = new Map(); // Track vote counts per server
 const nightSkipFailedAttempts = new Map(); // Track failed night skip attempts to prevent re-triggering
 
+// Home Teleport state tracking
+const homeTeleportState = new Map(); // Track home teleport state
+const homeTeleportCooldowns = new Map(); // Track cooldowns per player
+
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
 const BOOKARIDE_CHOICES = {
   horse: 'd11_quick_chat_responses_slot_0',
   rhib: 'd11_quick_chat_responses_slot_1',
+};
+
+// Home Teleport constants
+const SET_HOME_EMOTE = 'd11_quick_chat_building_slot_3';
+const TELEPORT_HOME_EMOTE = 'd11_quick_chat_combat_slot_1';
+const HOME_CHOICES = {
+  yes: 'd11_quick_chat_responses_slot_0',
+  no: 'd11_quick_chat_responses_slot_1',
 };
 
 // ZORP constants
@@ -273,6 +285,21 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle book-a-ride
       await handleBookARide(client, guildId, serverName, parsed, ip, port, password);
+
+      // Handle Set Home emotes
+      if (msg.includes(SET_HOME_EMOTE)) {
+        await handleSetHome(client, guildId, serverName, parsed, ip, port, password);
+      }
+
+      // Handle Teleport Home emotes
+      if (msg.includes(TELEPORT_HOME_EMOTE)) {
+        await handleTeleportHome(client, guildId, serverName, parsed, ip, port, password);
+      }
+
+      // Handle Home choice emotes (Yes/No)
+      if (msg.includes(HOME_CHOICES.yes) || msg.includes(HOME_CHOICES.no)) {
+        await handleHomeChoice(client, guildId, serverName, parsed, ip, port, password);
+      }
 
       // Handle note panel
       await handleNotePanel(client, guildId, serverName, msg, ip, port, password);
@@ -1082,6 +1109,56 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
     }
 
     if (!foundPlayerState) {
+      // Check for home teleport position requests
+      const foundHomeState = Array.from(homeTeleportState.entries()).find(([key, state]) => {
+        return key.startsWith(`${serverName}:`) && state.step === 'waiting_for_position';
+      });
+
+      if (foundHomeState) {
+        const [homeStateKey, homeState] = foundHomeState;
+        const playerName = homeState.player;
+
+        // Parse position coordinates
+        const coords = positionStr.split(', ').map(coord => parseFloat(coord.trim()));
+        if (coords.length !== 3 || coords.some(isNaN)) {
+          Logger.warn(`Invalid position format for home teleport: ${positionStr}`);
+          return;
+        }
+
+        // Get server ID
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+
+        if (serverResult.length === 0) {
+          Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
+          return;
+        }
+
+        const serverId = serverResult[0].id;
+
+        // Save home location to database
+        await pool.query(
+          `INSERT INTO player_homes (guild_id, server_id, player_name, x_pos, y_pos, z_pos, set_at, updated_at) 
+           VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           ON DUPLICATE KEY UPDATE x_pos = VALUES(x_pos), y_pos = VALUES(y_pos), z_pos = VALUES(z_pos), updated_at = CURRENT_TIMESTAMP`,
+          [guildId, serverId, playerName, coords[0], coords[1], coords[2]]
+        );
+
+        // Clear state
+        homeTeleportState.delete(homeStateKey);
+
+        // Send success message
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${playerName}</color> <color=white>home location saved successfully!</color>`);
+
+        // Send to admin feed
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏠 **Home Set:** ${playerName} set their home at (${coords[0]}, ${coords[1]}, ${coords[2]})`);
+
+        Logger.info(`Home location saved for ${playerName}: (${coords[0]}, ${coords[1]}, ${coords[2]})`);
+        return;
+      }
+
       Logger.debug('No pending position request found');
       return;
     }
@@ -3490,6 +3567,241 @@ async function displayScheduledMessages(client) {
     }
   } catch (error) {
     console.error('❌ [SCHEDULER] Error displaying scheduled messages:', error);
+  }
+}
+
+// Home Teleport Functions
+
+async function handleSetHome(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const player = extractPlayerName(parsed.Message);
+    if (!player) return;
+
+    Logger.info(`Set home requested: ${player} on ${serverName}`);
+
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) {
+      Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
+      return;
+    }
+
+    const serverId = serverResult[0].id;
+
+    // Check home teleport configuration
+    const [configResult] = await pool.query(
+      'SELECT whitelist_enabled, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+      [serverId]
+    );
+
+    let config = {
+      whitelist_enabled: false,
+      cooldown_minutes: 5
+    };
+
+    if (configResult.length > 0) {
+      config = {
+        whitelist_enabled: configResult[0].whitelist_enabled !== 0,
+        cooldown_minutes: configResult[0].cooldown_minutes || 5
+      };
+    }
+
+    // Check whitelist if enabled
+    if (config.whitelist_enabled) {
+      const [whitelistResult] = await pool.query(
+        'SELECT * FROM player_whitelists WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND player_name = ? AND whitelist_type = ?',
+        [guildId, serverId, player, 'home_teleport']
+      );
+
+      if (whitelistResult.length === 0) {
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not whitelisted for home teleport</color>`);
+        return;
+      }
+    }
+
+    // Check cooldown
+    const cooldownKey = `${serverId}_${player}`;
+    const now = Date.now();
+    const lastTeleport = homeTeleportCooldowns.get(cooldownKey) || 0;
+    const cooldownMs = config.cooldown_minutes * 60 * 1000;
+
+    if (now - lastTeleport < cooldownMs) {
+      const remainingMinutes = Math.ceil((cooldownMs - (now - lastTeleport)) / (60 * 1000));
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>please wait</color> <color=#800080>${remainingMinutes} minutes</color> <color=white>before setting home again</color>`);
+      return;
+    }
+
+    // Set state to waiting for confirmation
+    const stateKey = `${serverId}_${player}`;
+    homeTeleportState.set(stateKey, {
+      player: player,
+      step: 'waiting_for_confirmation',
+      timestamp: now
+    });
+
+    // Send confirmation message
+    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>are you stood in your base?</color><br><color=#00ff00>Yes</color> <color=white>or</color> <color=#ff0000>No</color>`);
+
+    Logger.info(`Set home confirmation sent to ${player}`);
+
+  } catch (error) {
+    Logger.error('Error handling set home:', error);
+  }
+}
+
+async function handleHomeChoice(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const player = extractPlayerName(parsed.Message);
+    if (!player) return;
+
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) {
+      Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
+      return;
+    }
+
+    const serverId = serverResult[0].id;
+    const stateKey = `${serverId}_${player}`;
+    const playerState = homeTeleportState.get(stateKey);
+
+    if (!playerState || playerState.step !== 'waiting_for_confirmation') {
+      return; // Not in set home flow
+    }
+
+    // Determine choice
+    let choice = null;
+    if (parsed.Message.includes(HOME_CHOICES.yes)) {
+      choice = 'yes';
+    } else if (parsed.Message.includes(HOME_CHOICES.no)) {
+      choice = 'no';
+    }
+
+    if (!choice) return;
+
+    if (choice === 'no') {
+      // Cancel the operation
+      homeTeleportState.delete(stateKey);
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>home setting cancelled</color>`);
+      Logger.info(`Set home cancelled by ${player}`);
+      return;
+    }
+
+    if (choice === 'yes') {
+      // Update state to waiting for position
+      playerState.step = 'waiting_for_position';
+      homeTeleportState.set(stateKey, playerState);
+
+      // Get player position
+      sendRconCommand(ip, port, password, `printpos ${player}`);
+      Logger.info(`Position request sent for ${player}`);
+    }
+
+  } catch (error) {
+    Logger.error('Error handling home choice:', error);
+  }
+}
+
+async function handleTeleportHome(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const player = extractPlayerName(parsed.Message);
+    if (!player) return;
+
+    Logger.info(`Teleport home requested: ${player} on ${serverName}`);
+
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) {
+      Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
+      return;
+    }
+
+    const serverId = serverResult[0].id;
+
+    // Check home teleport configuration
+    const [configResult] = await pool.query(
+      'SELECT whitelist_enabled, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+      [serverId]
+    );
+
+    let config = {
+      whitelist_enabled: false,
+      cooldown_minutes: 5
+    };
+
+    if (configResult.length > 0) {
+      config = {
+        whitelist_enabled: configResult[0].whitelist_enabled !== 0,
+        cooldown_minutes: configResult[0].cooldown_minutes || 5
+      };
+    }
+
+    // Check whitelist if enabled
+    if (config.whitelist_enabled) {
+      const [whitelistResult] = await pool.query(
+        'SELECT * FROM player_whitelists WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND player_name = ? AND whitelist_type = ?',
+        [guildId, serverId, player, 'home_teleport']
+      );
+
+      if (whitelistResult.length === 0) {
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not whitelisted for home teleport</color>`);
+        return;
+      }
+    }
+
+    // Check cooldown
+    const cooldownKey = `${serverId}_${player}`;
+    const now = Date.now();
+    const lastTeleport = homeTeleportCooldowns.get(cooldownKey) || 0;
+    const cooldownMs = config.cooldown_minutes * 60 * 1000;
+
+    if (now - lastTeleport < cooldownMs) {
+      const remainingMinutes = Math.ceil((cooldownMs - (now - lastTeleport)) / (60 * 1000));
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>please wait</color> <color=#800080>${remainingMinutes} minutes</color> <color=white>before teleporting home again</color>`);
+      return;
+    }
+
+    // Get player's home location
+    const [homeResult] = await pool.query(
+      'SELECT x_pos, y_pos, z_pos FROM player_homes WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND player_name = ?',
+      [guildId, serverId, player]
+    );
+
+    if (homeResult.length === 0) {
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you don't have a home set. Use the building emote to set your home first.</color>`);
+      return;
+    }
+
+    const home = homeResult[0];
+
+    // Teleport player to home
+    sendRconCommand(ip, port, password, `teleport ${player} ${home.x_pos} ${home.y_pos} ${home.z_pos}`);
+    
+    // Send success message
+    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleported home successfully!</color>`);
+
+    // Update cooldown
+    homeTeleportCooldowns.set(cooldownKey, now);
+
+    // Send to admin feed
+    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🏠 **Home Teleport:** ${player} teleported to their home`);
+
+    Logger.info(`Home teleport completed: ${player} → home`);
+
+  } catch (error) {
+    Logger.error('Error handling teleport home:', error);
   }
 }
 

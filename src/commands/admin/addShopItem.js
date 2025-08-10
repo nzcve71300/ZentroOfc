@@ -47,6 +47,7 @@ module.exports = {
 
     try {
       if (focusedOption.name === 'server') {
+        // Server autocomplete
         const [result] = await pool.query(
           'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
           [guildId, `%${focusedOption.value}%`]
@@ -59,6 +60,7 @@ module.exports = {
 
         await interaction.respond(choices);
       } else if (focusedOption.name === 'category') {
+        // Category autocomplete - only show if server is selected
         const serverNickname = interaction.options.getString('server');
         
         if (!serverNickname) {
@@ -66,6 +68,7 @@ module.exports = {
           return;
         }
 
+        // Get categories for the selected server
         const [result] = await pool.query(
           `SELECT sc.id, sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -80,6 +83,9 @@ module.exports = {
         }));
 
         await interaction.respond(choices);
+      } else {
+        // For any other field, return empty array
+        await interaction.respond([]);
       }
     } catch (error) {
       console.error('Autocomplete error:', error);
