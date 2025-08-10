@@ -2008,6 +2008,11 @@ async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, p
 
       // Set timeout to end voting after 30 seconds
       setTimeout(async () => {
+        // Check if voting session is still active (might have been cleared by successful vote)
+        if (!nightSkipVotes.has(serverKey)) {
+          console.log(`[NIGHT SKIP] Voting session already ended for ${serverName}, skipping timeout finalization`);
+          return;
+        }
         const finalVoteCount = nightSkipVoteCounts.get(serverKey) || 0;
         await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= settings.minimum_voters);
       }, 30000);
