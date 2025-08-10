@@ -1826,10 +1826,13 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
       // Send success message in game
       const successMessage = `say <color=#00FF00><b>🎉 Skipping night!! Total votes: ${voteCount}</b></color>`;
       sendRconCommand(ip, port, password, successMessage);
-      console.log(`[NIGHT SKIP] Night skip successful on ${serverName} with ${voteCount} votes`);
-
+      
+      // Set time to noon (12:00)
+      sendRconCommand(ip, port, password, 'time 12');
+      console.log(`[NIGHT SKIP] Night skip successful on ${serverName} with ${voteCount} votes - time set to 12:00`);
+      
       // Send to admin feed
-      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Successful:** ${voteCount} players voted to skip night`);
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Successful:** ${voteCount} players voted to skip night - time set to 12:00`);
     } else {
       // Send failure message in game
       const failureMessage = `say <color=#FF0000><b>😴 Pretty boring! We didn't get enough votes. Total votes: ${voteCount}</b></color>`;
@@ -1880,8 +1883,12 @@ async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, p
       }, 5000);
     });
 
-    // Extract time from response (assuming format like "time: 18")
-    const timeMatch = timeResponse.match(/time:\s*(\d+)/i);
+    // Extract time from response (handles both "time: 18" and "env.time: "18.55865"" formats)
+    let timeMatch = timeResponse.match(/time:\s*(\d+)/i);
+    if (!timeMatch) {
+      // Try alternative format: env.time: "18.55865"
+      timeMatch = timeResponse.match(/env\.time:\s*"(\d+)\.\d+"/i);
+    }
     if (!timeMatch) {
       console.log(`[NIGHT SKIP] Could not parse time from response: ${timeResponse}`);
       return;
