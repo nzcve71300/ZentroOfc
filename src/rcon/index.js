@@ -3804,7 +3804,7 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
     const home = homeResult[0];
 
     // Teleport player to home
-    sendRconCommand(ip, port, password, `teleport ${player} ${home.x_pos} ${home.y_pos} ${home.z_pos}`);
+    sendRconCommand(ip, port, password, `global.teleportposrot "${home.x_pos},${home.y_pos},${home.z_pos}" "${player}" "1"`);
     
     // Send success message
     sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleported home successfully!</color>`);
