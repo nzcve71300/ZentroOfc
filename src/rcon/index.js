@@ -4,6 +4,7 @@ const pool = require('../db');
 const { orangeEmbed } = require('../embeds/format');
 const killfeedProcessor = require('../utils/killfeedProcessor');
 const path = require('path');
+const Logger = require('../utils/logger');
 
 let activeConnections = {};
 let joinLeaveBuffer = {};
@@ -210,7 +211,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       const msg = parsed.Message;
       if (!msg) return;
 
-      console.log('[RCON MSG]', msg);
+      Logger.quiet('[RCON MSG]', msg);
 
       // Handle player joins/leaves
       if (msg.match(/has entered the game/)) {
@@ -606,7 +607,7 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
     }
   }
 
-  console.log('[KIT EMOTE DEBUG] Processing message:', kitMsg);
+        Logger.debug('Processing kit message:', kitMsg);
 
   for (const [kitKey, emote] of Object.entries(KIT_EMOTES)) {
     let player = null;
@@ -616,19 +617,19 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
     if (typeof kitMsg === 'string' && kitMsg.includes(emote)) {
       player = extractPlayerName(kitMsg);
       processedEmote = true;
-      console.log('[KIT EMOTE DEBUG] Found kit emote in string:', kitKey, 'player:', player, 'emote:', emote);
+              Logger.debug('Found kit emote in string:', kitKey, 'player:', player);
     } 
     // Only check object format if string format didn't match
     else if (typeof kitMsg === 'object' && kitMsg.Message && kitMsg.Message.includes(emote)) {
       player = kitMsg.Username || null;
       processedEmote = true;
-      console.log('[KIT EMOTE DEBUG] Found kit emote in object:', kitKey, 'player:', player, 'emote:', emote);
+              Logger.debug('Found kit emote in object:', kitKey, 'player:', player);
     }
     
     // Only process if we found a valid player and haven't processed this emote yet
     if (player && processedEmote && !foundEmotes.has(kitKey)) {
       foundEmotes.add(kitKey);
-      console.log('[KIT EMOTE DEBUG] Processing kit claim for:', kitKey, 'player:', player);
+              Logger.kit('Processing kit claim:', kitKey, 'for player:', player);
       await handleKitClaim(client, guildId, serverName, ip, port, password, kitKey, player);
     }
   }
@@ -766,7 +767,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
 
     // Debug: Log all messages to see what emotes are being sent
     if (msg.includes('d11_quick_chat_combat_slot')) {
-      console.log(`[TELEPORT DEBUG] Emote detected: ${msg}`);
+      Logger.debug('Teleport emote detected:', msg);
     }
 
     // Get server ID
@@ -776,17 +777,17 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     );
     
     if (serverResult.length === 0) {
-      console.log(`[TELEPORT DEBUG] No server found for ${serverName} in guild ${guildId}`);
+              Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
       return;
     }
     
     const serverId = serverResult[0].id;
-    console.log(`[TELEPORT DEBUG] Server ID: ${serverId} for ${serverName}`);
+            Logger.debug(`Server ID: ${serverId} for ${serverName}`);
 
     // Check for Outpost emote
     if (msg.includes('d11_quick_chat_combat_slot_2')) {
       const player = extractPlayerName(msg);
-      console.log(`[TELEPORT DEBUG] Outpost emote detected for player: ${player}`);
+              Logger.debug(`Outpost emote detected for player: ${player}`);
       if (player) {
         await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'outpost', player);
       }
@@ -795,7 +796,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     // Check for Bandit Camp emote
     if (msg.includes('d11_quick_chat_combat_slot_0')) {
       const player = extractPlayerName(msg);
-      console.log(`[TELEPORT DEBUG] Bandit Camp emote detected for player: ${player}`);
+              Logger.debug(`Bandit Camp emote detected for player: ${player}`);
       if (player) {
         await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'banditcamp', player);
       }
@@ -808,7 +809,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
 
 async function handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, positionType, player) {
   try {
-    console.log(`[TELEPORT DEBUG] Processing teleport for ${player} to ${positionType} on server ${serverId}`);
+          Logger.debug(`Processing teleport for ${player} to ${positionType}`);
     
     // Get position configuration
     const configResult = await pool.query(
@@ -816,21 +817,19 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId.toString(), positionType]
     );
 
-    console.log(`[TELEPORT DEBUG] Config result: ${configResult[0].length} records found`);
     if (configResult[0].length > 0) {
       const config = configResult[0][0];
-      console.log(`[TELEPORT DEBUG] Config: enabled=${config.enabled}, delay=${config.delay_seconds}, cooldown=${config.cooldown_minutes}`);
-      console.log(`[TELEPORT DEBUG] Raw config object:`, config);
+      Logger.debug(`Teleport config: enabled=${config.enabled}, delay=${config.delay_seconds}s, cooldown=${config.cooldown_minutes}m`);
       
       // Check if enabled (MySQL returns 1 for true, 0 for false)
       if (config.enabled === 1) {
-        console.log(`[TELEPORT DEBUG] Teleport is ENABLED for ${positionType}`);
+        Logger.debug(`Teleport is ENABLED for ${positionType}`);
       } else {
-        console.log(`[TELEPORT DEBUG] Teleport is DISABLED for ${positionType}`);
+        Logger.debug(`Teleport is DISABLED for ${positionType}`);
         return; // Position teleport is disabled
       }
     } else {
-      console.log(`[TELEPORT DEBUG] No config found for ${positionType}`);
+      Logger.warn(`No teleport config found for ${positionType}`);
       return; // Position teleport is not configured
     }
 
@@ -854,18 +853,13 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       [serverId.toString(), positionType]
     );
 
-    console.log(`[TELEPORT DEBUG] Coordinates result: ${coordResult[0].length} records found`);
-    if (coordResult[0].length > 0) {
-      console.log(`[TELEPORT DEBUG] Coordinates: X=${coordResult[0][0].x_pos}, Y=${coordResult[0][0].y_pos}, Z=${coordResult[0][0].z_pos}`);
-    }
-
     if (coordResult[0].length === 0) {
-      console.log(`[TELEPORT DEBUG] No coordinates found for ${positionType}`);
+      Logger.warn(`No coordinates found for ${positionType}`);
       sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleport coordinates not configured</color>`);
       return;
     }
 
-    console.log(`[TELEPORT DEBUG] Proceeding with teleport for ${player} to ${positionType}`);
+    Logger.debug(`Proceeding with teleport for ${player} to ${positionType}`);
 
     const coords = coordResult[0][0];
     const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
@@ -899,7 +893,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
     } else {
       // Execute teleport immediately
       const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
-      console.log(`[TELEPORT DEBUG] Executing teleport command: ${teleportCommand}`);
+      Logger.debug(`Executing teleport command for ${player}`);
       sendRconCommand(ip, port, password, teleportCommand);
       
       // Send success message
@@ -910,7 +904,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       
       // Send to admin feed
       await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
-      console.log(`[TELEPORT DEBUG] Teleport completed successfully for ${player} to ${positionDisplayName}`);
+      Logger.info(`Teleport completed: ${player} → ${positionDisplayName}`);
     }
 
   } catch (error) {
@@ -942,7 +936,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
       const player = extractPlayerName(msg);
       if (!player) return;
 
-      console.log(`[BOOK-A-RIDE DEBUG] Player ${player} requested a ride on ${serverName}`);
+      Logger.info(`Ride requested: ${player} on ${serverName}`);
 
       // Check cooldowns for both vehicle types
       const now = Date.now();
@@ -1003,7 +997,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
       }
 
       if (chosenRide && playerState.position) {
-        console.log(`[BOOK-A-RIDE DEBUG] Player ${player} chose ${chosenRide} at position ${playerState.position}`);
+        Logger.info(`Ride chosen: ${player} → ${chosenRide}`);
 
         // Check if the chosen vehicle is available (double-check)
         const isAvailable = (chosenRide === 'horse' && playerState.horseAvailable) || 
@@ -1055,25 +1049,24 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
 async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
   try {
-    console.log(`[BOOK-A-RIDE DEBUG] handlePositionResponse called with: "${msg}"`);
+          Logger.debug('Position response received');
     
     // Only debug position-like messages to reduce spam
     if (msg.includes('(') && msg.includes(')')) {
-      console.log(`[BOOK-A-RIDE DEBUG] Checking potential position: "${msg}"`);
-      console.log(`[BOOK-A-RIDE DEBUG] Message length: ${msg.length}, first char code: ${msg.charCodeAt(0)}, last char code: ${msg.charCodeAt(msg.length-1)}`);
+      Logger.debug('Checking for position data');
     }
     
     // Check if this is a position response (format: "(x, y, z)")
     const positionMatch = msg.match(/^\(([^)]+)\)$/);
     if (!positionMatch) {
       if (msg.includes('(') && msg.includes(')')) {
-        console.log(`[BOOK-A-RIDE DEBUG] Position-like message but regex failed`);
+        Logger.debug('Position-like message but regex failed');
       }
       return;
     }
 
     const positionStr = positionMatch[1];
-    console.log(`[BOOK-A-RIDE DEBUG] Position response received: ${positionStr}`);
+          Logger.debug('Position data extracted');
 
     // Find any pending Book-a-Ride requests for this server
     const serverStateKey = `${guildId}:${serverName}:`;
@@ -1089,19 +1082,19 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
     }
 
     if (!foundPlayerState) {
-      console.log(`[BOOK-A-RIDE DEBUG] No pending position request found for server ${serverName}`);
+      Logger.debug('No pending position request found');
       return;
     }
 
     const playerName = foundPlayerState.player;
-    console.log(`[BOOK-A-RIDE DEBUG] Matched position to player: ${playerName}`);
+          Logger.debug(`Position matched to player: ${playerName}`);
 
     // Use the found player state
     const stateKey = foundStateKey;
     const playerState = foundPlayerState;
 
     if (playerState && playerState.step === 'waiting_for_position') {
-      console.log(`[BOOK-A-RIDE DEBUG] Found pending request for ${playerName}`);
+      Logger.debug(`Found pending request for ${playerName}`);
 
       // Store the position and update state
       playerState.position = positionStr;
@@ -1295,20 +1288,17 @@ function sendRconCommand(ip, port, password, command) {
         
         if (parsed.Message) {
           // Check if this is a position response and inject it into main message handler
-          console.log(`[BOOK-A-RIDE DEBUG] Checking response: "${parsed.Message}"`);
-          console.log(`[BOOK-A-RIDE DEBUG] Message length: ${parsed.Message.length}`);
-          console.log(`[BOOK-A-RIDE DEBUG] Character codes: ${Array.from(parsed.Message).map(c => c.charCodeAt(0)).join(',')}`);
+                Logger.debug('Processing command response');
           
           // Clean the message by removing invisible characters
           const cleanMessage = parsed.Message.replace(/[\x00-\x1F\x7F]/g, '').trim();
-          console.log(`[BOOK-A-RIDE DEBUG] Clean message: "${cleanMessage}"`);
+          Logger.debug('Message cleaned');
           
           if (cleanMessage.match(/^\([^)]+\)$/)) {
-            console.log(`[BOOK-A-RIDE DEBUG] Position response from command handler: "${cleanMessage}"`);
+            Logger.debug('Position response from command handler');
             // Inject this message into the main WebSocket handler by triggering it manually
             // Find the main connection for this server by looking up server details
-            console.log(`[BOOK-A-RIDE DEBUG] Looking for server with IP:port ${ip}:${port}`);
-            console.log(`[BOOK-A-RIDE DEBUG] Available connections: ${Object.keys(activeConnections).join(', ')}`);
+                  Logger.debug('Looking for server connection');
             
             try {
               // Look up the server details from database to get guildId and serverName
@@ -1324,22 +1314,20 @@ function sendRconCommand(ip, port, password, command) {
                 console.log(`[BOOK-A-RIDE DEBUG] Looking for connection key: ${connectionKey}`);
                 
                 const mainConnection = activeConnections[connectionKey];
-                console.log(`[BOOK-A-RIDE DEBUG] Main connection state: ${mainConnection ? mainConnection.readyState : 'null'}`);
-                
                 if (mainConnection && mainConnection.readyState === 1) {
                   // Simulate a message event on the main connection
                   const simulatedData = JSON.stringify({ Message: cleanMessage });
-                  console.log(`[BOOK-A-RIDE DEBUG] Injecting position response into main handler`);
+                  Logger.debug('Injecting position response into main handler');
                   // We'll trigger the main handler by emitting a message event
                   mainConnection.emit('message', simulatedData);
                 } else {
-                  console.log(`[BOOK-A-RIDE DEBUG] Main connection not ready or null`);
+                  Logger.debug('Main connection not ready');
                 }
               } else {
-                console.log(`[BOOK-A-RIDE DEBUG] Server not found in database for ${ip}:${port}`);
+                Logger.warn(`Server not found in database for ${ip}:${port}`);
               }
             } catch (error) {
-              console.error(`[BOOK-A-RIDE DEBUG] Error looking up server: ${error.message}`);
+              Logger.error(`Error looking up server: ${error.message}`);
             }
           }
           
@@ -1379,7 +1367,7 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
     );
 
     if (result.length === 0) {
-      console.log(`[${channelType.toUpperCase()}] No channel configured for ${serverName}: ${message}`);
+      Logger.debug(`No ${channelType} channel configured for ${serverName}`);
       return;
     }
 
@@ -1387,7 +1375,7 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
     const channel = await client.channels.fetch(channelId);
     
     if (!channel) {
-      console.error(`[${channelType.toUpperCase()}] Channel not found: ${channelId}`);
+      Logger.error(`Channel not found: ${channelId}`);
       return;
     }
 
@@ -1399,9 +1387,9 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
       .setTimestamp();
 
     await channel.send({ embeds: [embed] });
-    console.log(`[${channelType.toUpperCase()}] Sent to ${serverName}: ${message}`);
+    Logger.adminFeed(`Sent to ${serverName}: ${message}`);
   } catch (error) {
-    console.error('Error sending feed embed:', error);
+    Logger.error('Error sending feed embed:', error);
   }
 }
 
@@ -1418,7 +1406,7 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
     );
 
     if (result.length === 0) {
-      console.log(`[PLAYER COUNT] No channel configured for ${serverName}: ${online} online, ${queued} queued`);
+      Logger.debug(`No player count channel configured for ${serverName}`);
       return;
     }
 
@@ -1446,9 +1434,9 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
     }
     
     await channel.setName(newName);
-    console.log(`[PLAYER COUNT] Updated ${serverName}: ${newName}`);
+    Logger.playerCount(`Updated ${serverName}: ${newName}`);
   } catch (error) {
-    console.error('Error updating player count channel:', error);
+    Logger.error('Error updating player count channel:', error);
   }
 }
 
@@ -1487,7 +1475,7 @@ async function checkAllEvents(client) {
     `);
 
     if (result.length === 0) {
-      console.log('[EVENT] No servers with enabled events found');
+      Logger.debug('No servers with enabled events found');
       return;
     }
 
@@ -1513,7 +1501,7 @@ async function checkAllEvents(client) {
       });
     }
 
-    console.log(`[EVENT] Checking events for ${servers.size} servers`);
+    Logger.debug(`Checking events for ${servers.size} servers`);
 
     // Process each server
     for (const [key, server] of servers) {
@@ -1535,7 +1523,7 @@ async function checkAllEvents(client) {
           await checkHelicopterEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, helicopterConfig, serverFlags);
         }
       } catch (serverError) {
-        console.error(`[EVENT] Error checking events for server ${server.nickname}:`, serverError);
+        Logger.error(`Error checking events for server ${server.nickname}:`, serverError);
       }
     }
   } catch (error) {
