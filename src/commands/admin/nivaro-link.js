@@ -19,13 +19,15 @@ module.exports = {
 
     // Check if user has admin permissions
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      const embed = orangeEmbed()
+      const embed = new EmbedBuilder()
+        .setColor(0xFFA500)
         .setTitle('❌ Insufficient Permissions')
         .setDescription('You need **Administrator** permissions to use this command.')
         .addFields(
           { name: 'Required Permission', value: 'Administrator', inline: true },
           { name: 'Your Permissions', value: 'Insufficient', inline: true }
-        );
+        )
+        .setTimestamp();
       
       return await interaction.editReply({ embeds: [embed] });
     }
@@ -48,14 +50,16 @@ module.exports = {
       );
 
       if (existingLinks.length > 0) {
-        const embed = orangeEmbed()
+        const embed = new EmbedBuilder()
+          .setColor(0xFFA500)
           .setTitle('❌ Already Linked')
           .setDescription(`This Discord server is already linked to **${existingLinks[0].store_name}**`)
           .addFields(
             { name: 'Store URL', value: existingLinks[0].store_url, inline: false },
             { name: 'Linked At', value: `<t:${Math.floor(new Date(existingLinks[0].linked_at).getTime() / 1000)}:R>`, inline: true },
             { name: 'Note', value: 'Only server administrators can manage Discord store links.', inline: false }
-          );
+          )
+          .setTimestamp();
         
         return await interaction.editReply({ embeds: [embed] });
       }
@@ -67,12 +71,14 @@ module.exports = {
       );
 
       if (pendingStores.length === 0) {
-        const embed = orangeEmbed()
+        const embed = new EmbedBuilder()
+          .setColor(0xFFA500)
           .setTitle('❌ Invalid Secret Key')
           .setDescription('The secret key you provided is invalid, expired, or has already been used.')
           .addFields(
             { name: 'Troubleshooting', value: '• Make sure you copied the key correctly\n• Check that the key hasn\'t expired (10 minutes)\n• Ensure the key hasn\'t been used before', inline: false }
-          );
+          )
+          .setTimestamp();
         
         return await interaction.editReply({ embeds: [embed] });
       }
@@ -106,7 +112,8 @@ module.exports = {
         // Commit transaction
         await pool.query('COMMIT');
 
-        const embed = orangeEmbed()
+        const embed = new EmbedBuilder()
+          .setColor(0xFFA500)
           .setTitle('✅ Successfully Linked!')
           .setDescription(`Your Discord server has been successfully linked to **${pendingStore.store_name}**`)
           .addFields(
@@ -115,7 +122,8 @@ module.exports = {
             { name: 'Linked By', value: `<@${userId}> (Admin)`, inline: true },
             { name: 'Linked At', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
           )
-          .setFooter({ text: 'Your store is now connected and ready to use! Only admins can manage this link.' });
+          .setFooter({ text: 'Your store is now connected and ready to use! Only admins can manage this link.' })
+          .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
 
@@ -128,12 +136,14 @@ module.exports = {
     } catch (error) {
       console.error('Error in nivaro-link command:', error);
       
-      const embed = orangeEmbed()
+      const embed = new EmbedBuilder()
+        .setColor(0xFFA500)
         .setTitle('❌ Error')
         .setDescription('An error occurred while linking your store. Please try again later.')
         .addFields(
           { name: 'Error Details', value: 'If this problem persists, please contact support.', inline: false }
-        );
+        )
+        .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     }
