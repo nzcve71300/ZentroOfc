@@ -1835,6 +1835,7 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
 
     // Check if we reached the minimum votes
     if (newVoteCount >= settings.minimum_voters) {
+      console.log(`[NIGHT SKIP] Vote threshold reached for ${serverName}! Finalizing vote with success=true`);
       await finalizeNightSkipVote(client, guildId, serverName, newVoteCount, ip, port, password, true);
     }
 
@@ -1877,16 +1878,21 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
       // Clear failed attempts since we succeeded
       nightSkipFailedAttempts.delete(serverKey);
       
+      console.log(`[NIGHT SKIP] Sending success message to ${serverName} with ${voteCount} votes`);
+      
       // Send success message in game
       const successMessage = `say <color=#00FF00><b>🎉 Skipping night!! Total votes: ${voteCount}</b></color>`;
       sendRconCommand(ip, port, password, successMessage);
+      console.log(`[NIGHT SKIP] Success message sent to ${serverName}: ${successMessage}`);
       
       // Set time to noon (12:00)
       sendRconCommand(ip, port, password, 'time 12');
+      console.log(`[NIGHT SKIP] Time command sent to ${serverName}: time 12`);
       console.log(`[NIGHT SKIP] Night skip successful on ${serverName} with ${voteCount} votes - time set to 12:00`);
       
       // Send to admin feed
       await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Successful:** ${voteCount} players voted to skip night - time set to 12:00`);
+      console.log(`[NIGHT SKIP] Admin feed message sent for ${serverName}`);
     } else {
       // Mark this as a failed attempt to prevent re-triggering
       nightSkipFailedAttempts.set(serverKey, Date.now());
