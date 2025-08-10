@@ -45,6 +45,7 @@ const eventFlags = new Map(); // Track event states to prevent duplicate message
 const kitClaimDeduplication = new Map(); // Track recent kit claims to prevent duplicates
 const nightSkipVotes = new Map(); // Track night skip voting state
 const nightSkipVoteCounts = new Map(); // Track vote counts per server
+const nightSkipFailedAttempts = new Map(); // Track failed night skip attempts to prevent re-triggering
 
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
@@ -1797,15 +1798,43 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
     const playerName = playerMatch[1].trim();
     console.log(`[NIGHT SKIP] Vote received from ${playerName} on ${serverName}`);
 
+    // Get server ID to fetch settings
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) {
+      console.log(`[NIGHT SKIP] Server not found in database: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult[0].id;
+    
+    // Get night skip settings from database
+    const [settingsResult] = await pool.query(
+      'SELECT minimum_voters, enabled FROM night_skip_settings WHERE server_id = ?',
+      [serverId]
+    );
+    
+    // Default settings if none exist
+    const settings = settingsResult.length > 0 ? settingsResult[0] : { minimum_voters: 5, enabled: true };
+    
+    // Check if night skip is enabled
+    if (!settings.enabled) {
+      console.log(`[NIGHT SKIP] Night skip voting is disabled for ${serverName}`);
+      return;
+    }
+
     // Get current vote count
     const voteCount = nightSkipVoteCounts.get(serverKey) || 0;
     const newVoteCount = voteCount + 1;
     nightSkipVoteCounts.set(serverKey, newVoteCount);
 
-    console.log(`[NIGHT SKIP] Vote count for ${serverName}: ${newVoteCount}/5`);
+    console.log(`[NIGHT SKIP] Vote count for ${serverName}: ${newVoteCount}/${settings.minimum_voters}`);
 
-    // Check if we reached 5 votes
-    if (newVoteCount >= 5) {
+    // Check if we reached the minimum votes
+    if (newVoteCount >= settings.minimum_voters) {
       await finalizeNightSkipVote(client, guildId, serverName, newVoteCount, ip, port, password, true);
     }
 
@@ -1818,11 +1847,36 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
   try {
     const serverKey = `${guildId}:${serverName}`;
     
+    // Get server ID to fetch settings
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) {
+      console.log(`[NIGHT SKIP] Server not found in database: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult[0].id;
+    
+    // Get night skip settings from database
+    const [settingsResult] = await pool.query(
+      'SELECT minimum_voters, enabled FROM night_skip_settings WHERE server_id = ?',
+      [serverId]
+    );
+    
+    // Default settings if none exist
+    const settings = settingsResult.length > 0 ? settingsResult[0] : { minimum_voters: 5, enabled: true };
+    
     // Clear the voting session
     nightSkipVotes.delete(serverKey);
     nightSkipVoteCounts.delete(serverKey);
 
     if (success) {
+      // Clear failed attempts since we succeeded
+      nightSkipFailedAttempts.delete(serverKey);
+      
       // Send success message in game
       const successMessage = `say <color=#00FF00><b>🎉 Skipping night!! Total votes: ${voteCount}</b></color>`;
       sendRconCommand(ip, port, password, successMessage);
@@ -1834,13 +1888,16 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
       // Send to admin feed
       await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Successful:** ${voteCount} players voted to skip night - time set to 12:00`);
     } else {
+      // Mark this as a failed attempt to prevent re-triggering
+      nightSkipFailedAttempts.set(serverKey, Date.now());
+      
       // Send failure message in game
       const failureMessage = `say <color=#FF0000><b>😴 Pretty boring! We didn't get enough votes. Total votes: ${voteCount}</b></color>`;
       sendRconCommand(ip, port, password, failureMessage);
-      console.log(`[NIGHT SKIP] Night skip failed on ${serverName} with ${voteCount} votes`);
+      console.log(`[NIGHT SKIP] Night skip failed on ${serverName} with ${voteCount} votes (needed ${settings.minimum_voters})`);
 
       // Send to admin feed
-      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Failed:** Only ${voteCount} players voted (needed 5)`);
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Failed:** Only ${voteCount} players voted (needed ${settings.minimum_voters})`);
     }
 
   } catch (error) {
@@ -1851,6 +1908,34 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
 async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, port, password) {
   try {
     console.log(`[NIGHT SKIP] Checking time for ${serverName}`);
+    
+    // Get server ID to fetch settings
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) {
+      console.log(`[NIGHT SKIP] Server not found in database: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult[0].id;
+    
+    // Get night skip settings from database
+    const [settingsResult] = await pool.query(
+      'SELECT minimum_voters, enabled FROM night_skip_settings WHERE server_id = ?',
+      [serverId]
+    );
+    
+    // Default settings if none exist
+    const settings = settingsResult.length > 0 ? settingsResult[0] : { minimum_voters: 5, enabled: true };
+    
+    // Check if night skip is enabled
+    if (!settings.enabled) {
+      console.log(`[NIGHT SKIP] Night skip voting is disabled for ${serverName}`);
+      return;
+    }
     
     // Send time command to get current game time
     const timeResponse = await new Promise((resolve, reject) => {
@@ -1900,6 +1985,13 @@ async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, p
     // Check if it's 18:00 (6 PM) and no voting is already active
     const serverKey = `${guildId}:${serverName}`;
     if (currentTime === 18 && !nightSkipVotes.has(serverKey)) {
+      // Check if we had a recent failed attempt (within the last 5 minutes)
+      const lastFailedAttempt = nightSkipFailedAttempts.get(serverKey);
+      if (lastFailedAttempt && (Date.now() - lastFailedAttempt) < 300000) { // 5 minutes = 300000ms
+        console.log(`[NIGHT SKIP] Skipping night skip vote on ${serverName} - recent failed attempt within 5 minutes`);
+        return;
+      }
+      
       console.log(`[NIGHT SKIP] Starting night skip vote on ${serverName}`);
       
       // Start voting session
@@ -1912,12 +2004,12 @@ async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, p
       console.log(`[NIGHT SKIP] Vote message sent to ${serverName}`);
 
       // Send to admin feed
-      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Vote Started:** Players can now vote to skip night using the YES emote`);
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Vote Started:** Players can now vote to skip night using the YES emote (need ${settings.minimum_voters} votes)`);
 
       // Set timeout to end voting after 30 seconds
       setTimeout(async () => {
         const finalVoteCount = nightSkipVoteCounts.get(serverKey) || 0;
-        await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= 5);
+        await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= settings.minimum_voters);
       }, 30000);
 
       console.log(`[NIGHT SKIP] 30-second voting timer started for ${serverName}`);
