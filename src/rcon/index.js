@@ -114,10 +114,10 @@ function startRconListeners(client) {
     checkAllPlayerOnlineStatus(client);
   }, 120000);
   
-  // Display scheduled messages every 30 seconds
+  // Display scheduled messages every 3 minutes
   setInterval(() => {
     displayScheduledMessages(client);
-  }, 30000);
+  }, 180000); // 3 minutes
   
   // Sync zones from game to database every 10 minutes to ensure future-proof tracking
   setInterval(() => {
@@ -1914,13 +1914,13 @@ async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, p
       // Send to admin feed
       await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Vote Started:** Players can now vote to skip night using the YES emote`);
 
-      // Set timeout to end voting after 15 seconds
+      // Set timeout to end voting after 30 seconds
       setTimeout(async () => {
         const finalVoteCount = nightSkipVoteCounts.get(serverKey) || 0;
         await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= 5);
-      }, 15000);
+      }, 30000);
 
-      console.log(`[NIGHT SKIP] 15-second voting timer started for ${serverName}`);
+      console.log(`[NIGHT SKIP] 30-second voting timer started for ${serverName}`);
     }
 
   } catch (error) {
