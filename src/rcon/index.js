@@ -224,6 +224,11 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       if (!msg) return;
 
       Logger.quiet('[RCON MSG]', msg);
+      
+      // Debug: Log all messages that might be note panel related
+      if (msg.includes('[NOTE PANEL]') || msg.includes('note:update')) {
+        Logger.debug(`[NOTEFEED DEBUG] Potential note panel message detected: ${msg}`);
+      }
 
       // Handle player joins/leaves
       if (msg.match(/has entered the game/)) {
@@ -260,6 +265,33 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           }
         } else {
           Logger.debug(`[NOTEFEED] Regex match failed for note panel message`);
+        }
+        // Return early to prevent other handlers from processing this message
+        return;
+      }
+      
+      // Alternative note panel detection (in case the format is different)
+      if (msg.includes('[NOTE PANEL]') && msg.includes('changed name from')) {
+        Logger.debug(`[NOTEFEED] Alternative note panel message detected: ${msg}`);
+        // Try a more flexible regex
+        const altMatch = msg.match(/\[NOTE PANEL\] Player \[ (.*?) \] changed name from \[ (.*?) \] to \[ (.*?) \]/);
+        if (altMatch) {
+          const player = altMatch[1];
+          const oldNote = altMatch[2];
+          const newNote = altMatch[3].replace(/\\n/g, '\n').trim();
+          Logger.debug(`[NOTEFEED] Alternative parsing - Player: ${player}, Old: "${oldNote}", New: "${newNote}"`);
+          if (newNote && newNote !== oldNote) {
+            Logger.debug(`[NOTEFEED] Sending in-game message: ${newNote}`);
+            // Send green and bold message in-game
+            sendRconCommand(ip, port, password, `say <color=green><b>${newNote}</b></color>`);
+            // Send to notefeed
+            await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${newNote}`);
+            Logger.event(`[NOTEFEED] Note sent to Discord from ${player}: ${newNote}`);
+          } else {
+            Logger.debug(`[NOTEFEED] New note is empty or same as old note, skipping`);
+          }
+        } else {
+          Logger.debug(`[NOTEFEED] Alternative regex also failed`);
         }
         // Return early to prevent other handlers from processing this message
         return;
