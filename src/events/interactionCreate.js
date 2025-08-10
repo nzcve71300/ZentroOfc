@@ -772,7 +772,7 @@ async function handleLinkConfirm(interaction) {
           [guildId, interaction.guild?.name || 'Unknown Guild']
         );
 
-        // Check if this exact link already exists (active)
+        // Check if this exact link already exists (active or inactive)
         const [existingExactLink] = await pool.query(
           'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND LOWER(ign) = LOWER(?)',
           [guildId, server.id, discordId, ign]
@@ -791,9 +791,39 @@ async function handleLinkConfirm(interaction) {
               'UPDATE players SET linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
               [existing.id]
             );
+            
+            // Ensure economy record exists (preserve existing balance)
+            await pool.query(
+              'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
+              [existing.id, guildId]
+            );
+            
             linkedServers.push(server.nickname);
             continue;
           }
+        }
+
+        // Check if there's an inactive record with the same IGN but no discord_id (from unlink)
+        const [inactiveRecord] = await pool.query(
+          'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND discord_id IS NULL AND is_active = false',
+          [guildId, server.id, ign]
+        );
+
+        if (inactiveRecord.length > 0) {
+          // Reactivate the inactive record and set the discord_id
+          await pool.query(
+            'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
+            [discordId, inactiveRecord[0].id]
+          );
+          
+          // Ensure economy record exists (preserve existing balance)
+          await pool.query(
+            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
+            [inactiveRecord[0].id, guildId]
+          );
+          
+          linkedServers.push(server.nickname);
+          continue;
         }
 
         // Check if IGN is already linked to a different Discord ID

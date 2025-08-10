@@ -28,7 +28,7 @@ module.exports = {
         // Unlink by Discord ID
         const [updateResult] = await pool.query(
           `UPDATE players 
-           SET is_active = false, unlinked_at = CURRENT_TIMESTAMP 
+           SET is_active = false, unlinked_at = CURRENT_TIMESTAMP, discord_id = NULL 
            WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
            AND discord_id = ? 
            AND is_active = true`,
@@ -46,7 +46,7 @@ module.exports = {
         // Unlink by IGN
         const [updateResult] = await pool.query(
           `UPDATE players 
-           SET is_active = false, unlinked_at = CURRENT_TIMESTAMP 
+           SET is_active = false, unlinked_at = CURRENT_TIMESTAMP, discord_id = NULL 
            WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
            AND LOWER(ign) = LOWER(?) 
            AND is_active = true`,
