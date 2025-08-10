@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const pool = require('../../db');
-const { orangeEmbed } = require('../../embeds/format');
 const { ensureZentroAdminRole, isAuthorizedGuild, sendUnauthorizedGuildMessage } = require('../../utils/permissions');
 
 module.exports = {
