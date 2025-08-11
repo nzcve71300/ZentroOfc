@@ -2,10 +2,17 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 const crypto = require('crypto');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
+
+// CORS configuration
+app.use(cors({
+  origin: ['https://kaleidoscopic-crepe-4cde60.netlify.app', 'http://localhost:3000'],
+  credentials: true
+}));
 
 // Database connection
 const pool = mysql.createPool({
