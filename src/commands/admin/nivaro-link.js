@@ -18,17 +18,7 @@ module.exports = {
 
     // Check if user has admin permissions
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      const embed = new EmbedBuilder()
-        .setColor(0xFFA500)
-        .setTitle('❌ Insufficient Permissions')
-        .setDescription('You need **Administrator** permissions to use this command.')
-        .addFields(
-          { name: 'Required Permission', value: 'Administrator', inline: true },
-          { name: 'Your Permissions', value: 'Insufficient', inline: true }
-        )
-        .setTimestamp();
-      
-      return await interaction.editReply({ embeds: [embed] });
+      return await interaction.editReply('❌ **Insufficient Permissions** - You need **Administrator** permissions to use this command.');
     }
 
     // Check if guild is authorized (if using strict authorization)
@@ -42,109 +32,61 @@ module.exports = {
     const userId = interaction.user.id;
 
     try {
-      // Check if this guild is already linked to a store
-      const [existingLinks] = await pool.query(
-        'SELECT dl.*, s.store_name, s.store_url FROM discord_links dl JOIN stores s ON dl.store_id = s.id WHERE dl.discord_guild_id = ? AND dl.is_active = TRUE',
-        [guildId]
-      );
-
-      if (existingLinks.length > 0) {
-        const embed = new EmbedBuilder()
-          .setColor(0xFFA500)
-          .setTitle('❌ Already Linked')
-          .setDescription(`This Discord server is already linked to **${existingLinks[0].store_name}**`)
-          .addFields(
-            { name: 'Store URL', value: existingLinks[0].store_url, inline: false },
-            { name: 'Linked At', value: `<t:${Math.floor(new Date(existingLinks[0].linked_at).getTime() / 1000)}:R>`, inline: true },
-            { name: 'Note', value: 'Only server administrators can manage Discord store links.', inline: false }
-          )
-          .setTimestamp();
-        
-        return await interaction.editReply({ embeds: [embed] });
-      }
-
-      // Verify the secret key
+      // First, validate the secret key exists and isn't expired
       const [pendingStores] = await pool.query(
         'SELECT * FROM pending_stores WHERE secret_key = ? AND is_used = FALSE AND expires_at > NOW()',
         [secretKey]
       );
 
       if (pendingStores.length === 0) {
-        const embed = new EmbedBuilder()
-          .setColor(0xFFA500)
-          .setTitle('❌ Invalid Secret Key')
-          .setDescription('The secret key you provided is invalid, expired, or has already been used.')
-          .addFields(
-            { name: 'Troubleshooting', value: '• Make sure you copied the key correctly\n• Check that the key hasn\'t expired (10 minutes)\n• Ensure the key hasn\'t been used before', inline: false }
-          )
-          .setTimestamp();
-        
-        return await interaction.editReply({ embeds: [embed] });
+        return await interaction.editReply('❌ **Invalid Secret Key** - The secret key you provided is invalid, expired, or has already been used.');
       }
 
-      const pendingStore = pendingStores[0];
+      // Check if this guild is already linked to a store
+      const [existingLinks] = await pool.query(
+        'SELECT dl.*, s.store_name FROM discord_links dl JOIN stores s ON dl.store_id = s.id WHERE dl.discord_guild_id = ? AND dl.is_active = TRUE',
+        [guildId]
+      );
 
-      // Begin transaction
-      await pool.query('START TRANSACTION');
+      if (existingLinks.length > 0) {
+        return await interaction.editReply(`❌ **Already Linked** - This Discord server is already linked to **${existingLinks[0].store_name}**`);
+      }
 
-      try {
-        // Create the store record
-        const [storeResult] = await pool.query(
-          'INSERT INTO stores (store_name, store_url, owner_email) VALUES (?, ?, ?)',
-          [pendingStore.store_name, pendingStore.store_url, pendingStore.owner_email]
-        );
+      // Call the API to connect the Discord server
+      const apiUrl = process.env.API_BASE_URL || 'http://localhost:8081';
+      const response = await fetch(`${apiUrl}/api/discord/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          secretKey: secretKey,
+          discordServerId: guildId,
+          discordServerName: guildName,
+          userId: userId
+        })
+      });
 
-        const storeId = storeResult.insertId;
+      const result = await response.json();
 
-        // Create the Discord link
-        await pool.query(
-          'INSERT INTO discord_links (store_id, discord_guild_id, discord_guild_name, linked_by_user_id) VALUES (?, ?, ?, ?)',
-          [storeId, guildId, guildName, userId]
-        );
-
-        // Mark the pending store as used
-        await pool.query(
-          'UPDATE pending_stores SET is_used = TRUE WHERE id = ?',
-          [pendingStore.id]
-        );
-
-        // Commit transaction
-        await pool.query('COMMIT');
-
-        const embed = new EmbedBuilder()
-          .setColor(0xFFA500)
-          .setTitle('✅ Successfully Linked!')
-          .setDescription(`Your Discord server has been successfully linked to **${pendingStore.store_name}**`)
-          .addFields(
-            { name: 'Store Name', value: pendingStore.store_name, inline: true },
-            { name: 'Store URL', value: pendingStore.store_url, inline: true },
-            { name: 'Linked By', value: `<@${userId}> (Admin)`, inline: true },
-            { name: 'Linked At', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
-          )
-          .setFooter({ text: 'Your store is now connected and ready to use! Only admins can manage this link.' })
-          .setTimestamp();
-
-        await interaction.editReply({ embeds: [embed] });
-
-      } catch (error) {
-        // Rollback transaction on error
-        await pool.query('ROLLBACK');
-        throw error;
+      if (response.ok && result.success) {
+        // Success - return the message from the API
+        return await interaction.editReply(`✅ **${result.message}**`);
+      } else {
+        // API returned an error
+        const errorMessage = result.error || 'Unknown error occurred';
+        return await interaction.editReply(`❌ **Error** - ${errorMessage}`);
       }
 
     } catch (error) {
       console.error('Error in nivaro-link command:', error);
       
-      const embed = new EmbedBuilder()
-        .setColor(0xFFA500)
-        .setTitle('❌ Error')
-        .setDescription('An error occurred while linking your store. Please try again later.')
-        .addFields(
-          { name: 'Error Details', value: 'If this problem persists, please contact support.', inline: false }
-        )
-        .setTimestamp();
-
-      await interaction.editReply({ embeds: [embed] });
+      // Check if it's a network error (API not reachable)
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        return await interaction.editReply('❌ **API Connection Error** - Unable to connect to the Nivaro API server. Please try again later.');
+      }
+      
+      return await interaction.editReply('❌ **Error** - An error occurred while linking your store. Please try again later.');
     }
   },
 }; 

@@ -179,6 +179,91 @@ app.post('/api/verify-discord-link', verifyEndpointLimiter, async (req, res) => 
   }
 });
 
+// Discord connect endpoint (called by bot when secret key is valid)
+app.post('/api/discord/connect', verifyEndpointLimiter, async (req, res) => {
+  try {
+    const { secretKey, discordServerId, discordServerName, userId } = req.body;
+
+    if (!secretKey || !discordServerId || !discordServerName || !userId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: secretKey, discordServerId, discordServerName, userId' 
+      });
+    }
+
+    // Check if this guild is already linked
+    const [existingLinks] = await pool.query(
+      'SELECT dl.*, s.store_name FROM discord_links dl JOIN stores s ON dl.store_id = s.id WHERE dl.discord_guild_id = ? AND dl.is_active = TRUE',
+      [discordServerId]
+    );
+
+    if (existingLinks.length > 0) {
+      return res.status(409).json({ 
+        error: 'Discord server already linked',
+        store_name: existingLinks[0].store_name
+      });
+    }
+
+    // Verify the secret key
+    const [pendingStores] = await pool.query(
+      'SELECT * FROM pending_stores WHERE secret_key = ? AND is_used = FALSE AND expires_at > NOW()',
+      [secretKey]
+    );
+
+    if (pendingStores.length === 0) {
+      return res.status(400).json({ 
+        error: 'Invalid, expired, or already used secret key' 
+      });
+    }
+
+    const pendingStore = pendingStores[0];
+
+    // Begin transaction
+    await pool.query('START TRANSACTION');
+
+    try {
+      // Create the store record
+      const [storeResult] = await pool.query(
+        'INSERT INTO stores (store_name, store_url, owner_email) VALUES (?, ?, ?)',
+        [pendingStore.store_name, pendingStore.store_url, pendingStore.owner_email]
+      );
+
+      const storeId = storeResult.insertId;
+
+      // Create the Discord link
+      await pool.query(
+        'INSERT INTO discord_links (store_id, discord_guild_id, discord_guild_name, linked_by_user_id) VALUES (?, ?, ?, ?)',
+        [storeId, discordServerId, discordServerName, userId]
+      );
+
+      // Mark the pending store as used
+      await pool.query(
+        'UPDATE pending_stores SET is_used = TRUE WHERE id = ?',
+        [pendingStore.id]
+      );
+
+      // Commit transaction
+      await pool.query('COMMIT');
+
+      res.json({ 
+        success: true,
+        message: 'Store connected successfully! Your Discord server is now linked.',
+        store_name: pendingStore.store_name,
+        store_url: pendingStore.store_url,
+        linked_at: new Date().toISOString()
+      });
+
+    } catch (error) {
+      // Rollback transaction on error
+      await pool.query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Error connecting Discord server:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get store info endpoint
 app.get('/api/store/:discord_guild_id', async (req, res) => {
   try {
