@@ -9,7 +9,7 @@ module.exports = {
     .setDescription('View your balance across all servers'),
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
@@ -33,10 +33,10 @@ module.exports = {
         );
         const serverName = serverResult[0]?.nickname || 'Unknown Server';
         // Get currency name for this server
-      const { getCurrencyName } = require('../../utils/economy');
-      const currencyName = await getCurrencyName(server.id);
-      
-      embed.addFields({ name: serverName, value: `${balance} ${currencyName}`, inline: true });
+        const { getCurrencyName } = require('../../utils/economy');
+        const currencyName = await getCurrencyName(player.server_id);
+        
+        embed.addFields({ name: serverName, value: `${balance} ${currencyName}`, inline: true });
       }
 
       await interaction.editReply({ embeds: [embed] });
