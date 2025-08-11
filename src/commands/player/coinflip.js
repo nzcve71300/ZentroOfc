@@ -154,41 +154,8 @@ module.exports = {
 
       activeCoinflipGames.set(gameId, gameState);
 
-      // Create initial game embed
-      const embed = createCoinflipEmbed(gameState, server.nickname);
-      const row = createCoinflipButtons(gameId);
-
-      const reply = await interaction.editReply({ embeds: [embed], components: [row] });
-
-      // Set up button collector
-      const collector = reply.createMessageComponentCollector({ time: 30000 });
-
-      collector.on('collect', async (i) => {
-        if (i.user.id !== userId) {
-          return i.reply({ content: 'This is not your game!' });
-        }
-
-        const game = activeCoinflipGames.get(gameId);
-        if (!game || game.gameOver) {
-          return i.reply({ content: 'Game has ended!' });
-        }
-
-                 if (i.customId === `flip_${gameId}`) {
-           // Defer the button interaction first
-           await i.deferUpdate();
-           // Flip the coin
-           await flipCoin(game, i, server.nickname);
-         }
-      });
-
-      collector.on('end', () => {
-        const game = activeCoinflipGames.get(gameId);
-        if (game && !game.gameOver) {
-          // Timeout - auto flip
-          flipCoin(game, interaction, server.nickname);
-        }
-        activeCoinflipGames.delete(gameId);
-      });
+             // Start spinning immediately
+       await flipCoin(gameState, interaction, server.nickname);
 
     } catch (err) {
       console.error('Coinflip error:', err);
@@ -209,11 +176,7 @@ function createCoinflipEmbed(game, serverName) {
     { name: '🎲 **Current Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName || 'coins'}`, inline: true }
   );
 
-  if (!game.flipped) {
-    embed.addFields(
-      { name: '🪙 **Coin Status**', value: createCoinDisplay(), inline: false }
-    );
-  }
+  
 
   embed.setFooter({ text: '💎 Premium Gaming Experience • Flip to win big!' });
   return embed;
@@ -329,12 +292,11 @@ async function showSpinningAnimation(interaction, game, serverName, result) {
       // Create result embed with same image
       const resultEmbed = orangeEmbed('🪙 **COINFLIP RESULT** 🪙', won ? '🎉 **YOU WIN!** 🎉' : '❌ **YOU LOSE!** ❌');
       
-      resultEmbed.addFields(
-        { name: '🪙 **Coin Result**', value: create3DCoin(result), inline: false },
-        { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
-        { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
-        { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
-      );
+             resultEmbed.addFields(
+         { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
+         { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
+         { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
+       );
 
       if (won) {
         resultEmbed.addFields(
@@ -398,9 +360,9 @@ async function createSpinningCoinFrames() {
 
     const baseImage = await loadImage(imagePath);
     
-    // Create 8 frames of spinning animation
-    for (let i = 0; i < 8; i++) {
-      const angle = (i * Math.PI / 4); // 45 degree increments
+         // Create 16 frames of spinning animation for smoother effect
+     for (let i = 0; i < 16; i++) {
+       const angle = (i * Math.PI / 8); // 22.5 degree increments
       
              // Clear canvas
        ctx.clearRect(0, 0, 400, 400);
