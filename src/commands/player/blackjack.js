@@ -57,6 +57,20 @@ module.exports = {
         });
       }
 
+      // Check if blackjack is enabled for this server
+      const [toggleResult] = await pool.query(
+        'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = "blackjack_toggle"',
+        [server.id]
+      );
+
+      const blackjackEnabled = toggleResult.length > 0 ? toggleResult[0].setting_value === 'true' : true; // Default to true if not configured
+      
+      if (!blackjackEnabled) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Game Disabled', 'Blackjack is currently disabled on this server. Please contact an administrator to enable it.')]
+        });
+      }
+
       // Get player using unified system
       const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
       if (!player) {
@@ -212,19 +226,19 @@ module.exports = {
 
 // Helper functions
 function drawCard() {
-  // Make blackjack less difficult by using more balanced card distribution
-  // More balanced distribution for better player odds
+  // Make blackjack more difficult by favoring lower cards
+  // This makes it harder to get good hands
   const weights = {
-    1: 0.08,   // Ace - 8% chance (was 5%)
-    2: 0.09,   // 2 - 9% chance (was 12%)
-    3: 0.09,   // 3 - 9% chance (was 12%)
-    4: 0.09,   // 4 - 9% chance (was 12%)
-    5: 0.09,   // 5 - 9% chance (was 12%)
-    6: 0.09,   // 6 - 9% chance (was 12%)
-    7: 0.09,   // 7 - 9% chance (was 8%)
-    8: 0.09,   // 8 - 9% chance (was 8%)
-    9: 0.09,   // 9 - 9% chance (was 8%)
-    10: 0.20   // 10 - 20% chance (was 7%) - includes J, Q, K
+    1: 0.05,   // Ace - 5% chance (was 8%)
+    2: 0.12,   // 2 - 12% chance (was 9%)
+    3: 0.12,   // 3 - 12% chance (was 9%)
+    4: 0.12,   // 4 - 12% chance (was 9%)
+    5: 0.12,   // 5 - 12% chance (was 9%)
+    6: 0.12,   // 6 - 12% chance (was 9%)
+    7: 0.08,   // 7 - 8% chance (was 9%)
+    8: 0.08,   // 8 - 8% chance (was 9%)
+    9: 0.08,   // 9 - 8% chance (was 9%)
+    10: 0.11   // 10 - 11% chance (was 20%) - includes J, Q, K
   };
   
   const random = Math.random();
@@ -316,8 +330,8 @@ async function endGame(game, result, interaction) {
     gameResult = '❌ **BUST! You Lose!** ❌';
     winnings = 0;
   } else if (result === 'stand' || result === 'timeout') {
-    // Improved dealer AI - dealer hits on 16 and below (stands on soft 17)
-    while (dealerTotal < 17) {
+    // More aggressive dealer AI - dealer hits on soft 17 and below
+    while (dealerTotal < 17 || (dealerTotal === 17 && hasSoft17(game.dealerCards))) {
       const newCard = drawCard();
       game.dealerCards.push(newCard);
       dealerTotal = calculateHandValue(game.dealerCards);

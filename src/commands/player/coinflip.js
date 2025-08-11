@@ -66,6 +66,20 @@ module.exports = {
         });
       }
 
+      // Check if coinflip is enabled for this server
+      const [toggleResult] = await pool.query(
+        'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = "coinflip_toggle"',
+        [server.id]
+      );
+
+      const coinflipEnabled = toggleResult.length > 0 ? toggleResult[0].setting_value === 'true' : true; // Default to true if not configured
+      
+      if (!coinflipEnabled) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Game Disabled', 'Coinflip is currently disabled on this server. Please contact an administrator to enable it.')]
+        });
+      }
+
       // Get player using unified system
       const player = await getActivePlayerByDiscordId(guildId, server.id, userId);
       if (!player) {
@@ -236,8 +250,8 @@ async function flipCoin(game, interaction, serverName) {
   );
 
   // Default to harder settings if not configured
-  let winProbability = 0.42; // 42% win chance (was 50%)
-  let payoutMultiplier = 1.7; // 1.7x payout (was 2.0)
+  let winProbability = 0.35; // 35% win chance (was 42%)
+  let payoutMultiplier = 1.5; // 1.5x payout (was 1.7)
 
   // Parse settings from database
   settingsResult.forEach(row => {
