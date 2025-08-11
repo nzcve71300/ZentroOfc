@@ -173,10 +173,12 @@ module.exports = {
           return i.reply({ content: 'Game has ended!' });
         }
 
-        if (i.customId === `flip_${gameId}`) {
-          // Flip the coin
-          await flipCoin(game, i, server.nickname);
-        }
+                 if (i.customId === `flip_${gameId}`) {
+           // Defer the button interaction first
+           await i.deferUpdate();
+           // Flip the coin
+           await flipCoin(game, i, server.nickname);
+         }
       });
 
       collector.on('end', () => {
@@ -382,13 +384,16 @@ async function createSpinningCoinFrames() {
      const canvas = createCanvas(400, 400);
      const ctx = canvas.getContext('2d');
     
-    // Try to load the delivery confirmation image
-    const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'delivery_confirmation.png');
-    
-    if (!fs.existsSync(imagePath)) {
-      console.log('Delivery confirmation image not found, using default coin');
-      return [];
-    }
+              // Try to load the delivery confirmation image
+     const imagePath = path.join(__dirname, '..', '..', '..', 'assets', 'images', 'delivery_confirmation.png');
+     
+     console.log('[COINFLIP] Looking for image at:', imagePath);
+     console.log('[COINFLIP] Image exists:', fs.existsSync(imagePath));
+     
+     if (!fs.existsSync(imagePath)) {
+       console.log('Delivery confirmation image not found, using default coin');
+       return [];
+     }
 
     const baseImage = await loadImage(imagePath);
     
