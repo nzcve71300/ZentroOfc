@@ -316,9 +316,10 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Nivaro Store API server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🌐 External access: http://0.0.0.0:${PORT}`);
 });
 
 module.exports = app; 
