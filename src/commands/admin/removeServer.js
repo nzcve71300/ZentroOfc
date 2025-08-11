@@ -21,22 +21,13 @@ module.exports = {
     }
 
     const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guildId;
 
     try {
-      // First try to find servers by guild_id and nickname
-      let [result] = await pool.query(
-        'SELECT id, nickname, ip, port FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
-        [guildId, `%${focusedValue}%`]
+      // Show all servers that match the search term
+      const [result] = await pool.query(
+        'SELECT id, nickname FROM rust_servers WHERE nickname LIKE ? ORDER BY nickname LIMIT 25',
+        [`%${focusedValue}%`]
       );
-
-      // If no results, try to find all servers (for global admin access)
-      if (result.length === 0) {
-        [result] = await pool.query(
-          'SELECT id, nickname, ip, port FROM rust_servers WHERE nickname LIKE ? LIMIT 25',
-          [`%${focusedValue}%`]
-        );
-      }
 
       const choices = result.map(row => ({
         name: `${row.nickname}`,
