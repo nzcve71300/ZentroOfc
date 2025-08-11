@@ -697,23 +697,51 @@ async function handleConfirmPurchase(interaction) {
      );
      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
      
-     // Create embed with player info and avatar
-     const { EmbedBuilder } = require('discord.js');
+     // Create embed with delivery confirmation theme
+     const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
      const purchaseEmbed = new EmbedBuilder()
        .setColor(0x00FF00)
-       .setTitle('✅ Purchase Successful')
-       .setDescription(`**${itemData.display_name}** has been purchased for ${itemData.price} ${currencyName}!\n\n✅ **Item delivered in-game!**`)
+       .setTitle('🛒 Zentro Express')
+       .setDescription('✅ **Delivery Confirmed**')
+       .addFields(
+         { name: '📦 **Item**', value: itemData.display_name, inline: true },
+         { name: '📊 **Quantity**', value: '1', inline: true },
+         { name: '💰 **Total Cost**', value: `${itemData.price} ${currencyName}`, inline: true }
+       )
        .setAuthor({
          name: playerIgn,
          iconURL: interaction.user.displayAvatarURL({ dynamic: true })
        })
-       .setTimestamp();
-     
-     // Send a new public message instead of editing the ephemeral one
-     await interaction.followUp({
-       embeds: [purchaseEmbed],
-       components: []
-     });
+       .setTimestamp()
+       .setFooter({ text: '🚚 Fast & Reliable Delivery • Zentro Express' });
+
+     // Add static delivery image if available
+     try {
+       const path = require('path');
+       const fs = require('fs');
+       const deliveryImagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'delivery_confirmation.png');
+       
+       if (fs.existsSync(deliveryImagePath)) {
+         const attachment = new AttachmentBuilder(deliveryImagePath, { name: 'delivery.png' });
+         purchaseEmbed.setImage('attachment://delivery.png');
+         
+         await interaction.followUp({
+           embeds: [purchaseEmbed],
+           files: [attachment]
+         });
+       } else {
+         // Fallback without image
+         await interaction.followUp({
+           embeds: [purchaseEmbed]
+         });
+       }
+     } catch (error) {
+       console.log('Failed to load delivery image:', error.message);
+       // Fallback without image
+       await interaction.followUp({
+         embeds: [purchaseEmbed]
+       });
+     }
 
   } catch (error) {
     console.error('Error confirming purchase:', error);
@@ -1538,3 +1566,4 @@ async function handleRemoveServerButton(interaction) {
     });
   }
 }
+
