@@ -385,7 +385,7 @@ async function createSpinningCoinFrames() {
      const ctx = canvas.getContext('2d');
     
               // Try to load the delivery confirmation image
-     const imagePath = path.join(__dirname, '..', '..', '..', 'assets', 'images', 'delivery_confirmation.png');
+     const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'delivery_confirmation.png');
      
      console.log('[COINFLIP] Looking for image at:', imagePath);
      console.log('[COINFLIP] Image exists:', fs.existsSync(imagePath));
