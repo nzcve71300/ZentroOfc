@@ -21,16 +21,22 @@ module.exports = {
     }
 
     const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guildId;
 
     try {
-      // Show all servers that match the search term
+      // Only show servers that belong to this guild
       const [result] = await pool.query(
-        'SELECT id, nickname FROM rust_servers WHERE nickname LIKE ? ORDER BY nickname LIMIT 25',
-        [`%${focusedValue}%`]
+        `SELECT rs.id, rs.nickname 
+         FROM rust_servers rs 
+         JOIN guilds g ON rs.guild_id = g.id 
+         WHERE g.discord_id = ? AND rs.nickname LIKE ? 
+         ORDER BY rs.nickname 
+         LIMIT 25`,
+        [guildId, `%${focusedValue}%`]
       );
 
       const choices = result.map(row => ({
-        name: `${row.nickname}`,
+        name: row.nickname,
         value: row.id.toString()
       }));
 
@@ -68,21 +74,17 @@ module.exports = {
       const server = serverResult[0];
       const serverName = server.nickname;
 
-      // Check if user has permission to remove this server
-      const serverGuildId = server.guild_id;
-      if (serverGuildId) {
-        // Get the Discord guild ID for this server
-        const [guildResult] = await pool.query(
-          'SELECT discord_id FROM guilds WHERE id = ?',
-          [serverGuildId]
-        );
-        
-        if (guildResult.length > 0 && guildResult[0].discord_id !== guildId) {
-          return interaction.reply({
-            embeds: [errorEmbed('Permission Denied', 'You can only remove servers from your own guild.')],
-            ephemeral: true
-          });
-        }
+      // Verify server belongs to this guild (double-check security)
+      const [guildResult] = await pool.query(
+        'SELECT discord_id FROM guilds WHERE id = ?',
+        [server.guild_id]
+      );
+      
+      if (guildResult.length === 0 || guildResult[0].discord_id !== guildId) {
+        return interaction.reply({
+          embeds: [errorEmbed('Permission Denied', 'You can only remove servers from your own guild.')],
+          ephemeral: true
+        });
       }
 
       // Create confirmation embed
