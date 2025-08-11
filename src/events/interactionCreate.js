@@ -557,7 +557,7 @@ async function handleConfirmPurchase(interaction) {
     if (type === 'item') {
       console.log('Confirm purchase - querying item with ID:', itemId);
       const result = await pool.query(
-        'SELECT si.display_name, si.short_name, si.price, si.quantity, si.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
+        'SELECT si.display_name, si.short_name, si.price, si.quantity, si.timer, rs.id as server_id, rs.ip, rs.port, rs.password, rs.nickname FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE si.id = ?',
         [itemId]
       );
       console.log('Confirm purchase - item query result:', result);
@@ -575,7 +575,7 @@ async function handleConfirmPurchase(interaction) {
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
-        'SELECT sk.display_name, sk.kit_name, sk.price, sk.quantity, sk.timer, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
+        'SELECT sk.display_name, sk.kit_name, sk.price, sk.quantity, sk.timer, rs.id as server_id, rs.ip, rs.port, rs.password, rs.nickname FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sk.id = ?',
         [itemId]
       );
       console.log('Confirm purchase - kit query result:', result);
@@ -670,6 +670,7 @@ async function handleConfirmPurchase(interaction) {
          // Get currency name for this server
      const { getCurrencyName } = require('../utils/economy');
      const currencyName = await getCurrencyName(itemData.server_id);
+     console.log('[SHOP DELIVERY] Server ID:', itemData.server_id, 'Currency Name:', currencyName);
      
      // Send RCON command to server
      try {
@@ -704,9 +705,9 @@ async function handleConfirmPurchase(interaction) {
        .setTitle('🛒 Zentro Express')
        .setDescription('✅ **Delivery Confirmed**')
        .addFields(
-         { name: '📦 **Item**', value: itemData.display_name, inline: true },
-         { name: '📊 **Quantity**', value: '1', inline: true },
-         { name: '💰 **Total Cost**', value: `${itemData.price} ${currencyName}`, inline: true }
+         { name: '📦 **Item**', value: itemData.display_name, inline: false },
+         { name: '📊 **Quantity**', value: '1', inline: false },
+         { name: '💰 **Total Cost**', value: `${itemData.price} ${currencyName}`, inline: false }
        )
        .setAuthor({
          name: playerIgn,
@@ -721,22 +722,31 @@ async function handleConfirmPurchase(interaction) {
        const fs = require('fs');
        const deliveryImagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'delivery_confirmation.png');
        
+       console.log('[SHOP DELIVERY] Looking for image at:', deliveryImagePath);
+       console.log('[SHOP DELIVERY] Image exists:', fs.existsSync(deliveryImagePath));
+       
        if (fs.existsSync(deliveryImagePath)) {
+         console.log('[SHOP DELIVERY] Loading delivery image...');
          const attachment = new AttachmentBuilder(deliveryImagePath, { name: 'delivery.png' });
          purchaseEmbed.setImage('attachment://delivery.png');
          
+         console.log('[SHOP DELIVERY] Sending message with image...');
          await interaction.followUp({
            embeds: [purchaseEmbed],
            files: [attachment]
          });
+         console.log('[SHOP DELIVERY] Message sent with image successfully');
        } else {
+         console.log('[SHOP DELIVERY] Image not found, sending without image...');
          // Fallback without image
          await interaction.followUp({
            embeds: [purchaseEmbed]
          });
+         console.log('[SHOP DELIVERY] Message sent without image');
        }
      } catch (error) {
-       console.log('Failed to load delivery image:', error.message);
+       console.log('[SHOP DELIVERY] Failed to load delivery image:', error.message);
+       console.log('[SHOP DELIVERY] Error stack:', error.stack);
        // Fallback without image
        await interaction.followUp({
          embeds: [purchaseEmbed]
