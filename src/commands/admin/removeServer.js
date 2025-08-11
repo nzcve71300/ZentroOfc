@@ -21,17 +21,18 @@ module.exports = {
     }
 
     const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guildId;
 
     try {
-      // Show all servers that match the search term (like the script)
+      // Show servers that belong to this guild (like other commands)
       const [result] = await pool.query(
-        'SELECT id, nickname FROM rust_servers WHERE nickname LIKE ? ORDER BY nickname LIMIT 25',
-        [`%${focusedValue}%`]
+        'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
+        [guildId, `%${focusedValue}%`]
       );
 
       const choices = result.map(row => ({
         name: row.nickname,
-        value: row.id.toString()
+        value: row.nickname
       }));
 
       await interaction.respond(choices);
@@ -47,28 +48,27 @@ module.exports = {
       return sendAccessDeniedMessage(interaction, true);
     }
 
-    const serverId = interaction.options.getString('server');
+    const serverNickname = interaction.options.getString('server');
     const guildId = interaction.guildId;
     const userId = interaction.user.id;
 
     try {
-      // Get server details
+      // Get server details by nickname and guild
       const [serverResult] = await pool.query(
-        'SELECT id, nickname, ip, port, guild_id FROM rust_servers WHERE id = ?',
-        [serverId]
+        'SELECT id, nickname, ip, port, guild_id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+        [guildId, serverNickname]
       );
 
       if (serverResult.length === 0) {
         return interaction.reply({
-          embeds: [errorEmbed('Error', 'Server not found.')],
+          embeds: [errorEmbed('Error', 'Server not found or you do not have permission to remove it.')],
           ephemeral: true
         });
       }
 
       const server = serverResult[0];
       const serverName = server.nickname;
-
-      // No guild permission check - allow removal of any server (like the script)
+      const serverId = server.id;
 
       // Create confirmation embed
       const confirmEmbed = new EmbedBuilder()
