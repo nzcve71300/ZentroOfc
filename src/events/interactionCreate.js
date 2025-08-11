@@ -728,7 +728,7 @@ async function handleConfirmPurchase(interaction) {
        if (fs.existsSync(deliveryImagePath)) {
          console.log('[SHOP DELIVERY] Loading delivery image...');
          const attachment = new AttachmentBuilder(deliveryImagePath, { name: 'delivery.png' });
-         purchaseEmbed.setImage('attachment://delivery.png');
+         purchaseEmbed.setThumbnail('attachment://delivery.png');
          
          console.log('[SHOP DELIVERY] Sending message with image...');
          await interaction.followUp({
