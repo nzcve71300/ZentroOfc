@@ -19,7 +19,7 @@ const pool = mysql.createPool({
 
 class NivaroStoreIntegration {
   constructor() {
-    this.apiBaseUrl = process.env.API_BASE_URL || 'https://1ec41070ea52.ngrok-free.app';
+    this.apiBaseUrl = process.env.API_BASE_URL || 'https://5c42f0c4058e.ngrok-free.app';
   }
 
   /**
