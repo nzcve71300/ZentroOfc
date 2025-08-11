@@ -20,8 +20,8 @@ async function fixGamesDifficulty() {
       // Create default server if it doesn't exist
       const guildId = '1391149977434329230';
       await pool.query(
-        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port) VALUES (?, ?, ?, ?, ?)',
-        [serverId, guildId, 'Default Server', '127.0.0.1', 28015]
+        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password) VALUES (?, ?, ?, ?, ?, ?)',
+        [serverId, guildId, 'Default Server', '127.0.0.1', 28015, '']
       );
       console.log('✅ Created default server');
     } else {
