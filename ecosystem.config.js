@@ -26,7 +26,7 @@ module.exports = {
       cwd: __dirname,
       env: {
         NODE_ENV: 'production',
-        API_PORT: 3001
+        API_PORT: 8081
       },
       log_file: './logs/api-combined.log',
       out_file: './logs/api-out.log',
