@@ -270,62 +270,71 @@ async function showSpinningAnimation(interaction, game, serverName, result) {
       { name: '🎲 **Current Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
     );
 
-         // Use the first frame as main image for spinning effect
+         // Show spinning animation by cycling through frames
      if (spinningFrames.length > 0) {
-       const attachment = new AttachmentBuilder(spinningFrames[0], { name: 'spinning_coin.png' });
-       spinningEmbed.setImage('attachment://spinning_coin.png');
-       
-       await interaction.editReply({ 
-         embeds: [spinningEmbed], 
-         components: [],
-         files: [attachment]
-       });
-     } else {
-      await interaction.editReply({ embeds: [spinningEmbed], components: [] });
-    }
-
-    // Wait 6 seconds, then show the result with the same image
-    setTimeout(async () => {
-      const won = game.chosenSide === result;
-      const winnings = won ? Math.floor(game.betAmount * 1.5) : 0;
-      
-      // Create result embed with same image
-      const resultEmbed = orangeEmbed('🪙 **COINFLIP RESULT** 🪙', won ? '🎉 **YOU WIN!** 🎉' : '❌ **YOU LOSE!** ❌');
-      
-             resultEmbed.addFields(
-         { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
-         { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
-         { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
-       );
-
-      if (won) {
-        resultEmbed.addFields(
-          { name: '🎉 **Winnings**', value: `**+${winnings.toLocaleString()}** ${game.currencyName}`, inline: true },
-          { name: '💰 **New Balance**', value: `**${(game.balance + winnings).toLocaleString()}** ${game.currencyName}`, inline: true }
-        );
-      } else {
-        resultEmbed.addFields(
-          { name: '💸 **Loss**', value: `**-${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
-          { name: '💰 **New Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
-        );
-      }
-
-      resultEmbed.setFooter({ text: '💎 Premium Gaming Experience • Thanks for playing!' });
-
-             // Keep the same image attachment
-       if (spinningFrames.length > 0) {
-         const attachment = new AttachmentBuilder(spinningFrames[0], { name: 'spinning_coin.png' });
-         resultEmbed.setImage('attachment://spinning_coin.png');
+       let frameIndex = 0;
+       const spinInterval = setInterval(async () => {
+         const attachment = new AttachmentBuilder(spinningFrames[frameIndex], { name: 'spinning_coin.png' });
+         spinningEmbed.setImage('attachment://spinning_coin.png');
          
          await interaction.editReply({ 
-           embeds: [resultEmbed], 
+           embeds: [spinningEmbed], 
            components: [],
            files: [attachment]
          });
+         
+         frameIndex = (frameIndex + 1) % spinningFrames.length;
+       }, 200); // Change frame every 200ms for smooth spinning
+       
+                // Stop spinning after 6 seconds and show result
+         setTimeout(async () => {
+           clearInterval(spinInterval);
+           
+           const won = game.chosenSide === result;
+           const winnings = won ? Math.floor(game.betAmount * 1.5) : 0;
+           
+           // Create result embed with same image
+           const resultEmbed = orangeEmbed('🪙 **COINFLIP RESULT** 🪙', won ? '🎉 **YOU WIN!** 🎉' : '❌ **YOU LOSE!** ❌');
+           
+           resultEmbed.addFields(
+             { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
+             { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
+             { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
+           );
+
+           if (won) {
+             resultEmbed.addFields(
+               { name: '🎉 **Winnings**', value: `**+${winnings.toLocaleString()}** ${game.currencyName}`, inline: true },
+               { name: '💰 **New Balance**', value: `**${(game.balance + winnings).toLocaleString()}** ${game.currencyName}`, inline: true }
+             );
+           } else {
+             resultEmbed.addFields(
+               { name: '💸 **Loss**', value: `**-${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
+               { name: '💰 **New Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
+             );
+           }
+
+           resultEmbed.setFooter({ text: '💎 Premium Gaming Experience • Thanks for playing!' });
+
+           // Create final result image showing the correct side
+           if (spinningFrames.length > 0) {
+             // Create a final frame showing the actual result
+             const finalFrame = await createFinalResultFrame(result);
+             const attachment = new AttachmentBuilder(finalFrame, { name: 'final_coin.png' });
+             resultEmbed.setImage('attachment://final_coin.png');
+             
+             await interaction.editReply({ 
+               embeds: [resultEmbed], 
+               components: [],
+               files: [attachment]
+             });
+           } else {
+             await interaction.editReply({ embeds: [resultEmbed], components: [] });
+           }
+         }, 6000);
        } else {
-        await interaction.editReply({ embeds: [resultEmbed], components: [] });
-      }
-    }, 6000);
+         await interaction.editReply({ embeds: [spinningEmbed], components: [] });
+       }
 
   } catch (error) {
     console.error('Error showing spinning animation:', error);
@@ -422,15 +431,77 @@ function create3DCoin(side) {
   const sideText = side.toUpperCase();
   const coinSymbol = '🪙';
   
-  return `\`\`\`
-    ╭─────────────────╮
-    │  ████████████  │
-    │ ██████████████ │
-    │ ████  ██████ │
-    │ ████ ${sideText.padStart(6, ' ')} ████ │
-    │ ████  ██████ │
-    │ ██████████████ │
-    │  ████████████  │
-    ╰─────────────────╯
-\`\`\``;
+     return `\`\`\`
+     ╭─────────────────╮
+     │  ████████████  │
+     │ ██████████████ │
+     │ ████  ██████ │
+     │ ████ ${sideText.padStart(6, ' ')} ████ │
+     │ ████  ██████ │
+     │ ██████████████ │
+     │  ████████████  │
+     ╰─────────────────╯
+ \`\`\``;
+}
+
+async function createFinalResultFrame(result) {
+  try {
+    const canvas = createCanvas(400, 400);
+    const ctx = canvas.getContext('2d');
+    
+    // Try to load the delivery confirmation image
+    const imagePath = path.join(__dirname, '..', '..', '..', 'assets', 'images', 'delivery_confirmation.png');
+    
+    if (!fs.existsSync(imagePath)) {
+      console.log('Delivery confirmation image not found for final frame');
+      return null;
+    }
+
+    const baseImage = await loadImage(imagePath);
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, 400, 400);
+    
+    // Save context
+    ctx.save();
+    
+    // Move to center
+    ctx.translate(200, 200);
+    
+    // Scale down the image to fit in the coin size
+    const scale = 0.6;
+    ctx.scale(scale, scale);
+    
+    // Draw the image centered
+    ctx.drawImage(baseImage, -baseImage.width / 2, -baseImage.height / 2);
+    
+    // Restore context
+    ctx.restore();
+    
+    // Add the actual result text overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, 400, 400);
+    
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Show the actual result
+    const text = result.toUpperCase();
+    ctx.fillText(text, 200, 200);
+    
+    // Add coin border
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(200, 200, 190, 0, 2 * Math.PI);
+    ctx.stroke();
+    
+    // Convert to buffer
+    return canvas.toBuffer('image/png');
+  } catch (error) {
+    console.error('Error creating final result frame:', error);
+    return null;
+  }
 } 
