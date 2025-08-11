@@ -1448,11 +1448,11 @@ async function handleRemoveServerButton(interaction) {
 
   // Confirm removal
   try {
-    // Get server details for final confirmation
-    const [serverResult] = await pool.query(
-      'SELECT id, nickname, server_name, ip, port, guild_id FROM servers WHERE id = ? AND is_active = 1',
-      [serverId]
-    );
+          // Get server details for final confirmation
+      const [serverResult] = await pool.query(
+        'SELECT id, nickname, ip, port, guild_id FROM rust_servers WHERE id = ?',
+        [serverId]
+      );
 
     if (serverResult.length === 0) {
       await interaction.update({
@@ -1468,15 +1468,15 @@ async function handleRemoveServerButton(interaction) {
       return;
     }
 
-    const server = serverResult[0];
-    const serverName = server.nickname || server.server_name;
+          const server = serverResult[0];
+      const serverName = server.nickname;
 
     // Begin transaction
     await pool.query('START TRANSACTION');
 
     try {
       // Delete the server (this will cascade to related data)
-      const [deleteResult] = await pool.query('DELETE FROM servers WHERE id = ?', [serverId]);
+      const [deleteResult] = await pool.query('DELETE FROM rust_servers WHERE id = ?', [serverId]);
 
       if (deleteResult.affectedRows === 0) {
         throw new Error('Server deletion failed');

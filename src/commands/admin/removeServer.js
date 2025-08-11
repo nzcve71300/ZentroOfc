@@ -26,20 +26,20 @@ module.exports = {
     try {
       // First try to find servers by guild_id and nickname
       let [result] = await pool.query(
-        'SELECT id, nickname, server_name, ip, port FROM servers WHERE guild_id = ? AND (nickname LIKE ? OR server_name LIKE ?) AND is_active = 1 LIMIT 25',
-        [guildId, `%${focusedValue}%`, `%${focusedValue}%`]
+        'SELECT id, nickname, ip, port FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
+        [guildId, `%${focusedValue}%`]
       );
 
       // If no results, try to find all servers (for global admin access)
       if (result.length === 0) {
         [result] = await pool.query(
-          'SELECT id, nickname, server_name, ip, port FROM servers WHERE (nickname LIKE ? OR server_name LIKE ?) AND is_active = 1 LIMIT 25',
-          [`%${focusedValue}%`, `%${focusedValue}%`]
+          'SELECT id, nickname, ip, port FROM rust_servers WHERE nickname LIKE ? LIMIT 25',
+          [`%${focusedValue}%`]
         );
       }
 
       const choices = result.map(row => ({
-        name: `${row.nickname || row.server_name} (${row.ip}:${row.port})`,
+        name: `${row.nickname} (${row.ip}:${row.port})`,
         value: row.id.toString()
       }));
 
@@ -63,26 +63,35 @@ module.exports = {
     try {
       // Get server details
       const [serverResult] = await pool.query(
-        'SELECT id, nickname, server_name, ip, port, guild_id FROM servers WHERE id = ? AND is_active = 1',
+        'SELECT id, nickname, ip, port, guild_id FROM rust_servers WHERE id = ?',
         [serverId]
       );
 
       if (serverResult.length === 0) {
         return interaction.reply({
-          embeds: [errorEmbed('Error', 'Server not found or already inactive.')],
+          embeds: [errorEmbed('Error', 'Server not found.')],
           ephemeral: true
         });
       }
 
       const server = serverResult[0];
-      const serverName = server.nickname || server.server_name;
+      const serverName = server.nickname;
 
       // Check if user has permission to remove this server
-      if (server.guild_id && server.guild_id !== guildId) {
-        return interaction.reply({
-          embeds: [errorEmbed('Permission Denied', 'You can only remove servers from your own guild.')],
-          ephemeral: true
-        });
+      const serverGuildId = server.guild_id;
+      if (serverGuildId) {
+        // Get the Discord guild ID for this server
+        const [guildResult] = await pool.query(
+          'SELECT discord_id FROM guilds WHERE id = ?',
+          [serverGuildId]
+        );
+        
+        if (guildResult.length > 0 && guildResult[0].discord_id !== guildId) {
+          return interaction.reply({
+            embeds: [errorEmbed('Permission Denied', 'You can only remove servers from your own guild.')],
+            ephemeral: true
+          });
+        }
       }
 
       // Create confirmation embed
