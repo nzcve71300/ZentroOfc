@@ -21,18 +21,12 @@ module.exports = {
     }
 
     const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guildId;
 
     try {
-      // Only show servers that belong to this guild
+      // Show all servers that match the search term (like the script)
       const [result] = await pool.query(
-        `SELECT rs.id, rs.nickname 
-         FROM rust_servers rs 
-         JOIN guilds g ON rs.guild_id = g.id 
-         WHERE g.discord_id = ? AND rs.nickname LIKE ? 
-         ORDER BY rs.nickname 
-         LIMIT 25`,
-        [guildId, `%${focusedValue}%`]
+        'SELECT id, nickname FROM rust_servers WHERE nickname LIKE ? ORDER BY nickname LIMIT 25',
+        [`%${focusedValue}%`]
       );
 
       const choices = result.map(row => ({
@@ -74,18 +68,7 @@ module.exports = {
       const server = serverResult[0];
       const serverName = server.nickname;
 
-      // Verify server belongs to this guild (double-check security)
-      const [guildResult] = await pool.query(
-        'SELECT discord_id FROM guilds WHERE id = ?',
-        [server.guild_id]
-      );
-      
-      if (guildResult.length === 0 || guildResult[0].discord_id !== guildId) {
-        return interaction.reply({
-          embeds: [errorEmbed('Permission Denied', 'You can only remove servers from your own guild.')],
-          ephemeral: true
-        });
-      }
+      // No guild permission check - allow removal of any server (like the script)
 
       // Create confirmation embed
       const confirmEmbed = new EmbedBuilder()
