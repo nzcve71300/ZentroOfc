@@ -53,7 +53,7 @@ module.exports = {
       }
 
       // Call the API to connect the Discord server
-      const apiUrl = process.env.API_BASE_URL || 'http://localhost:8081';
+                      const apiUrl = process.env.API_BASE_URL || 'https://1ec41070ea52.ngrok-free.app';
       const response = await fetch(`${apiUrl}/api/discord/connect`, {
         method: 'POST',
         headers: {
