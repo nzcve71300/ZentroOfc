@@ -705,16 +705,16 @@ async function handleConfirmPurchase(interaction) {
        .setTitle('🛒 Zentro Express')
        .setDescription('✅ **Delivery Confirmed**')
        .addFields(
-         { name: '📦 **Item**', value: itemData.display_name, inline: false },
-         { name: '📊 **Quantity**', value: '1', inline: false },
-         { name: '💰 **Total Cost**', value: `${itemData.price} ${currencyName}`, inline: false }
+         { name: '**Item**', value: itemData.display_name, inline: false },
+         { name: '**Quantity**', value: '1', inline: false },
+         { name: '**Total Cost**', value: `${itemData.price} ${currencyName}`, inline: false }
        )
        .setAuthor({
          name: playerIgn,
          iconURL: interaction.user.displayAvatarURL({ dynamic: true })
        })
        .setTimestamp()
-       .setFooter({ text: '🚚 Fast & Reliable Delivery • Zentro Express' });
+       .setFooter({ text: 'Fast & Reliable Delivery • Zentro Express' });
 
      // Add static delivery image if available
      try {
