@@ -59,7 +59,7 @@ module.exports = {
 
       // Fetch categories for the shop
       const [categoriesResult] = await pool.query(
-        `SELECT sc.id, sc.name, sc.type
+        `SELECT sc.id, sc.name, sc.type, sc.role
          FROM shop_categories sc
          WHERE sc.server_id = ?
          ORDER BY sc.name`,
@@ -75,12 +75,19 @@ module.exports = {
         });
       }
 
-      // Build dropdown
-      const categoryOptions = categoriesResult.map(category => ({
-        label: category.name,
-        description: `${category.type} category`,
-        value: category.id.toString()
-      }));
+      // Build dropdown with role checking
+      const categoryOptions = [];
+      for (const category of categoriesResult) {
+        const hasRole = !category.role || interaction.member.roles.cache.has(category.role);
+        const lockIcon = category.role && !hasRole ? '🔒 ' : '';
+        
+        categoryOptions.push({
+          label: `${lockIcon}${category.name}`,
+          description: `${category.type} category${category.role && !hasRole ? ' (Role Required)' : ''}`,
+          value: category.id.toString(),
+          disabled: category.role && !hasRole // Disable if role required but user doesn't have it
+        });
+      }
 
       const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()

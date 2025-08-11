@@ -42,7 +42,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply();
     if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;

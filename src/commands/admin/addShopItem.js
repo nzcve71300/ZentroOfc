@@ -70,7 +70,7 @@ module.exports = {
 
         // Get categories for the selected server
         const [result] = await pool.query(
-          `SELECT sc.id, sc.name FROM shop_categories sc 
+          `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? 
            AND sc.name LIKE ? LIMIT 25`,

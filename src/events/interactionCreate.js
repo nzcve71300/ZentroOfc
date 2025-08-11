@@ -236,9 +236,9 @@ async function handleShopCategorySelect(interaction) {
   const userId = interaction.user.id;
   
   try {
-    // Get category info
+    // Get category info including role requirement
     const categoryResult = await pool.query(
-      `SELECT sc.name, sc.type, rs.nickname, sc.server_id
+      `SELECT sc.name, sc.type, sc.role, rs.nickname, sc.server_id
        FROM shop_categories sc
        JOIN rust_servers rs ON sc.server_id = rs.id
        WHERE sc.id = ?`,
@@ -251,7 +251,18 @@ async function handleShopCategorySelect(interaction) {
       });
     }
 
-    const { name, type, nickname, server_id } = categoryResult[0][0];
+    const { name, type, role, nickname, server_id } = categoryResult[0][0];
+
+    // Check if user has required role
+    if (role && !interaction.member.roles.cache.has(role)) {
+      const roleName = interaction.guild.roles.cache.get(role)?.name || 'Unknown Role';
+      return interaction.editReply({
+        embeds: [errorEmbed(
+          'Access Denied', 
+          `You need the **${roleName}** role to access the **${name}** category.\n\nContact an administrator to get access.`
+        )]
+      });
+    }
 
     // Get items and kits
     let items = [];

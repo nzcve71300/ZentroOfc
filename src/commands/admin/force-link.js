@@ -14,7 +14,8 @@ module.exports = {
     .addStringOption(option =>
       option.setName('ign')
         .setDescription('The in-game player name')
-        .setRequired(true))
+        .setRequired(true)
+        .setMaxLength(32))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
@@ -26,7 +27,14 @@ module.exports = {
 
     const guildId = interaction.guildId;
     const discordUser = interaction.options.getUser('discord_user');
-    const playerName = interaction.options.getString('ign');
+    const playerName = interaction.options.getString('ign').trim();
+
+    // Validate inputs
+    if (!playerName || playerName.length < 2) {
+      return await interaction.editReply({
+        embeds: [errorEmbed('Invalid Name', 'Please provide a valid in-game name (at least 2 characters).')]
+      });
+    }
 
     try {
       // Get all servers for this guild
@@ -36,18 +44,61 @@ module.exports = {
       );
 
       if (servers.length === 0) {
-        return interaction.editReply({
+        return await interaction.editReply({
           embeds: [errorEmbed('No Servers Found', 'No Rust servers found for this Discord. Contact an admin.')]
         });
       }
 
       const linkedServers = [];
       const errors = [];
+      const warnings = [];
 
-      // Link the player to all servers
+      // Check if Discord user is already linked to a different IGN
+      const [existingDiscordLinks] = await pool.query(
+        `SELECT p.*, rs.nickname 
+         FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+         AND p.discord_id = ? 
+         AND p.is_active = true`,
+        [guildId, discordUser.id]
+      );
+
+      if (existingDiscordLinks.length > 0) {
+        const currentIgn = existingDiscordLinks[0].ign;
+        if (currentIgn.toLowerCase() !== playerName.toLowerCase()) {
+          warnings.push(`⚠️ **${discordUser.username}** is already linked to **${currentIgn}** on: ${existingDiscordLinks.map(p => p.nickname).join(', ')}`);
+        }
+      }
+
+      // Check if IGN is already linked to a different Discord user
+      const [existingIgnLinks] = await pool.query(
+        `SELECT p.*, rs.nickname 
+         FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+         AND LOWER(p.ign) = LOWER(?) 
+         AND p.is_active = true`,
+        [guildId, playerName]
+      );
+
+      if (existingIgnLinks.length > 0) {
+        const existingDiscordId = existingIgnLinks[0].discord_id;
+        if (existingDiscordId !== discordUser.id) {
+          warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${existingIgnLinks.map(p => p.nickname).join(', ')}`);
+        }
+      }
+
+      // Process each server
       for (const server of servers) {
         try {
-          // Check if this exact link already exists (active)
+          // Ensure guild exists
+          await pool.query(
+            'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+            [guildId, interaction.guild?.name || 'Unknown Guild']
+          );
+
+          // Check if this exact link already exists
           const [existingExactLink] = await pool.query(
             'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND LOWER(ign) = LOWER(?)',
             [guildId, server.id, discordUser.id, playerName]
@@ -57,7 +108,8 @@ module.exports = {
             const existing = existingExactLink[0];
             if (existing.is_active) {
               // Already linked - skip
-              linkedServers.push(`${server.nickname} (already linked)`);
+              console.log(`Player already linked: ${playerName} on ${server.nickname}`);
+              linkedServers.push(server.nickname);
               continue;
             } else {
               // Reactivate inactive player
@@ -66,7 +118,7 @@ module.exports = {
                 [existing.id]
               );
               
-              // Ensure economy record exists (preserve existing balance)
+              // Ensure economy record exists
               await pool.query(
                 'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
                 [existing.id, guildId]
@@ -77,7 +129,7 @@ module.exports = {
             }
           }
 
-          // Check if there's an inactive record with the same IGN but no discord_id (from unlink)
+          // Check if there's an inactive record with the same IGN but no discord_id
           const [inactiveRecord] = await pool.query(
             'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND discord_id IS NULL AND is_active = false',
             [guildId, server.id, playerName]
@@ -90,7 +142,7 @@ module.exports = {
               [discordUser.id, inactiveRecord[0].id]
             );
             
-            // Ensure economy record exists (preserve existing balance)
+            // Ensure economy record exists
             await pool.query(
               'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
               [inactiveRecord[0].id, guildId]
@@ -108,14 +160,13 @@ module.exports = {
 
           if (existingIgnLink.length > 0) {
             const existing = existingIgnLink[0];
-            if (existing.discord_id != discordUser.id) {
-              // Force unlink the existing Discord ID and link the new one
+            if (existing.discord_id !== discordUser.id) {
+              // Force unlink the existing player
               await pool.query(
-                'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-                [discordUser.id, existing.id]
+                'DELETE FROM players WHERE id = ?',
+                [existing.id]
               );
-              linkedServers.push(`${server.nickname} (replaced existing link)`);
-              continue;
+              console.log(`Force unlinked existing player ${playerName} on ${server.nickname}`);
             }
           }
 
@@ -128,13 +179,12 @@ module.exports = {
           if (existingDiscordLink.length > 0) {
             const existing = existingDiscordLink[0];
             if (existing.ign.toLowerCase() !== playerName.toLowerCase()) {
-              // Force unlink the existing IGN and link the new one
+              // Force unlink the existing player
               await pool.query(
-                'UPDATE players SET ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-                [playerName, existing.id]
+                'DELETE FROM players WHERE id = ?',
+                [existing.id]
               );
-              linkedServers.push(`${server.nickname} (replaced existing link)`);
-              continue;
+              console.log(`Force unlinked existing player ${existing.ign} on ${server.nickname}`);
             }
           }
 
@@ -144,7 +194,7 @@ module.exports = {
             [guildId, server.id, discordUser.id, playerName]
           );
           
-          // Create economy record with guild_id
+          // Create economy record
           await pool.query(
             'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0)',
             [playerResult.insertId, guildId]
@@ -152,37 +202,33 @@ module.exports = {
           
           linkedServers.push(server.nickname);
         } catch (error) {
-          console.error(`Failed to force-link to server ${server.nickname}:`, error);
+          console.error(`Failed to force link to server ${server.nickname}:`, error);
           errors.push(`${server.nickname}: ${error.message}`);
         }
       }
 
-      if (linkedServers.length === 0) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Force Link Failed', 'Failed to link account to any servers. Please try again.')]
-        });
+      // Build response message
+      let responseMessage = `**${discordUser.username}** has been force-linked to **${playerName}**!\n\n`;
+      
+      if (warnings.length > 0) {
+        responseMessage += `**Warnings:**\n${warnings.join('\n')}\n\n`;
       }
-
-      const serverList = linkedServers.join(', ');
-      const embed = successEmbed(
-        'Account Force Linked',
-        `Successfully force-linked **${discordUser}** to **${playerName}**!\n\n**Linked to servers:** ${serverList}`
-      );
-
+      
+      if (linkedServers.length > 0) {
+        responseMessage += `**✅ Successfully linked to:** ${linkedServers.join(', ')}`;
+      }
+      
       if (errors.length > 0) {
-        embed.addFields({ 
-          name: '⚠️ Errors', 
-          value: errors.join('\n'),
-          inline: false 
-        });
+        responseMessage += `\n\n**❌ Errors:**\n${errors.join('\n')}`;
       }
 
+      const embed = successEmbed('Force Link Complete', responseMessage);
       await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
       console.error('Error in force-link:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to force-link player. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to force link player. Please try again.')]
       });
     }
   }

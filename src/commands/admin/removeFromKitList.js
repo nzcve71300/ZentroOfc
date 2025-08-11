@@ -61,7 +61,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply();
 
     // Check if user has admin permissions
     if (!hasAdminPermissions(interaction.member)) {
