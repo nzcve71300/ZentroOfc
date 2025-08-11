@@ -1,4 +1,4 @@
-const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
 const { errorEmbed, orangeEmbed, successEmbed } = require('../embeds/format');
 const { getServerByNickname, getServerById, getLinkedPlayer, updateBalance, recordTransaction } = require('../utils/economy');
 const pool = require('../db');
@@ -1495,7 +1495,6 @@ async function handleRemoveServerButton(interaction) {
         .setTitle('✅ Server Removed Successfully')
         .setDescription(`**${serverName}** has been permanently removed from the bot.`)
         .addFields(
-          { name: 'Server Details', value: `${server.ip}:${server.port}`, inline: true },
           { name: 'Removed By', value: `<@${interaction.user.id}>`, inline: true },
           { name: 'Removed At', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
           { name: 'Data Deleted', value: '• Server configuration\n• All player data\n• Economy data\n• Shop items\n• All associated data', inline: false }

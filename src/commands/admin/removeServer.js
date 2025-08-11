@@ -99,12 +99,11 @@ module.exports = {
         .setColor(0xFFA500)
         .setTitle('⚠️ Confirm Server Removal')
         .setDescription(`Are you sure you want to remove **${serverName}**?`)
-                 .addFields(
-           { name: 'Server Details', value: `${server.ip}:${server.port}`, inline: true },
-           { name: 'Server ID', value: server.id.toString(), inline: true },
-           { name: 'Guild ID', value: (server.guild_id ? server.guild_id.toString() : 'Global'), inline: true },
-           { name: '⚠️ Warning', value: 'This action will permanently delete:\n• Server configuration\n• All player data\n• Economy data\n• Shop items\n• All associated data', inline: false }
-         )
+                          .addFields(
+            { name: 'Server ID', value: server.id.toString(), inline: true },
+            { name: 'Guild ID', value: (server.guild_id ? server.guild_id.toString() : 'Global'), inline: true },
+            { name: '⚠️ Warning', value: 'This action will permanently delete:\n• Server configuration\n• All player data\n• Economy data\n• Shop items\n• All associated data', inline: false }
+          )
         .setFooter({ text: `Requested by ${interaction.user.tag}` })
         .setTimestamp();
 
