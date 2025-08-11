@@ -1,7 +1,10 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
+const { createCanvas, loadImage } = require('canvas');
+const path = require('path');
+const fs = require('fs');
 
 // Game state storage
 const activeCoinflipGames = new Map();
@@ -267,6 +270,12 @@ async function flipCoin(game, interaction, serverName) {
   const won = game.chosenSide === result;
   const winnings = won ? Math.floor(game.betAmount * payoutMultiplier) : 0;
 
+  // Show spinning animation for 6 seconds
+  await showSpinningAnimation(interaction, game, serverName, result);
+
+  // Wait 6 seconds for the spinning effect
+  await new Promise(resolve => setTimeout(resolve, 6000));
+
   // Update balance in database
   if (winnings > 0) {
     await pool.query(
@@ -280,34 +289,165 @@ async function flipCoin(game, interaction, serverName) {
     'INSERT INTO transactions (player_id, amount, type, timestamp, guild_id) VALUES (?, ?, ?, NOW(), (SELECT guild_id FROM players WHERE id = ?))',
     [game.playerId, winnings - game.betAmount, 'coinflip', game.playerId]
   );
+}
 
-  // Create rich 3D coin result
-  const coinDisplay = create3DCoin(result);
-  
-  const embed = orangeEmbed('🪙 **COINFLIP RESULT** 🪙', won ? '🎉 **YOU WIN!** 🎉' : '❌ **YOU LOSE!** ❌');
-  
-  embed.addFields(
-    { name: '🪙 **Coin Result**', value: coinDisplay, inline: false },
-    { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
-    { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
-    { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
-  );
+async function showSpinningAnimation(interaction, game, serverName, result) {
+  try {
+    // Create spinning coin frames
+    const spinningFrames = await createSpinningCoinFrames();
+    
+    // Show the spinning animation first
+    const spinningEmbed = orangeEmbed('🪙 **COINFLIP** 🪙', '🔄 **Spinning the coin...**');
+    
+    spinningEmbed.addFields(
+      { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
+      { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
+      { name: '🎲 **Current Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
+    );
 
-  if (won) {
+         // Use the first frame as main image for spinning effect
+     if (spinningFrames.length > 0) {
+       const attachment = new AttachmentBuilder(spinningFrames[0], { name: 'spinning_coin.png' });
+       spinningEmbed.setImage('attachment://spinning_coin.png');
+       
+       await interaction.editReply({ 
+         embeds: [spinningEmbed], 
+         components: [],
+         files: [attachment]
+       });
+     } else {
+      await interaction.editReply({ embeds: [spinningEmbed], components: [] });
+    }
+
+    // Wait 6 seconds, then show the result with the same image
+    setTimeout(async () => {
+      const won = game.chosenSide === result;
+      const winnings = won ? Math.floor(game.betAmount * 1.5) : 0;
+      
+      // Create result embed with same image
+      const resultEmbed = orangeEmbed('🪙 **COINFLIP RESULT** 🪙', won ? '🎉 **YOU WIN!** 🎉' : '❌ **YOU LOSE!** ❌');
+      
+      resultEmbed.addFields(
+        { name: '🪙 **Coin Result**', value: create3DCoin(result), inline: false },
+        { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
+        { name: '🪙 **Landed On**', value: `**${result.toUpperCase()}**`, inline: true },
+        { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true }
+      );
+
+      if (won) {
+        resultEmbed.addFields(
+          { name: '🎉 **Winnings**', value: `**+${winnings.toLocaleString()}** ${game.currencyName}`, inline: true },
+          { name: '💰 **New Balance**', value: `**${(game.balance + winnings).toLocaleString()}** ${game.currencyName}`, inline: true }
+        );
+      } else {
+        resultEmbed.addFields(
+          { name: '💸 **Loss**', value: `**-${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
+          { name: '💰 **New Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
+        );
+      }
+
+      resultEmbed.setFooter({ text: '💎 Premium Gaming Experience • Thanks for playing!' });
+
+             // Keep the same image attachment
+       if (spinningFrames.length > 0) {
+         const attachment = new AttachmentBuilder(spinningFrames[0], { name: 'spinning_coin.png' });
+         resultEmbed.setImage('attachment://spinning_coin.png');
+         
+         await interaction.editReply({ 
+           embeds: [resultEmbed], 
+           components: [],
+           files: [attachment]
+         });
+       } else {
+        await interaction.editReply({ embeds: [resultEmbed], components: [] });
+      }
+    }, 6000);
+
+  } catch (error) {
+    console.error('Error showing spinning animation:', error);
+    // Fallback to regular coin display
+    const embed = orangeEmbed('🪙 **COINFLIP** 🪙', '🔄 **Spinning the coin...**');
     embed.addFields(
-      { name: '🎉 **Winnings**', value: `**+${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
-      { name: '💰 **New Balance**', value: `**${(game.balance + winnings).toLocaleString()}** ${game.currencyName}`, inline: true }
+      { name: '💰 **Bet Amount**', value: `**${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
+      { name: '🎯 **Your Choice**', value: `**${game.chosenSide.toUpperCase()}**`, inline: true },
+      { name: '🎲 **Current Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
     );
-  } else {
-    embed.addFields(
-      { name: '💸 **Loss**', value: `**-${game.betAmount.toLocaleString()}** ${game.currencyName}`, inline: true },
-      { name: '💰 **New Balance**', value: `**${game.balance.toLocaleString()}** ${game.currencyName}`, inline: true }
-    );
+    await interaction.editReply({ embeds: [embed], components: [] });
   }
+}
 
-  embed.setFooter({ text: '💎 Premium Gaming Experience • Thanks for playing!' });
+async function createSpinningCoinFrames() {
+     try {
+     const frames = [];
+     const canvas = createCanvas(400, 400);
+     const ctx = canvas.getContext('2d');
+    
+    // Try to load the delivery confirmation image
+    const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'delivery_confirmation.png');
+    
+    if (!fs.existsSync(imagePath)) {
+      console.log('Delivery confirmation image not found, using default coin');
+      return [];
+    }
 
-  await interaction.update({ embeds: [embed], components: [] });
+    const baseImage = await loadImage(imagePath);
+    
+    // Create 8 frames of spinning animation
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI / 4); // 45 degree increments
+      
+             // Clear canvas
+       ctx.clearRect(0, 0, 400, 400);
+       
+       // Save context
+       ctx.save();
+       
+       // Move to center
+       ctx.translate(200, 200);
+      
+      // Rotate
+      ctx.rotate(angle);
+      
+             // Scale down the image to fit in the coin size
+       const scale = 0.6;
+       ctx.scale(scale, scale);
+      
+      // Draw the image centered
+      ctx.drawImage(baseImage, -baseImage.width / 2, -baseImage.height / 2);
+      
+      // Restore context
+      ctx.restore();
+      
+             // Add "HEADS" or "TAILS" text overlay
+       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+       ctx.fillRect(0, 0, 400, 400);
+       
+       ctx.fillStyle = '#FFD700';
+       ctx.font = 'bold 48px Arial';
+       ctx.textAlign = 'center';
+       ctx.textBaseline = 'middle';
+       
+       // Alternate between HEADS and TAILS for spinning effect
+       const text = i % 2 === 0 ? 'HEADS' : 'TAILS';
+       ctx.fillText(text, 200, 200);
+       
+       // Add coin border
+       ctx.strokeStyle = '#FFD700';
+       ctx.lineWidth = 6;
+       ctx.beginPath();
+       ctx.arc(200, 200, 190, 0, 2 * Math.PI);
+       ctx.stroke();
+      
+      // Convert to buffer
+      const buffer = canvas.toBuffer('image/png');
+      frames.push(buffer);
+    }
+    
+    return frames;
+  } catch (error) {
+    console.error('Error creating spinning coin frames:', error);
+    return [];
+  }
 }
 
 function create3DCoin(side) {
