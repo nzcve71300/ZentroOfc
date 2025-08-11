@@ -114,6 +114,9 @@ module.exports = {
           await handleSchedulerView(interaction);
         } else if (interaction.customId.startsWith('scheduler_delete_')) {
           await handleSchedulerDelete(interaction);
+        } else if (interaction.customId.startsWith('confirm_remove_') || interaction.customId.startsWith('cancel_remove_')) {
+          console.log('Handling remove-server button');
+          await handleRemoveServerButton(interaction);
         } else {
           console.log('No handler found for button:', interaction.customId);
         }
@@ -1416,4 +1419,112 @@ async function handleSchedulerCustomMsg2(interaction) {
     embeds: [successEmbed('Custom Message 2 Set', `Your custom message has been set: ${customMessage.substring(0, 50)}${customMessage.length > 50 ? '...' : ''}`)],
     ephemeral: true
   });
+}
+
+async function handleRemoveServerButton(interaction) {
+  const customId = interaction.customId;
+  
+  if (!customId.startsWith('confirm_remove_') && !customId.startsWith('cancel_remove_')) {
+    return;
+  }
+
+  const serverId = customId.split('_')[2];
+  const isConfirm = customId.startsWith('confirm_remove_');
+
+  if (!isConfirm) {
+    // Cancel action
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00FF00)
+          .setTitle('❌ Cancelled')
+          .setDescription('Server removal has been cancelled.')
+          .setTimestamp()
+      ],
+      components: []
+    });
+    return;
+  }
+
+  // Confirm removal
+  try {
+    // Get server details for final confirmation
+    const [serverResult] = await pool.query(
+      'SELECT id, nickname, server_name, ip, port, guild_id FROM servers WHERE id = ? AND is_active = 1',
+      [serverId]
+    );
+
+    if (serverResult.length === 0) {
+      await interaction.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle('❌ Error')
+            .setDescription('Server not found or already removed.')
+            .setTimestamp()
+        ],
+        components: []
+      });
+      return;
+    }
+
+    const server = serverResult[0];
+    const serverName = server.nickname || server.server_name;
+
+    // Begin transaction
+    await pool.query('START TRANSACTION');
+
+    try {
+      // Delete the server (this will cascade to related data)
+      const [deleteResult] = await pool.query('DELETE FROM servers WHERE id = ?', [serverId]);
+
+      if (deleteResult.affectedRows === 0) {
+        throw new Error('Server deletion failed');
+      }
+
+      // Decrement active servers count if guild_id exists
+      if (server.guild_id) {
+        await decrementActiveServers(server.guild_id);
+      }
+
+      // Commit transaction
+      await pool.query('COMMIT');
+
+      const successEmbed = new EmbedBuilder()
+        .setColor(0x00FF00)
+        .setTitle('✅ Server Removed Successfully')
+        .setDescription(`**${serverName}** has been permanently removed from the bot.`)
+        .addFields(
+          { name: 'Server Details', value: `${server.ip}:${server.port}`, inline: true },
+          { name: 'Removed By', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Removed At', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+          { name: 'Data Deleted', value: '• Server configuration\n• All player data\n• Economy data\n• Shop items\n• All associated data', inline: false }
+        )
+        .setFooter({ text: 'The server will no longer be monitored or managed by the bot.' })
+        .setTimestamp();
+
+      await interaction.update({
+        embeds: [successEmbed],
+        components: []
+      });
+
+    } catch (error) {
+      // Rollback transaction on error
+      await pool.query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Error removing server:', error);
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xFF0000)
+          .setTitle('❌ Error')
+          .setDescription('Failed to remove server. Please try again.')
+          .setTimestamp()
+      ],
+      components: []
+    });
+  }
 }

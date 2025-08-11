@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const { decrementActiveServers } = require('../../utils/subscriptionSystem');
@@ -24,14 +24,23 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const [result] = await pool.query(
-        'SELECT nickname FROM servers WHERE guild_id = ? AND nickname LIKE ? AND is_active = 1 LIMIT 25',
-        [guildId, `%${focusedValue}%`]
+      // First try to find servers by guild_id and nickname
+      let [result] = await pool.query(
+        'SELECT id, nickname, server_name, ip, port FROM servers WHERE guild_id = ? AND (nickname LIKE ? OR server_name LIKE ?) AND is_active = 1 LIMIT 25',
+        [guildId, `%${focusedValue}%`, `%${focusedValue}%`]
       );
 
+      // If no results, try to find all servers (for global admin access)
+      if (result.length === 0) {
+        [result] = await pool.query(
+          'SELECT id, nickname, server_name, ip, port FROM servers WHERE (nickname LIKE ? OR server_name LIKE ?) AND is_active = 1 LIMIT 25',
+          [`%${focusedValue}%`, `%${focusedValue}%`]
+        );
+      }
+
       const choices = result.map(row => ({
-        name: row.nickname,
-        value: row.nickname
+        name: `${row.nickname || row.server_name} (${row.ip}:${row.port})`,
+        value: row.id.toString()
       }));
 
       await interaction.respond(choices);
@@ -47,43 +56,72 @@ module.exports = {
       return sendAccessDeniedMessage(interaction, true);
     }
 
-    const serverNickname = interaction.options.getString('server');
+    const serverId = interaction.options.getString('server');
     const guildId = interaction.guildId;
+    const userId = interaction.user.id;
 
     try {
-      // Get server ID
+      // Get server details
       const [serverResult] = await pool.query(
-        'SELECT id FROM servers WHERE guild_id = ? AND nickname = ? AND is_active = 1',
-        [guildId, serverNickname]
+        'SELECT id, nickname, server_name, ip, port, guild_id FROM servers WHERE id = ? AND is_active = 1',
+        [serverId]
       );
 
       if (serverResult.length === 0) {
         return interaction.reply({
-          embeds: [orangeEmbed('Error', `Server **${serverNickname}** not found in this guild.`)],
+          embeds: [errorEmbed('Error', 'Server not found or already inactive.')],
           ephemeral: true
         });
       }
 
-      const serverId = serverResult[0].id;
+      const server = serverResult[0];
+      const serverName = server.nickname || server.server_name;
 
-      // Delete the server (this will cascade to related data)
-      await pool.query('DELETE FROM servers WHERE id = ?', [serverId]);
+      // Check if user has permission to remove this server
+      if (server.guild_id && server.guild_id !== guildId) {
+        return interaction.reply({
+          embeds: [errorEmbed('Permission Denied', 'You can only remove servers from your own guild.')],
+          ephemeral: true
+        });
+      }
 
-      // Decrement active servers count
-      await decrementActiveServers(guildId);
+      // Create confirmation embed
+      const confirmEmbed = new EmbedBuilder()
+        .setColor(0xFFA500)
+        .setTitle('⚠️ Confirm Server Removal')
+        .setDescription(`Are you sure you want to remove **${serverName}**?`)
+        .addFields(
+          { name: 'Server Details', value: `${server.ip}:${server.port}`, inline: true },
+          { name: 'Server ID', value: server.id.toString(), inline: true },
+          { name: 'Guild ID', value: server.guild_id || 'Global', inline: true },
+          { name: '⚠️ Warning', value: 'This action will permanently delete:\n• Server configuration\n• All player data\n• Economy data\n• Shop items\n• All associated data', inline: false }
+        )
+        .setFooter({ text: `Requested by ${interaction.user.tag}` })
+        .setTimestamp();
+
+      // Create confirmation buttons
+      const confirmRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(`confirm_remove_${serverId}`)
+            .setLabel('✅ Confirm Removal')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`cancel_remove_${serverId}`)
+            .setLabel('❌ Cancel')
+            .setStyle(ButtonStyle.Secondary)
+        );
 
       await interaction.reply({
-        embeds: [orangeEmbed(
-          '🗑️ Server Removed',
-          `**${serverNickname}** has been removed from the bot.\n\nAll associated data (players, economy, shop items, etc.) has been deleted.`
-        )],
+        embeds: [confirmEmbed],
+        components: [confirmRow],
         ephemeral: true
       });
 
     } catch (error) {
-      console.error('Error removing server:', error);
+      console.error('Error in remove-server command:', error);
       await interaction.reply({
-        embeds: [orangeEmbed('Error', 'Failed to remove server. Please try again.')],
+        embeds: [errorEmbed('Error', 'Failed to process server removal. Please try again.')],
         ephemeral: true
       });
     }
