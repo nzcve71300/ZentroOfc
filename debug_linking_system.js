@@ -1,134 +1,128 @@
-const mysql = require('mysql2/promise');
-require('dotenv').config();
+const pool = require('./src/db');
 
 async function debugLinkingSystem() {
-  console.log('🔧 DEBUG LINKING SYSTEM');
-  console.log('========================\n');
-
   try {
-    const connection = await mysql.createConnection({
-      host: process.env.DB_HOST,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      port: process.env.DB_PORT || 3306
+    console.log('🔍 Debugging linking system issues...');
+    
+    // Check the specific case mentioned
+    console.log('\n📋 Step 1: Checking "kushstreet27" case...');
+    const [kushstreetRecords] = await pool.query(`
+      SELECT p.*, s.nickname as server_name
+      FROM players p
+      JOIN rust_servers s ON p.server_id = s.id
+      WHERE p.ign = 'kushstreet27'
+      ORDER BY s.nickname, p.linked_at DESC
+    `);
+    
+    console.log(`Found ${kushstreetRecords.length} records for "kushstreet27":`);
+    kushstreetRecords.forEach((record, index) => {
+      console.log(`\n${index + 1}. Record:`);
+      console.log(`   ID: ${record.id}`);
+      console.log(`   Server: ${record.server_name} (${record.server_id})`);
+      console.log(`   Discord ID: ${record.discord_id || 'NULL'}`);
+      console.log(`   Linked at: ${record.linked_at || 'NULL'}`);
+      console.log(`   Is Active: ${record.is_active}`);
     });
-
-    console.log('✅ Database connected successfully!');
-
-    console.log('\n📋 Step 1: Check what player tables exist...');
-    const [tables] = await connection.execute("SHOW TABLES LIKE '%player%'");
-    console.log('Player-related tables found:');
-    tables.forEach(table => {
-      console.log(`   - ${Object.values(table)[0]}`);
+    
+    // Check what the bot's linking logic sees
+    console.log('\n📋 Step 2: Simulating bot linking logic for "kushstreet27"...');
+    
+    // Simulate the exact query the bot uses when checking for existing links
+    const [existingLinks] = await pool.query(`
+      SELECT p.*, s.nickname as server_name
+      FROM players p
+      JOIN rust_servers s ON p.server_id = s.id
+      WHERE p.ign = 'kushstreet27'
+      AND p.discord_id IS NOT NULL
+      AND p.discord_id != ''
+      AND p.is_active = 1
+    `);
+    
+    console.log(`Active linked records for "kushstreet27": ${existingLinks.length}`);
+    existingLinks.forEach((record, index) => {
+      console.log(`   ${index + 1}. ${record.ign} on ${record.server_name} (Discord: ${record.discord_id})`);
     });
-
-    console.log('\n📋 Step 2: Check players table structure...');
-    try {
-      const [playersStructure] = await connection.execute('DESCRIBE players');
-      console.log('players table structure:');
-      playersStructure.forEach(col => {
-        console.log(`   - ${col.Field}: ${col.Type} (${col.Null === 'YES' ? 'NULL' : 'NOT NULL'})`);
+    
+    // Check for any inactive records that might be causing issues
+    console.log('\n📋 Step 3: Checking inactive records for "kushstreet27"...');
+    const [inactiveRecords] = await pool.query(`
+      SELECT p.*, s.nickname as server_name
+      FROM players p
+      JOIN rust_servers s ON p.server_id = s.id
+      WHERE p.ign = 'kushstreet27'
+      AND (p.is_active = 0 OR p.is_active IS NULL)
+    `);
+    
+    console.log(`Inactive records for "kushstreet27": ${inactiveRecords.length}`);
+    inactiveRecords.forEach((record, index) => {
+      console.log(`   ${index + 1}. ${record.ign} on ${record.server_name} (Active: ${record.is_active})`);
+    });
+    
+    // Check the bot's linking code logic
+    console.log('\n📋 Step 4: Checking bot linking logic...');
+    
+    // Simulate the guild lookup
+    const guildDiscordId = '1348735121481535548'; // BLOODRUST guild
+    const [guildResult] = await pool.query(
+      'SELECT id FROM guilds WHERE discord_id = ?',
+      [guildDiscordId]
+    );
+    
+    if (guildResult.length > 0) {
+      const guildId = guildResult[0].id;
+      console.log(`✅ Found guild ID: ${guildId} for Discord ID: ${guildDiscordId}`);
+      
+      // Simulate the exact query the bot uses
+      const [botQueryResult] = await pool.query(`
+        SELECT p.id, p.is_active 
+        FROM players p 
+        WHERE p.guild_id = ? 
+        AND p.server_id = (SELECT id FROM rust_servers WHERE nickname = 'BLOODRUST' AND guild_id = ? LIMIT 1)
+        AND LOWER(p.ign) = LOWER('kushstreet27')
+      `, [guildId, guildId]);
+      
+      console.log(`Bot query result for "kushstreet27": ${botQueryResult.length} records`);
+      botQueryResult.forEach((record, index) => {
+        console.log(`   ${index + 1}. ID: ${record.id}, Active: ${record.is_active}`);
       });
-    } catch (e) {
-      console.log('❌ players table does not exist');
+    } else {
+      console.log(`❌ Guild not found for Discord ID: ${guildDiscordId}`);
     }
-
-    console.log('\n📋 Step 3: Check player_links table structure...');
-    try {
-      const [playerLinksStructure] = await connection.execute('DESCRIBE player_links');
-      console.log('player_links table structure:');
-      playerLinksStructure.forEach(col => {
-        console.log(`   - ${col.Field}: ${col.Type} (${col.Null === 'YES' ? 'NULL' : 'NOT NULL'})`);
-      });
-    } catch (e) {
-      console.log('❌ player_links table does not exist');
-    }
-
-    console.log('\n📋 Step 4: Check economy table structure...');
-    try {
-      const [economyStructure] = await connection.execute('DESCRIBE economy');
-      console.log('economy table structure:');
-      economyStructure.forEach(col => {
-        console.log(`   - ${col.Field}: ${col.Type} (${col.Null === 'YES' ? 'NULL' : 'NOT NULL'})`);
-      });
-    } catch (e) {
-      console.log('❌ economy table does not exist');
-    }
-
-    console.log('\n📋 Step 5: Check sample data from players table...');
-    try {
-      const [playersData] = await connection.execute('SELECT * FROM players LIMIT 5');
-      console.log(`Found ${playersData.length} sample records in players table:`);
-      playersData.forEach((player, index) => {
-        console.log(`   ${index + 1}. ID: ${player.id}, Guild: ${player.guild_id}, Server: ${player.server_id}, Discord: ${player.discord_id}, IGN: ${player.ign}, Active: ${player.is_active}`);
-      });
-    } catch (e) {
-      console.log('❌ Cannot query players table:', e.message);
-    }
-
-    console.log('\n📋 Step 6: Check sample data from player_links table...');
-    try {
-      const [playerLinksData] = await connection.execute('SELECT * FROM player_links LIMIT 5');
-      console.log(`Found ${playerLinksData.length} sample records in player_links table:`);
-      playerLinksData.forEach((link, index) => {
-        console.log(`   ${index + 1}. ID: ${link.id}, Guild: ${link.guild_id}, Discord: ${link.discord_id}, IGN: ${link.ign}, Server: ${link.server_id}, Active: ${link.is_active}`);
-      });
-    } catch (e) {
-      console.log('❌ Cannot query player_links table:', e.message);
-    }
-
-    console.log('\n📋 Step 7: Check for orphaned economy records...');
-    try {
-      const [orphanedEconomy] = await connection.execute(`
-        SELECT e.*, p.ign as player_ign 
-        FROM economy e 
-        LEFT JOIN players p ON e.player_id = p.id 
-        WHERE p.id IS NULL 
-        LIMIT 5
-      `);
-      console.log(`Found ${orphanedEconomy.length} orphaned economy records (no matching player)`);
-    } catch (e) {
-      console.log('❌ Cannot check orphaned economy records:', e.message);
-    }
-
-    console.log('\n📋 Step 8: Check for duplicate players...');
-    try {
-      const [duplicates] = await connection.execute(`
-        SELECT guild_id, discord_id, COUNT(*) as count 
-        FROM players 
-        WHERE is_active = true 
-        GROUP BY guild_id, discord_id 
-        HAVING COUNT(*) > 1
-      `);
-      console.log(`Found ${duplicates.length} Discord IDs with multiple active links`);
-      duplicates.forEach(dup => {
-        console.log(`   - Guild: ${dup.guild_id}, Discord: ${dup.discord_id}, Count: ${dup.count}`);
-      });
-    } catch (e) {
-      console.log('❌ Cannot check duplicates:', e.message);
-    }
-
-    console.log('\n📋 Step 9: Check guilds table...');
-    try {
-      const [guilds] = await connection.execute('SELECT * FROM guilds');
-      console.log(`Found ${guilds.length} guilds:`);
-      guilds.forEach(guild => {
-        console.log(`   - ID: ${guild.id}, Discord ID: ${guild.discord_id}, Name: ${guild.name}`);
-      });
-    } catch (e) {
-      console.log('❌ Cannot query guilds table:', e.message);
-    }
-
-    await connection.end();
-
-    console.log('\n🎯 ANALYSIS:');
-    console.log('This will show us exactly what database structure you have');
-    console.log('and where the linking system is failing.');
-
+    
+    // Check for any database inconsistencies
+    console.log('\n📋 Step 5: Checking for database inconsistencies...');
+    
+    // Check for records with NULL is_active
+    const [nullActiveRecords] = await pool.query(`
+      SELECT COUNT(*) as count FROM players WHERE is_active IS NULL
+    `);
+    console.log(`Records with NULL is_active: ${nullActiveRecords[0].count}`);
+    
+    // Check for records with empty discord_id but linked_at timestamp
+    const [inconsistentRecords] = await pool.query(`
+      SELECT COUNT(*) as count FROM players 
+      WHERE (discord_id IS NULL OR discord_id = '') 
+      AND linked_at IS NOT NULL
+    `);
+    console.log(`Records with linked_at but no discord_id: ${inconsistentRecords[0].count}`);
+    
+    // Check for records with discord_id but no linked_at
+    const [inconsistentRecords2] = await pool.query(`
+      SELECT COUNT(*) as count FROM players 
+      WHERE discord_id IS NOT NULL 
+      AND discord_id != '' 
+      AND linked_at IS NULL
+    `);
+    console.log(`Records with discord_id but no linked_at: ${inconsistentRecords2[0].count}`);
+    
+    console.log('\n🎯 DIAGNOSIS COMPLETE!');
+    console.log('Check the bot logs for the exact error message when linking fails.');
+    console.log('The issue might be in the bot\'s linking logic or database state.');
+    
   } catch (error) {
-    console.error('❌ Error:', error.message);
-    console.error(error);
+    console.error('❌ Error debugging linking system:', error);
+  } finally {
+    await pool.end();
   }
 }
 
