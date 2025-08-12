@@ -27,7 +27,7 @@ async function checkRoleHierarchy() {
       console.log(`🔑 Bot Permissions: ${botMember ? botMember.permissions.toArray().join(', ') : 'None'}`);
       
       // Get all roles sorted by position (highest first)
-      const roles = guild.roles.cache
+      const roles = Array.from(guild.roles.cache.values())
         .sort((a, b) => b.position - a.position)
         .filter(role => !role.managed && role.name !== '@everyone');
       
