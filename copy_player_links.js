@@ -79,28 +79,37 @@ async function copyPlayerLinks() {
       let copiedCount = 0;
       let skippedCount = 0;
       
-      for (const player of emperorPlayers) {
-        // Check if player already exists on EMP2
-        const [existingPlayer] = await pool.query(
-          'SELECT id FROM players WHERE server_id = ? AND discord_id = ?',
-          [emp2ServerId, player.discord_id]
-        );
-        
-        if (existingPlayer.length > 0) {
-          console.log(`⏭️ Skipping ${player.ign} - already linked on EMP2`);
-          skippedCount++;
-          continue;
-        }
-        
-        // Create new player link on EMP2
-        await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES (?, ?, ?, ?, NOW(), 1)',
-          [player.guild_id, emp2ServerId, player.discord_id, player.ign]
-        );
-        
-        console.log(`✅ Linked ${player.ign} to EMP2`);
-        copiedCount++;
-      }
+             for (const player of emperorPlayers) {
+         // Check if player already exists on EMP2 (by discord_id OR ign)
+         const [existingPlayer] = await pool.query(
+           'SELECT id FROM players WHERE server_id = ? AND (discord_id = ? OR ign = ?)',
+           [emp2ServerId, player.discord_id, player.ign]
+         );
+         
+         if (existingPlayer.length > 0) {
+           console.log(`⏭️ Skipping ${player.ign} - already linked on EMP2`);
+           skippedCount++;
+           continue;
+         }
+         
+         try {
+           // Create new player link on EMP2
+           await pool.query(
+             'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES (?, ?, ?, ?, NOW(), 1)',
+             [player.guild_id, emp2ServerId, player.discord_id, player.ign]
+           );
+           
+           console.log(`✅ Linked ${player.ign} to EMP2`);
+           copiedCount++;
+         } catch (error) {
+           if (error.code === 'ER_DUP_ENTRY') {
+             console.log(`⏭️ Skipping ${player.ign} - duplicate entry (IGN or Discord ID already exists)`);
+             skippedCount++;
+           } else {
+             throw error;
+           }
+         }
+       }
       
       // Commit transaction
       await pool.query('COMMIT');
