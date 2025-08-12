@@ -52,7 +52,7 @@ module.exports = {
           }
 
           const createdTime = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
-          const expireTime = createdTime + (zone.expire || 115200);
+          const expireTime = createdTime + (zone.expire || 126000); // Default to 35 hours (126000 seconds) if not set
           const owner = zone.owner || 'Unknown';
           const size = zone.size || 75;
           const maxTeam = zone.max_team || 8;

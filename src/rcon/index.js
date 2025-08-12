@@ -2607,7 +2607,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       color_offline: defaults.color_offline,
       radiation: defaults.radiation,
       delay: defaults.delay,
-      expire: 2592000, // 30 days in seconds - real expiration handled by online/offline system
+      expire: defaults.expire, // Use server default expiration time
       min_team: minTeam,
       max_team: maxTeam
     };
