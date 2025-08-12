@@ -2358,10 +2358,10 @@ async function setZoneToRed(ip, port, password, playerName) {
     
     if (zoneResult.length > 0) {
       const zone = zoneResult[0];
-      // Set zone to red settings: allow building (1), no building damage (0), no PvP (0)
+      // Set zone to red settings: allow building (1), no building damage (0), PvP enabled (1) - players can take damage but buildings cannot
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 0`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 0`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_offline})`);
       console.log(`[ZORP] Set zone ${zone.name} to red (offline) for ${playerName}`);
     }
