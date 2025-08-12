@@ -11,16 +11,16 @@ async function cleanupLinkingDuplicatesSafe() {
       SELECT 
         p.server_id,
         s.nickname as server_name,
-        p.name as in_game_name,
+        p.ign as in_game_name,
         COUNT(*) as count,
-        GROUP_CONCAT(p.id ORDER BY p.created_at DESC SEPARATOR ',') as player_ids,
-        GROUP_CONCAT(p.discord_id ORDER BY p.created_at DESC SEPARATOR ',') as discord_ids
+        GROUP_CONCAT(p.id ORDER BY p.linked_at DESC SEPARATOR ',') as player_ids,
+        GROUP_CONCAT(p.discord_id ORDER BY p.linked_at DESC SEPARATOR ',') as discord_ids
       FROM players p
       JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.name IS NOT NULL AND p.name != ''
-      GROUP BY p.server_id, p.name
+      WHERE p.ign IS NOT NULL AND p.ign != ''
+      GROUP BY p.server_id, p.ign
       HAVING COUNT(*) > 1
-      ORDER BY s.nickname, p.name
+      ORDER BY s.nickname, p.ign
     `);
     
     if (sameServerDuplicates.length > 0) {
@@ -72,8 +72,8 @@ async function cleanupLinkingDuplicatesSafe() {
       SELECT p.*, s.nickname as server_name
       FROM players p
       JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.name = 'BRNytro11'
-      ORDER BY s.nickname, p.created_at DESC
+      WHERE p.ign = 'BRNytro11'
+      ORDER BY s.nickname, p.linked_at DESC
     `);
     
     if (brnytro11Records.length > 1) {
@@ -119,7 +119,7 @@ async function cleanupLinkingDuplicatesSafe() {
     // Step 3: Check for orphaned records (but DON'T unlink them automatically)
     console.log('\n📋 Step 3: Checking for orphaned linking records (READ-ONLY)...');
     const [orphanedRecords] = await pool.query(`
-      SELECT p.id, p.name, p.discord_id, s.nickname as server_name
+      SELECT p.id, p.ign, p.discord_id, s.nickname as server_name
       FROM players p
       JOIN rust_servers s ON p.server_id = s.id
       WHERE p.discord_id IS NOT NULL 
@@ -134,7 +134,7 @@ async function cleanupLinkingDuplicatesSafe() {
     if (orphanedRecords.length > 0) {
       console.log(`Found ${orphanedRecords.length} potentially orphaned linking records:`);
       orphanedRecords.forEach(record => {
-        console.log(`   ${record.name} (${record.discord_id}) on ${record.server_name}`);
+        console.log(`   ${record.ign} (${record.discord_id}) on ${record.server_name}`);
       });
       console.log('   ⚠️  These are NOT being unlinked automatically to preserve existing links');
       console.log('   💡 If you want to unlink these, run a separate script');
@@ -148,12 +148,12 @@ async function cleanupLinkingDuplicatesSafe() {
       SELECT 
         p.server_id,
         s.nickname as server_name,
-        p.name as in_game_name,
+        p.ign as in_game_name,
         COUNT(*) as count
       FROM players p
       JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.name IS NOT NULL AND p.name != ''
-      GROUP BY p.server_id, p.name
+      WHERE p.ign IS NOT NULL AND p.ign != ''
+      GROUP BY p.server_id, p.ign
       HAVING COUNT(*) > 1
     `);
     
