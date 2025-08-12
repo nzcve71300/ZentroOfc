@@ -48,7 +48,7 @@ async function checkRoleHierarchy() {
       
       // Show some example users and their highest roles
       console.log('\n👥 Sample Users and Their Highest Roles:');
-      const members = guild.members.cache
+      const members = Array.from(guild.members.cache.values())
         .filter(member => !member.user.bot)
         .slice(0, 5);
       
