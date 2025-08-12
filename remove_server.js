@@ -42,18 +42,22 @@ async function removeServer() {
     `, [server.id]);
     console.log(`   Economy records: ${economy[0].count}`);
     
-    // Check shop data
-    const [shopItems] = await pool.query(
-      'SELECT COUNT(*) as count FROM shop_items WHERE server_id = ?',
-      [server.id]
-    );
-    console.log(`   Shop items: ${shopItems[0].count}`);
-    
-    const [shopKits] = await pool.query(
-      'SELECT COUNT(*) as count FROM shop_kits WHERE server_id = ?',
-      [server.id]
-    );
-    console.log(`   Shop kits: ${shopKits[0].count}`);
+         // Check shop data
+     const [shopItems] = await pool.query(`
+       SELECT COUNT(*) as count 
+       FROM shop_items si 
+       JOIN shop_categories sc ON si.category_id = sc.id 
+       WHERE sc.server_id = ?
+     `, [server.id]);
+     console.log(`   Shop items: ${shopItems[0].count}`);
+     
+     const [shopKits] = await pool.query(`
+       SELECT COUNT(*) as count 
+       FROM shop_kits sk 
+       JOIN shop_categories sc ON sk.category_id = sc.id 
+       WHERE sc.server_id = ?
+     `, [server.id]);
+     console.log(`   Shop kits: ${shopKits[0].count}`);
     
     // Check other related data
     const [zones] = await pool.query(
@@ -107,13 +111,21 @@ async function removeServer() {
       await pool.query('DELETE FROM players WHERE server_id = ?', [server.id]);
       console.log('✅ Deleted players');
       
-      // Delete shop items
-      await pool.query('DELETE FROM shop_items WHERE server_id = ?', [server.id]);
-      console.log('✅ Deleted shop items');
-      
-      // Delete shop kits
-      await pool.query('DELETE FROM shop_kits WHERE server_id = ?', [server.id]);
-      console.log('✅ Deleted shop kits');
+             // Delete shop items (through categories)
+       await pool.query(`
+         DELETE si FROM shop_items si 
+         JOIN shop_categories sc ON si.category_id = sc.id 
+         WHERE sc.server_id = ?
+       `, [server.id]);
+       console.log('✅ Deleted shop items');
+       
+       // Delete shop kits (through categories)
+       await pool.query(`
+         DELETE sk FROM shop_kits sk 
+         JOIN shop_categories sc ON sk.category_id = sc.id 
+         WHERE sc.server_id = ?
+       `, [server.id]);
+       console.log('✅ Deleted shop kits');
       
       // Delete shop categories
       await pool.query('DELETE FROM shop_categories WHERE server_id = ?', [server.id]);
