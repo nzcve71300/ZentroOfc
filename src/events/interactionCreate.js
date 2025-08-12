@@ -941,6 +941,20 @@ async function handleLinkConfirm(interaction) {
     }
 
     const serverList = linkedServers.join(', ');
+    
+    // Set Discord nickname after successful linking
+    try {
+      const member = interaction.member;
+      if (member && member.manageable && interaction.guild.ownerId !== interaction.user.id) {
+        const newNickname = `${ign} 🔗`.substring(0, 28); // Cap at 28 characters for safety
+        await member.setNickname(newNickname);
+        console.log(`[LINK] Set nickname for ${interaction.user.tag} to: ${newNickname}`);
+      }
+    } catch (nicknameError) {
+      console.error('[LINK] Failed to set nickname:', nicknameError);
+      // Log silently, don't fail the linking process
+    }
+    
     await interaction.editReply({
       embeds: [successEmbed(
         'Account Linked',
