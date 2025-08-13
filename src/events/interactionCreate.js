@@ -32,6 +32,7 @@ module.exports = {
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
         } else if (interaction.customId.startsWith('adjust_quantity_modal_')) {
+          console.log('[DEBUG] Found adjust_quantity_ handler, customId:', interaction.customId);
           await handleAdjustQuantityModal(interaction);
         } else if (interaction.customId.startsWith('adjust_cart_quantity_modal_')) {
           await handleAdjustCartQuantityModal(interaction);
@@ -87,6 +88,7 @@ module.exports = {
         } else if (interaction.customId.startsWith('remove_shop_item_')) {
           await handleRemoveShopItem(interaction);
         } else if (interaction.customId.startsWith('adjust_quantity_')) {
+          console.log('[DEBUG] Found adjust_quantity_ handler, customId:', interaction.customId);
           await handleAdjustQuantity(interaction);
         } else if (interaction.customId.startsWith('scheduler_delete_select_')) {
           await handleSchedulerDeleteSelect(interaction);
