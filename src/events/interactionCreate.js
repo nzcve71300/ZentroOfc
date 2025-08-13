@@ -1636,8 +1636,9 @@ async function handleAdjustQuantity(interaction) {
     }
 
     if (!itemData) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')]
+      return interaction.reply({
+        embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')],
+        ephemeral: true
       });
     }
 
@@ -1659,12 +1660,14 @@ async function handleAdjustQuantity(interaction) {
     const firstActionRow = new ActionRowBuilder().addComponents(quantityInput);
     modal.addComponents(firstActionRow);
 
+    // IMPORTANT: Do NOT defer here. showModal must be the first response.
     await interaction.showModal(modal);
 
   } catch (error) {
     console.error('Error handling adjust quantity:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to process quantity adjustment.')]
+    await interaction.reply({
+      embeds: [errorEmbed('Error', 'Failed to process quantity adjustment.')],
+      ephemeral: true
     });
   }
 }
@@ -1785,12 +1788,12 @@ async function handleAdjustQuantityModal(interaction) {
     const quantityRow = new ActionRowBuilder()
       .addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId(`adjust_quantity_${type}_${itemId}_${playerId}`)
+          .setCustomId(`adjust_quantity_${type}_${itemId}_${player_id}`)
           .setPlaceholder('Adjust Quantity')
           .addOptions([
             {
-              label: itemData.display_name,
-              description: `Adjust quantity for ${itemData.display_name}`,
+              label: item.display_name,
+              description: `Adjust quantity for ${item.display_name}`,
               value: `${type}_${itemId}`
             }
           ])
@@ -2132,6 +2135,8 @@ async function handleRemoveShopItem(interaction) {
     });
   }
 }
+
+
 
 
 
