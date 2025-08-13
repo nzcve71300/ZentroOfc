@@ -82,6 +82,10 @@ module.exports = {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
+        } else if (interaction.customId.startsWith('remove_shop_item_')) {
+          await handleRemoveShopItem(interaction);
+        } else if (interaction.customId.startsWith('adjust_quantity_')) {
+          await handleAdjustQuantity(interaction);
         } else if (interaction.customId.startsWith('scheduler_delete_select_')) {
           await handleSchedulerDeleteSelect(interaction);
         } else if (interaction.customId.startsWith('scheduler_select_msg1_')) {
@@ -103,21 +107,6 @@ module.exports = {
         } else if (interaction.customId.startsWith('cancel_purchase_')) {
           console.log('Handling cancel purchase button');
           await handleCancelPurchase(interaction);
-        } else if (interaction.customId.startsWith('add_to_cart_')) {
-          console.log('Handling add to cart button');
-          await handleAddToCart(interaction);
-        } else if (interaction.customId.startsWith('adjust_cart_quantity_')) {
-          console.log('Handling adjust cart quantity button');
-          await handleAdjustCartQuantity(interaction);
-        } else if (interaction.customId.startsWith('remove_from_cart_')) {
-          console.log('Handling remove from cart button');
-          await handleRemoveFromCart(interaction);
-        } else if (interaction.customId.startsWith('checkout_cart_')) {
-          console.log('Handling checkout cart button');
-          await handleCheckoutCart(interaction);
-        } else if (interaction.customId === 'clear_cart') {
-          console.log('Handling clear cart button');
-          await handleClearCart(interaction);
         } else if (interaction.customId.startsWith('link_confirm_')) {
           await handleLinkConfirm(interaction);
         } else if (interaction.customId === 'link_cancel') {
@@ -518,117 +507,70 @@ async function handleShopItemSelect(interaction) {
     const { getCurrencyName } = require('../utils/economy');
     const currencyName = await getCurrencyName(serverId);
     
-    // Check if item is already in cart
-    const cartKey = `cart_${userId}_${serverId}`;
-    if (!global.userCarts) {
-      global.userCarts = {};
-      console.log('Initialized global.userCarts');
-    }
-    let cart = global.userCarts[cartKey] || [];
-    console.log('Cart for user:', userId, 'server:', serverId, 'items:', cart.length);
-    
-    const existingCartItem = cart.find(cartItem => cartItem.type === type && cartItem.itemId === itemId);
-    
-    if (existingCartItem) {
-      // Item already in cart, show cart management options
-      const totalPrice = cart.reduce((total, cartItem) => total + (cartItem.price * cartItem.quantity), 0);
-      
-      const embed = orangeEmbed(
-        '🛒 Shopping Cart',
-        `**Server:** ${nickname}\n**Your Balance:** ${balance} ${currencyName}\n**Cart Total:** ${totalPrice} ${currencyName}\n\n**Items in Cart:**\n${cart.map(cartItem => 
-          `• **${cartItem.displayName}** - ${cartItem.price} ${currencyName} x${cartItem.quantity} = ${cartItem.price * cartItem.quantity} ${currencyName}`
-        ).join('\n')}\n\n**Selected Item:** ${item.display_name} is already in your cart (quantity: ${existingCartItem.quantity})`
-      );
-
-      // Create cart management buttons
-      const buttonRow = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId(`add_to_cart_${type}_${itemId}_${player_id}`)
-            .setLabel('Add Another')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId(`adjust_cart_quantity_${type}_${itemId}_${player_id}`)
-            .setLabel('Adjust Quantity')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId(`remove_from_cart_${type}_${itemId}_${player_id}`)
-            .setLabel('Remove from Cart')
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`checkout_cart_${player_id}`)
-            .setLabel('Checkout')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId('clear_cart')
-            .setLabel('Clear Cart')
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: [buttonRow]
-      });
-    } else {
-      // Add item to cart
-      if (!global.userCarts) global.userCarts = {};
-      if (!global.userCarts[cartKey]) global.userCarts[cartKey] = [];
-      
-      const cartItem = {
-        type: type,
-        itemId: itemId,
-        displayName: item.display_name,
-        price: item.price,
-        quantity: 1,
-        serverId: serverId,
-        serverName: nickname,
-        shortName: type === 'item' ? item.short_name : null,
-        kitName: type === 'kit' ? item.kit_name : null,
-        timer: item.timer || null
-      };
-      
-      cart.push(cartItem);
-      global.userCarts[cartKey] = cart;
-      
-      const totalPrice = cart.reduce((total, cartItem) => total + (cartItem.price * cartItem.quantity), 0);
-      
-      const embed = orangeEmbed(
-        '🛒 Item Added to Cart',
-        `**Item:** ${item.display_name}\n**Price:** ${item.price} ${currencyName}\n**Server:** ${nickname}\n**Your Balance:** ${balance} ${currencyName}\n**Cart Total:** ${totalPrice} ${currencyName}\n\n**Items in Cart:**\n${cart.map(cartItem => 
-          `• **${cartItem.displayName}** - ${cartItem.price} ${currencyName} x${cartItem.quantity} = ${cartItem.price * cartItem.quantity} ${currencyName}`
-        ).join('\n')}`
-      );
-
-      // Create cart management buttons
-      const buttonRow = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId(`add_to_cart_${type}_${itemId}_${player_id}`)
-            .setLabel('Add Another')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId(`adjust_cart_quantity_${type}_${itemId}_${player_id}`)
-            .setLabel('Adjust Quantity')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId(`remove_from_cart_${type}_${itemId}_${player_id}`)
-            .setLabel('Remove from Cart')
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`checkout_cart_${player_id}`)
-            .setLabel('Checkout')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId('clear_cart')
-            .setLabel('Clear Cart')
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: [buttonRow]
+    if (balance < item.price) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Insufficient Balance', `You need ${item.price} ${currencyName} but only have ${balance} ${currencyName}.`)]
       });
     }
+
+    // Create confirmation embed
+    const embed = orangeEmbed(
+      '🛒 Purchase Confirmation',
+      `**Item:** ${item.display_name}\n**Price:** ${item.price} ${currencyName}\n**Server:** ${nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - item.price} ${currencyName}\n\nDo you want to confirm this purchase?`
+    );
+
+    // Create confirmation buttons
+    const confirmCustomId = `confirm_purchase_${type}_${itemId}_${player_id}`;
+    console.log('Creating confirm button with customId:', confirmCustomId);
+    console.log('Button custom ID parts - type:', type, 'itemId:', itemId, 'player_id:', player_id);
+    
+    // Create the main action row with buttons
+    const buttonRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(confirmCustomId)
+          .setLabel('Confirm Purchase')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('cancel_purchase')
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+    // Create dropdown for removing items
+    const removeRow = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`remove_shop_item_${type}_${itemId}_${player_id}`)
+          .setPlaceholder('Remove Shop Item')
+          .addOptions([
+            {
+              label: item.display_name,
+              description: `Remove ${item.display_name} from shop`,
+              value: `${type}_${itemId}`
+            }
+          ])
+      );
+
+    // Create dropdown for adjusting quantity
+    const quantityRow = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`adjust_quantity_${type}_${itemId}_${player_id}`)
+          .setPlaceholder('Adjust Quantity')
+          .addOptions([
+            {
+              label: item.display_name,
+              description: `Adjust quantity for ${item.display_name}`,
+              value: `${type}_${itemId}`
+            }
+          ])
+      );
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: [buttonRow, removeRow, quantityRow]
+    });
 
   } catch (error) {
     console.error('Error handling shop item select:', error);
@@ -747,16 +689,19 @@ async function handleConfirmPurchase(interaction) {
       }
     }
 
+    // Calculate total price (price per unit * quantity)
+    const totalPrice = itemData.price * itemData.quantity;
+    
     // Deduct balance
     await pool.query(
       'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
-      [itemData.price, playerId]
+      [totalPrice, playerId]
     );
 
     // Record transaction
     await pool.query(
       'INSERT INTO transactions (player_id, guild_id, amount, type, timestamp) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?, ?, CURRENT_TIMESTAMP)',
-      [playerId, playerId, -itemData.price, 'shop_purchase']
+      [playerId, playerId, -totalPrice, 'shop_purchase']
     );
 
     // Record cooldown if item has timer
@@ -787,7 +732,7 @@ async function handleConfirmPurchase(interaction) {
        // Send to admin feed
        const guildId = interaction.guildId;
        const { sendFeedEmbed } = require('../rcon');
-       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} for ${itemData.price} ${currencyName}`);
+       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} x${itemData.quantity} for ${totalPrice} ${currencyName}`);
      } catch (error) {
        console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
      }
@@ -807,8 +752,8 @@ async function handleConfirmPurchase(interaction) {
        .setDescription('✅ **Delivery Confirmed**')
        .addFields(
          { name: '**Item**', value: itemData.display_name, inline: false },
-         { name: '**Quantity**', value: '1', inline: false },
-         { name: '**Total Cost**', value: `${itemData.price} ${currencyName}`, inline: false }
+         { name: '**Quantity**', value: itemData.quantity.toString(), inline: false },
+         { name: '**Total Cost**', value: `${totalPrice} ${currencyName}`, inline: false }
        )
        .setAuthor({
          name: playerIgn,
@@ -1670,7 +1615,7 @@ async function handleAdjustQuantity(interaction) {
     let itemData;
     if (type === 'item') {
       const [itemResult] = await pool.query(
-        `SELECT si.display_name, si.price, si.quantity, rs.nickname, rs.id as server_id
+        `SELECT si.display_name, si.price, si.quantity, si.short_name, rs.nickname, rs.id as server_id
          FROM shop_items si 
          JOIN shop_categories sc ON si.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -1680,7 +1625,7 @@ async function handleAdjustQuantity(interaction) {
       itemData = itemResult[0];
     } else if (type === 'kit') {
       const [kitResult] = await pool.query(
-        `SELECT sk.display_name, sk.price, sk.quantity, rs.nickname, rs.id as server_id
+        `SELECT sk.display_name, sk.price, sk.quantity, sk.kit_name, rs.nickname, rs.id as server_id
          FROM shop_kits sk 
          JOIN shop_categories sc ON sk.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -1728,13 +1673,23 @@ async function handleAdjustQuantityModal(interaction) {
   const parts = interaction.customId.split('_');
   const [, , type, itemId, playerId] = parts;
   const newQuantity = interaction.fields.getTextInputValue('quantity');
+  const userId = interaction.user.id;
 
   try {
+    const quantity = parseInt(newQuantity);
+
+    if (isNaN(quantity) || quantity < 1 || quantity > 100) {
+      return interaction.reply({
+        embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')],
+        ephemeral: true
+      });
+    }
+
     // Get the item details
     let itemData;
     if (type === 'item') {
       const [itemResult] = await pool.query(
-        `SELECT si.display_name, si.price, si.quantity, rs.nickname, rs.id as server_id
+        `SELECT si.display_name, si.price, si.quantity, si.short_name, rs.nickname, rs.id as server_id
          FROM shop_items si 
          JOIN shop_categories sc ON si.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -1744,7 +1699,7 @@ async function handleAdjustQuantityModal(interaction) {
       itemData = itemResult[0];
     } else if (type === 'kit') {
       const [kitResult] = await pool.query(
-        `SELECT sk.display_name, sk.price, sk.quantity, rs.nickname, rs.id as server_id
+        `SELECT sk.display_name, sk.price, sk.quantity, sk.kit_name, rs.nickname, rs.id as server_id
          FROM shop_kits sk 
          JOIN shop_categories sc ON sk.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -1757,15 +1712,6 @@ async function handleAdjustQuantityModal(interaction) {
     if (!itemData) {
       return interaction.reply({
         embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')],
-        ephemeral: true
-      });
-    }
-
-    const quantity = parseInt(newQuantity);
-
-    if (isNaN(quantity) || quantity < 1 || quantity > 100) {
-      return interaction.reply({
-        embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')],
         ephemeral: true
       });
     }
@@ -1787,14 +1733,71 @@ async function handleAdjustQuantityModal(interaction) {
     const { getCurrencyName } = require('../utils/economy');
     const currencyName = await getCurrencyName(itemData.server_id);
 
-    // Create embed with updated quantity
+    // Calculate new total price (price per unit * quantity)
+    const newTotalPrice = itemData.price * quantity;
+
+    // Get player balance
+    const [balanceResult] = await pool.query(
+      'SELECT balance FROM economy WHERE player_id = ?',
+      [playerId]
+    );
+    
+    const balance = balanceResult[0]?.balance || 0;
+
+    // Create embed with updated quantity and price
     const embed = orangeEmbed(
       '🛒 Quantity Updated',
-      `**Item:** ${itemData.display_name}\n**Price:** ${itemData.price} ${currencyName}\n**Server:** ${itemData.nickname}\n**New Quantity:** ${quantity}\n\nItem quantity has been updated successfully.`
+      `**Item:** ${itemData.display_name}\n**Price per unit:** ${itemData.price} ${currencyName}\n**New Quantity:** ${quantity}\n**New Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}\n\nDo you want to confirm this purchase?`
     );
+
+    // Create confirmation buttons with updated price
+    const confirmCustomId = `confirm_purchase_${type}_${itemId}_${playerId}`;
+    
+    const buttonRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(confirmCustomId)
+          .setLabel('Confirm Purchase')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('cancel_purchase')
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+    // Create dropdown for removing items
+    const removeRow = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`remove_shop_item_${type}_${itemId}_${playerId}`)
+          .setPlaceholder('Remove Shop Item')
+          .addOptions([
+            {
+              label: itemData.display_name,
+              description: `Remove ${itemData.display_name} from shop`,
+              value: `${type}_${itemId}`
+            }
+          ])
+      );
+
+    // Create dropdown for adjusting quantity
+    const quantityRow = new ActionRowBuilder()
+      .addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`adjust_quantity_${type}_${itemId}_${playerId}`)
+          .setPlaceholder('Adjust Quantity')
+          .addOptions([
+            {
+              label: itemData.display_name,
+              description: `Adjust quantity for ${itemData.display_name}`,
+              value: `${type}_${itemId}`
+            }
+          ])
+      );
 
     await interaction.reply({
       embeds: [embed],
+      components: [buttonRow, removeRow, quantityRow],
       ephemeral: true
     });
 
@@ -2010,8 +2013,7 @@ async function handleCancelRemove(interaction) {
   });
 }
 
-// Cart Management Functions
-async function handleAddToCart(interaction) {
+async function handleRemoveShopItem(interaction) {
   await interaction.deferUpdate();
   
   const parts = interaction.customId.split('_');
@@ -2019,522 +2021,121 @@ async function handleAddToCart(interaction) {
   const userId = interaction.user.id;
 
   try {
-    // Get the cart for this user and server
-    const cartKeys = Object.keys(global.userCarts || {}).filter(key => key.startsWith(`cart_${userId}_`));
-    
-    if (cartKeys.length === 0) {
+    // Get the item details before deletion
+    let itemData;
+    if (type === 'item') {
+      const [itemResult] = await pool.query(
+        `SELECT si.display_name, si.price, rs.nickname, rs.id as server_id
+         FROM shop_items si 
+         JOIN shop_categories sc ON si.category_id = sc.id 
+         JOIN rust_servers rs ON sc.server_id = rs.id 
+         WHERE si.id = ?`,
+        [itemId]
+      );
+      itemData = itemResult[0];
+    } else if (type === 'kit') {
+      const [kitResult] = await pool.query(
+        `SELECT sk.display_name, sk.price, rs.nickname, rs.id as server_id
+         FROM shop_kits sk 
+         JOIN shop_categories sc ON sk.category_id = sc.id 
+         JOIN rust_servers rs ON sc.server_id = rs.id 
+         WHERE sk.id = ?`,
+        [itemId]
+      );
+      itemData = kitResult[0];
+    }
+
+    if (!itemData) {
       return interaction.editReply({
-        embeds: [errorEmbed('Cart Not Found', 'No cart found for this user.')]
+        embeds: [errorEmbed('Item Not Found', 'The item you selected to remove was not found.')]
       });
     }
 
-    const cartKey = cartKeys[0];
-    const cart = global.userCarts[cartKey];
-    const cartItem = cart.find(item => item.type === type && item.itemId === itemId);
-    
-    if (!cartItem) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Item Not Found', 'Item not found in cart.')]
-      });
+    // Actually remove the item from the shop
+    if (type === 'item') {
+      await pool.query(
+        'DELETE FROM shop_items WHERE id = ?',
+        [itemId]
+      );
+    } else if (type === 'kit') {
+      await pool.query(
+        'DELETE FROM shop_kits WHERE id = ?',
+        [itemId]
+      );
     }
 
-    // Increase quantity
-    cartItem.quantity += 1;
-    
-    // Get updated balance and currency info
-    const [balanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
-    );
-    
-    const balance = balanceResult[0]?.balance || 0;
+    // Get currency name
     const { getCurrencyName } = require('../utils/economy');
-    const currencyName = await getCurrencyName(cartItem.serverId);
-    
-    const totalPrice = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-    
+    const currencyName = await getCurrencyName(itemData.server_id);
+
+    // Show success message and return to shop start
     const embed = orangeEmbed(
-      '🛒 Cart Updated',
-      `**Server:** ${cartItem.serverName}\n**Your Balance:** ${balance} ${currencyName}\n**Cart Total:** ${totalPrice} ${currencyName}\n\n**Items in Cart:**\n${cart.map(item => 
-        `• **${item.displayName}** - ${item.price} ${currencyName} x${item.quantity} = ${item.price * item.quantity} ${currencyName}`
-      ).join('\n')}\n\n**Updated:** ${cartItem.displayName} quantity increased to ${cartItem.quantity}`
+      '🗑️ Item Removed',
+      `**${itemData.display_name}** has been removed from the shop on **${itemData.nickname}**.\n\nYou can now browse the shop again.`
     );
 
-    const buttonRow = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(`add_to_cart_${type}_${itemId}_${playerId}`)
-          .setLabel('Add Another')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(`adjust_cart_quantity_${type}_${itemId}_${playerId}`)
-          .setLabel('Adjust Quantity')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(`remove_from_cart_${type}_${itemId}_${playerId}`)
-          .setLabel('Remove from Cart')
-          .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-          .setCustomId(`checkout_cart_${playerId}`)
-          .setLabel('Checkout')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('clear_cart')
-          .setLabel('Clear Cart')
-          .setStyle(ButtonStyle.Secondary)
-      );
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: [buttonRow]
-    });
-
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to add item to cart.')]
-    });
-  }
-}
-
-async function handleAdjustCartQuantity(interaction) {
-  await interaction.deferUpdate();
-  
-  const parts = interaction.customId.split('_');
-  const [, , , type, itemId, playerId] = parts;
-  const userId = interaction.user.id;
-
-  try {
-    // Get the cart for this user and server
-    const cartKeys = Object.keys(global.userCarts || {}).filter(key => key.startsWith(`cart_${userId}_`));
-    
-    if (cartKeys.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Cart Not Found', 'No cart found for this user.')]
-      });
-    }
-
-    const cartKey = cartKeys[0];
-    const cart = global.userCarts[cartKey];
-    const cartItem = cart.find(item => item.type === type && item.itemId === itemId);
-    
-    if (!cartItem) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Item Not Found', 'Item not found in cart.')]
-      });
-    }
-
-    // Create modal for quantity adjustment
-    const modal = new ModalBuilder()
-      .setCustomId(`adjust_cart_quantity_modal_${type}_${itemId}_${playerId}`)
-      .setTitle(`Adjust Cart Quantity - ${cartItem.displayName}`);
-
-    const quantityInput = new TextInputBuilder()
-      .setCustomId('quantity')
-      .setLabel('New Quantity')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter the new quantity (1-100)')
-      .setValue(cartItem.quantity.toString())
-      .setRequired(true)
-      .setMinLength(1)
-      .setMaxLength(3);
-
-    const firstActionRow = new ActionRowBuilder().addComponents(quantityInput);
-    modal.addComponents(firstActionRow);
-
-    await interaction.showModal(modal);
-
-  } catch (error) {
-    console.error('Error adjusting cart quantity:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to adjust cart quantity.')]
-    });
-  }
-}
-
-async function handleRemoveFromCart(interaction) {
-  await interaction.deferUpdate();
-  
-  const parts = interaction.customId.split('_');
-  const [, , , type, itemId, playerId] = parts;
-  const userId = interaction.user.id;
-
-  try {
-    // Get the cart for this user and server
-    const cartKeys = Object.keys(global.userCarts || {}).filter(key => key.startsWith(`cart_${userId}_`));
-    
-    if (cartKeys.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Cart Not Found', 'No cart found for this user.')]
-      });
-    }
-
-    const cartKey = cartKeys[0];
-    const cart = global.userCarts[cartKey];
-    const cartItemIndex = cart.findIndex(item => item.type === type && item.itemId === itemId);
-    
-    if (cartItemIndex === -1) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Item Not Found', 'Item not found in cart.')]
-      });
-    }
-
-    const removedItem = cart[cartItemIndex];
-    cart.splice(cartItemIndex, 1);
-    
-    // If cart is empty, remove it
-    if (cart.length === 0) {
-      delete global.userCarts[cartKey];
-    }
-    
-    // Get updated balance and currency info
-    const [balanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
+    // Get server info to return to shop start
+    const serverResult = await pool.query(
+      'SELECT rs.nickname, rs.id as server_id FROM rust_servers rs WHERE rs.id = ?',
+      [itemData.server_id]
     );
-    
-    const balance = balanceResult[0]?.balance || 0;
-    const { getCurrencyName } = require('../utils/economy');
-    const currencyName = await getCurrencyName(removedItem.serverId);
-    
-    if (cart.length === 0) {
-      const embed = orangeEmbed(
-        '🛒 Cart Cleared',
-        `**Item Removed:** ${removedItem.displayName}\n**Server:** ${removedItem.serverName}\n**Your Balance:** ${balance} ${currencyName}\n\nYour cart is now empty.`
-      );
 
-      await interaction.editReply({
-        embeds: [embed],
-        components: []
-      });
-    } else {
-      const totalPrice = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    if (serverResult[0] && serverResult[0].length > 0) {
+      const server = serverResult[0][0];
       
-      const embed = orangeEmbed(
-        '🛒 Item Removed from Cart',
-        `**Removed:** ${removedItem.displayName}\n**Server:** ${removedItem.serverName}\n**Your Balance:** ${balance} ${currencyName}\n**Cart Total:** ${totalPrice} ${currencyName}\n\n**Items in Cart:**\n${cart.map(item => 
-          `• **${item.displayName}** - ${item.price} ${currencyName} x${item.quantity} = ${item.price * item.quantity} ${currencyName}`
-        ).join('\n')}`
+      // Fetch categories for the shop
+      const [categoriesResult] = await pool.query(
+        `SELECT sc.id, sc.name, sc.type, sc.role
+         FROM shop_categories sc
+         WHERE sc.server_id = ?
+         ORDER BY sc.name`,
+        [server.server_id]
       );
 
-      const buttonRow = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId(`checkout_cart_${playerId}`)
-            .setLabel('Checkout')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId('clear_cart')
-            .setLabel('Clear Cart')
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-      await interaction.editReply({
-        embeds: [embed],
-        components: [buttonRow]
-      });
-    }
-
-  } catch (error) {
-    console.error('Error removing from cart:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to remove item from cart.')]
-    });
-  }
-}
-
-async function handleCheckoutCart(interaction) {
-  await interaction.deferUpdate();
-  
-  const parts = interaction.customId.split('_');
-  const [, , playerId] = parts;
-  const userId = interaction.user.id;
-
-  try {
-    // Get the cart for this user and server
-    const cartKeys = Object.keys(global.userCarts || {}).filter(key => key.startsWith(`cart_${userId}_`));
-    
-    if (cartKeys.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Cart Empty', 'Your cart is empty.')]
-      });
-    }
-
-    const cartKey = cartKeys[0];
-    const cart = global.userCarts[cartKey];
-    
-    if (cart.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Cart Empty', 'Your cart is empty.')]
-      });
-    }
-
-    // Get player balance
-    const [balanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
-    );
-    
-    if (balanceResult.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Account Not Found', 'Could not find your account balance.')]
-      });
-    }
-
-    const balance = balanceResult[0].balance;
-    const { getCurrencyName } = require('../utils/economy');
-    const currencyName = await getCurrencyName(cart[0].serverId);
-    
-    const totalPrice = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-    
-    if (balance < totalPrice) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Insufficient Balance', `You need ${totalPrice} ${currencyName} but only have ${balance} ${currencyName}.`)]
-      });
-    }
-
-    // Process each item in the cart
-    const purchasedItems = [];
-    let totalCost = 0;
-
-    for (const cartItem of cart) {
-      try {
-        // Check cooldown if item has timer
-        if (cartItem.timer && cartItem.timer > 0) {
-          const cooldownResult = await pool.query(
-            'SELECT purchased_at FROM shop_cooldowns WHERE player_id = ? AND item_type = ? AND item_id = ? ORDER BY purchased_at DESC LIMIT 1',
-            [playerId, cartItem.type, cartItem.itemId]
-          );
+      if (categoriesResult.length > 0) {
+        // Build dropdown with role checking
+        const categoryOptions = [];
+        for (const category of categoriesResult) {
+          const hasRole = !category.role || interaction.member.roles.cache.has(category.role);
+          const lockIcon = category.role && !hasRole ? '🔒 ' : '';
           
-          if (cooldownResult[0] && cooldownResult[0].length > 0) {
-            const lastPurchase = new Date(cooldownResult[0][0].purchased_at);
-            const now = new Date();
-            const timeDiff = (now - lastPurchase) / (1000 * 60); // Convert to minutes
-            
-            if (timeDiff < cartItem.timer) {
-              const remainingTime = Math.ceil(cartItem.timer - timeDiff);
-              return interaction.editReply({
-                embeds: [errorEmbed('Cooldown Active', `${cartItem.displayName} has a ${cartItem.timer} minute cooldown. You can purchase again in ${remainingTime} minutes.`)]
-              });
-            }
-          }
-        }
-
-        // Get player IGN for RCON command
-        const playerResult = await pool.query(
-          'SELECT ign FROM players WHERE id = ?',
-          [playerId]
-        );
-        
-        const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
-        
-        // Execute RCON command
-        const { executeRconCommand } = require('../rcon');
-        let command;
-        
-        if (cartItem.type === 'item') {
-          command = `inventory.give ${playerIgn} ${cartItem.shortName} ${cartItem.quantity}`;
-        } else if (cartItem.type === 'kit') {
-          command = `kit givetoplayer ${cartItem.kitName} ${playerIgn}`;
-        }
-        
-        const rconResult = await executeRconCommand(cartItem.serverId, command);
-        
-        if (rconResult.success) {
-          // Deduct balance
-          const itemCost = cartItem.price * cartItem.quantity;
-          totalCost += itemCost;
-          
-          await pool.query(
-            'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
-            [itemCost, playerId]
-          );
-          
-          // Record cooldown if item has timer
-          if (cartItem.timer && cartItem.timer > 0) {
-            await pool.query(
-              'INSERT INTO shop_cooldowns (player_id, item_type, item_id, purchased_at) VALUES (?, ?, ?, NOW())',
-              [playerId, cartItem.type, cartItem.itemId]
-            );
-          }
-          
-          purchasedItems.push({
-            name: cartItem.displayName,
-            quantity: cartItem.quantity,
-            cost: itemCost
-          });
-        } else {
-          return interaction.editReply({
-            embeds: [errorEmbed('Purchase Failed', `Failed to give ${cartItem.displayName} to player. Please try again.`)]
+          categoryOptions.push({
+            label: `${lockIcon}${category.name}`,
+            description: `${category.type} category`,
+            value: category.id.toString()
           });
         }
-      } catch (error) {
-        console.error('Error processing cart item:', error);
-        return interaction.editReply({
-          embeds: [errorEmbed('Purchase Error', `Error processing ${cartItem.displayName}. Please try again.`)]
+
+        const row = new ActionRowBuilder()
+          .addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId('shop_category_select')
+              .setPlaceholder('Select a category to browse')
+              .addOptions(categoryOptions)
+          );
+
+        await interaction.editReply({
+          embeds: [embed],
+          components: [row]
+        });
+      } else {
+        await interaction.editReply({
+          embeds: [embed]
         });
       }
+    } else {
+      await interaction.editReply({
+        embeds: [embed]
+      });
     }
 
-    // Clear the cart
-    delete global.userCarts[cartKey];
-    
-    // Get updated balance
-    const [updatedBalanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
-    );
-    const newBalance = updatedBalanceResult[0].balance;
-
-    // Create success embed
-    const embed = orangeEmbed(
-      '✅ Purchase Successful',
-      `**Server:** ${cart[0].serverName}\n**Total Spent:** ${totalCost} ${currencyName}\n**New Balance:** ${newBalance} ${currencyName}\n\n**Purchased Items:**\n${purchasedItems.map(item => 
-        `• **${item.name}** x${item.quantity} - ${item.cost} ${currencyName}`
-      ).join('\n')}`
-    );
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: []
-    });
-
   } catch (error) {
-    console.error('Error during checkout:', error);
+    console.error('Error removing shop item:', error);
     await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to process checkout. Please try again.')]
+      embeds: [errorEmbed('Error', 'Failed to remove item from shop.')]
     });
   }
 }
 
-async function handleClearCart(interaction) {
-  await interaction.deferUpdate();
-  
-  const userId = interaction.user.id;
 
-  try {
-    // Get the cart for this user and server
-    const cartKeys = Object.keys(global.userCarts || {}).filter(key => key.startsWith(`cart_${userId}_`));
-    
-    if (cartKeys.length === 0) {
-      return interaction.editReply({
-        embeds: [orangeEmbed('Cart Empty', 'Your cart is already empty.')]
-      });
-    }
-
-    // Clear all carts for this user
-    cartKeys.forEach(key => {
-      delete global.userCarts[key];
-    });
-
-    await interaction.editReply({
-      embeds: [orangeEmbed('🛒 Cart Cleared', 'Your shopping cart has been cleared.')],
-      components: []
-    });
-
-  } catch (error) {
-    console.error('Error clearing cart:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to clear cart.')]
-    });
-  }
-}
-
-async function handleAdjustCartQuantityModal(interaction) {
-  const parts = interaction.customId.split('_');
-  const [, , , type, itemId, playerId] = parts;
-  const newQuantity = interaction.fields.getTextInputValue('quantity');
-  const userId = interaction.user.id;
-
-  try {
-    const quantity = parseInt(newQuantity);
-
-    if (isNaN(quantity) || quantity < 1 || quantity > 100) {
-      return interaction.reply({
-        embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')],
-        ephemeral: true
-      });
-    }
-
-    // Get the cart for this user and server
-    const cartKeys = Object.keys(global.userCarts || {}).filter(key => key.startsWith(`cart_${userId}_`));
-    
-    if (cartKeys.length === 0) {
-      return interaction.reply({
-        embeds: [errorEmbed('Cart Not Found', 'No cart found for this user.')],
-        ephemeral: true
-      });
-    }
-
-    const cartKey = cartKeys[0];
-    const cart = global.userCarts[cartKey];
-    const cartItem = cart.find(item => item.type === type && item.itemId === itemId);
-    
-    if (!cartItem) {
-      return interaction.reply({
-        embeds: [errorEmbed('Item Not Found', 'Item not found in cart.')],
-        ephemeral: true
-      });
-    }
-
-    // Update quantity
-    cartItem.quantity = quantity;
-    
-    // Get updated balance and currency info
-    const [balanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
-    );
-    
-    const balance = balanceResult[0]?.balance || 0;
-    const { getCurrencyName } = require('../utils/economy');
-    const currencyName = await getCurrencyName(cartItem.serverId);
-    
-    const totalPrice = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-    
-    const embed = orangeEmbed(
-      '🛒 Quantity Updated',
-      `**Server:** ${cartItem.serverName}\n**Your Balance:** ${balance} ${currencyName}\n**Cart Total:** ${totalPrice} ${currencyName}\n\n**Items in Cart:**\n${cart.map(item => 
-        `• **${item.displayName}** - ${item.price} ${currencyName} x${item.quantity} = ${item.price * item.quantity} ${currencyName}`
-      ).join('\n')}\n\n**Updated:** ${cartItem.displayName} quantity set to ${quantity}`
-    );
-
-    const buttonRow = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(`add_to_cart_${type}_${itemId}_${playerId}`)
-          .setLabel('Add Another')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(`adjust_cart_quantity_${type}_${itemId}_${playerId}`)
-          .setLabel('Adjust Quantity')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(`remove_from_cart_${type}_${itemId}_${playerId}`)
-          .setLabel('Remove from Cart')
-          .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-          .setCustomId(`checkout_cart_${playerId}`)
-          .setLabel('Checkout')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('clear_cart')
-          .setLabel('Clear Cart')
-          .setStyle(ButtonStyle.Secondary)
-      );
-
-    await interaction.reply({
-      embeds: [embed],
-      components: [buttonRow],
-      ephemeral: true
-    });
-
-  } catch (error) {
-    console.error('Error handling adjust cart quantity modal:', error);
-    await interaction.reply({
-      embeds: [errorEmbed('Error', 'Failed to update quantity. Please try again.')],
-      ephemeral: true
-    });
-  }
-}
 
