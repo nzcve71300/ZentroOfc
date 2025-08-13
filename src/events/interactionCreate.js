@@ -31,6 +31,8 @@ module.exports = {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
+        } else if (interaction.customId.startsWith('adjust_quantity_modal_')) {
+          await handleAdjustQuantityModal(interaction);
         } else if (interaction.customId.startsWith('adjust_cart_quantity_modal_')) {
           await handleAdjustCartQuantityModal(interaction);
         } else if (interaction.customId.startsWith('scheduler_add_modal_')) {
