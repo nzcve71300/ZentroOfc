@@ -2019,7 +2019,7 @@ async function handleRemoveShopItem(interaction) {
   const userId = interaction.user.id;
 
   try {
-    // Get the item details before deletion
+    // Get the item details (but don't remove from shop)
     let itemData;
     if (type === 'item') {
       const [itemResult] = await pool.query(
@@ -2045,31 +2045,18 @@ async function handleRemoveShopItem(interaction) {
 
     if (!itemData) {
       return interaction.editReply({
-        embeds: [errorEmbed('Item Not Found', 'The item you selected to remove was not found.')]
+        embeds: [errorEmbed('Item Not Found', 'The item you selected was not found.')]
       });
-    }
-
-    // Actually remove the item from the shop
-    if (type === 'item') {
-      await pool.query(
-        'DELETE FROM shop_items WHERE id = ?',
-        [itemId]
-      );
-    } else if (type === 'kit') {
-      await pool.query(
-        'DELETE FROM shop_kits WHERE id = ?',
-        [itemId]
-      );
     }
 
     // Get currency name
     const { getCurrencyName } = require('../utils/economy');
     const currencyName = await getCurrencyName(itemData.server_id);
 
-    // Show success message and return to shop start
+    // Show message that item was removed from selection (not from shop)
     const embed = orangeEmbed(
-      '🗑️ Item Removed',
-      `**${itemData.display_name}** has been removed from the shop on **${itemData.nickname}**.\n\nYou can now browse the shop again.`
+      '🛒 Item Removed from Selection',
+      `**${itemData.display_name}** has been removed from your current selection on **${itemData.nickname}**.\n\nYou can now browse the shop again.`
     );
 
     // Get server info to return to shop start
@@ -2128,9 +2115,9 @@ async function handleRemoveShopItem(interaction) {
     }
 
   } catch (error) {
-    console.error('Error removing shop item:', error);
+    console.error('Error removing shop item from selection:', error);
     await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to remove item from shop.')]
+      embeds: [errorEmbed('Error', 'Failed to remove item from selection.')]
     });
   }
 }
