@@ -1608,11 +1608,15 @@ async function handleRemoveItem(interaction) {
 }
 
 async function handleAdjustQuantity(interaction) {
+  console.log('[DEBUG] handleAdjustQuantity called');
   const parts = interaction.customId.split('_');
   const [, , type, itemId, playerId] = parts;
   const userId = interaction.user.id;
 
+  console.log('[DEBUG] Parsed parts:', { parts, type, itemId, playerId, userId });
+
   try {
+    console.log('[DEBUG] Getting item details...');
     // Get the item details
     let itemData;
     if (type === 'item') {
@@ -1625,6 +1629,7 @@ async function handleAdjustQuantity(interaction) {
         [itemId]
       );
       itemData = itemResult[0];
+      console.log('[DEBUG] Item query result:', itemData);
     } else if (type === 'kit') {
       const [kitResult] = await pool.query(
         `SELECT sk.display_name, sk.price, sk.quantity, sk.kit_name, rs.nickname, rs.id as server_id
@@ -1635,15 +1640,18 @@ async function handleAdjustQuantity(interaction) {
         [itemId]
       );
       itemData = kitResult[0];
+      console.log('[DEBUG] Kit query result:', itemData);
     }
 
     if (!itemData) {
+      console.log('[DEBUG] No item data found');
       return interaction.reply({
         embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')],
         ephemeral: true
       });
     }
 
+    console.log('[DEBUG] Creating modal...');
     // Create modal for quantity adjustment
     const modal = new ModalBuilder()
       .setCustomId(`adjust_quantity_modal_${type}_${itemId}_${playerId}`)
@@ -1662,11 +1670,13 @@ async function handleAdjustQuantity(interaction) {
     const firstActionRow = new ActionRowBuilder().addComponents(quantityInput);
     modal.addComponents(firstActionRow);
 
+    console.log('[DEBUG] Showing modal...');
     // IMPORTANT: Do NOT defer here. showModal must be the first response.
     await interaction.showModal(modal);
+    console.log('[DEBUG] Modal shown successfully');
 
   } catch (error) {
-    console.error('Error handling adjust quantity:', error);
+    console.error('[DEBUG] Error in handleAdjustQuantity:', error);
     await interaction.reply({
       embeds: [errorEmbed('Error', 'Failed to process quantity adjustment.')],
       ephemeral: true
