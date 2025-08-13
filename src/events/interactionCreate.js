@@ -1668,18 +1668,20 @@ async function handleAdjustQuantity(interaction) {
 }
 
 async function handleAdjustQuantityModal(interaction) {
-  const parts = interaction.customId.split('_');
-  const [, , type, itemId, playerId] = parts;
-  const newQuantity = interaction.fields.getTextInputValue('quantity');
-  const userId = interaction.user.id;
-
   try {
+    // REPLY OR DEFER WITHIN 3 SECONDS:
+    await interaction.deferReply({ ephemeral: true });
+
+    const parts = interaction.customId.split('_');
+    const [, , type, itemId, playerId] = parts;
+    const newQuantity = interaction.fields.getTextInputValue('quantity');
+    const userId = interaction.user.id;
+
     const quantity = parseInt(newQuantity);
 
     if (isNaN(quantity) || quantity < 1 || quantity > 100) {
-      return interaction.reply({
-        embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')],
-        ephemeral: true
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')]
       });
     }
 
@@ -1708,9 +1710,8 @@ async function handleAdjustQuantityModal(interaction) {
     }
 
     if (!itemData) {
-      return interaction.reply({
-        embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')],
-        ephemeral: true
+      return interaction.editReply({
+        embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')]
       });
     }
 
@@ -1793,18 +1794,26 @@ async function handleAdjustQuantityModal(interaction) {
           ])
       );
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [embed],
-      components: [buttonRow, removeRow, quantityRow],
-      ephemeral: true
+      components: [buttonRow, removeRow, quantityRow]
     });
 
   } catch (error) {
     console.error('Error handling adjust quantity modal:', error);
-    await interaction.reply({
-      embeds: [errorEmbed('Error', 'Failed to update quantity. Please try again.')],
-      ephemeral: true
-    });
+    try {
+      await interaction.editReply({
+        embeds: [errorEmbed('Error', 'Failed to update quantity. Please try again.')]
+      });
+    } catch {
+      // Fallback if we never deferred/replied (edge cases)
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          embeds: [errorEmbed('Error', 'Failed to update quantity. Please try again.')],
+          ephemeral: true
+        });
+      }
+    }
   }
 }
 
