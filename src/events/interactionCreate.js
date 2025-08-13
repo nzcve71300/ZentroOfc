@@ -1604,8 +1604,6 @@ async function handleRemoveItem(interaction) {
 }
 
 async function handleAdjustQuantity(interaction) {
-  await interaction.deferUpdate();
-  
   const parts = interaction.customId.split('_');
   const [, , type, itemId, playerId] = parts;
   const userId = interaction.user.id;
