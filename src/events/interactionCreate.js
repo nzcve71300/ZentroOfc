@@ -1674,17 +1674,22 @@ async function handleAdjustQuantity(interaction) {
 
 async function handleAdjustQuantityModal(interaction) {
   try {
+    console.log('[MODAL DEBUG] Starting handleAdjustQuantityModal');
     // REPLY OR DEFER WITHIN 3 SECONDS:
     await interaction.deferReply({ ephemeral: true });
+    console.log('[MODAL DEBUG] Deferred reply successfully');
 
     const parts = interaction.customId.split('_');
     const [, , type, itemId, playerId] = parts;
     const newQuantity = interaction.fields.getTextInputValue('quantity');
     const userId = interaction.user.id;
 
+    console.log('[MODAL DEBUG] Parsed values:', { type, itemId, playerId, newQuantity, userId });
+
     const quantity = parseInt(newQuantity);
 
     if (isNaN(quantity) || quantity < 1 || quantity > 100) {
+      console.log('[MODAL DEBUG] Invalid quantity, returning error');
       return interaction.editReply({
         embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')]
       });
