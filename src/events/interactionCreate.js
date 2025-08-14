@@ -1602,14 +1602,17 @@ async function handleRemoveItem(interaction) {
 }
 
 async function handleAdjustQuantity(interaction) {
+  console.log('[BUTTON] handleAdjustQuantity called');
   try {
     const parts = interaction.customId.split('_');
     const [, , type, itemId, playerId] = parts;
+    console.log('[BUTTON] Parsed parts:', { type, itemId, playerId });
 
     // Create a simple modal
     const modal = new ModalBuilder()
       .setCustomId(`adjust_quantity_modal_${type}_${itemId}_${playerId}`)
       .setTitle('Adjust Quantity');
+    console.log('[BUTTON] Created modal with customId:', modal.data.custom_id);
 
     const quantityInput = new TextInputBuilder()
       .setCustomId('quantity')
@@ -1618,13 +1621,17 @@ async function handleAdjustQuantity(interaction) {
       .setPlaceholder('Enter quantity (1-100)')
       .setValue('1')
       .setRequired(true);
+    console.log('[BUTTON] Created text input');
 
     const row = new ActionRowBuilder().addComponents(quantityInput);
     modal.addComponents(row);
+    console.log('[BUTTON] Added components to modal');
 
+    console.log('[BUTTON] About to show modal...');
     await interaction.showModal(modal);
+    console.log('[BUTTON] Modal shown successfully');
   } catch (error) {
-    console.error('Error showing modal:', error);
+    console.error('[BUTTON] Error showing modal:', error);
   }
 }
 
