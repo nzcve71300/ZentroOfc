@@ -604,6 +604,7 @@ async function handleConfirmPurchase(interaction) {
     let itemData;
     let command;
     let timer = null;
+    let finalQuantity = null;
     
     // Calculate quantity to use (adjusted quantity or default from database)
     const quantityToUse = adjustedQuantity ? parseInt(adjustedQuantity) : null;
@@ -626,7 +627,7 @@ async function handleConfirmPurchase(interaction) {
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
       // Calculate final quantity for this item
-      const finalQuantity = quantityToUse || itemData.quantity;
+      finalQuantity = quantityToUse || itemData.quantity;
       command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${finalQuantity}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
@@ -646,7 +647,7 @@ async function handleConfirmPurchase(interaction) {
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
       // Calculate final quantity for this kit
-      const finalQuantity = quantityToUse || itemData.quantity;
+      finalQuantity = quantityToUse || itemData.quantity;
       
       // For kits, we need to give the kit multiple times if quantity > 1
       if (finalQuantity > 1) {
