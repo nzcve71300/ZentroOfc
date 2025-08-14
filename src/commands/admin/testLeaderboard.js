@@ -38,7 +38,7 @@ module.exports = {
 
       console.log('[TEST LEADERBOARD] Querying for guild_db_id:', guildDbId);
       const [settingsResult] = await pool.query(
-        'SELECT channel_id FROM leaderboard_settings WHERE guild_id = ?',
+        'SELECT CAST(channel_id AS CHAR) as channel_id FROM leaderboard_settings WHERE guild_id = ?',
         [guildDbId]
       );
       console.log('[TEST LEADERBOARD] Raw database result:', settingsResult);
