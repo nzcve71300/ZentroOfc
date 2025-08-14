@@ -604,6 +604,9 @@ async function handleConfirmPurchase(interaction) {
     let itemData;
     let command;
     let timer = null;
+    
+    // Calculate quantity to use (adjusted quantity or default from database)
+    const quantityToUse = adjustedQuantity ? parseInt(adjustedQuantity) : null;
 
     if (type === 'item') {
       console.log('Confirm purchase - querying item with ID:', itemId);
@@ -622,7 +625,7 @@ async function handleConfirmPurchase(interaction) {
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
-      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${quantityToUse}`;
+      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${finalQuantity}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
@@ -641,10 +644,10 @@ async function handleConfirmPurchase(interaction) {
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
       // For kits, we need to give the kit multiple times if quantity > 1
-      if (quantityToUse > 1) {
+      if (finalQuantity > 1) {
         // Create multiple kit commands
         const kitCommands = [];
-        for (let i = 0; i < quantityToUse; i++) {
+        for (let i = 0; i < finalQuantity; i++) {
           kitCommands.push(`kit givetoplayer ${itemData.kit_name} ${playerIgn}`);
         }
         command = kitCommands.join('; ');
@@ -708,8 +711,8 @@ async function handleConfirmPurchase(interaction) {
     }
 
     // Calculate total price (price per unit * adjusted quantity)
-    const quantityToUse = adjustedQuantity ? parseInt(adjustedQuantity) : itemData.quantity;
-    const totalPrice = itemData.price * quantityToUse;
+    const finalQuantity = quantityToUse || itemData.quantity;
+    const totalPrice = itemData.price * finalQuantity;
     
     // Check if player has enough balance
     const [balanceResult] = await pool.query(
@@ -794,7 +797,7 @@ async function handleConfirmPurchase(interaction) {
        // Send to admin feed
        const guildId = interaction.guildId;
        const { sendFeedEmbed } = require('../rcon');
-       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} x${quantityToUse} for ${totalPrice} ${currencyName}`);
+       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} x${finalQuantity} for ${totalPrice} ${currencyName}`);
      } catch (error) {
        console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
      }
@@ -814,7 +817,7 @@ async function handleConfirmPurchase(interaction) {
        .setDescription('✅ **Delivery Confirmed**')
        .addFields(
          { name: '**Item**', value: itemData.display_name, inline: false },
-         { name: '**Quantity**', value: quantityToUse.toString(), inline: false },
+         { name: '**Quantity**', value: finalQuantity.toString(), inline: false },
          { name: '**Total Cost**', value: `${totalPrice} ${currencyName}`, inline: false }
        )
        .setAuthor({
