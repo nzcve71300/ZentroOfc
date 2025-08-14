@@ -1608,233 +1608,69 @@ async function handleRemoveItem(interaction) {
 }
 
 async function handleAdjustQuantity(interaction) {
-  console.log('[DEBUG] handleAdjustQuantity called');
-  const parts = interaction.customId.split('_');
-  const [, , type, itemId, playerId] = parts;
-  const userId = interaction.user.id;
-
-  console.log('[DEBUG] Parsed parts:', { parts, type, itemId, playerId, userId });
-
   try {
-    console.log('[DEBUG] Getting item details...');
-    // Get the item details
-    let itemData;
-    if (type === 'item') {
-      const [itemResult] = await pool.query(
-        `SELECT si.display_name, si.price, si.quantity, si.short_name, rs.nickname, rs.id as server_id
-         FROM shop_items si 
-         JOIN shop_categories sc ON si.category_id = sc.id 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE si.id = ?`,
-        [itemId]
-      );
-      itemData = itemResult[0];
-      console.log('[DEBUG] Item query result:', itemData);
-    } else if (type === 'kit') {
-      const [kitResult] = await pool.query(
-        `SELECT sk.display_name, sk.price, sk.quantity, sk.kit_name, rs.nickname, rs.id as server_id
-         FROM shop_kits sk 
-         JOIN shop_categories sc ON sk.category_id = sc.id 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE sk.id = ?`,
-        [itemId]
-      );
-      itemData = kitResult[0];
-      console.log('[DEBUG] Kit query result:', itemData);
-    }
+    const parts = interaction.customId.split('_');
+    const [, , type, itemId, playerId] = parts;
 
-    if (!itemData) {
-      console.log('[DEBUG] No item data found');
-      return interaction.reply({
-        embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')],
-        ephemeral: true
-      });
-    }
-
-    console.log('[DEBUG] Creating modal...');
-    // Create modal for quantity adjustment
+    // Create a simple modal
     const modal = new ModalBuilder()
       .setCustomId(`adjust_quantity_modal_${type}_${itemId}_${playerId}`)
-      .setTitle(`Adjust Quantity - ${itemData.display_name}`);
+      .setTitle('Adjust Quantity');
 
     const quantityInput = new TextInputBuilder()
       .setCustomId('quantity')
       .setLabel('New Quantity')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter the new quantity (1-100)')
-      .setValue(itemData.quantity.toString())
-      .setRequired(true)
-      .setMinLength(1)
-      .setMaxLength(3);
+      .setPlaceholder('Enter quantity (1-100)')
+      .setValue('1')
+      .setRequired(true);
 
-    const firstActionRow = new ActionRowBuilder().addComponents(quantityInput);
-    modal.addComponents(firstActionRow);
+    const row = new ActionRowBuilder().addComponents(quantityInput);
+    modal.addComponents(row);
 
-    console.log('[DEBUG] Showing modal...');
-    // IMPORTANT: Do NOT defer here. showModal must be the first response.
     await interaction.showModal(modal);
-    console.log('[DEBUG] Modal shown successfully');
-
   } catch (error) {
-    console.error('[DEBUG] Error in handleAdjustQuantity:', error);
-    await interaction.reply({
-      embeds: [errorEmbed('Error', 'Failed to process quantity adjustment.')],
-      ephemeral: true
-    });
+    console.error('Error showing modal:', error);
   }
 }
 
 async function handleAdjustQuantityModal(interaction) {
   try {
-    console.log('[MODAL DEBUG] Starting handleAdjustQuantityModal');
-    // REPLY OR DEFER WITHIN 3 SECONDS:
     await interaction.deferReply({ ephemeral: true });
-    console.log('[MODAL DEBUG] Deferred reply successfully');
 
     const parts = interaction.customId.split('_');
     const [, , type, itemId, playerId] = parts;
     const newQuantity = interaction.fields.getTextInputValue('quantity');
-    const userId = interaction.user.id;
-
-    console.log('[MODAL DEBUG] Parsed values:', { type, itemId, playerId, newQuantity, userId });
 
     const quantity = parseInt(newQuantity);
-
     if (isNaN(quantity) || quantity < 1 || quantity > 100) {
-      console.log('[MODAL DEBUG] Invalid quantity, returning error');
       return interaction.editReply({
-        embeds: [errorEmbed('Invalid Quantity', 'Quantity must be between 1 and 100.')]
+        content: '❌ Invalid quantity. Must be between 1 and 100.'
       });
     }
 
-    // Get the item details
-    let itemData;
+    // Update the item quantity
     if (type === 'item') {
-      const [itemResult] = await pool.query(
-        `SELECT si.display_name, si.price, si.quantity, si.short_name, rs.nickname, rs.id as server_id
-         FROM shop_items si 
-         JOIN shop_categories sc ON si.category_id = sc.id 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE si.id = ?`,
-        [itemId]
-      );
-      itemData = itemResult[0];
+      await pool.query('UPDATE shop_items SET quantity = ? WHERE id = ?', [quantity, itemId]);
     } else if (type === 'kit') {
-      const [kitResult] = await pool.query(
-        `SELECT sk.display_name, sk.price, sk.quantity, sk.kit_name, rs.nickname, rs.id as server_id
-         FROM shop_kits sk 
-         JOIN shop_categories sc ON sk.category_id = sc.id 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE sk.id = ?`,
-        [itemId]
-      );
-      itemData = kitResult[0];
+      await pool.query('UPDATE shop_kits SET quantity = ? WHERE id = ?', [quantity, itemId]);
     }
-
-    if (!itemData) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Item Not Found', 'The item you selected to adjust quantity was not found.')]
-      });
-    }
-
-    // Update the item quantity in the shop
-    if (type === 'item') {
-      await pool.query(
-        'UPDATE shop_items SET quantity = ? WHERE id = ?',
-        [quantity, itemId]
-      );
-    } else if (type === 'kit') {
-      await pool.query(
-        'UPDATE shop_kits SET quantity = ? WHERE id = ?',
-        [quantity, itemId]
-      );
-    }
-
-    // Get currency name
-    const { getCurrencyName } = require('../utils/economy');
-    const currencyName = await getCurrencyName(itemData.server_id);
-
-    // Calculate new total price (price per unit * quantity)
-    const newTotalPrice = itemData.price * quantity;
-
-    // Get player balance
-    const [balanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
-    );
-    
-    const balance = balanceResult[0]?.balance || 0;
-
-    // Create embed with updated quantity and price
-    const embed = orangeEmbed(
-      '🛒 Quantity Updated',
-      `**Item:** ${itemData.display_name}\n**Price per unit:** ${itemData.price} ${currencyName}\n**New Quantity:** ${quantity}\n**New Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}\n\nDo you want to confirm this purchase?`
-    );
-
-    // Create confirmation buttons with updated price
-    const confirmCustomId = `confirm_purchase_${type}_${itemId}_${playerId}`;
-    
-    const buttonRow = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(confirmCustomId)
-          .setLabel('Confirm Purchase')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('cancel_purchase')
-          .setLabel('Cancel')
-          .setStyle(ButtonStyle.Danger)
-      );
-
-    // Create dropdown for removing items
-    const removeRow = new ActionRowBuilder()
-      .addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`remove_shop_item_${type}_${itemId}_${playerId}`)
-          .setPlaceholder('Remove Shop Item')
-          .addOptions([
-            {
-              label: itemData.display_name,
-              description: `Remove ${itemData.display_name} from shop`,
-              value: `${type}_${itemId}`
-            }
-          ])
-      );
-
-    // Create dropdown for adjusting quantity
-    const quantityRow = new ActionRowBuilder()
-      .addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`adjust_quantity_${type}_${itemId}_${player_id}`)
-          .setPlaceholder('Adjust Quantity')
-          .addOptions([
-            {
-              label: item.display_name,
-              description: `Adjust quantity for ${item.display_name}`,
-              value: `${type}_${itemId}`
-            }
-          ])
-      );
 
     await interaction.editReply({
-      embeds: [embed],
-      components: [buttonRow, removeRow, quantityRow]
+      content: `✅ Quantity updated to ${quantity}!`
     });
 
   } catch (error) {
-    console.error('Error handling adjust quantity modal:', error);
+    console.error('Modal error:', error);
     try {
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to update quantity. Please try again.')]
+        content: '❌ Error updating quantity.'
       });
     } catch {
-      // Fallback if we never deferred/replied (edge cases)
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          embeds: [errorEmbed('Error', 'Failed to update quantity. Please try again.')],
-          ephemeral: true
-        });
-      }
+      await interaction.reply({
+        content: '❌ Error updating quantity.',
+        ephemeral: true
+      });
     }
   }
 }
