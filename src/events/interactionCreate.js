@@ -700,6 +700,49 @@ async function handleConfirmPurchase(interaction) {
     // Calculate total price (price per unit * quantity)
     const totalPrice = itemData.price * itemData.quantity;
     
+    // Check if player has enough balance
+    const [balanceResult] = await pool.query(
+      'SELECT balance FROM economy WHERE player_id = ?',
+      [playerId]
+    );
+    
+    const currentBalance = balanceResult[0]?.balance || 0;
+    
+    if (currentBalance < totalPrice) {
+      // Get currency name for error message
+      const { getCurrencyName } = require('../utils/economy');
+      const currencyName = await getCurrencyName(itemData.server_id);
+      console.log('[INSUFFICIENT FUNDS] Server ID:', itemData.server_id, 'Currency Name:', currencyName);
+      
+      // Get player's IGN for display
+      const playerResult = await pool.query(
+        'SELECT ign FROM players WHERE id = ?',
+        [playerId]
+      );
+      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+      
+      const { EmbedBuilder } = require('discord.js');
+      const insufficientFundsEmbed = new EmbedBuilder()
+        .setColor(0xFF0000)
+        .setTitle('❌ Insufficient Funds')
+        .setDescription(`You don't have enough ${currencyName} to purchase this item.`)
+        .addFields(
+          { name: '**Required**', value: `${totalPrice.toLocaleString()} ${currencyName}`, inline: true },
+          { name: '**Your Balance**', value: `${currentBalance.toLocaleString()} ${currencyName}`, inline: true },
+          { name: '**Short**', value: `${(totalPrice - currentBalance).toLocaleString()} ${currencyName}`, inline: true }
+        )
+        .setAuthor({
+          name: playerIgn,
+          iconURL: interaction.user.displayAvatarURL({ dynamic: true })
+        })
+        .setTimestamp();
+      
+      return interaction.followUp({
+        embeds: [insufficientFundsEmbed],
+        components: []
+      });
+    }
+    
     // Deduct balance
     await pool.query(
       'UPDATE economy SET balance = balance - ? WHERE player_id = ?',

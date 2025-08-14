@@ -99,18 +99,8 @@ module.exports = {
         const rank = i + 1;
         const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
         
-        let discordInfo = '';
-        if (player.discord_id) {
-          try {
-            const discordUser = await interaction.client.users.fetch(player.discord_id);
-            discordInfo = ` (${discordUser.username})`;
-          } catch (error) {
-            discordInfo = ' (Unknown Discord)';
-          }
-        }
-
         embed.addFields({
-          name: `${medal} ${player.ign}${discordInfo}`,
+          name: `${medal} ${player.ign}`,
           value: `${player.balance.toLocaleString()} ${currencyName}`,
           inline: false
         });
