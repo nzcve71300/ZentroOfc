@@ -135,6 +135,12 @@ module.exports = {
         } else if (interaction.customId.startsWith('adjust_quantity_')) {
           console.log('Handling adjust quantity button');
           await handleAdjustQuantity(interaction);
+        } else if (interaction.customId.startsWith('set_quantity_')) {
+          console.log('Handling set quantity button');
+          await handleSetQuantity(interaction);
+        } else if (interaction.customId.startsWith('cancel_quantity_')) {
+          console.log('Handling cancel quantity button');
+          await interaction.update({ content: 'Quantity adjustment cancelled.', components: [] });
         } else {
           console.log('No handler found for button:', interaction.customId);
         }
@@ -1607,37 +1613,57 @@ async function handleRemoveItem(interaction) {
 
 async function handleAdjustQuantity(interaction) {
   console.log('[BUTTON] handleAdjustQuantity called');
-  console.time('showModal');
   
   try {
-    // Create the most minimal modal possible
-    const modal = new ModalBuilder()
-      .setCustomId('test_modal')
-      .setTitle('Test');
+    const parts = interaction.customId.split('_');
+    const [, , type, itemId, playerId] = parts;
+    console.log('[BUTTON] Parsed parts:', { type, itemId, playerId });
 
-    const input = new TextInputBuilder()
-      .setCustomId('test_input')
-      .setLabel('Test Input')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true);
+    // Create buttons for different quantities
+    const quantityRow1 = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`set_quantity_${type}_${itemId}_${playerId}_1`)
+          .setLabel('1')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`set_quantity_${type}_${itemId}_${playerId}_5`)
+          .setLabel('5')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`set_quantity_${type}_${itemId}_${playerId}_10`)
+          .setLabel('10')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`set_quantity_${type}_${itemId}_${playerId}_25`)
+          .setLabel('25')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`set_quantity_${type}_${itemId}_${playerId}_50`)
+          .setLabel('50')
+          .setStyle(ButtonStyle.Secondary)
+      );
 
-    const row = new ActionRowBuilder().addComponents(input);
-    modal.addComponents(row);
+    const quantityRow2 = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`set_quantity_${type}_${itemId}_${playerId}_100`)
+          .setLabel('100')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`cancel_quantity_${type}_${itemId}_${playerId}`)
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Danger)
+      );
 
-    console.log('[BUTTON] About to show minimal modal...');
-    await interaction.showModal(modal);
-    console.log('[BUTTON] Minimal modal shown successfully');
-  } catch (error) {
-    console.error('[BUTTON] showModal error:', {
-      name: error?.name,
-      code: error?.code,
-      raw: error?.rawError || error?.toString()
+    await interaction.reply({
+      content: 'Select a quantity:',
+      components: [quantityRow1, quantityRow2],
+      ephemeral: true
     });
-    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: 'Modal failed (logged).', ephemeral: true }).catch(() => {});
-    }
-  } finally {
-    console.timeEnd('showModal');
+
+  } catch (error) {
+    console.error('[BUTTON] Error showing quantity buttons:', error);
   }
 }
 
@@ -1998,6 +2024,81 @@ async function handleRemoveShopItem(interaction) {
     console.error('Error removing shop item from selection:', error);
     await interaction.editReply({
       embeds: [errorEmbed('Error', 'Failed to remove item from selection.')]
+    });
+  }
+}
+
+async function handleSetQuantity(interaction) {
+  try {
+    const parts = interaction.customId.split('_');
+    const [, , type, itemId, playerId, quantity] = parts;
+    const numQuantity = parseInt(quantity);
+
+    console.log('[SET_QUANTITY] Setting quantity:', { type, itemId, playerId, quantity: numQuantity });
+
+    // Update the item quantity in the shop
+    if (type === 'item') {
+      await pool.query('UPDATE shop_items SET quantity = ? WHERE id = ?', [numQuantity, itemId]);
+    } else if (type === 'kit') {
+      await pool.query('UPDATE shop_kits SET quantity = ? WHERE id = ?', [numQuantity, itemId]);
+    }
+
+    // Get the updated item details
+    let itemData;
+    if (type === 'item') {
+      const [itemResult] = await pool.query(
+        `SELECT si.display_name, si.price, rs.nickname, rs.id as server_id
+         FROM shop_items si 
+         JOIN shop_categories sc ON si.category_id = sc.id 
+         JOIN rust_servers rs ON sc.server_id = rs.id 
+         WHERE si.id = ?`,
+        [itemId]
+      );
+      itemData = itemResult[0];
+    } else if (type === 'kit') {
+      const [kitResult] = await pool.query(
+        `SELECT sk.display_name, sk.price, rs.nickname, rs.id as server_id
+         FROM shop_kits sk 
+         JOIN shop_categories sc ON sk.category_id = sc.id 
+         JOIN rust_servers rs ON sc.server_id = rs.id 
+         WHERE sk.id = ?`,
+        [itemId]
+      );
+      itemData = kitResult[0];
+    }
+
+    if (!itemData) {
+      return interaction.update({
+        content: '❌ Error: Item not found.',
+        components: []
+      });
+    }
+
+    // Get currency name
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(itemData.server_id);
+
+    // Calculate new total price
+    const newTotalPrice = itemData.price * numQuantity;
+
+    // Get player balance
+    const [balanceResult] = await pool.query(
+      'SELECT balance FROM economy WHERE player_id = ?',
+      [playerId]
+    );
+    
+    const balance = balanceResult[0]?.balance || 0;
+
+    await interaction.update({
+      content: `✅ Quantity updated to ${numQuantity}!\n\n**Item:** ${itemData.display_name}\n**Price per unit:** ${itemData.price} ${currencyName}\n**New Quantity:** ${numQuantity}\n**New Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
+      components: []
+    });
+
+  } catch (error) {
+    console.error('[SET_QUANTITY] Error:', error);
+    await interaction.update({
+      content: '❌ Error updating quantity.',
+      components: []
     });
   }
 }
