@@ -2034,20 +2034,13 @@ async function handleSetQuantity(interaction) {
     const [, , type, itemId, playerId, quantity] = parts;
     const numQuantity = parseInt(quantity);
 
-    console.log('[SET_QUANTITY] Setting quantity:', { type, itemId, playerId, quantity: numQuantity });
+    console.log('[SET_QUANTITY] Setting quantity multiplier:', { type, itemId, playerId, quantity: numQuantity });
 
-    // Update the item quantity in the shop
-    if (type === 'item') {
-      await pool.query('UPDATE shop_items SET quantity = ? WHERE id = ?', [numQuantity, itemId]);
-    } else if (type === 'kit') {
-      await pool.query('UPDATE shop_kits SET quantity = ? WHERE id = ?', [numQuantity, itemId]);
-    }
-
-    // Get the updated item details
+    // Get the original item details (don't update the shop database)
     let itemData;
     if (type === 'item') {
       const [itemResult] = await pool.query(
-        `SELECT si.display_name, si.price, rs.nickname, rs.id as server_id
+        `SELECT si.display_name, si.price, si.quantity as base_quantity, rs.nickname, rs.id as server_id
          FROM shop_items si 
          JOIN shop_categories sc ON si.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -2057,7 +2050,7 @@ async function handleSetQuantity(interaction) {
       itemData = itemResult[0];
     } else if (type === 'kit') {
       const [kitResult] = await pool.query(
-        `SELECT sk.display_name, sk.price, rs.nickname, rs.id as server_id
+        `SELECT sk.display_name, sk.price, sk.quantity as base_quantity, rs.nickname, rs.id as server_id
          FROM shop_kits sk 
          JOIN shop_categories sc ON sk.category_id = sc.id 
          JOIN rust_servers rs ON sc.server_id = rs.id 
@@ -2074,12 +2067,15 @@ async function handleSetQuantity(interaction) {
       });
     }
 
+    // Calculate the actual quantity (base_quantity × multiplier)
+    const actualQuantity = itemData.base_quantity * numQuantity;
+
     // Get currency name
     const { getCurrencyName } = require('../utils/economy');
     const currencyName = await getCurrencyName(itemData.server_id);
 
-    // Calculate new total price
-    const newTotalPrice = itemData.price * numQuantity;
+    // Calculate new total price (price per unit × actual quantity)
+    const newTotalPrice = itemData.price * actualQuantity;
 
     // Get player balance
     const [balanceResult] = await pool.query(
@@ -2090,14 +2086,14 @@ async function handleSetQuantity(interaction) {
     const balance = balanceResult[0]?.balance || 0;
 
     await interaction.update({
-      content: `✅ Quantity updated to ${numQuantity}!\n\n**Item:** ${itemData.display_name}\n**Price per unit:** ${itemData.price} ${currencyName}\n**New Quantity:** ${numQuantity}\n**New Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
+      content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (set by admin)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per unit:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
       components: []
     });
 
   } catch (error) {
     console.error('[SET_QUANTITY] Error:', error);
     await interaction.update({
-      content: '❌ Error updating quantity.',
+      content: '❌ Error setting quantity.',
       components: []
     });
   }
