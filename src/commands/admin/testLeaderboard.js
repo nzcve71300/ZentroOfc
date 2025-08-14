@@ -36,10 +36,12 @@ module.exports = {
 
       const guildDbId = guildResult[0].id;
 
+      console.log('[TEST LEADERBOARD] Querying for guild_db_id:', guildDbId);
       const [settingsResult] = await pool.query(
         'SELECT channel_id FROM leaderboard_settings WHERE guild_id = ?',
         [guildDbId]
       );
+      console.log('[TEST LEADERBOARD] Raw database result:', settingsResult);
 
       if (settingsResult.length === 0) {
         return interaction.reply({
@@ -50,6 +52,7 @@ module.exports = {
 
       const channelId = settingsResult[0].channel_id;
       console.log('[TEST LEADERBOARD] Fetched channel ID from database:', channelId);
+      console.log('[TEST LEADERBOARD] Channel ID type:', typeof channelId);
 
       await interaction.reply({
         content: '🔄 Generating test leaderboard...',
