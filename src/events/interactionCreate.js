@@ -40,7 +40,7 @@ module.exports = {
           await interaction.editReply({ content: `Test modal worked! Value: ${value}` });
         } else if (interaction.customId === 'test_slash_modal') {
           console.log('[DEBUG] Found test_slash_modal handler');
-          await interaction.deferReply({ ephemeral: true });
+          await interaction.deferReply({ flags: 64 });
           const value = interaction.fields.getTextInputValue('test_input');
           await interaction.editReply({ content: `Slash modal worked! Value: ${value}` });
         } else if (interaction.customId.startsWith('adjust_quantity_modal_')) {
