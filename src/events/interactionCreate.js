@@ -595,10 +595,10 @@ async function handleConfirmPurchase(interaction) {
   const parts = interaction.customId.split('_');
   console.log('handleConfirmPurchase - parts:', parts);
   
-  const [, , type, itemId, playerId] = parts;
+  const [, , type, itemId, playerId, adjustedQuantity] = parts;
   const userId = interaction.user.id;
   
-  console.log('handleConfirmPurchase - parsed values:', { type, itemId, playerId, userId });
+  console.log('handleConfirmPurchase - parsed values:', { type, itemId, playerId, userId, adjustedQuantity });
   
   try {
     let itemData;
@@ -622,7 +622,7 @@ async function handleConfirmPurchase(interaction) {
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
-      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${itemData.quantity}`;
+      command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${quantityToUse}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
@@ -640,7 +640,17 @@ async function handleConfirmPurchase(interaction) {
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
-      command = `kit givetoplayer ${itemData.kit_name} ${playerIgn}`;
+      // For kits, we need to give the kit multiple times if quantity > 1
+      if (quantityToUse > 1) {
+        // Create multiple kit commands
+        const kitCommands = [];
+        for (let i = 0; i < quantityToUse; i++) {
+          kitCommands.push(`kit givetoplayer ${itemData.kit_name} ${playerIgn}`);
+        }
+        command = kitCommands.join('; ');
+      } else {
+        command = `kit givetoplayer ${itemData.kit_name} ${playerIgn}`;
+      }
     }
 
     if (!itemData) {
@@ -697,8 +707,9 @@ async function handleConfirmPurchase(interaction) {
       }
     }
 
-    // Calculate total price (price per unit * quantity)
-    const totalPrice = itemData.price * itemData.quantity;
+    // Calculate total price (price per unit * adjusted quantity)
+    const quantityToUse = adjustedQuantity ? parseInt(adjustedQuantity) : itemData.quantity;
+    const totalPrice = itemData.price * quantityToUse;
     
     // Check if player has enough balance
     const [balanceResult] = await pool.query(
@@ -783,7 +794,7 @@ async function handleConfirmPurchase(interaction) {
        // Send to admin feed
        const guildId = interaction.guildId;
        const { sendFeedEmbed } = require('../rcon');
-       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} x${itemData.quantity} for ${totalPrice} ${currencyName}`);
+       await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} x${quantityToUse} for ${totalPrice} ${currencyName}`);
      } catch (error) {
        console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
      }
@@ -803,7 +814,7 @@ async function handleConfirmPurchase(interaction) {
        .setDescription('✅ **Delivery Confirmed**')
        .addFields(
          { name: '**Item**', value: itemData.display_name, inline: false },
-         { name: '**Quantity**', value: itemData.quantity.toString(), inline: false },
+         { name: '**Quantity**', value: quantityToUse.toString(), inline: false },
          { name: '**Total Cost**', value: `${totalPrice} ${currencyName}`, inline: false }
        )
        .setAuthor({
@@ -2071,76 +2082,94 @@ async function handleRemoveShopItem(interaction) {
   }
 }
 
-async function handleSetQuantity(interaction) {
-  try {
-    const parts = interaction.customId.split('_');
-    const [, , type, itemId, playerId, quantity] = parts;
-    const numQuantity = parseInt(quantity);
+        async function handleSetQuantity(interaction) {
+          try {
+            const parts = interaction.customId.split('_');
+            const [, , type, itemId, playerId, quantity] = parts;
+            const numQuantity = parseInt(quantity);
 
-    console.log('[SET_QUANTITY] Setting quantity multiplier:', { type, itemId, playerId, quantity: numQuantity });
+            console.log('[SET_QUANTITY] Setting quantity multiplier:', { type, itemId, playerId, quantity: numQuantity });
 
-    // Get the original item details (don't update the shop database)
-    let itemData;
-    if (type === 'item') {
-      const [itemResult] = await pool.query(
-        `SELECT si.display_name, si.price, si.quantity as base_quantity, rs.nickname, rs.id as server_id
-         FROM shop_items si 
-         JOIN shop_categories sc ON si.category_id = sc.id 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE si.id = ?`,
-        [itemId]
-      );
-      itemData = itemResult[0];
-    } else if (type === 'kit') {
-      const [kitResult] = await pool.query(
-        `SELECT sk.display_name, sk.price, sk.quantity as base_quantity, rs.nickname, rs.id as server_id
-         FROM shop_kits sk 
-         JOIN shop_categories sc ON sk.category_id = sc.id 
-         JOIN rust_servers rs ON sc.server_id = rs.id 
-         WHERE sk.id = ?`,
-        [itemId]
-      );
-      itemData = kitResult[0];
-    }
+            // Get the original item details (don't update the shop database)
+            let itemData;
+            if (type === 'item') {
+              const [itemResult] = await pool.query(
+                `SELECT si.display_name, si.price, si.quantity as base_quantity, rs.nickname, rs.id as server_id
+                 FROM shop_items si 
+                 JOIN shop_categories sc ON si.category_id = sc.id 
+                 JOIN rust_servers rs ON sc.server_id = rs.id 
+                 WHERE si.id = ?`,
+                [itemId]
+              );
+              itemData = itemResult[0];
+            } else if (type === 'kit') {
+              const [kitResult] = await pool.query(
+                `SELECT sk.display_name, sk.price, sk.quantity as base_quantity, rs.nickname, rs.id as server_id
+                 FROM shop_kits sk 
+                 JOIN shop_categories sc ON sk.category_id = sc.id 
+                 JOIN rust_servers rs ON sc.server_id = rs.id 
+                 WHERE sk.id = ?`,
+                [itemId]
+              );
+              itemData = kitResult[0];
+            }
 
-    if (!itemData) {
-      return interaction.update({
-        content: '❌ Error: Item not found.',
-        components: []
-      });
-    }
+            if (!itemData) {
+              return interaction.update({
+                content: '❌ Error: Item not found.',
+                components: []
+              });
+            }
 
-    // Calculate the actual quantity (base_quantity × multiplier)
-    const actualQuantity = itemData.base_quantity * numQuantity;
+            // Calculate the actual quantity (base_quantity × multiplier)
+            const actualQuantity = itemData.base_quantity * numQuantity;
 
-    // Get currency name
-    const { getCurrencyName } = require('../utils/economy');
-    const currencyName = await getCurrencyName(itemData.server_id);
+            // Get currency name
+            const { getCurrencyName } = require('../utils/economy');
+            const currencyName = await getCurrencyName(itemData.server_id);
 
-    // Calculate new total price (price per unit × actual quantity)
-    const newTotalPrice = itemData.price * actualQuantity;
+            // Calculate new total price (price per unit × actual quantity)
+            const newTotalPrice = itemData.price * actualQuantity;
 
-    // Get player balance
-    const [balanceResult] = await pool.query(
-      'SELECT balance FROM economy WHERE player_id = ?',
-      [playerId]
-    );
-    
-    const balance = balanceResult[0]?.balance || 0;
+            // Get player balance
+            const [balanceResult] = await pool.query(
+              'SELECT balance FROM economy WHERE player_id = ?',
+              [playerId]
+            );
+            
+            const balance = balanceResult[0]?.balance || 0;
 
-    await interaction.update({
-      content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (set by admin)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per unit:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
-      components: []
-    });
+            // Check if player has enough balance
+            if (balance < newTotalPrice) {
+              return interaction.update({
+                content: `❌ **Insufficient Funds!**\n\n**Item:** ${itemData.display_name}\n**Quantity:** ${actualQuantity}\n**Total Price:** ${newTotalPrice.toLocaleString()} ${currencyName}\n**Your Balance:** ${balance.toLocaleString()} ${currencyName}\n**Short:** ${(newTotalPrice - balance).toLocaleString()} ${currencyName}`,
+                components: []
+              });
+            }
 
-  } catch (error) {
-    console.error('[SET_QUANTITY] Error:', error);
-    await interaction.update({
-      content: '❌ Error setting quantity.',
-      components: []
-    });
-  }
-}
+            // Create new confirm purchase button with the adjusted quantity
+            const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+            const confirmRow = new ActionRowBuilder()
+              .addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`confirm_purchase_${type}_${itemId}_${playerId}_${actualQuantity}`)
+                  .setLabel('Confirm Purchase')
+                  .setStyle(ButtonStyle.Success)
+              );
+
+            await interaction.update({
+              content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (set by admin)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per unit:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
+              components: [confirmRow]
+            });
+
+          } catch (error) {
+            console.error('[SET_QUANTITY] Error:', error);
+            await interaction.update({
+              content: '❌ Error setting quantity.',
+              components: []
+            });
+          }
+        }
 
 
 
