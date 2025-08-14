@@ -82,6 +82,11 @@ const playerTeamIds = new Map(); // playerName -> teamId
 // Add at the top of the file, after the existing imports
 const lastOfflineCall = new Map(); // Track last offline call time per player
 
+// Event detection improvements
+const eventDetectionCooldowns = new Map(); // Track cooldowns per server to prevent spam
+const EVENT_DETECTION_COOLDOWN = 30000; // 30 seconds cooldown between checks per server
+const EVENT_POLLING_INTERVAL = 30000; // Check every 30 seconds instead of 60
+
 // Helper function to calculate 3D distance between two points
 function calculateDistance(x1, y1, z1, x2, y2, z2) {
   return Math.sqrt(
@@ -115,7 +120,7 @@ function startRconListeners(client) {
   }, 60000);
   setInterval(() => flushJoinLeaveBuffers(client), 60000);
   setInterval(() => flushKillFeedBuffers(client), 60000);
-  setInterval(() => checkAllEvents(client), 60000); // Check for events every 60 seconds (reduced frequency)
+  setInterval(() => checkAllEvents(client), EVENT_POLLING_INTERVAL); // Check for events every 30 seconds for better detection
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
   
   // Check for night skip voting every 2 minutes
@@ -1591,6 +1596,8 @@ async function flushKillFeedBuffers(client) {
 
 async function checkAllEvents(client) {
   try {
+    console.log('[EVENT] Starting periodic event check...');
+    
     // Get all active servers with event configurations in a single query
     const [result] = await pool.query(`
       SELECT 
@@ -1604,9 +1611,11 @@ async function checkAllEvents(client) {
     `);
 
     if (result.length === 0) {
-      Logger.debug('No servers with enabled events found');
+      console.log('[EVENT] No servers with enabled events found');
       return;
     }
+
+    console.log(`[EVENT] Found ${result.length} event configurations to check`);
 
     // Group by server to avoid duplicate queries
     const servers = new Map();
@@ -1630,11 +1639,13 @@ async function checkAllEvents(client) {
       });
     }
 
-    Logger.debug(`Checking events for ${servers.size} servers`);
+    console.log(`[EVENT] Checking events for ${servers.size} servers`);
 
     // Process each server
     for (const [key, server] of servers) {
       try {
+        console.log(`[EVENT] Processing server: ${server.nickname}`);
+        
         if (!eventFlags.has(key)) {
           eventFlags.set(key, new Set());
         }
@@ -1643,20 +1654,24 @@ async function checkAllEvents(client) {
         // Check for Bradley events
         const bradleyConfig = server.configs.find(c => c.event_type === 'bradley');
         if (bradleyConfig) {
+          console.log(`[EVENT] Bradley config found for ${server.nickname}:`, bradleyConfig.kill_message);
           await checkBradleyEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, bradleyConfig, serverFlags);
         }
 
         // Check for Helicopter events
         const helicopterConfig = server.configs.find(c => c.event_type === 'helicopter');
         if (helicopterConfig) {
+          console.log(`[EVENT] Helicopter config found for ${server.nickname}:`, helicopterConfig.kill_message);
           await checkHelicopterEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, helicopterConfig, serverFlags);
         }
       } catch (serverError) {
-        Logger.error(`Error checking events for server ${server.nickname}:`, serverError);
+        console.error(`[EVENT] Error checking events for server ${server.nickname}:`, serverError);
       }
     }
+    
+    console.log('[EVENT] Periodic event check completed');
   } catch (error) {
-    console.error('Error checking all events:', error);
+    console.error('[EVENT] Error checking all events:', error);
   }
 }
 
@@ -1667,9 +1682,29 @@ async function handleEventDetection(client, guildId, serverName, msg, ip, port, 
 
 async function checkBradleyEvent(client, guildId, serverName, ip, port, password, config, serverFlags) {
   try {
+    // Check cooldown to prevent spam
+    const serverKey = `${guildId}_${serverName}`;
+    const lastCheck = eventDetectionCooldowns.get(serverKey);
+    const now = Date.now();
+    
+    if (lastCheck && (now - lastCheck) < EVENT_DETECTION_COOLDOWN) {
+      return; // Skip if on cooldown
+    }
+    
+    // Update cooldown
+    eventDetectionCooldowns.set(serverKey, now);
+    
+    console.log(`[EVENT] Checking Bradley event on ${serverName}...`);
+    
+    // Try multiple detection methods for better reliability
     const bradley = await sendRconCommand(ip, port, password, "find_entity servergibs_bradley");
     
-    if (bradley && bradley.includes("servergibs_bradley") && !serverFlags.has("BRADLEY")) {
+    // Clean the response to remove invisible characters
+    const cleanResponse = bradley ? bradley.replace(/[\x00-\x1F\x7F]/g, '').trim() : '';
+    
+    console.log(`[EVENT] Bradley response for ${serverName}:`, cleanResponse);
+    
+    if (cleanResponse && cleanResponse.includes("servergibs_bradley") && !serverFlags.has("BRADLEY")) {
       serverFlags.add("BRADLEY");
       
       console.log(`[EVENT] Bradley event detected on ${serverName}, sending message: ${config.kill_message}`);
@@ -1682,13 +1717,18 @@ async function checkBradleyEvent(client, guildId, serverName, ip, port, password
       
       // Clear flag after 10 minutes
       setTimeout(() => {
-        const flags = eventFlags.get(`${guildId}_${serverName}`);
+        const flags = eventFlags.get(serverKey);
         if (flags) {
           flags.delete("BRADLEY");
+          console.log(`[EVENT] Bradley flag cleared for ${serverName}`);
         }
       }, 60_000 * 10);
       
       console.log(`[EVENT] Bradley event started on ${serverName}`);
+    } else if (cleanResponse && !cleanResponse.includes("servergibs_bradley") && serverFlags.has("BRADLEY")) {
+      // Bradley debris is gone, clear the flag
+      serverFlags.delete("BRADLEY");
+      console.log(`[EVENT] Bradley debris cleared for ${serverName}`);
     }
   } catch (error) {
     console.error(`[EVENT] Error checking Bradley event on ${serverName}:`, error.message);
@@ -1697,9 +1737,29 @@ async function checkBradleyEvent(client, guildId, serverName, ip, port, password
 
 async function checkHelicopterEvent(client, guildId, serverName, ip, port, password, config, serverFlags) {
   try {
+    // Check cooldown to prevent spam
+    const serverKey = `${guildId}_${serverName}`;
+    const lastCheck = eventDetectionCooldowns.get(serverKey);
+    const now = Date.now();
+    
+    if (lastCheck && (now - lastCheck) < EVENT_DETECTION_COOLDOWN) {
+      return; // Skip if on cooldown
+    }
+    
+    // Update cooldown
+    eventDetectionCooldowns.set(serverKey, now);
+    
+    console.log(`[EVENT] Checking Helicopter event on ${serverName}...`);
+    
+    // Try multiple detection methods for better reliability
     const helicopter = await sendRconCommand(ip, port, password, "find_entity servergibs_patrolhelicopter");
     
-    if (helicopter && helicopter.includes("servergibs_patrolhelicopter") && !serverFlags.has("HELICOPTER")) {
+    // Clean the response to remove invisible characters
+    const cleanResponse = helicopter ? helicopter.replace(/[\x00-\x1F\x7F]/g, '').trim() : '';
+    
+    console.log(`[EVENT] Helicopter response for ${serverName}:`, cleanResponse);
+    
+    if (cleanResponse && cleanResponse.includes("servergibs_patrolhelicopter") && !serverFlags.has("HELICOPTER")) {
       serverFlags.add("HELICOPTER");
       
       console.log(`[EVENT] Helicopter event detected on ${serverName}, sending message: ${config.kill_message}`);
@@ -1712,13 +1772,18 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
       
       // Clear flag after 10 minutes
       setTimeout(() => {
-        const flags = eventFlags.get(`${guildId}_${serverName}`);
+        const flags = eventFlags.get(serverKey);
         if (flags) {
           flags.delete("HELICOPTER");
+          console.log(`[EVENT] Helicopter flag cleared for ${serverName}`);
         }
       }, 60_000 * 10);
       
       console.log(`[EVENT] Helicopter event started on ${serverName}`);
+    } else if (cleanResponse && !cleanResponse.includes("servergibs_patrolhelicopter") && serverFlags.has("HELICOPTER")) {
+      // Helicopter debris is gone, clear the flag
+      serverFlags.delete("HELICOPTER");
+      console.log(`[EVENT] Helicopter debris cleared for ${serverName}`);
     }
   } catch (error) {
     console.error(`[EVENT] Error checking Helicopter event on ${serverName}:`, error.message);
