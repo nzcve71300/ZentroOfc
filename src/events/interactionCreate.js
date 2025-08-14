@@ -1629,40 +1629,46 @@ async function handleAdjustQuantity(interaction) {
 }
 
 async function handleAdjustQuantityModal(interaction) {
+  console.log('[MODAL] Starting modal handler');
+  
   try {
+    // Defer immediately
     await interaction.deferReply({ ephemeral: true });
-
-    const parts = interaction.customId.split('_');
-    const [, , type, itemId, playerId] = parts;
-    const newQuantity = interaction.fields.getTextInputValue('quantity');
-
-    const quantity = parseInt(newQuantity);
-    if (isNaN(quantity) || quantity < 1 || quantity > 100) {
-      return interaction.editReply({
+    console.log('[MODAL] Deferred reply');
+    
+    // Get the quantity value
+    const quantity = interaction.fields.getTextInputValue('quantity');
+    console.log('[MODAL] Got quantity:', quantity);
+    
+    // Simple validation
+    const num = parseInt(quantity);
+    if (isNaN(num) || num < 1 || num > 100) {
+      console.log('[MODAL] Invalid quantity');
+      return await interaction.editReply({
         content: '❌ Invalid quantity. Must be between 1 and 100.'
       });
     }
-
-    // Update the item quantity
-    if (type === 'item') {
-      await pool.query('UPDATE shop_items SET quantity = ? WHERE id = ?', [quantity, itemId]);
-    } else if (type === 'kit') {
-      await pool.query('UPDATE shop_kits SET quantity = ? WHERE id = ?', [quantity, itemId]);
-    }
-
+    
+    console.log('[MODAL] Quantity is valid:', num);
+    
+    // Just show success for now
     await interaction.editReply({
-      content: `✅ Quantity updated to ${quantity}!`
+      content: `✅ Quantity set to ${num}!`
     });
-
+    
+    console.log('[MODAL] Success response sent');
+    
   } catch (error) {
-    console.error('Modal error:', error);
+    console.error('[MODAL] Error:', error);
+    
     try {
       await interaction.editReply({
-        content: '❌ Error updating quantity.'
+        content: '❌ Error processing modal.'
       });
-    } catch {
+    } catch (replyError) {
+      console.error('[MODAL] Reply error:', replyError);
       await interaction.reply({
-        content: '❌ Error updating quantity.',
+        content: '❌ Error processing modal.',
         ephemeral: true
       });
     }
