@@ -53,22 +53,6 @@ module.exports = {
           await handleSchedulerCustomMsg2(interaction);
         } else {
           console.log('[MODAL DEBUG] No handler found for modal:', interaction.customId);
-          // Fallback: try to handle any modal submission
-          try {
-            const message1 = interaction.fields.getTextInputValue('message1');
-            const message2 = interaction.fields.getTextInputValue('message2');
-            console.log('[MODAL DEBUG] Fallback - message1:', message1, 'message2:', message2);
-            await interaction.reply({
-              embeds: [successEmbed('Modal Submitted', `Message 1: ${message1 || 'N/A'}\nMessage 2: ${message2 || 'N/A'}`)],
-              ephemeral: true
-            });
-          } catch (error) {
-            console.log('[MODAL DEBUG] Fallback error:', error.message);
-            await interaction.reply({
-              embeds: [errorEmbed('Error', 'Modal submission failed.')],
-              ephemeral: true
-            });
-          }
         }
         return;
       }
@@ -1608,23 +1592,27 @@ async function handleAdjustQuantity(interaction) {
     const [, , type, itemId, playerId] = parts;
     console.log('[BUTTON] Parsed parts:', { type, itemId, playerId });
 
-    // Create a simple modal
+    // Create a simple modal with exact customId matching
     const modal = new ModalBuilder()
       .setCustomId(`adjust_quantity_modal_${type}_${itemId}_${playerId}`)
       .setTitle('Adjust Quantity');
     console.log('[BUTTON] Created modal with customId:', modal.data.custom_id);
 
+    // Create text input in its own ActionRow
     const quantityInput = new TextInputBuilder()
       .setCustomId('quantity')
       .setLabel('New Quantity')
       .setStyle(TextInputStyle.Short)
       .setPlaceholder('Enter quantity (1-100)')
       .setValue('1')
-      .setRequired(true);
+      .setRequired(true)
+      .setMinLength(1)
+      .setMaxLength(3);
     console.log('[BUTTON] Created text input');
 
-    const row = new ActionRowBuilder().addComponents(quantityInput);
-    modal.addComponents(row);
+    // Each input MUST be in its own ActionRow
+    const quantityRow = new ActionRowBuilder().addComponents(quantityInput);
+    modal.addComponents(quantityRow);
     console.log('[BUTTON] Added components to modal');
 
     console.log('[BUTTON] About to show modal...');
