@@ -34,6 +34,11 @@ module.exports = {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
           await handleEditKitModal(interaction);
+        } else if (interaction.customId === 'test_modal') {
+          console.log('[DEBUG] Found test_modal handler');
+          await interaction.deferReply({ ephemeral: true });
+          const value = interaction.fields.getTextInputValue('test_input');
+          await interaction.editReply({ content: `Test modal worked! Value: ${value}` });
         } else if (interaction.customId.startsWith('adjust_quantity_modal_')) {
           console.log('[DEBUG] Found adjust_quantity_ handler, customId:', interaction.customId);
           await handleAdjustQuantityModal(interaction);
@@ -1593,37 +1598,23 @@ async function handleAdjustQuantity(interaction) {
   console.time('showModal');
   
   try {
-    const parts = interaction.customId.split('_');
-    const [, , type, itemId, playerId] = parts;
-    console.log('[BUTTON] Parsed parts:', { type, itemId, playerId });
-
-    // Create a simple modal with exact customId matching
+    // Create the most minimal modal possible
     const modal = new ModalBuilder()
-      .setCustomId(`adjust_quantity_modal_${type}_${itemId}_${playerId}`)
-      .setTitle('Adjust Quantity');
-    console.log('[BUTTON] Created modal with customId:', modal.data.custom_id);
+      .setCustomId('test_modal')
+      .setTitle('Test');
 
-    // Create text input in its own ActionRow
-    const quantityInput = new TextInputBuilder()
-      .setCustomId('quantity')
-      .setLabel('New Quantity')
+    const input = new TextInputBuilder()
+      .setCustomId('test_input')
+      .setLabel('Test Input')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter quantity (1-100)')
-      .setValue('1')
-      .setRequired(true)
-      .setMinLength(1)
-      .setMaxLength(3);
-    console.log('[BUTTON] Created text input');
+      .setRequired(true);
 
-    // Each input MUST be in its own ActionRow
-    const quantityRow = new ActionRowBuilder().addComponents(quantityInput);
-    modal.addComponents(quantityRow);
-    console.log('[BUTTON] Added components to modal');
+    const row = new ActionRowBuilder().addComponents(input);
+    modal.addComponents(row);
 
-    console.log('[BUTTON] About to show modal...');
-    // IMPORTANT: no reply/defer before this
+    console.log('[BUTTON] About to show minimal modal...');
     await interaction.showModal(modal);
-    console.log('[BUTTON] Modal shown successfully');
+    console.log('[BUTTON] Minimal modal shown successfully');
   } catch (error) {
     console.error('[BUTTON] showModal error:', {
       name: error?.name,
