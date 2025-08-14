@@ -29,7 +29,6 @@ module.exports = {
       // Handle modals
       if (interaction.isModalSubmit() || interaction.type === 5) {
         console.log('[MODAL DEBUG] Modal submitted, customId:', interaction.customId, 'type:', interaction.type, 'isModalSubmit:', interaction.isModalSubmit());
-        console.log('[MODAL DEBUG] Full interaction object:', JSON.stringify(interaction, null, 2));
         if (interaction.customId.startsWith('edit_item_modal_')) {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
