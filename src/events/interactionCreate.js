@@ -29,6 +29,16 @@ module.exports = {
       // Handle modals
       if (interaction.isModalSubmit() || interaction.type === 5) {
         console.log('[MODAL DEBUG] Modal submitted, customId:', interaction.customId, 'type:', interaction.type, 'isModalSubmit:', interaction.isModalSubmit());
+        console.log('[MODAL DEBUG] ALL MODALS - This should appear for ANY modal submission');
+        
+        // Test if ANY modal submission is being received
+        if (interaction.customId === 'test_slash_modal') {
+          console.log('[DEBUG] Found test_slash_modal handler');
+          await interaction.deferReply({ flags: 64 });
+          const value = interaction.fields.getTextInputValue('test_input');
+          await interaction.editReply({ content: `Slash modal worked! Value: ${value}` });
+          return;
+        }
         if (interaction.customId.startsWith('edit_item_modal_')) {
           await handleEditItemModal(interaction);
         } else if (interaction.customId.startsWith('edit_kit_modal_')) {
@@ -38,11 +48,7 @@ module.exports = {
           await interaction.deferReply({ ephemeral: true });
           const value = interaction.fields.getTextInputValue('test_input');
           await interaction.editReply({ content: `Test modal worked! Value: ${value}` });
-        } else if (interaction.customId === 'test_slash_modal') {
-          console.log('[DEBUG] Found test_slash_modal handler');
-          await interaction.deferReply({ flags: 64 });
-          const value = interaction.fields.getTextInputValue('test_input');
-          await interaction.editReply({ content: `Slash modal worked! Value: ${value}` });
+
         } else if (interaction.customId.startsWith('adjust_quantity_modal_')) {
           console.log('[DEBUG] Found adjust_quantity_ handler, customId:', interaction.customId);
           await handleAdjustQuantityModal(interaction);
