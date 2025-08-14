@@ -625,6 +625,8 @@ async function handleConfirmPurchase(interaction) {
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
+      // Calculate final quantity for this item
+      const finalQuantity = quantityToUse || itemData.quantity;
       command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${finalQuantity}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
@@ -642,6 +644,9 @@ async function handleConfirmPurchase(interaction) {
         [playerId]
       );
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+      
+      // Calculate final quantity for this kit
+      const finalQuantity = quantityToUse || itemData.quantity;
       
       // For kits, we need to give the kit multiple times if quantity > 1
       if (finalQuantity > 1) {
@@ -711,7 +716,6 @@ async function handleConfirmPurchase(interaction) {
     }
 
     // Calculate total price (price per unit * adjusted quantity)
-    const finalQuantity = quantityToUse || itemData.quantity;
     const totalPrice = itemData.price * finalQuantity;
     
     // Check if player has enough balance
