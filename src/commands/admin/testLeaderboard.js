@@ -49,6 +49,7 @@ module.exports = {
       }
 
       const channelId = settingsResult[0].channel_id;
+      console.log('[TEST LEADERBOARD] Fetched channel ID from database:', channelId);
 
       await interaction.reply({
         content: '🔄 Generating test leaderboard...',

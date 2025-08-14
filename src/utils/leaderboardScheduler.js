@@ -71,6 +71,7 @@ class LeaderboardScheduler {
 
   async sendTestLeaderboard(guildId, channelId) {
     try {
+      console.log('[LEADERBOARD SCHEDULER] Attempting to fetch channel:', channelId);
       const channel = await this.client.channels.fetch(channelId);
       
       if (!channel) {
