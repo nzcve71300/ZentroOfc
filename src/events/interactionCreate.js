@@ -87,9 +87,6 @@ module.exports = {
           await handleShopItemSelect(interaction);
         } else if (interaction.customId.startsWith('remove_shop_item_')) {
           await handleRemoveShopItem(interaction);
-        } else if (interaction.customId.startsWith('adjust_quantity_')) {
-          console.log('[DEBUG] Found adjust_quantity_ handler, customId:', interaction.customId);
-          await handleAdjustQuantity(interaction);
         } else if (interaction.customId.startsWith('scheduler_delete_select_')) {
           await handleSchedulerDeleteSelect(interaction);
         } else if (interaction.customId.startsWith('scheduler_select_msg1_')) {
@@ -133,6 +130,9 @@ module.exports = {
         } else if (interaction.customId.startsWith('confirm_remove_') || interaction.customId.startsWith('cancel_remove_')) {
           console.log('Handling remove-server button');
           await handleRemoveServerButton(interaction);
+        } else if (interaction.customId.startsWith('adjust_quantity_')) {
+          console.log('Handling adjust quantity button');
+          await handleAdjustQuantity(interaction);
         } else {
           console.log('No handler found for button:', interaction.customId);
         }
@@ -556,19 +556,13 @@ async function handleShopItemSelect(interaction) {
           ])
       );
 
-    // Create dropdown for adjusting quantity
+    // Create button for adjusting quantity
     const quantityRow = new ActionRowBuilder()
       .addComponents(
-        new StringSelectMenuBuilder()
+        new ButtonBuilder()
           .setCustomId(`adjust_quantity_${type}_${itemId}_${player_id}`)
-          .setPlaceholder('Adjust Quantity')
-          .addOptions([
-            {
-              label: item.display_name,
-              description: `Adjust quantity for ${item.display_name}`,
-              value: `${type}_${itemId}`
-            }
-          ])
+          .setLabel('Adjust Quantity')
+          .setStyle(ButtonStyle.Secondary)
       );
 
     await interaction.editReply({
