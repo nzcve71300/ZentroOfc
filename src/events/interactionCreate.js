@@ -7,6 +7,8 @@ const { sendRconCommand } = require('../rcon');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
+    // Check for multiple instances
+    console.log('[INSTANCE CHECK] Interaction received:', interaction.type, 'customId:', interaction.customId);
     console.log('[INTERACTION DEBUG] Interaction received:', interaction.type, 'customId:', interaction.customId, 'isModalSubmit:', interaction.isModalSubmit());
     
     // Log ALL interactions for debugging
@@ -1587,6 +1589,8 @@ async function handleRemoveItem(interaction) {
 
 async function handleAdjustQuantity(interaction) {
   console.log('[BUTTON] handleAdjustQuantity called');
+  console.time('showModal');
+  
   try {
     const parts = interaction.customId.split('_');
     const [, , type, itemId, playerId] = parts;
@@ -1616,10 +1620,20 @@ async function handleAdjustQuantity(interaction) {
     console.log('[BUTTON] Added components to modal');
 
     console.log('[BUTTON] About to show modal...');
+    // IMPORTANT: no reply/defer before this
     await interaction.showModal(modal);
     console.log('[BUTTON] Modal shown successfully');
   } catch (error) {
-    console.error('[BUTTON] Error showing modal:', error);
+    console.error('[BUTTON] showModal error:', {
+      name: error?.name,
+      code: error?.code,
+      raw: error?.rawError || error?.toString()
+    });
+    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: 'Modal failed (logged).', ephemeral: true }).catch(() => {});
+    }
+  } finally {
+    console.timeEnd('showModal');
   }
 }
 
