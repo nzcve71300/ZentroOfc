@@ -599,6 +599,8 @@ async function handleConfirmPurchase(interaction) {
   const userId = interaction.user.id;
   
   console.log('handleConfirmPurchase - parsed values:', { type, itemId, playerId, userId, adjustedQuantity });
+  console.log('handleConfirmPurchase - full customId:', interaction.customId);
+  console.log('handleConfirmPurchase - parts array:', parts);
   
   try {
     let itemData;
@@ -629,6 +631,12 @@ async function handleConfirmPurchase(interaction) {
       // Calculate final quantity for this item
       // If user adjusted quantity, use it as multiplier; otherwise use base quantity
       finalQuantity = quantityToUse ? (itemData.quantity * quantityToUse) : itemData.quantity;
+      console.log('[DEBUG] Item quantity calculation:', {
+        itemName: itemData.display_name,
+        baseQuantity: itemData.quantity,
+        userMultiplier: quantityToUse,
+        finalQuantity: finalQuantity
+      });
       command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${finalQuantity}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
