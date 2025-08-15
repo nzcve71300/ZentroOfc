@@ -2216,15 +2216,15 @@ async function handleRemoveShopItem(interaction) {
               });
             }
 
-            // Use the user's input as the actual quantity they want
-            const actualQuantity = numQuantity;
+            // Calculate the actual quantity (admin's base_quantity × user's multiplier)
+            const actualQuantity = itemData.base_quantity * numQuantity;
 
             // Get currency name
             const { getCurrencyName } = require('../utils/economy');
             const currencyName = await getCurrencyName(itemData.server_id);
 
-            // Calculate new total price (price per unit × actual quantity)
-            const newTotalPrice = itemData.price * actualQuantity;
+            // Calculate new total price (admin's price × user's multiplier)
+            const newTotalPrice = itemData.price * numQuantity;
 
             // Get player balance
             const [balanceResult] = await pool.query(
@@ -2253,7 +2253,7 @@ async function handleRemoveShopItem(interaction) {
               );
 
             await interaction.update({
-              content: `✅ Quantity set to ${actualQuantity}!\n\n**Item:** ${itemData.display_name}\n**Quantity:** ${actualQuantity}\n**Price per item:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
+              content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (per purchase)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per purchase:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
               components: [confirmRow]
             });
 
