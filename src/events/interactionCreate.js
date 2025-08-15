@@ -627,7 +627,8 @@ async function handleConfirmPurchase(interaction) {
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
       // Calculate final quantity for this item
-      finalQuantity = quantityToUse || itemData.quantity;
+      // If user adjusted quantity, use it as multiplier; otherwise use base quantity
+      finalQuantity = quantityToUse ? (itemData.quantity * quantityToUse) : itemData.quantity;
       command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${finalQuantity}`;
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
@@ -647,7 +648,8 @@ async function handleConfirmPurchase(interaction) {
       const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
       
       // Calculate final quantity for this kit
-      finalQuantity = quantityToUse || itemData.quantity;
+      // If user adjusted quantity, use it as multiplier; otherwise use base quantity
+      finalQuantity = quantityToUse ? (itemData.quantity * quantityToUse) : itemData.quantity;
       
       // For kits, we need to give the kit multiple times if quantity > 1
       if (finalQuantity > 1) {
@@ -716,8 +718,8 @@ async function handleConfirmPurchase(interaction) {
       }
     }
 
-    // Calculate total price (price per unit * adjusted quantity)
-    const totalPrice = itemData.price * finalQuantity;
+    // Calculate total price (admin's price * user's multiplier)
+    const totalPrice = itemData.price * (quantityToUse || 1);
     
     // Check if player has enough balance
     const [balanceResult] = await pool.query(
@@ -2247,7 +2249,7 @@ async function handleRemoveShopItem(interaction) {
             const confirmRow = new ActionRowBuilder()
               .addComponents(
                 new ButtonBuilder()
-                  .setCustomId(`confirm_purchase_${type}_${itemId}_${playerId}_${actualQuantity}`)
+                  .setCustomId(`confirm_purchase_${type}_${itemId}_${playerId}_${numQuantity}`)
                   .setLabel('Confirm Purchase')
                   .setStyle(ButtonStyle.Success)
               );
