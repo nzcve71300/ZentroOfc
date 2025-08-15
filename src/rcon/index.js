@@ -3109,6 +3109,24 @@ async function getPlayerTeam(ip, port, password, playerName) {
 }
 
 // Helper functions for ZORP enhanced system
+function extractCoordinates(positionString) {
+  try {
+    if (!positionString) return null;
+    
+    // Look for coordinates in format: (-516.50, 28.89, 853.84)
+    const match = positionString.match(/\(([^)]+)\)/);
+    if (!match) return null;
+    
+    const coords = match[1].split(',').map(c => parseFloat(c.trim()));
+    if (coords.length !== 3 || coords.some(isNaN)) return null;
+    
+    return coords;
+  } catch (error) {
+    console.error('[ZORP] Error extracting coordinates:', error);
+    return null;
+  }
+}
+
 function clearZorpTransitionTimer(zoneName) {
   const timerId = zorpTransitionTimers.get(zoneName);
   if (timerId) {
