@@ -30,7 +30,7 @@ module.exports = {
         .setRequired(false))
     .addIntegerOption(option =>
       option.setName('delay')
-        .setDescription('Delay in seconds (default: 0)')
+        .setDescription('Delay in MINUTES before zone goes from yellow to red when offline (default: 5)')
         .setRequired(false))
     .addIntegerOption(option =>
       option.setName('expire')
@@ -90,6 +90,29 @@ module.exports = {
       if (!serverOption || typeof serverOption !== 'string' || serverOption.trim() === '') {
         return interaction.editReply({
           embeds: [errorEmbed('Error', 'Please select a valid server.')]
+        });
+      }
+
+      // Validate RGB color formats
+      function validateRGBColor(colorString) {
+        if (!colorString) return true; // Allow empty/null values
+        const rgbPattern = /^(\d{1,3}),(\d{1,3}),(\d{1,3})$/;
+        const match = colorString.match(rgbPattern);
+        if (!match) return false;
+        
+        const [, r, g, b] = match;
+        return parseInt(r) <= 255 && parseInt(g) <= 255 && parseInt(b) <= 255;
+      }
+
+      if (colorOnline && !validateRGBColor(colorOnline)) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Error', 'Invalid online color format. Use R,G,B format (e.g., 0,255,0) with values 0-255.')]
+        });
+      }
+
+      if (colorOffline && !validateRGBColor(colorOffline)) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Error', 'Invalid offline color format. Use R,G,B format (e.g., 255,0,0) with values 0-255.')]
         });
       }
 
@@ -174,7 +197,7 @@ module.exports = {
         }
         if (delay !== null) {
           updates.push(`delay = ?`);
-          values.push(delay);
+          values.push(delay); // Store delay in minutes as entered by user
           updatedFields.push('delay');
         }
         if (expire !== null) {
@@ -257,7 +280,7 @@ module.exports = {
         }
         if (delay !== null) {
           defaultsUpdates.push(`delay = ?`);
-          defaultsValues.push(delay);
+          defaultsValues.push(delay); // Store delay in minutes as entered by user
         }
         if (expire !== null) {
           defaultsUpdates.push(`expire = ?`);

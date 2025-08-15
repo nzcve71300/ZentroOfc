@@ -51,6 +51,10 @@ const nightSkipVotes = new Map(); // Track night skip voting state
 const nightSkipVoteCounts = new Map(); // Track vote counts per server
 const nightSkipFailedAttempts = new Map(); // Track failed night skip attempts to prevent re-triggering
 
+// ZORP Enhanced state tracking
+const zorpTransitionTimers = new Map(); // Track zone transition timers
+const zorpZoneStates = new Map(); // Track current zone states
+
 // Home Teleport state tracking
 const homeTeleportState = new Map(); // Track home teleport state
 const homeTeleportCooldowns = new Map(); // Track cooldowns per player
@@ -2523,17 +2527,31 @@ async function setZoneToGreen(ip, port, password, playerName) {
   try {
     // Get zone name from database
     const [zoneResult] = await pool.query(
-      'SELECT name, color_online FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
     
     if (zoneResult.length > 0) {
       const zone = zoneResult[0];
+      
+      // Clear any existing transition timers
+      clearZorpTransitionTimer(zone.name);
+      
       // Set zone to green settings: allow building (1), allow building damage (1), allow PvP (1)
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+      
+      // Update database state
+      await pool.query(
+        'UPDATE zorp_zones SET current_state = ?, last_online_at = NOW() WHERE id = ?',
+        ['green', zone.id]
+      );
+      
+      // Update in-memory state
+      zorpZoneStates.set(zone.name, 'green');
+      
       console.log(`[ZORP] Set zone ${zone.name} to green (online) for ${playerName}`);
     }
   } catch (error) {
@@ -2541,21 +2559,80 @@ async function setZoneToGreen(ip, port, password, playerName) {
   }
 }
 
-async function setZoneToRed(ip, port, password, playerName) {
+async function setZoneToYellow(ip, port, password, playerName) {
   try {
     // Get zone name from database
     const [zoneResult] = await pool.query(
-      'SELECT name, color_offline FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
     
     if (zoneResult.length > 0) {
       const zone = zoneResult[0];
+      const yellowColor = zone.color_yellow || '255,255,0';
+      
+      // Set zone to yellow (always yellow during delay period - user can't change this)
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
+      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${yellowColor})`);
+      
+      // Update database state
+      await pool.query(
+        'UPDATE zorp_zones SET current_state = ? WHERE id = ?',
+        ['yellow', zone.id]
+      );
+      
+      // Update in-memory state
+      zorpZoneStates.set(zone.name, 'yellow');
+      
+      console.log(`[ZORP] Set zone ${zone.name} to yellow (delay period) for ${playerName}`);
+      
+      // Start timer for transition to red (delay is in minutes, convert to milliseconds)
+      const delayMs = (zone.delay || 5) * 60 * 1000;
+      const timerId = setTimeout(async () => {
+        await setZoneToRed(ip, port, password, playerName);
+      }, delayMs);
+      
+      // Store timer reference
+      zorpTransitionTimers.set(zone.name, timerId);
+      
+      console.log(`[ZORP] Started ${zone.delay || 5} minute timer for zone ${zone.name} to go red`);
+    }
+  } catch (error) {
+    console.error('Error setting zone to yellow:', error);
+  }
+}
+
+async function setZoneToRed(ip, port, password, playerName) {
+  try {
+    // Get zone name from database
+    const [zoneResult] = await pool.query(
+      'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      [playerName]
+    );
+    
+    if (zoneResult.length > 0) {
+      const zone = zoneResult[0];
+      
+      // Clear any existing transition timers
+      clearZorpTransitionTimer(zone.name);
+      
       // Set zone to red settings: allow building (1), no building damage (0), PvP enabled (1) - players can take damage but buildings cannot
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 0`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_offline})`);
+      
+      // Update database state
+      await pool.query(
+        'UPDATE zorp_zones SET current_state = ? WHERE id = ?',
+        ['red', zone.id]
+      );
+      
+      // Update in-memory state
+      zorpZoneStates.set(zone.name, 'red');
+      
       console.log(`[ZORP] Set zone ${zone.name} to red (offline) for ${playerName}`);
     }
   } catch (error) {
@@ -2653,6 +2730,41 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       return;
     }
 
+    // Get player position for proximity check
+    const positionResponse = await sendRconCommand(ip, port, password, `printpos ${playerName}`);
+    console.log(`[ZORP DEBUG] Position response for ${playerName}:`, positionResponse);
+    
+    // Extract coordinates from position response
+    const coords = extractCoordinates(positionResponse.Message);
+    if (!coords) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Could not get your position. Please try again.</color>`);
+      console.log(`[ZORP] Could not extract coordinates for player: ${playerName}`);
+      return;
+    }
+
+    // Check proximity to other zones (minimum 150 units apart)
+    const [nearbyZones] = await pool.query(
+      'SELECT name, owner, position FROM zorp_zones WHERE server_id = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      [serverId]
+    );
+
+    const MIN_DISTANCE = 150; // Minimum distance between zones
+    for (const zone of nearbyZones) {
+      if (zone.position) {
+        const zoneCoords = JSON.parse(zone.position);
+        const distance = Math.sqrt(
+          Math.pow(coords[0] - zoneCoords[0], 2) + 
+          Math.pow(coords[2] - zoneCoords[2], 2) // Use X and Z for ground distance
+        );
+        
+        if (distance < MIN_DISTANCE) {
+          await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Too close to ${zone.owner}'s zone! Minimum distance: ${MIN_DISTANCE}m (Current: ${Math.floor(distance)}m)</color>`);
+          console.log(`[ZORP] Zone placement blocked - too close to ${zone.owner}'s zone (distance: ${Math.floor(distance)}m)`);
+          return;
+        }
+      }
+    }
+
     // Get player's team info
     const teamInfo = await getPlayerTeam(ip, port, password, playerName);
     
@@ -2711,29 +2823,8 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       return;
     }
 
-    // Get player position
-    const position = await sendRconCommand(ip, port, password, `printpos ${playerName}`);
-    
-    if (!position || !position.includes(',')) {
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Failed to get position</color>`);
-      console.log(`[ZORP] Failed to get position for ${playerName}`);
-      return;
-    }
-
-    // Parse position
-    const posMatch = position.match(/\(([^)]+)\)/);
-    if (!posMatch) {
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Invalid position format</color>`);
-      console.log(`[ZORP] Invalid position format for ${playerName}: ${position}`);
-      return;
-    }
-
-    const coords = posMatch[1].split(',').map(c => parseFloat(c.trim()));
-    if (coords.length !== 3) {
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Invalid coordinates</color>`);
-      console.log(`[ZORP] Invalid coordinates for ${playerName}: ${coords}`);
-      return;
-    }
+    // Use coordinates from proximity check (already extracted above)
+    console.log(`[ZORP DEBUG] Using coordinates from proximity check: [${coords.join(', ')}]`);
 
     // Check for overlapping zones
     const [existingZones] = await pool.query(
@@ -2777,10 +2868,9 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const createResult = await sendRconCommand(ip, port, password, zoneCommand);
     console.log(`[ZORP DEBUG] Zone creation result:`, createResult);
 
-    // Set zone to online color immediately
-    console.log(`[ZORP DEBUG] Setting zone color to: ${defaults.color_online}`);
-    const colorResult = await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (${defaults.color_online})`);
-    console.log(`[ZORP DEBUG] Color setting result:`, colorResult);
+    // Set zone to white initially (2-minute transition to green)
+    console.log(`[ZORP DEBUG] Setting zone to white (initial creation state)`);
+    await setZoneToWhite(ip, port, password, zoneName);
 
     // Set zone enter/leave messages
     console.log(`[ZORP DEBUG] Setting zone messages`);
@@ -2798,20 +2888,23 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       size: defaults.size,
       color_online: defaults.color_online,
       color_offline: defaults.color_offline,
+      color_yellow: defaults.color_yellow || '255,255,0',
       radiation: defaults.radiation,
       delay: defaults.delay,
       expire: defaults.expire, // Use server default expiration time
       min_team: minTeam,
-      max_team: maxTeam
+      max_team: maxTeam,
+      current_state: 'white',
+      last_online_at: new Date()
     };
 
     await pool.query(`
-      INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, radiation, delay, expire, min_team, max_team)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, last_online_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
-      JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline,
-      zoneData.radiation, zoneData.delay, zoneData.expire, zoneData.min_team, zoneData.max_team
+      insertData.server_id, insertData.name, insertData.owner, JSON.stringify(insertData.team),
+      JSON.stringify(insertData.position), insertData.size, insertData.color_online, insertData.color_offline, insertData.color_yellow,
+      insertData.radiation, insertData.delay, insertData.expire, insertData.min_team, insertData.max_team, insertData.current_state, insertData.last_online_at
     ]);
 
     // Send success message
@@ -3012,6 +3105,47 @@ async function getPlayerTeam(ip, port, password, playerName) {
   } catch (error) {
     console.error('Error getting player team:', error);
     return null;
+  }
+}
+
+// Helper functions for ZORP enhanced system
+function clearZorpTransitionTimer(zoneName) {
+  const timerId = zorpTransitionTimers.get(zoneName);
+  if (timerId) {
+    clearTimeout(timerId);
+    zorpTransitionTimers.delete(zoneName);
+    console.log(`[ZORP] Cleared transition timer for zone ${zoneName}`);
+  }
+}
+
+async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,255,255') {
+  try {
+    // Set zone to white (initial creation state)
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuilding 1`);
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuildingdamage 1`);
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowpvpdamage 1`);
+    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (${whiteColor})`);
+    
+    // Update in-memory state
+    zorpZoneStates.set(zoneName, 'white');
+    
+    console.log(`[ZORP] Set zone ${zoneName} to white (initial creation)`);
+    
+    // Start 2-minute timer to transition to green
+    const timerId = setTimeout(async () => {
+      // Get player name from zone name (format: ZORP_playerName_timestamp)
+      const playerName = zoneName.split('_')[1];
+      if (playerName) {
+        await setZoneToGreen(ip, port, password, playerName);
+      }
+    }, 2 * 60 * 1000); // 2 minutes
+    
+    // Store timer reference
+    zorpTransitionTimers.set(zoneName, timerId);
+    
+    console.log(`[ZORP] Started 2-minute timer for zone ${zoneName} to go green`);
+  } catch (error) {
+    console.error(`Error setting zone to white:`, error);
   }
 }
 
@@ -3306,13 +3440,20 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
       const allTeamOffline = await checkIfAllTeamMembersOffline(ip, port, password, cleanPlayerName);
       
       if (allTeamOffline) {
-        // Set zone to red only when ALL team members are offline
-        await setZoneToRed(ip, port, password, cleanPlayerName);
+        // Set zone to yellow first (which will start timer for red transition)
+        await setZoneToYellow(ip, port, password, cleanPlayerName);
+        
+        // Get zone delay for feed message
+        const [zoneInfo] = await pool.query(
+          'SELECT delay FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          [cleanPlayerName]
+        );
+        const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
         
         // Send offline message to zorp feed
-        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=red (All team offline)`);
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=yellow (All team offline, ${delayMinutes} min delay)`);
         
-        console.log(`[ZORP] Player ${cleanPlayerName} went offline, ALL team members offline, zone set to red`);
+        console.log(`[ZORP] Player ${cleanPlayerName} went offline, ALL team members offline, zone set to yellow (${delayMinutes} min delay to red)`);
       } else {
         // At least one team member is still online, keep zone green
         console.log(`[ZORP] Player ${cleanPlayerName} went offline, but other team members are still online, keeping zone green`);
