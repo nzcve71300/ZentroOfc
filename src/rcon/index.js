@@ -2902,9 +2902,9 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, last_online_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      insertData.server_id, insertData.name, insertData.owner, JSON.stringify(insertData.team),
-      JSON.stringify(insertData.position), insertData.size, insertData.color_online, insertData.color_offline, insertData.color_yellow,
-      insertData.radiation, insertData.delay, insertData.expire, insertData.min_team, insertData.max_team, insertData.current_state, insertData.last_online_at
+      zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
+      JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline, zoneData.color_yellow,
+      zoneData.radiation, zoneData.delay, zoneData.expire, zoneData.min_team, zoneData.max_team, zoneData.current_state, zoneData.last_online_at
     ]);
 
     // Send success message
