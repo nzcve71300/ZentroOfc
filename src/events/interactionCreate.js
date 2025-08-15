@@ -813,7 +813,7 @@ async function handleConfirmPurchase(interaction) {
        console.log(`[KIT QUEUE] Added to queue with ID: ${insertResult.insertId}`);
        
        // Send initial message to player in-game
-       const queueMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>purchased</color> <color=#FFD700>${finalQuantity}x ${itemData.display_name}</color> <color=#00FF00>- React with 📦 in Discord to claim each kit!</color>`;
+       const queueMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>purchased</color> <color=#FFD700>${finalQuantity}x ${itemData.display_name}</color> <color=#00FF00>- Use the orders emote in-game to claim each kit!</color>`;
        try {
          sendRconCommand(itemData.ip, itemData.port, itemData.password, queueMessage);
          console.log(`Queue message sent to ${itemData.nickname}: ${queueMessage}`);
@@ -858,7 +858,7 @@ async function handleConfirmPurchase(interaction) {
        purchaseEmbed = new EmbedBuilder()
          .setColor(0xFFD700)
          .setTitle('📦 Kit Delivery Queue')
-         .setDescription('✅ **Purchase Confirmed - Added to Delivery Queue**\n\n**How to claim your kits:**\nReact with 📦 to this message to claim one kit at a time!')
+         .setDescription('✅ **Purchase Confirmed - Added to Delivery Queue**\n\n**How to claim your kits:**\nUse the orders emote (📋) in-game to claim one kit at a time!')
          .addFields(
            { name: '**Kit**', value: itemData.display_name, inline: false },
            { name: '**Quantity**', value: `${finalQuantity} kits`, inline: true },
@@ -870,7 +870,7 @@ async function handleConfirmPurchase(interaction) {
            iconURL: interaction.user.displayAvatarURL({ dynamic: true })
          })
          .setTimestamp()
-         .setFooter({ text: 'React with 📦 to claim each kit • Zentro Express' });
+         .setFooter({ text: 'Use orders emote in-game to claim each kit • Zentro Express' });
      } else {
        // Immediate delivery confirmation
        purchaseEmbed = new EmbedBuilder()
@@ -911,15 +911,13 @@ async function handleConfirmPurchase(interaction) {
          });
          console.log('[SHOP DELIVERY] Message sent with image successfully');
          
-         // Add reaction for kit queue messages
+         // Update the queue record with message ID for tracking (no reactions needed)
          if (type === 'kit' && finalQuantity > 1) {
-           await message.react('📦');
-           // Update the queue record with message ID
            await pool.query(
              'UPDATE kit_delivery_queue SET message_id = ?, channel_id = ? WHERE player_id = ? AND kit_id = ? AND remaining_quantity = ?',
              [message.id, message.channelId, playerId, itemId, finalQuantity]
            );
-           console.log(`[KIT QUEUE] Added reaction and updated message ID: ${message.id}`);
+           console.log(`[KIT QUEUE] Updated message ID: ${message.id}`);
          }
        } else {
          console.log('[SHOP DELIVERY] Image not found, sending without image...');
@@ -929,15 +927,13 @@ async function handleConfirmPurchase(interaction) {
          });
          console.log('[SHOP DELIVERY] Message sent without image');
          
-         // Add reaction for kit queue messages
+         // Update the queue record with message ID for tracking (no reactions needed)
          if (type === 'kit' && finalQuantity > 1) {
-           await message.react('📦');
-           // Update the queue record with message ID
            await pool.query(
              'UPDATE kit_delivery_queue SET message_id = ?, channel_id = ? WHERE player_id = ? AND kit_id = ? AND remaining_quantity = ?',
              [message.id, message.channelId, playerId, itemId, finalQuantity]
            );
-           console.log(`[KIT QUEUE] Added reaction and updated message ID: ${message.id}`);
+           console.log(`[KIT QUEUE] Updated message ID: ${message.id}`);
          }
        }
      } catch (error) {

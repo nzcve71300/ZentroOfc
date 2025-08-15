@@ -36,6 +36,9 @@ const TELEPORT_EMOTES = {
   outpost: 'd11_quick_chat_combat_slot_2',
 };
 
+// Kit delivery emote
+const KIT_DELIVERY_EMOTE = 'd11_quick_chat_orders_slot_6';
+
 // In-memory state tracking
 const recentKitClaims = new Map();
 const recentTeleports = new Map();
@@ -329,6 +332,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Handle ZORP emotes
       await handleZorpEmote(client, guildId, serverName, parsed, ip, port, password);
       await handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, port, password);
+
+      // Handle Kit Delivery emote
+      await handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, port, password);
 
       // Handle ZORP zone entry/exit messages
       await handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, password);
@@ -2346,6 +2352,128 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
     }
   } catch (error) {
     console.error('Error handling ZORP delete emote:', error);
+  }
+}
+
+// Kit Delivery System Functions
+async function handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const msg = parsed.Message;
+    if (!msg) return;
+
+    // Check for Kit Delivery emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_orders_slot_6
+    if (msg.includes('[CHAT LOCAL]') && msg.includes(KIT_DELIVERY_EMOTE)) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        console.log(`[KIT DELIVERY] Emote detected for player: ${player} on server: ${serverName}`);
+        await processKitDelivery(client, guildId, serverName, ip, port, password, player);
+      } else {
+        console.log(`[KIT DELIVERY] Emote detected but could not extract player name from: ${msg}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling kit delivery emote:', error);
+  }
+}
+
+async function processKitDelivery(client, guildId, serverName, ip, port, password, player) {
+  try {
+    console.log(`[KIT DELIVERY] Processing delivery for ${player} on ${serverName}`);
+    
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) {
+      console.log(`[KIT DELIVERY] Server not found: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult[0].id;
+    
+    // Get player ID
+    const [playerResult] = await pool.query(
+      'SELECT id FROM players WHERE server_id = ? AND ign = ?',
+      [serverId, player]
+    );
+    
+    if (playerResult.length === 0) {
+      console.log(`[KIT DELIVERY] Player not found: ${player} on server ${serverId}`);
+      return;
+    }
+    
+    const playerId = playerResult[0].id;
+    
+    // Check if player has any pending kit deliveries
+    const [queueResult] = await pool.query(
+      'SELECT * FROM kit_delivery_queue WHERE player_id = ? AND server_id = ? AND remaining_quantity > 0 ORDER BY created_at ASC LIMIT 1',
+      [playerId, serverId]
+    );
+    
+    if (queueResult.length === 0) {
+      console.log(`[KIT DELIVERY] No pending deliveries for ${player}`);
+      // Send message to player
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>you have no pending kit deliveries</color>`);
+      return;
+    }
+    
+    const queueEntry = queueResult[0];
+    
+    // Check cooldown (anti-spam protection)
+    const now = new Date();
+    if (queueEntry.last_delivered_at) {
+      const timeSinceLastDelivery = (now - new Date(queueEntry.last_delivered_at)) / 1000;
+      if (timeSinceLastDelivery < queueEntry.cooldown_seconds) {
+        const remainingCooldown = Math.ceil(queueEntry.cooldown_seconds - timeSinceLastDelivery);
+        console.log(`[KIT DELIVERY] Player ${player} is on cooldown for ${remainingCooldown} seconds`);
+        
+        // Send cooldown message
+        await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>please wait ${remainingCooldown} seconds before claiming another kit</color>`);
+        return;
+      }
+    }
+    
+    console.log(`[KIT DELIVERY] Delivering kit ${queueEntry.kit_name} to ${player}`);
+    
+    // Send the kit via RCON
+    const kitCommand = `kit givetoplayer ${queueEntry.kit_name} ${player}`;
+    await sendRconCommand(ip, port, password, kitCommand);
+    console.log(`[KIT DELIVERY] Kit command sent: ${kitCommand}`);
+    
+    // Update the queue entry
+    const newRemainingQuantity = queueEntry.remaining_quantity - 1;
+    await pool.query(
+      'UPDATE kit_delivery_queue SET remaining_quantity = ?, last_delivered_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [newRemainingQuantity, queueEntry.id]
+    );
+    
+    console.log(`[KIT DELIVERY] Updated queue - remaining quantity: ${newRemainingQuantity}`);
+    
+    // Send confirmation message in-game with same colors as shop
+    if (newRemainingQuantity > 0) {
+      await sendRconCommand(ip, port, password, `say <color=#00FF00>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#00FF00>received</color> <color=#FFD700>${queueEntry.display_name}</color> <color=#00FF00>- ${newRemainingQuantity} remaining</color>`);
+    } else {
+      await sendRconCommand(ip, port, password, `say <color=#00FF00>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#00FF00>received final</color> <color=#FFD700>${queueEntry.display_name}</color> <color=#00FF00>- all kits delivered!</color>`);
+      
+      // Delete the queue entry since it's complete
+      await pool.query('DELETE FROM kit_delivery_queue WHERE id = ?', [queueEntry.id]);
+      console.log(`[KIT DELIVERY] Deleted completed queue entry ${queueEntry.id}`);
+    }
+    
+    // Send to admin feed
+    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `📦 **Kit Delivered:** ${player} claimed ${queueEntry.display_name} (${newRemainingQuantity} remaining)`);
+    
+  } catch (error) {
+    console.error('Error processing kit delivery:', error);
+    
+    // Send error message to player
+    try {
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>delivery failed - please contact an admin</color>`);
+    } catch (msgError) {
+      console.error(`[KIT DELIVERY] Failed to send error message: ${msgError.message}`);
+    }
   }
 }
 
