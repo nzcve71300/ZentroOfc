@@ -2269,11 +2269,16 @@ async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, pa
     const msg = parsed.Message;
     if (!msg) return;
 
-    // Check for ZORP emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_questions_slot_1
-    if (msg.includes('[CHAT LOCAL]') && msg.includes(ZORP_EMOTE)) {
+    // Check for ZORP emote in multiple chat types: LOCAL, TEAM, or SERVER
+    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes(ZORP_EMOTE)) {
       const player = extractPlayerName(msg);
       if (player) {
-        console.log(`[ZORP] Emote detected for player: ${player} on server: ${serverName}`);
+        // Determine chat type for logging
+        let chatType = 'LOCAL';
+        if (msg.includes('[CHAT TEAM]')) chatType = 'TEAM';
+        else if (msg.includes('[CHAT SERVER]')) chatType = 'SERVER';
+        
+        console.log(`[ZORP] Emote detected for player: ${player} on server: ${serverName} (${chatType} chat)`);
         await createZorpZone(client, guildId, serverName, ip, port, password, player);
       } else {
         console.log(`[ZORP] Emote detected but could not extract player name from: ${msg}`);
@@ -2289,12 +2294,17 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
     const msg = parsed.Message;
     if (!msg) return;
 
-    // Check for ZORP delete emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_responses_slot_6
-    if (msg.includes('[CHAT LOCAL]') && msg.includes('d11_quick_chat_responses_slot_6')) {
-      console.log(`[ZORP DEBUG] ZORP delete emote detected: ${msg}`);
+    // Check for ZORP delete emote in multiple chat types: LOCAL, TEAM, or SERVER
+    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes('d11_quick_chat_responses_slot_6')) {
+      // Determine chat type for logging
+      let chatType = 'LOCAL';
+      if (msg.includes('[CHAT TEAM]')) chatType = 'TEAM';
+      else if (msg.includes('[CHAT SERVER]')) chatType = 'SERVER';
+      
+      console.log(`[ZORP DEBUG] ZORP delete emote detected: ${msg} (${chatType} chat)`);
       const player = extractPlayerName(msg);
       if (player) {
-        console.log(`[ZORP] Delete emote detected for player: ${player} on server: ${serverName}`);
+        console.log(`[ZORP] Delete emote detected for player: ${player} on server: ${serverName} (${chatType} chat)`);
         
         // Get server ID for database operations
         const [serverResult] = await pool.query(

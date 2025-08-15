@@ -32,7 +32,7 @@ The Enhanced ZORP System introduces advanced color transitions, proximity valida
 ## 🎮 In-Game Behavior
 
 ### Zone Creation Process
-1. Player uses ZORP emote (`d11_quick_chat_questions_slot_1`)
+1. Player uses ZORP emote (`d11_quick_chat_questions_slot_1`) in **any chat** (Local, Team, or Server)
 2. System checks proximity to existing zones (150m minimum)
 3. Zone created in **WHITE** color
 4. After **2 minutes** → automatically changes to **GREEN**
