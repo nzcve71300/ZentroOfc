@@ -212,4 +212,24 @@ client.on('guildCreate', async (guild) => {
   }
 });
 
+// Handle message reactions for kit delivery
+client.on('messageReactionAdd', async (reaction, user) => {
+  try {
+    // Ignore bot reactions
+    if (user.bot) return;
+    
+    // Only handle 📦 reactions
+    if (reaction.emoji.name !== '📦') return;
+    
+    console.log(`[KIT REACTION] User ${user.username} reacted with 📦 to message ${reaction.message.id}`);
+    
+    // Import the kit delivery handler
+    const { handleKitDelivery } = require('./utils/kitDeliveryHandler');
+    await handleKitDelivery(reaction, user);
+    
+  } catch (error) {
+    console.error('Error handling kit delivery reaction:', error);
+  }
+});
+
 client.login(discordToken);
