@@ -813,7 +813,7 @@ async function handleConfirmPurchase(interaction) {
        console.log(`[KIT QUEUE] Added to queue with ID: ${insertResult.insertId}`);
        
        // Send initial message to player in-game
-       const queueMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>purchased</color> <color=#FFD700>${finalQuantity}x ${itemData.display_name}</color> <color=#00FF00>- Use the orders emote in-game to claim each kit!</color>`;
+       const queueMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>purchased</color> <color=#FFD700>${finalQuantity}x ${itemData.display_name}</color> <color=#00FF00>- Use the Here take this emote to claim each kit!</color>`;
        try {
          sendRconCommand(itemData.ip, itemData.port, itemData.password, queueMessage);
          console.log(`Queue message sent to ${itemData.nickname}: ${queueMessage}`);
@@ -858,7 +858,7 @@ async function handleConfirmPurchase(interaction) {
        purchaseEmbed = new EmbedBuilder()
          .setColor(0xFFD700)
          .setTitle('📦 Kit Delivery Queue')
-         .setDescription('✅ **Purchase Confirmed - Added to Delivery Queue**\n\n**How to claim your kits:**\nUse the orders emote (📋) in-game to claim one kit at a time!')
+         .setDescription('✅ **Purchase Confirmed - Added to Delivery Queue**\n\n**How to claim your kits:**\nUse the **Here take this emote** in game to claim your kits!')
          .addFields(
            { name: '**Kit**', value: itemData.display_name, inline: false },
            { name: '**Quantity**', value: `${finalQuantity} kits`, inline: true },
@@ -870,7 +870,7 @@ async function handleConfirmPurchase(interaction) {
            iconURL: interaction.user.displayAvatarURL({ dynamic: true })
          })
          .setTimestamp()
-         .setFooter({ text: 'Use orders emote in-game to claim each kit • Zentro Express' });
+         .setFooter({ text: 'Use Here take this emote in-game to claim each kit • Zentro Express' });
      } else {
        // Immediate delivery confirmation
        purchaseEmbed = new EmbedBuilder()
@@ -2216,8 +2216,8 @@ async function handleRemoveShopItem(interaction) {
               });
             }
 
-            // Calculate the actual quantity (base_quantity × multiplier)
-            const actualQuantity = itemData.base_quantity * numQuantity;
+            // Use the user's input as the actual quantity they want
+            const actualQuantity = numQuantity;
 
             // Get currency name
             const { getCurrencyName } = require('../utils/economy');
@@ -2253,7 +2253,7 @@ async function handleRemoveShopItem(interaction) {
               );
 
             await interaction.update({
-              content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (set by admin)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per unit:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
+              content: `✅ Quantity set to ${actualQuantity}!\n\n**Item:** ${itemData.display_name}\n**Quantity:** ${actualQuantity}\n**Price per item:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
               components: [confirmRow]
             });
 
