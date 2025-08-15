@@ -2735,10 +2735,10 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     console.log(`[ZORP DEBUG] Position response for ${playerName}:`, positionResponse);
     
     // Extract coordinates from position response
-    const coords = extractCoordinates(positionResponse.Message);
+    const coords = extractCoordinates(positionResponse);
     if (!coords) {
       await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Could not get your position. Please try again.</color>`);
-      console.log(`[ZORP] Could not extract coordinates for player: ${playerName}`);
+      console.log(`[ZORP] Could not extract coordinates for player: ${playerName}. Response:`, positionResponse);
       return;
     }
 
@@ -3113,13 +3113,28 @@ function extractCoordinates(positionString) {
   try {
     if (!positionString) return null;
     
+    // Handle both string and object inputs
+    let coordString = positionString;
+    if (typeof positionString === 'object' && positionString.Message) {
+      coordString = positionString.Message;
+    }
+    
+    console.log(`[ZORP DEBUG] Extracting coordinates from: "${coordString}"`);
+    
     // Look for coordinates in format: (-516.50, 28.89, 853.84)
-    const match = positionString.match(/\(([^)]+)\)/);
-    if (!match) return null;
+    const match = coordString.match(/\(([^)]+)\)/);
+    if (!match) {
+      console.log(`[ZORP DEBUG] No coordinate pattern found in: "${coordString}"`);
+      return null;
+    }
     
     const coords = match[1].split(',').map(c => parseFloat(c.trim()));
-    if (coords.length !== 3 || coords.some(isNaN)) return null;
+    if (coords.length !== 3 || coords.some(isNaN)) {
+      console.log(`[ZORP DEBUG] Invalid coordinates parsed:`, coords);
+      return null;
+    }
     
+    console.log(`[ZORP DEBUG] Successfully extracted coordinates:`, coords);
     return coords;
   } catch (error) {
     console.error('[ZORP] Error extracting coordinates:', error);
