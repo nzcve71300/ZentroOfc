@@ -64,9 +64,8 @@ async function addUpriseServer() {
     console.log('\n4. Adding server to database...');
     await pool.query(`
       INSERT INTO rust_servers (
-        id, ip, port, password, nickname, guild_id, 
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+        id, ip, port, password, nickname, guild_id
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `, [
       serverId,
       serverData.ip,
