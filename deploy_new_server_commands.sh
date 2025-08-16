@@ -8,10 +8,10 @@ echo "Server: 149.102.129.112:29316"
 echo "Guild ID: 1403207665106292850"
 echo ""
 
-# Change to the bot directory
-cd /path/to/your/zentro-bot || {
+# Change to the bot directory (using current directory since you're already in ~/ZentroOfc)
+cd ~/ZentroOfc || {
     echo "❌ Failed to change to bot directory"
-    echo "Please update the path in this script to match your server setup"
+    echo "Please make sure you're running this from the correct directory"
     exit 1
 }
 
