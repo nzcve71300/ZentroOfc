@@ -62,6 +62,13 @@ module.exports = {
     }
 
     try {
+      // Ensure guild exists in the guilds table first
+      const guildName = interaction.guild?.name || 'Unknown Guild';
+      await pool.query(
+        'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+        [guildId, guildName]
+      );
+
       // Check subscription limits
       const subscriptionCheck = await canAddServer(guildId);
       if (!subscriptionCheck.canAdd) {
@@ -73,9 +80,9 @@ module.exports = {
         });
       }
 
-      // Check if server already exists
+      // Check if server already exists (using proper guild_id mapping)
       const [existingServer] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = ? AND nickname = ?',
+        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
         [guildId, nickname]
       );
 
@@ -88,9 +95,9 @@ module.exports = {
       // Generate a unique server ID
       const serverId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Add the server with the generated ID
+      // Add the server with the correct guild_id mapping
       const [serverResult] = await pool.query(
-        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password, rcon_password) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password, rcon_password) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, ?)',
         [serverId, guildId, nickname, ip, port, rconPassword, rconPassword]
       );
 
