@@ -949,6 +949,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
         await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
         
       }, config.delay_seconds * 1000);
+      return; // CRITICAL FIX: Prevent execution of immediate teleport code
     } else {
       // Execute teleport immediately
       const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
