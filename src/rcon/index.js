@@ -2029,6 +2029,9 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
     // Check if we reached the minimum votes
     if (newVoteCount >= settings.minimum_voters) {
       console.log(`[NIGHT SKIP] Vote threshold reached for ${serverName}! Finalizing vote with success=true`);
+      // Clear the voting session BEFORE calling finalize to prevent race condition with timeout
+      nightSkipVotes.delete(serverKey);
+      nightSkipVoteCounts.delete(serverKey);
       await finalizeNightSkipVote(client, guildId, serverName, newVoteCount, ip, port, password, true);
     }
 
@@ -2040,6 +2043,12 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
 async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip, port, password, success) {
   try {
     const serverKey = `${guildId}:${serverName}`;
+    
+    // CRITICAL: Check if voting session still exists to prevent duplicate execution
+    if (!nightSkipVotes.has(serverKey) && success) {
+      console.log(`[NIGHT SKIP] Voting session already finalized for ${serverName}, skipping duplicate execution`);
+      return;
+    }
     
     // Get server ID to fetch settings
     const [serverResult] = await pool.query(
@@ -2063,7 +2072,7 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
     // Default settings if none exist
     const settings = settingsResult.length > 0 ? settingsResult[0] : { minimum_voters: 5, enabled: true };
     
-    // Clear the voting session
+    // Clear the voting session (if not already cleared)
     nightSkipVotes.delete(serverKey);
     nightSkipVoteCounts.delete(serverKey);
 
