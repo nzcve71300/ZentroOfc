@@ -138,19 +138,27 @@ async function removeServerByGuildId() {
 
     // Remove event tracking
     console.log('   Removing event tracking...');
-    const [eventResult] = await pool.query(
-      'DELETE FROM event_tracking WHERE server_id IN (SELECT id FROM rust_servers WHERE guild_id = ?)',
-      [guild.id]
-    );
-    console.log(`   ✅ Removed ${eventResult.affectedRows} event tracking records`);
+    try {
+      const [eventResult] = await pool.query(
+        'DELETE FROM event_tracking WHERE server_id IN (SELECT id FROM rust_servers WHERE guild_id = ?)',
+        [guild.id]
+      );
+      console.log(`   ✅ Removed ${eventResult.affectedRows} event tracking records`);
+    } catch (error) {
+      console.log('   ℹ️  No event_tracking table (normal if not using event system)');
+    }
 
     // Remove night skip settings
     console.log('   Removing night skip settings...');
-    const [nightSkipResult] = await pool.query(
-      'DELETE FROM night_skip_settings WHERE server_id IN (SELECT id FROM rust_servers WHERE guild_id = ?)',
-      [guild.id]
-    );
-    console.log(`   ✅ Removed ${nightSkipResult.affectedRows} night skip settings`);
+    try {
+      const [nightSkipResult] = await pool.query(
+        'DELETE FROM night_skip_settings WHERE server_id IN (SELECT id FROM rust_servers WHERE guild_id = ?)',
+        [guild.id]
+      );
+      console.log(`   ✅ Removed ${nightSkipResult.affectedRows} night skip settings`);
+    } catch (error) {
+      console.log('   ℹ️  No night_skip_settings table (normal if not using night skip system)');
+    }
 
     // Remove shop data
     console.log('   Removing shop data...');
