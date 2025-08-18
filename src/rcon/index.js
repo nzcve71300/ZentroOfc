@@ -89,6 +89,10 @@ const playerTeamIds = new Map(); // playerName -> teamId
 // Add at the top of the file, after the existing imports
 const lastOfflineCall = new Map(); // Track last offline call time per player
 
+// Track recent joins to prevent respawn spam
+const recentJoins = new Map(); // playerName -> timestamp
+const JOIN_COOLDOWN = 30000; // 30 seconds cooldown between join messages
+
 // Event detection improvements
 const eventDetectionCooldowns = new Map(); // Track cooldowns per server to prevent spam
 const EVENT_DETECTION_COOLDOWN = 30000; // 30 seconds cooldown between checks per server
@@ -129,6 +133,24 @@ function startRconListeners(client) {
   setInterval(() => flushKillFeedBuffers(client), 60000);
   setInterval(() => checkAllEvents(client), EVENT_POLLING_INTERVAL); // Check for events every 30 seconds for better detection
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
+  
+  // Cleanup old join tracking entries to prevent memory leaks
+  setInterval(() => {
+    const now = Date.now();
+    const cutoff = now - (JOIN_COOLDOWN * 2); // Keep entries for 2x the cooldown period
+    
+    let cleanedCount = 0;
+    for (const [key, timestamp] of recentJoins.entries()) {
+      if (timestamp < cutoff) {
+        recentJoins.delete(key);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`[PLAYERFEED] Cleaned up ${cleanedCount} old join tracking entries`);
+    }
+  }, 60000); // Clean up every minute
   
   // Check for night skip voting every 2 minutes
   setInterval(() => {
@@ -242,13 +264,32 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         Logger.debug(`[NOTEFEED DEBUG] Potential note panel message detected: ${msg}`);
       }
 
-      // Handle player joins/leaves
+      // Handle player joins/leaves with respawn spam prevention
       if (msg.match(/has entered the game/)) {
         const player = msg.split(' ')[0];
+        
+        // Check if this is a real join or just a respawn
+        const playerKey = `${guildId}_${serverName}_${player}`;
+        const now = Date.now();
+        const lastJoin = recentJoins.get(playerKey) || 0;
+        
+        // If player "joined" within the last 30 seconds, it's likely a respawn
+        if (now - lastJoin < JOIN_COOLDOWN) {
+          console.log(`[PLAYERFEED] Ignoring respawn for ${player} (last join was ${Math.round((now - lastJoin) / 1000)}s ago)`);
+          return; // Skip this "join" - it's probably a respawn
+        }
+        
+        // Record this join
+        recentJoins.set(playerKey, now);
+        
+        // This appears to be a real join
+        console.log(`[PLAYERFEED] Real join detected for ${player}`);
         addToBuffer(guildId, serverName, 'joins', player);
         await ensurePlayerExists(guildId, serverName, player);
+        
         // Send to playerfeed
         await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
+        
         // Handle Zorp zone online immediately (only for reliable join messages)
         await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
       }
@@ -2662,12 +2703,51 @@ async function setZoneToRed(ip, port, password, playerName) {
 
 async function handleTeamChanges(client, guildId, serverName, msg, ip, port, password) {
   try {
-    // Check for team-related messages
-    const teamCreatedMatch = msg.match(/(.+) created a team/);
-    const teamJoinedMatch = msg.match(/(.+) joined (.+)'s team/);
-    const teamLeftMatch = msg.match(/(.+) left (.+)'s team/);
-    const teamKickedMatch = msg.match(/(.+) kicked (.+) from the team/);
-    const teamDisbandedMatch = msg.match(/(.+) disbanded the team/);
+    // Check for team-related messages with team IDs
+    const teamCreatedMatch = msg.match(/(.+) created a team, ID: \[(\d+)\]/);
+    const teamJoinedMatch = msg.match(/(.+) has joined (.+)'?s team, ID: \[(\d+)\]/);
+    const teamLeftMatch = msg.match(/(.+) has left (.+)'?s team, ID: \[(\d+)\]/);
+    const teamKickedMatch = msg.match(/(.+) kicked (.+) from the team, ID: \[(\d+)\]/);
+    const teamDisbandedMatch = msg.match(/(.+) disbanded the team, ID: \[(\d+)\]/);
+    
+    // Send team messages to Zorp feed
+    if (teamCreatedMatch) {
+      const playerName = teamCreatedMatch[1].trim();
+      const teamId = teamCreatedMatch[2];
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[TEAM] (${teamId}) ${playerName} created`);
+      console.log(`[ZORP FEED] Team created: ${playerName} (${teamId})`);
+    }
+    
+    if (teamJoinedMatch) {
+      const playerName = teamJoinedMatch[1].trim();
+      const teamOwner = teamJoinedMatch[2].trim();
+      const teamId = teamJoinedMatch[3];
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[TEAM] (${teamId}) ${playerName} joined`);
+      console.log(`[ZORP FEED] Team joined: ${playerName} -> ${teamOwner}'s team (${teamId})`);
+    }
+    
+    if (teamLeftMatch) {
+      const playerName = teamLeftMatch[1].trim();
+      const teamOwner = teamLeftMatch[2].trim();
+      const teamId = teamLeftMatch[3];
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[TEAM] (${teamId}) ${playerName} left`);
+      console.log(`[ZORP FEED] Team left: ${playerName} <- ${teamOwner}'s team (${teamId})`);
+    }
+    
+    if (teamKickedMatch) {
+      const kicker = teamKickedMatch[1].trim();
+      const kicked = teamKickedMatch[2].trim();
+      const teamId = teamKickedMatch[3];
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[TEAM] (${teamId}) ${kicked} kicked by ${kicker}`);
+      console.log(`[ZORP FEED] Team kick: ${kicked} kicked by ${kicker} (${teamId})`);
+    }
+    
+    if (teamDisbandedMatch) {
+      const playerName = teamDisbandedMatch[1].trim();
+      const teamId = teamDisbandedMatch[2];
+      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[TEAM] (${teamId}) disbanded by ${playerName}`);
+      console.log(`[ZORP FEED] Team disbanded: ${playerName} (${teamId})`);
+    }
     
     if (teamCreatedMatch || teamJoinedMatch || teamLeftMatch || teamKickedMatch || teamDisbandedMatch) {
       console.log(`[ZORP] Team change detected: ${msg}`);

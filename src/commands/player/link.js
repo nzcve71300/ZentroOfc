@@ -49,6 +49,8 @@ module.exports = {
         [guildId, discordId]
       );
 
+      console.log(`[LINK DEBUG] Found ${anyDiscordLinks.length} existing links for Discord ID ${discordId}`);
+
       if (anyDiscordLinks.length > 0) {
         const currentIgn = anyDiscordLinks[0].ign;
         const serverList = anyDiscordLinks.map(p => p.nickname).join(', ');
@@ -59,10 +61,13 @@ module.exports = {
             embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)]
           });
         } else {
-          return await interaction.editReply({
-            embeds: [orangeEmbed('Previously Linked', `You were previously linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to link again.`)]
-          });
+          // User was previously linked but is now inactive - allow them to relink
+          console.log(`[LINK] User ${discordId} was previously linked to ${currentIgn} but is inactive - allowing relink to ${ign}`);
+          // Continue to IGN check instead of blocking
         }
+      } else {
+        // Brand new user - no previous links found, allow them to continue
+        console.log(`[LINK] Brand new user ${discordId} - no previous links found, proceeding with IGN check`);
       }
 
       // CRITICAL CHECK 2: Check if this EXACT IGN has EVER been linked (active OR inactive)
@@ -86,9 +91,9 @@ module.exports = {
               embeds: [orangeEmbed('Already Linked', `You are already linked to **${ign}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)]
             });
           } else {
-            return await interaction.editReply({
-              embeds: [orangeEmbed('Previously Linked', `You were previously linked to **${ign}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to link again.`)]
-            });
+            // Same user, same IGN, but inactive - allow them to relink
+            console.log(`[LINK] User ${discordId} was previously linked to ${ign} but is inactive - allowing relink`);
+            // Continue to confirmation instead of blocking
           }
         } else {
           if (isActive) {
@@ -96,9 +101,9 @@ module.exports = {
               embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
             });
           } else {
-            return await interaction.editReply({
-              embeds: [orangeEmbed('IGN Previously Used', `The in-game name **${ign}** was previously linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
-            });
+            // Different user, but IGN is inactive - allow the new user to take it
+            console.log(`[LINK] IGN ${ign} was previously linked to different user but is inactive - allowing new user ${discordId} to link`);
+            // Continue to confirmation instead of blocking
           }
         }
       }
