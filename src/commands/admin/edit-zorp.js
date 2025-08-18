@@ -243,10 +243,39 @@ module.exports = {
                 }
               }
 
-              // Update color
-              if (colorOnline !== null) {
-                const newColor = colorOnline;
-                await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${newColor})`);
+              // Update color based on current zone state
+              if (colorOnline !== null || colorOffline !== null) {
+                // Get current zone state to determine which color to apply
+                const [stateResult] = await pool.query(
+                  'SELECT current_state, color_online, color_offline, color_yellow FROM zorp_zones WHERE name = ?',
+                  [zone.name]
+                );
+                
+                if (stateResult.length > 0) {
+                  const zoneState = stateResult[0];
+                  let colorToApply;
+                  
+                  // Use the appropriate color based on current state
+                  switch (zoneState.current_state) {
+                    case 'green':
+                      colorToApply = colorOnline || zoneState.color_online;
+                      break;
+                    case 'red':
+                      colorToApply = colorOffline || zoneState.color_offline;
+                      break;
+                    case 'yellow':
+                      colorToApply = zoneState.color_yellow || '255,255,0';
+                      break;
+                    case 'white':
+                      colorToApply = '255,255,255';
+                      break;
+                    default:
+                      colorToApply = colorOnline || zoneState.color_online;
+                  }
+                  
+                  await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
+                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to ${colorToApply} (state: ${zoneState.current_state})`);
+                }
               }
             }
           } catch (rconError) {
