@@ -81,30 +81,35 @@ module.exports = {
       );
 
       if (anyIgnLinks.length > 0) {
-        const existingDiscordId = anyIgnLinks[0].discord_id;
-        const serverList = anyIgnLinks.map(p => p.nickname).join(', ');
-        const isActive = anyIgnLinks[0].is_active;
+        console.log(`[LINK DEBUG] Found ${anyIgnLinks.length} existing records for IGN ${ign}`);
         
-        if (existingDiscordId === discordId) {
-          if (isActive) {
+        // Check if there are any ACTIVE records for this IGN
+        const activeRecords = anyIgnLinks.filter(record => record.is_active);
+        const serverList = anyIgnLinks.map(p => p.nickname).join(', ');
+        
+        console.log(`[LINK DEBUG] Active records: ${activeRecords.length}, Total records: ${anyIgnLinks.length}`);
+        
+        if (activeRecords.length > 0) {
+          // There are active records - check if any belong to this user
+          const userActiveRecord = activeRecords.find(record => record.discord_id === discordId);
+          
+          if (userActiveRecord) {
+            // User already has active link with this IGN
             return await interaction.editReply({
               embeds: [orangeEmbed('Already Linked', `You are already linked to **${ign}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)]
             });
           } else {
-            // Same user, same IGN, but inactive - allow them to relink
-            console.log(`[LINK] User ${discordId} was previously linked to ${ign} but is inactive - allowing relink`);
-            // Continue to confirmation instead of blocking
-          }
-        } else {
-          if (isActive) {
+            // IGN is actively linked to someone else
+            const existingDiscordId = activeRecords[0].discord_id;
+            console.log(`[LINK DEBUG] IGN ${ign} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
             return await interaction.editReply({
               embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
             });
-          } else {
-            // Different user, but IGN is inactive - allow the new user to take it
-            console.log(`[LINK] IGN ${ign} was previously linked to different user but is inactive - allowing new user ${discordId} to link`);
-            // Continue to confirmation instead of blocking
           }
+        } else {
+          // All records are inactive - allow linking
+          console.log(`[LINK] IGN ${ign} has ${anyIgnLinks.length} inactive record(s) - allowing new user ${discordId} to link`);
+          // Continue to confirmation
         }
       }
 

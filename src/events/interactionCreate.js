@@ -1057,10 +1057,23 @@ async function handleLinkConfirm(interaction) {
               [existing.id]
             );
             
-            // Ensure economy record exists (preserve existing balance)
+            // Ensure economy record exists with proper starting balance for new records
+            // Get starting balance from eco_games_config
+            const [configResult] = await pool.query(
+              'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+              [server.id, 'starting_balance']
+            );
+            
+            let startingBalance = 0; // Default starting balance
+            if (configResult.length > 0) {
+              startingBalance = parseInt(configResult[0].setting_value) || 0;
+            }
+            
+            console.log(`[LINK] Ensuring economy record for reactivated player ${ign} with starting balance: ${startingBalance} (server: ${server.nickname})`);
+            
             await pool.query(
-              'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
-              [existing.id, guildId]
+              'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
+              [existing.id, guildId, startingBalance]
             );
             
             linkedServers.push(server.nickname);
@@ -1081,10 +1094,23 @@ async function handleLinkConfirm(interaction) {
             [discordId, inactiveRecord[0].id]
           );
           
-          // Ensure economy record exists (preserve existing balance)
+          // Ensure economy record exists with proper starting balance for new records
+          // Get starting balance from eco_games_config
+          const [configResult] = await pool.query(
+            'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+            [server.id, 'starting_balance']
+          );
+          
+          let startingBalance = 0; // Default starting balance
+          if (configResult.length > 0) {
+            startingBalance = parseInt(configResult[0].setting_value) || 0;
+          }
+          
+          console.log(`[LINK] Ensuring economy record for reactivated inactive player ${ign} with starting balance: ${startingBalance} (server: ${server.nickname})`);
+          
           await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
-            [inactiveRecord[0].id, guildId]
+            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
+            [inactiveRecord[0].id, guildId, startingBalance]
           );
           
           linkedServers.push(server.nickname);
@@ -1123,10 +1149,23 @@ async function handleLinkConfirm(interaction) {
           [guildId, server.id, discordId, ign]
         );
         
-        // Create economy record with guild_id
+        // Create economy record with starting balance
+        // Get starting balance from eco_games_config
+        const [configResult] = await pool.query(
+          'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+          [server.id, 'starting_balance']
+        );
+        
+        let startingBalance = 0; // Default starting balance
+        if (configResult.length > 0) {
+          startingBalance = parseInt(configResult[0].setting_value) || 0;
+        }
+        
+        console.log(`[LINK] Creating economy record for player ${ign} with starting balance: ${startingBalance} (server: ${server.nickname})`);
+        
         await pool.query(
-          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0)',
-          [playerResult.insertId, guildId]
+          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?)',
+          [playerResult.insertId, guildId, startingBalance]
         );
         
         linkedServers.push(server.nickname);
