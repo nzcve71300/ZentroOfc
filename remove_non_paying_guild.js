@@ -128,8 +128,8 @@ async function removeNonPayingGuild() {
     console.log(`   Deleted ${serverResult[0].affectedRows} servers`);
     
     console.log('Deleting guild...');
-    const guildResult = await pool.query('DELETE FROM guilds WHERE id = ?', [guildId]);
-    console.log(`   Deleted ${guildResult[0].affectedRows} guild record`);
+    const guildDeleteResult = await pool.query('DELETE FROM guilds WHERE id = ?', [guildId]);
+    console.log(`   Deleted ${guildDeleteResult[0].affectedRows} guild record`);
     
     console.log('✅ Deletion completed successfully!');
     
