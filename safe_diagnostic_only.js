@@ -26,9 +26,9 @@ async function safeDiagnosticOnly() {
       
       if (guild.server_count > 0) {
         const [servers] = await pool.query('SELECT * FROM rust_servers WHERE guild_id = ?', [guild.db_id]);
-        servers.forEach(server => {
+        for (const server of servers) {
           console.log(`     - ${server.nickname} (${server.id})`);
-        });
+        }
       }
     }
     
@@ -44,8 +44,9 @@ async function safeDiagnosticOnly() {
     `, [playerIgn]);
     
     console.log(`Found ${allPlayerRecords.length} total records:`);
-    allPlayerRecords.forEach((record, index) => {
-      console.log(`\n📝 Record ${index + 1}:`);
+    for (let i = 0; i < allPlayerRecords.length; i++) {
+      const record = allPlayerRecords[i];
+      console.log(`\n📝 Record ${i + 1}:`);
       console.log(`   Player ID: ${record.id}`);
       console.log(`   Guild: ${record.guild_name} (${record.guild_discord_id})`);
       console.log(`   Server: ${record.server_name} (${record.server_id})`);
@@ -59,7 +60,7 @@ async function safeDiagnosticOnly() {
         const [economy] = await pool.query('SELECT * FROM economy WHERE player_id = ?', [record.id]);
         console.log(`   Economy: ${economy.length > 0 ? `Balance ${economy[0].balance}` : 'No record'}`);
       }
-    });
+    }
     
     // Test link command logic for each guild that has servers
     console.log(`\n🧪 TESTING LINK COMMAND LOGIC:`);
@@ -81,10 +82,10 @@ async function safeDiagnosticOnly() {
         console.log(`   Link query result: ${linkQuery.length} records`);
         
         if (linkQuery.length > 0) {
-          linkQuery.forEach(record => {
+          for (const record of linkQuery) {
             console.log(`     - ${record.ign} on ${record.nickname} (Active: ${record.is_active})`);
             console.log(`       Discord ID: ${record.discord_id || 'NULL'}`);
-          });
+          }
           
           // Simulate the link command logic
           const activeRecords = linkQuery.filter(record => record.is_active);
@@ -114,9 +115,9 @@ async function safeDiagnosticOnly() {
     `);
     
     console.log(`IGN variations found: ${caseCheck.length}`);
-    caseCheck.forEach(variation => {
+    for (const variation of caseCheck) {
       console.log(`   "${variation.ign}" - ${variation.count} record(s)`);
-    });
+    }
     
     // Check for any servers with similar names
     const [serverNameCheck] = await pool.query(`
@@ -127,9 +128,9 @@ async function safeDiagnosticOnly() {
     `);
     
     console.log(`\nServers with similar names: ${serverNameCheck.length}`);
-    serverNameCheck.forEach(server => {
+    for (const server of serverNameCheck) {
       console.log(`   ${server.nickname} in guild ${server.guild_discord_id}`);
-    });
+    }
     
     console.log(`\n🎯 DIAGNOSIS SUMMARY:`);
     console.log(`- Player has ${allPlayerRecords.length} total record(s) across all guilds`);
@@ -141,9 +142,9 @@ async function safeDiagnosticOnly() {
     
     if (activePlayerRecords.length > 0) {
       console.log(`- Active records are in:`);
-      activePlayerRecords.forEach(record => {
+      for (const record of activePlayerRecords) {
         console.log(`  * ${record.guild_name} (${record.guild_discord_id}) on ${record.server_name}`);
-      });
+      }
     }
     
     console.log('\n💡 This diagnostic shows the exact state without making any changes.');
