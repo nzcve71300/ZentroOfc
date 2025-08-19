@@ -76,12 +76,16 @@ async function removeNonPayingGuild() {
     );
     console.log(`Leaderboard settings: ${leaderboardData[0].count}`);
     
-    // Check for zones
-    const [zonesData] = await pool.query(
-      'SELECT COUNT(*) as count FROM zones WHERE guild_id = ?',
-      [guildId]
-    );
-    console.log(`Zones: ${zonesData[0].count}`);
+    // Check for zones (zones uses server_id, not guild_id)
+    let zonesCount = 0;
+    for (const server of servers) {
+      const [zoneData] = await pool.query(
+        'SELECT COUNT(*) as count FROM zones WHERE server_id = ?',
+        [server.id]
+      );
+      zonesCount += zoneData[0].count;
+    }
+    console.log(`Zones: ${zonesCount}`);
     
     // Check for subscriptions (uses guild discord_id, not internal guild_id)
     const [subscriptionData] = await pool.query(
@@ -98,7 +102,7 @@ async function removeNonPayingGuild() {
     console.log(`- ${totalPlayers} player records`);
     console.log(`- ${economyCount} economy games`);
     console.log(`- ${leaderboardData[0].count} leaderboard settings`);
-    console.log(`- ${zonesData[0].count} zones`);
+    console.log(`- ${zonesCount} zones`);
     console.log(`- ${subscriptionData[0].count} subscriptions`);
     
     // Perform the deletion
@@ -124,8 +128,12 @@ async function removeNonPayingGuild() {
     console.log(`   Deleted ${leaderResult[0].affectedRows} leaderboard settings`);
     
     console.log('Deleting zones...');
-    const zonesResult = await pool.query('DELETE FROM zones WHERE guild_id = ?', [guildId]);
-    console.log(`   Deleted ${zonesResult[0].affectedRows} zones`);
+    let totalZonesDeleted = 0;
+    for (const server of servers) {
+      const zonesResult = await pool.query('DELETE FROM zones WHERE server_id = ?', [server.id]);
+      totalZonesDeleted += zonesResult[0].affectedRows;
+    }
+    console.log(`   Deleted ${totalZonesDeleted} zones`);
     
     console.log('Deleting subscriptions...');
     const subResult = await pool.query('DELETE FROM subscriptions WHERE guild_id = ?', [guildDiscordId]);
