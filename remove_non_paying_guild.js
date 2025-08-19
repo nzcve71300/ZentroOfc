@@ -58,12 +58,16 @@ async function removeNonPayingGuild() {
     // Check for other associated data
     console.log('\n🔍 Step 4: Checking for other associated data...');
     
-    // Check for economy data
-    const [economyData] = await pool.query(
-      'SELECT COUNT(*) as count FROM eco_games WHERE guild_id = ?',
-      [guildId]
-    );
-    console.log(`Economy games: ${economyData[0].count}`);
+    // Check for economy data (eco_games uses server_id, not guild_id)
+    let economyCount = 0;
+    for (const server of servers) {
+      const [ecoData] = await pool.query(
+        'SELECT COUNT(*) as count FROM eco_games WHERE server_id = ?',
+        [server.id]
+      );
+      economyCount += ecoData[0].count;
+    }
+    console.log(`Economy games: ${economyCount}`);
     
     // Check for leaderboard settings
     const [leaderboardData] = await pool.query(
@@ -79,10 +83,10 @@ async function removeNonPayingGuild() {
     );
     console.log(`Zones: ${zonesData[0].count}`);
     
-    // Check for subscriptions
+    // Check for subscriptions (uses guild discord_id, not internal guild_id)
     const [subscriptionData] = await pool.query(
       'SELECT COUNT(*) as count FROM subscriptions WHERE guild_id = ?',
-      [guildId]
+      [guildDiscordId]
     );
     console.log(`Subscriptions: ${subscriptionData[0].count}`);
     
@@ -92,7 +96,7 @@ async function removeNonPayingGuild() {
     console.log(`- Guild: "${guildName}"`);
     console.log(`- ${servers.length} servers`);
     console.log(`- ${totalPlayers} player records`);
-    console.log(`- ${economyData[0].count} economy games`);
+    console.log(`- ${economyCount} economy games`);
     console.log(`- ${leaderboardData[0].count} leaderboard settings`);
     console.log(`- ${zonesData[0].count} zones`);
     console.log(`- ${subscriptionData[0].count} subscriptions`);
@@ -108,8 +112,12 @@ async function removeNonPayingGuild() {
     }
     
     console.log('Deleting economy games...');
-    const ecoResult = await pool.query('DELETE FROM eco_games WHERE guild_id = ?', [guildId]);
-    console.log(`   Deleted ${ecoResult[0].affectedRows} economy games`);
+    let totalEcoDeleted = 0;
+    for (const server of servers) {
+      const ecoResult = await pool.query('DELETE FROM eco_games WHERE server_id = ?', [server.id]);
+      totalEcoDeleted += ecoResult[0].affectedRows;
+    }
+    console.log(`   Deleted ${totalEcoDeleted} economy games`);
     
     console.log('Deleting leaderboard settings...');
     const leaderResult = await pool.query('DELETE FROM leaderboard_settings WHERE guild_id = ?', [guildId]);
@@ -120,7 +128,7 @@ async function removeNonPayingGuild() {
     console.log(`   Deleted ${zonesResult[0].affectedRows} zones`);
     
     console.log('Deleting subscriptions...');
-    const subResult = await pool.query('DELETE FROM subscriptions WHERE guild_id = ?', [guildId]);
+    const subResult = await pool.query('DELETE FROM subscriptions WHERE guild_id = ?', [guildDiscordId]);
     console.log(`   Deleted ${subResult[0].affectedRows} subscriptions`);
     
     console.log('Deleting servers...');
