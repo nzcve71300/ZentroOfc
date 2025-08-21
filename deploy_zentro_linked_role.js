@@ -11,7 +11,8 @@ async function deployZentroLinkedRole() {
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildPresences
-    ]
+    ],
+    partials: ['GuildMember']
   });
 
   try {
@@ -108,7 +109,22 @@ async function deployZentroLinkedRole() {
         // Process each player in this guild
         for (const player of players) {
           try {
+            console.log(`  🔍 Fetching member: ${player.ign} (${player.discord_id})`);
             const member = await guild.members.fetch(player.discord_id);
+            
+            if (!member) {
+              console.log(`  ❌ Member object is null for ${player.ign}`);
+              totalErrors++;
+              totalProcessed++;
+              continue;
+            }
+            
+            if (!member.roles) {
+              console.log(`  ❌ Member roles is undefined for ${player.ign}`);
+              totalErrors++;
+              totalProcessed++;
+              continue;
+            }
             
             if (!member.roles.cache.has(zentroLinkedRole.id)) {
               await member.roles.add(zentroLinkedRole);
@@ -120,6 +136,8 @@ async function deployZentroLinkedRole() {
           } catch (memberError) {
             if (memberError.code === 10007) {
               console.log(`  ❌ User ${player.ign} (${player.discord_id}) not found in guild - they may have left`);
+            } else if (memberError.code === 50001) {
+              console.log(`  ❌ Missing access to ${player.ign} (${player.discord_id}) - bot may not have permission`);
             } else {
               console.log(`  ❌ Failed to add role to ${player.ign} (${player.discord_id}): ${memberError.message}`);
             }
