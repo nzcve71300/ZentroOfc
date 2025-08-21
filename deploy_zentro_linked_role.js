@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const pool = require('./src/db');
+require('dotenv').config();
 
 console.log('🚀 DEPLOYING ZENTROLINKED ROLE TO EXISTING PLAYERS');
 console.log('==================================================\n');
@@ -14,6 +15,16 @@ async function deployZentroLinkedRole() {
   });
 
   try {
+    // Check if token exists
+    if (!process.env.DISCORD_TOKEN) {
+      console.log('❌ DISCORD_TOKEN not found in environment variables');
+      console.log('💡 Make sure you have a .env file with DISCORD_TOKEN=your_token_here');
+      console.log('💡 Or export the token: export DISCORD_TOKEN=your_token_here');
+      return;
+    }
+    
+    console.log('🔑 Token found, attempting to connect...');
+    
     // Connect to Discord
     await client.login(process.env.DISCORD_TOKEN);
     console.log('✅ Connected to Discord');
