@@ -33,13 +33,19 @@ node -c src/utils/permissions.js
 node -c deploy_zentro_linked_role.js
 ```
 
-### Step 4: Deploy to existing players (optional)
+### Step 4: Test bot permissions (recommended)
+```bash
+# This will check if the bot has the right permissions for role management
+node test_bot_permissions.js
+```
+
+### Step 5: Deploy to existing players (optional)
 ```bash
 # This will add the ZentroLinked role to all existing linked players
 node deploy_zentro_linked_role.js
 ```
 
-### Step 5: Restart the bot
+### Step 6: Restart the bot
 ```bash
 # If using PM2
 pm2 restart zentro-bot

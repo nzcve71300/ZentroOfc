@@ -16,7 +16,16 @@ async function deployZentroLinkedRole() {
   try {
     // Connect to Discord
     await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Connected to Discord\n');
+    console.log('✅ Connected to Discord');
+    
+    // Wait for the client to be ready and cache guilds
+    await new Promise(resolve => {
+      client.once('ready', () => {
+        console.log(`✅ Bot is ready! Logged in as ${client.user.tag}`);
+        console.log(`📋 Cached ${client.guilds.cache.size} guilds\n`);
+        resolve();
+      });
+    });
 
     // Get all active linked players from database
     const [linkedPlayers] = await pool.query(`
@@ -69,12 +78,18 @@ async function deployZentroLinkedRole() {
         // Ensure ZentroLinked role exists
         let zentroLinkedRole = guild.roles.cache.find(role => role.name === 'ZentroLinked');
         if (!zentroLinkedRole) {
-          zentroLinkedRole = await guild.roles.create({
-            name: 'ZentroLinked',
-            color: 0xFF8C00, // Orange
-            reason: 'Zentro Bot - Role for linked players (bulk deployment)'
-          });
-          console.log(`  ✅ Created ZentroLinked role`);
+          try {
+            zentroLinkedRole = await guild.roles.create({
+              name: 'ZentroLinked',
+              color: 0xFF8C00, // Orange
+              reason: 'Zentro Bot - Role for linked players (bulk deployment)'
+            });
+            console.log(`  ✅ Created ZentroLinked role`);
+          } catch (roleCreateError) {
+            console.log(`  ❌ Failed to create ZentroLinked role: ${roleCreateError.message}`);
+            totalErrors += players.length;
+            continue;
+          }
         } else {
           console.log(`  ✅ ZentroLinked role already exists`);
         }
@@ -92,7 +107,11 @@ async function deployZentroLinkedRole() {
               console.log(`  ⏭️  ${player.ign} already has ZentroLinked role`);
             }
           } catch (memberError) {
-            console.log(`  ❌ Failed to add role to ${player.ign} (${player.discord_id}): ${memberError.message}`);
+            if (memberError.code === 10007) {
+              console.log(`  ❌ User ${player.ign} (${player.discord_id}) not found in guild - they may have left`);
+            } else {
+              console.log(`  ❌ Failed to add role to ${player.ign} (${player.discord_id}): ${memberError.message}`);
+            }
             totalErrors++;
           }
           totalProcessed++;
