@@ -44,6 +44,32 @@ async function ensureZentroAdminRole(guild) {
 }
 
 /**
+ * Ensure "ZentroLinked" role exists
+ */
+async function ensureZentroLinkedRole(guild) {
+  try {
+    // Check if role already exists
+    const existingRole = guild.roles.cache.find(role => role.name === 'ZentroLinked');
+    if (existingRole) {
+      return existingRole;
+    }
+
+    // Create the role
+    const role = await guild.roles.create({
+      name: 'ZentroLinked',
+      color: 0xFF8C00, // Orange
+      reason: 'Zentro Bot - Role for linked players'
+    });
+
+    console.log(`✅ Created ZentroLinked role in guild: ${guild.name}`);
+    return role;
+  } catch (error) {
+    console.error(`❌ Failed to create ZentroLinked role in guild ${guild.name}:`, error);
+    return null;
+  }
+}
+
+/**
  * Check if guild is authorized
  */
 async function isAuthorizedGuild(guild) {
@@ -142,6 +168,7 @@ module.exports = {
   hasZentroAdminRole,
   hasAdminPermissions,
   ensureZentroAdminRole,
+  ensureZentroLinkedRole,
   isAuthorizedGuild,
   sendAccessDeniedMessage,
   sendUnauthorizedGuildMessage,

@@ -1206,11 +1206,33 @@ async function handleLinkConfirm(interaction) {
       console.error('[LINK] Failed to set nickname:', nicknameError);
       // Log silently, don't fail the linking process
     }
+
+    // Add ZentroLinked role after successful linking
+    try {
+      const member = interaction.member;
+      if (member) {
+        const { ensureZentroLinkedRole } = require('../utils/permissions');
+        
+        // Ensure ZentroLinked role exists
+        const zentroLinkedRole = await ensureZentroLinkedRole(interaction.guild);
+        
+        if (zentroLinkedRole) {
+          // Add the role to the member if they don't already have it
+          if (!member.roles.cache.has(zentroLinkedRole.id)) {
+            await member.roles.add(zentroLinkedRole);
+            console.log(`[LINK] Added ZentroLinked role to ${interaction.user.tag}`);
+          }
+        }
+      }
+    } catch (roleError) {
+      console.error('[LINK] Failed to add ZentroLinked role:', roleError);
+      // Log silently, don't fail the linking process
+    }
     
     await interaction.editReply({
       embeds: [successEmbed(
         'Account Linked',
-        `Your Discord account has been successfully linked to **${ign}**!\n\n**Linked to servers:** ${serverList}\n\nYou can now use \`/daily\` to claim your daily rewards and participate in the economy.`
+        `Your Discord account has been successfully linked to **${ign}**!\n\n**Linked to servers:** ${serverList}\n\n✅ **ZentroLinked role added** - You now have the orange ZentroLinked role!\n\nYou can now use \`/daily\` to claim your daily rewards and participate in the economy.`
       )],
       components: []
     });
