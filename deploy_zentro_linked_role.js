@@ -60,9 +60,44 @@ async function deployZentroLinkedRole() {
       return;
     }
 
+    // Validate Discord IDs first
+    console.log('🔍 Validating Discord IDs...\n');
+    let validPlayers = [];
+    let invalidPlayers = [];
+    
+    for (const player of linkedPlayers) {
+      try {
+        const user = await client.users.fetch(player.discord_id);
+        if (user) {
+          validPlayers.push({
+            ...player,
+            username: user.tag
+          });
+        }
+      } catch (error) {
+        if (error.code === 10013) {
+          console.log(`❌ Invalid Discord ID: ${player.ign} (${player.discord_id}) - Unknown User`);
+          invalidPlayers.push(player);
+        } else {
+          console.log(`❌ Error validating ${player.ign} (${player.discord_id}): ${error.message}`);
+          invalidPlayers.push(player);
+        }
+      }
+    }
+
+    console.log(`\n📊 VALIDATION RESULTS:`);
+    console.log(`Valid users: ${validPlayers.length}`);
+    console.log(`Invalid users: ${invalidPlayers.length}\n`);
+
+    if (validPlayers.length === 0) {
+      console.log('❌ No valid Discord users found. Cannot proceed with role assignment.');
+      console.log('💡 Run node check_invalid_discord_ids.js to see details and clean up invalid IDs.');
+      return;
+    }
+
     // Group players by guild
     const playersByGuild = {};
-    linkedPlayers.forEach(player => {
+    validPlayers.forEach(player => {
       if (!playersByGuild[player.guild_discord_id]) {
         playersByGuild[player.guild_discord_id] = [];
       }
