@@ -61,7 +61,7 @@ module.exports = {
 
       const server = serverResult[0];
 
-      // Get top 12 players by kills with playtime
+      // Get all players with kills, ordered by kills (no limit - show all players with kills)
       const [topPlayers] = await pool.query(
         `SELECT p.ign, p.discord_id, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak, p.linked_at,
                 COALESCE(ppt.total_minutes, 0) as total_minutes
@@ -71,8 +71,8 @@ module.exports = {
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
          AND p.server_id = ?
          AND p.is_active = true
-         ORDER BY ps.kills DESC, ps.deaths ASC
-         LIMIT 12`,
+         AND ps.kills > 0
+         ORDER BY ps.kills DESC, ps.deaths ASC`,
         [guildId, server.id]
       );
 
@@ -88,7 +88,7 @@ module.exports = {
       // Create embed
       const embed = successEmbed(
         `🏆 Kill Leaderboard - ${serverName}`,
-        `Here are the top ${topPlayers.length} players with the most kills:`
+        `Here are all ${topPlayers.length} players with kills:`
       );
 
       // Add each player to the embed
@@ -135,7 +135,7 @@ module.exports = {
       });
 
       embed.setFooter({ 
-        text: `Total players with stats: ${stats.total_players} • Last updated: ${new Date().toLocaleString()}` 
+        text: `Showing ${topPlayers.length} players with kills • Total players: ${stats.total_players} • Last updated: ${new Date().toLocaleString()}` 
       });
 
       await interaction.editReply({ embeds: [embed] });

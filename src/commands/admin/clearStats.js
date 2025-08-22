@@ -5,7 +5,7 @@ const pool = require('../../db');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('clear-killfeed')
+    .setName('clear-stats')
     .setDescription('Clear all kills and deaths for all players on a server (Admin only)')
     .addStringOption(option =>
       option.setName('server')
@@ -94,7 +94,7 @@ module.exports = {
 
       // Create success embed
       const embed = successEmbed(
-        `🧹 Killfeed Cleared - ${serverName}`,
+        `🧹 Statistics Cleared - ${serverName}`,
         `Successfully cleared all kill/death statistics!\n\n**Statistics Reset:**\n` +
         `• **Players affected:** ${stats.player_count.toLocaleString()}\n` +
         `• **Total kills cleared:** ${(stats.total_kills || 0).toLocaleString()}\n` +
@@ -108,12 +108,12 @@ module.exports = {
 
       await interaction.editReply({ embeds: [embed] });
 
-      console.log(`[ADMIN] ${interaction.user.username} cleared killfeed for ${serverName} - ${stats.player_count} players affected`);
+      console.log(`[ADMIN] ${interaction.user.username} cleared stats for ${serverName} - ${stats.player_count} players affected`);
 
     } catch (error) {
-      console.error('Error in clear-killfeed:', error);
+      console.error('Error in clear-stats:', error);
       await interaction.editReply({
-        embeds: [errorEmbed('Error', 'Failed to clear killfeed. Please try again.')]
+        embeds: [errorEmbed('Error', 'Failed to clear statistics. Please try again.')]
       });
     }
   }
