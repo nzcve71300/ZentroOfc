@@ -1,13 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
+require('dotenv').config();
 
-// Database configuration - update these values to match your setup
+// Database configuration - uses same .env file as your bot
 const dbConfig = {
-    host: 'localhost',
-    user: 'your_username',
-    password: 'your_password',
-    database: 'your_database_name',
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'zentro_user',
+    password: process.env.DB_PASSWORD || 'zentro_password',
+    database: process.env.DB_NAME || 'zentro_bot',
+    port: process.env.DB_PORT || 3306,
     multipleStatements: true
 };
 
