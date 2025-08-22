@@ -3563,6 +3563,9 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     
     lastOfflineCall.set(playerKey, now);
     
+    // Handle playtime tracking when player goes offline
+    await handlePlaytimeOffline(guildId, serverName, cleanPlayerName);
+    
     console.log(`[ZORP DEBUG] Processing offline for ${cleanPlayerName} on ${serverName}`);
     
     // Check if player has a Zorp zone before processing
@@ -3620,6 +3623,9 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     }
     
     lastOfflineCall.set(playerKey, now);
+    
+    // Handle playtime tracking when player comes online
+    await handlePlaytimeOnline(guildId, serverName, cleanPlayerName);
     
     console.log(`[ZORP DEBUG] Processing online for ${cleanPlayerName} on ${serverName}`);
     
@@ -4418,6 +4424,195 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
     Logger.error('Error handling teleport home:', error);
   }
 }
+
+// Playtime tracking functions
+async function handlePlaytimeOnline(guildId, serverName, playerName) {
+  try {
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) return;
+    const serverId = serverResult[0].id;
+
+    // Check if playtime rewards are enabled for this server
+    const [configResult] = await pool.query(
+      'SELECT enabled FROM playtime_rewards_config WHERE server_id = ? AND enabled = true',
+      [serverId]
+    );
+    
+    if (configResult.length === 0) return; // Not enabled
+
+    // Get player ID
+    const [playerResult] = await pool.query(
+      `SELECT id FROM players 
+       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       AND server_id = ? 
+       AND LOWER(ign) = LOWER(?) 
+       AND is_active = true`,
+      [guildId, serverId, playerName]
+    );
+    
+    if (playerResult.length === 0) return; // Player not linked
+    const playerId = playerResult[0].id;
+
+    // Start or update playtime session
+    await pool.query(
+      `INSERT INTO player_playtime (player_id, session_start, last_online) 
+       VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE 
+         session_start = CURRENT_TIMESTAMP,
+         last_online = CURRENT_TIMESTAMP`,
+      [playerId]
+    );
+
+    console.log(`[PLAYTIME] Started tracking for ${playerName} on ${serverName}`);
+
+  } catch (error) {
+    console.error('Error handling playtime online:', error);
+  }
+}
+
+async function handlePlaytimeOffline(guildId, serverName, playerName) {
+  try {
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) return;
+    const serverId = serverResult[0].id;
+
+    // Check if playtime rewards are enabled for this server
+    const [configResult] = await pool.query(
+      'SELECT enabled, amount_per_30min FROM playtime_rewards_config WHERE server_id = ? AND enabled = true',
+      [serverId]
+    );
+    
+    if (configResult.length === 0) return; // Not enabled
+    const rewardAmount = configResult[0].amount_per_30min;
+
+    // Get player ID
+    const [playerResult] = await pool.query(
+      `SELECT id FROM players 
+       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       AND server_id = ? 
+       AND LOWER(ign) = LOWER(?) 
+       AND is_active = true`,
+      [guildId, serverId, playerName]
+    );
+    
+    if (playerResult.length === 0) return; // Player not linked
+    const playerId = playerResult[0].id;
+
+    // Get current playtime session
+    const [sessionResult] = await pool.query(
+      'SELECT session_start, total_minutes, last_reward FROM player_playtime WHERE player_id = ?',
+      [playerId]
+    );
+    
+    if (sessionResult.length === 0 || !sessionResult[0].session_start) return;
+    
+    const session = sessionResult[0];
+    const sessionStart = new Date(session.session_start);
+    const sessionEnd = new Date();
+    const sessionMinutes = Math.floor((sessionEnd - sessionStart) / (1000 * 60));
+    
+    if (sessionMinutes < 1) return; // Too short session
+    
+    // Update total playtime
+    const newTotalMinutes = (session.total_minutes || 0) + sessionMinutes;
+    
+    // Calculate rewards (every 30 minutes)
+    const lastReward = session.last_reward ? new Date(session.last_reward) : sessionStart;
+    const totalPlaytimeSinceLastReward = Math.floor((sessionEnd - lastReward) / (1000 * 60));
+    const rewardCycles = Math.floor(totalPlaytimeSinceLastReward / 30);
+    
+    let totalReward = 0;
+    if (rewardCycles > 0 && rewardAmount > 0) {
+      totalReward = rewardCycles * rewardAmount;
+      
+      // Give reward to player
+      await pool.query(
+        'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+        [totalReward, playerId]
+      );
+      
+      // Update last reward time
+      await pool.query(
+        `UPDATE player_playtime 
+         SET total_minutes = ?, 
+             session_start = NULL, 
+             last_reward = CURRENT_TIMESTAMP 
+         WHERE player_id = ?`,
+        [newTotalMinutes, playerId]
+      );
+      
+      console.log(`[PLAYTIME] Rewarded ${playerName} ${totalReward} coins for ${rewardCycles * 30} minutes of playtime`);
+    } else {
+      // Update playtime without reward
+      await pool.query(
+        `UPDATE player_playtime 
+         SET total_minutes = ?, 
+             session_start = NULL 
+         WHERE player_id = ?`,
+        [newTotalMinutes, playerId]
+      );
+      
+      console.log(`[PLAYTIME] Updated ${playerName} playtime: +${sessionMinutes} minutes (total: ${newTotalMinutes})`);
+    }
+
+  } catch (error) {
+    console.error('Error handling playtime offline:', error);
+  }
+}
+
+// Periodic playtime reward checker (for active players)
+setInterval(async () => {
+  try {
+    // Check all active sessions that have been online for 30+ minutes since last reward
+    const [activeSessions] = await pool.query(
+      `SELECT pt.*, p.ign, rs.nickname as server_name, rs.guild_id, g.discord_id, prc.amount_per_30min
+       FROM player_playtime pt
+       JOIN players p ON pt.player_id = p.id
+       JOIN rust_servers rs ON p.server_id = rs.id
+       JOIN guilds g ON rs.guild_id = g.id
+       JOIN playtime_rewards_config prc ON rs.id = prc.server_id
+       WHERE pt.session_start IS NOT NULL
+       AND prc.enabled = true
+       AND prc.amount_per_30min > 0
+       AND TIMESTAMPDIFF(MINUTE, pt.last_reward, CURRENT_TIMESTAMP) >= 30`
+    );
+
+    for (const session of activeSessions) {
+      const minutesSinceLastReward = Math.floor((new Date() - new Date(session.last_reward)) / (1000 * 60));
+      const rewardCycles = Math.floor(minutesSinceLastReward / 30);
+      
+      if (rewardCycles > 0) {
+        const totalReward = rewardCycles * session.amount_per_30min;
+        
+        // Give reward
+        await pool.query(
+          'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+          [totalReward, session.player_id]
+        );
+        
+        // Update last reward time
+        await pool.query(
+          'UPDATE player_playtime SET last_reward = CURRENT_TIMESTAMP WHERE player_id = ?',
+          [session.player_id]
+        );
+        
+        console.log(`[PLAYTIME] Periodic reward: ${session.ign} received ${totalReward} coins for ${rewardCycles * 30} minutes`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in periodic playtime rewards:', error);
+  }
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 // Export functions for use in commands
 module.exports = {

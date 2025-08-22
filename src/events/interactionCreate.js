@@ -141,6 +141,8 @@ module.exports = {
         } else if (interaction.customId.startsWith('cancel_quantity_')) {
           console.log('Handling cancel quantity button');
           await interaction.update({ content: 'Quantity adjustment cancelled.', components: [] });
+        } else if (interaction.customId.startsWith('rust_info_')) {
+          await handleRustInfo(interaction);
         } else {
           console.log('No handler found for button:', interaction.customId);
         }
@@ -2259,6 +2261,66 @@ async function handleRemoveShopItem(interaction) {
             });
           }
         }
+
+async function handleRustInfo(interaction) {
+  await interaction.deferUpdate();
+  
+  const [, , guildId, discordId, serverId] = interaction.customId.split('_');
+  
+  try {
+    // Get player stats
+    const [playerResult] = await pool.query(
+      `SELECT p.*, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak
+       FROM players p
+       LEFT JOIN player_stats ps ON p.id = ps.player_id
+       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
+       AND p.discord_id = ?
+       AND p.server_id = ?
+       AND p.is_active = true`,
+      [guildId, discordId, serverId]
+    );
+
+    if (playerResult.length === 0) {
+      return interaction.followUp({
+        content: 'Player data not found.',
+        ephemeral: true
+      });
+    }
+
+    const player = playerResult[0];
+    const kills = player.kills || 0;
+    const deaths = player.deaths || 0;
+    const kdRatio = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toString();
+
+    // Get playtime data
+    const [playtimeResult] = await pool.query(
+      'SELECT total_minutes FROM player_playtime WHERE player_id = ?',
+      [player.id]
+    );
+
+    const totalMinutes = playtimeResult.length > 0 ? playtimeResult[0].total_minutes : 0;
+    const playtimeHours = (totalMinutes / 60).toFixed(1);
+
+    // Create Rust statistics embed
+    const embed = orangeEmbed(
+      'Rust Statistics',
+      `**Playtime:** ${playtimeHours} Hours\n` +
+      `**Kills:** ${kills.toLocaleString()}   **Deaths:** ${deaths.toLocaleString()}   **K/D:** ${kdRatio}`
+    );
+
+    await interaction.followUp({
+      embeds: [embed],
+      ephemeral: true
+    });
+
+  } catch (error) {
+    console.error('Error in handleRustInfo:', error);
+    await interaction.followUp({
+      content: 'Failed to fetch Rust statistics. Please try again.',
+      ephemeral: true
+    });
+  }
+}
 
 
 
