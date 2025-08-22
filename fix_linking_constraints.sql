@@ -9,10 +9,10 @@ ADD CONSTRAINT unique_server_ign_active
 UNIQUE (server_id, ign, is_active);
 
 -- Add index for better performance on IGN lookups (case-insensitive)
-CREATE INDEX IF NOT EXISTS idx_players_server_ign_lower ON players(server_id, ign);
+CREATE INDEX idx_players_server_ign_lower ON players(server_id, ign);
 
--- Add index for better performance on active status checks
-CREATE INDEX IF NOT EXISTS idx_players_active_status ON players(is_active);
+-- Add index for better performance on active status checks  
+CREATE INDEX idx_players_active_status ON players(is_active);
 
 -- Verify the constraint was added successfully
 SELECT 

@@ -46,9 +46,13 @@ async function runMigrations() {
         console.error('❌ Migration failed:', error.message);
         
         if (error.code === 'ER_DUP_KEYNAME') {
-            console.log('💡 This error is normal if the constraints already exist.');
+            console.log('💡 This error is normal if the constraints/indexes already exist.');
         } else if (error.code === 'ER_TABLE_EXISTS_ERROR') {
             console.log('💡 This error is normal if the tables already exist.');
+        } else if (error.code === 'ER_DUP_KEY') {
+            console.log('💡 This error is normal if the constraints already exist.');
+        } else if (error.message.includes('Duplicate key name')) {
+            console.log('💡 This error is normal if the indexes already exist.');
         }
         
     } finally {
