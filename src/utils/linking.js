@@ -21,7 +21,7 @@ async function isDiscordIdBlocked(guildId, discordId) {
 async function isIgnBlocked(guildId, ign) {
   // TEMPORARILY DISABLED - table doesn't exist
   // const [result] = await pool.query(
-  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND LOWER(ign) = LOWER(?) AND is_active = true',
+  //   'SELECT * FROM link_blocks WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND ign = ? AND is_active = true',
   //   [guildId, ign]
   // );
   // return result.length > 0;
@@ -29,7 +29,7 @@ async function isIgnBlocked(guildId, ign) {
 }
 
 /**
- * Get active player links for a Discord ID
+ * Get all active player links for a Discord ID
  */
 async function getActivePlayerLinks(guildId, discordId) {
   const [result] = await pool.query(
@@ -45,9 +45,12 @@ async function getActivePlayerLinks(guildId, discordId) {
 }
 
 /**
- * Get active player links for an IGN
+ * Get all active player links for an IGN (case-insensitive)
  */
 async function getActivePlayerLinksByIgn(guildId, ign) {
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
   const [result] = await pool.query(
     `SELECT p.*, rs.nickname 
      FROM players p
@@ -55,7 +58,7 @@ async function getActivePlayerLinksByIgn(guildId, ign) {
      WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND LOWER(p.ign) = LOWER(?) 
      AND p.is_active = true`,
-    [guildId, ign]
+    [guildId, normalizedIgn]
   );
   return result;
 }
@@ -64,6 +67,9 @@ async function getActivePlayerLinksByIgn(guildId, ign) {
  * Check if Discord ID is already linked to a different IGN
  */
 async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
   const [result] = await pool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
@@ -71,7 +77,7 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
      AND ign IS NOT NULL
      AND LOWER(ign) != LOWER(?) 
      AND is_active = true`,
-    [guildId, discordId, ign]
+    [guildId, discordId, normalizedIgn]
   );
   return result.length > 0;
 }
@@ -80,6 +86,9 @@ async function isDiscordIdLinkedToDifferentIgn(guildId, discordId, ign) {
  * Check if IGN is already linked to a different Discord ID
  */
 async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
   const [result] = await pool.query(
     `SELECT * FROM players 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
@@ -87,7 +96,7 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
      AND LOWER(ign) = LOWER(?) 
      AND discord_id != ? 
      AND is_active = true`,
-    [guildId, ign, discordId]
+    [guildId, normalizedIgn, discordId]
   );
   return result.length > 0;
 }
@@ -96,6 +105,9 @@ async function isIgnLinkedToDifferentDiscordId(guildId, ign, discordId) {
  * Create a link request
  */
 async function createLinkRequest(guildId, discordId, ign, serverId) {
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
   // Clean up any existing requests for this user/server
   await pool.query(
     `DELETE FROM link_requests 
@@ -109,7 +121,7 @@ async function createLinkRequest(guildId, discordId, ign, serverId) {
   const [result] = await pool.query(
     `INSERT INTO link_requests (guild_id, discord_id, ign, server_id) 
      VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?)`,
-    [guildId, discordId, ign, serverId]
+    [guildId, discordId, normalizedIgn, serverId]
   );
   
   // Get the inserted record
@@ -124,11 +136,12 @@ async function createLinkRequest(guildId, discordId, ign, serverId) {
  * Confirm a link request - Fully robust implementation
  */
 async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName = 'Unknown Server', interaction = null) {
-  console.log('🔗 Starting link confirmation:', { guildId, discordId, ign, serverId, serverName });
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
 
   // Validate required parameters
-  if (!guildId || !discordId || !ign || !serverId) {
-    console.error('❌ Missing required parameters:', { guildId, discordId, ign, serverId });
+  if (!guildId || !discordId || !normalizedIgn || !serverId) {
+    console.error('❌ Missing required parameters:', { guildId, discordId, ign: normalizedIgn, serverId });
     throw new Error("❌ Linking failed: Missing required parameters. Please try again or contact an admin.");
   }
 
@@ -136,13 +149,12 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
   const guildIdText = String(guildId);
   const discordIdBigInt = BigInt(discordId);
   const serverIdText = String(serverId); // Keep serverId as string since it's VARCHAR(32)
-  const ignText = String(ign);
 
   console.log('✅ Type-cast params:', { 
     guildIdText, 
     discordIdBigInt: discordIdBigInt.toString(), 
     serverIdText, 
-    ignText 
+    normalizedIgn 
   });
 
   try {
@@ -189,42 +201,23 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
       console.warn('⚠️ Could not update link request status:', e.message);
     }
 
-    // Check for existing active player link by ign - guild_id subquery uses BIGINT for discord_id
-    const playerSelectQuery = `
-      SELECT id, is_active FROM players
+    // ✅ Check for existing active player link by IGN (case-insensitive) - guild_id subquery uses BIGINT for discord_id
+    const existingPlayerQuery = `
+      SELECT * FROM players 
       WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
         AND server_id = ?
         AND LOWER(ign) = LOWER(?)
+        AND is_active = true
     `;
-    console.log('🟧 Query:', playerSelectQuery, [guildIdText, serverIdText, ignText]);
-    const [existingPlayers] = await pool.query(playerSelectQuery, [guildIdText, serverIdText, ignText]);
-
+    const [existingPlayers] = await pool.query(existingPlayerQuery, [guildIdText, serverIdText, normalizedIgn]);
+    
     if (existingPlayers.length > 0) {
       const existing = existingPlayers[0];
-      if (existing.is_active) {
-        throw new Error("❌ This IGN is already linked and active. Contact an admin to unlink.");
-      }
-      // Reactivate inactive player
-      const playerUpdateQuery = `
-        UPDATE players
-        SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL
-        WHERE id = ?
-      `;
-      console.log('🟧 Query:', playerUpdateQuery, [discordIdBigInt, existing.id]);
-      await pool.query(playerUpdateQuery, [discordIdBigInt, existing.id]);
-      // Ensure economy record
-      const economyInsertQuery = `
-        INSERT INTO economy (player_id, guild_id, balance)
-        VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0)
-        ON DUPLICATE KEY UPDATE balance = balance
-      `;
-      console.log('🟧 Query:', economyInsertQuery, [existing.id, existing.id]);
-      await pool.query(economyInsertQuery, [existing.id, existing.id]);
-      console.log('✅ Reactivated existing inactive player:', ignText);
+      console.log('✅ Found existing player record:', existing.id);
       return { id: existing.id };
     }
 
-    // Insert new player or update existing discord_id (upsert) - guild_id subquery uses BIGINT for discord_id
+    // ✅ Insert new player or update existing discord_id (upsert) - guild_id subquery uses BIGINT for discord_id
     const playerInsertQuery = `
       INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
       VALUES (
@@ -241,9 +234,9 @@ async function confirmLinkRequest(guildId, discordId, ign, serverId, serverName 
         is_active = true,
         unlinked_at = NULL
     `;
-    console.log('🟧 Query:', playerInsertQuery, [guildIdText, serverIdText, discordIdBigInt, ignText]);
-    const [playerResult] = await pool.query(playerInsertQuery, [guildIdText, serverIdText, discordIdBigInt, ignText]);
-    console.log('✅ Player linked:', ignText);
+    console.log('🟧 Query:', playerInsertQuery, [guildIdText, serverIdText, discordIdBigInt, normalizedIgn]);
+    const [playerResult] = await pool.query(playerInsertQuery, [guildIdText, serverIdText, discordIdBigInt, normalizedIgn]);
+    console.log('✅ Player linked:', normalizedIgn);
 
     // Ensure economy record exists
     const playerId = playerResult.insertId || playerResult.id;
@@ -300,116 +293,83 @@ async function unlinkAllPlayers(guildId, discordId) {
      AND is_active = true`,
     [guildId, discordId]
   );
-  
-  if (result.affectedRows > 0) {
-    const [players] = await pool.query(
-      `SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-       AND discord_id = ?`,
-      [guildId, discordId]
-    );
-    return players;
-  }
-  return [];
+  return result.affectedRows;
 }
 
 /**
- * Unlink all players for an IGN across all servers
+ * Unlink all players for an IGN across all servers (case-insensitive)
  */
 async function unlinkAllPlayersByIgn(guildId, ign) {
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
   const [result] = await pool.query(
     `UPDATE players 
      SET is_active = false, unlinked_at = CURRENT_TIMESTAMP 
      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
      AND LOWER(ign) = LOWER(?) 
      AND is_active = true`,
-    [guildId, ign]
+    [guildId, normalizedIgn]
   );
-  
-  if (result.affectedRows > 0) {
-    const [players] = await pool.query(
-      `SELECT * FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-       AND LOWER(ign) = LOWER(?)`,
-      [guildId, ign]
-    );
-    return players;
-  }
-  return [];
+  return result.affectedRows;
 }
 
 /**
  * Block a Discord ID from linking
- * TEMPORARILY DISABLED - returns null
  */
-async function blockDiscordId(guildId, discordId, blockedBy, reason = null) {
-  // TEMPORARILY DISABLED - table doesn't exist
-  // const [result] = await pool.query(
-  //   `INSERT INTO link_blocks (guild_id, discord_id, blocked_by, reason) 
-  //    VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?) 
-  //    ON DUPLICATE KEY UPDATE 
-  //      blocked_at = CURRENT_TIMESTAMP,
-  //      blocked_by = VALUES(blocked_by),
-  //      reason = VALUES(reason),
-  //      is_active = true`,
-  //   [guildId, discordId, blockedBy, reason]
-  // );
-  // return result[0];
-  return null;
+async function blockDiscordId(guildId, discordId, blockedBy, reason) {
+  await pool.query(
+    `INSERT INTO link_blocks (guild_id, discord_id, blocked_by, reason) 
+     VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?)`,
+    [guildId, discordId, blockedBy, reason]
+  );
 }
 
 /**
  * Block an IGN from linking
- * TEMPORARILY DISABLED - returns null
  */
-async function blockIgn(guildId, ign, blockedBy, reason = null) {
-  // TEMPORARILY DISABLED - table doesn't exist
-  // const [result] = await pool.query(
-  //   `INSERT INTO link_blocks (guild_id, ign, blocked_by, reason) 
-  //   VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?) 
-  //   ON DUPLICATE KEY UPDATE 
-  //     blocked_at = CURRENT_TIMESTAMP,
-  //     blocked_by = VALUES(blocked_by),
-  //     reason = VALUES(reason),
-  //     is_active = true`,
-  //   [guildId, ign, blockedBy, reason]
-  // );
-  // return result[0];
-  return null;
+async function blockIgn(guildId, ign, blockedBy, reason) {
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
+  await pool.query(
+    `INSERT INTO link_blocks (guild_id, ign, blocked_by, reason) 
+     VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?)`,
+    [guildId, normalizedIgn, blockedBy, reason]
+  );
 }
 
 /**
  * Unblock a Discord ID
- * TEMPORARILY DISABLED - returns null
  */
 async function unblockDiscordId(guildId, discordId) {
-  // TEMPORARILY DISABLED - table doesn't exist
-  // const [result] = await pool.query(
-  //   `UPDATE link_blocks 
-  //    SET is_active = false 
-  //    WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-  //    AND discord_id = ? 
-  //    AND is_active = true`,
-  //   [guildId, discordId]
-  // );
-  // return result[0];
-  return null;
+  const [result] = await pool.query(
+    `UPDATE link_blocks 
+     SET is_active = false 
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND discord_id = ? 
+     AND is_active = true`,
+    [guildId, discordId]
+  );
+  return result.affectedRows;
 }
 
 /**
  * Unblock an IGN
- * TEMPORARILY DISABLED - returns null
  */
 async function unblockIgn(guildId, ign) {
-  // TEMPORARILY DISABLED - table doesn't exist
-  // const [result] = await pool.query(
-  //   `UPDATE link_blocks 
-  //    SET is_active = false 
-  //    WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-  //    AND LOWER(ign) = LOWER(?) 
-  //    AND is_active = true`,
-  //   [guildId, ign]
-  // );
-  // return result[0];
-  return null;
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
+  const [result] = await pool.query(
+    `UPDATE link_blocks 
+     SET is_active = false 
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND LOWER(ign) = LOWER(?) 
+     AND is_active = true`,
+    [guildId, normalizedIgn]
+  );
+  return result.affectedRows;
 }
 
 /**
@@ -417,7 +377,7 @@ async function unblockIgn(guildId, ign) {
  */
 async function getServersForGuild(guildId) {
   const [result] = await pool.query(
-    'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
+    'SELECT * FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
     [guildId]
   );
   return result;

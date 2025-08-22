@@ -1009,6 +1009,9 @@ async function handleLinkConfirm(interaction) {
   
   const [, , guildId, discordId, ign] = interaction.customId.split('_');
   
+  // ✅ NORMALIZE IGN: trim and lowercase
+  const normalizedIgn = ign.trim().toLowerCase();
+  
   try {
     const pool = require('../db');
     
@@ -1025,6 +1028,48 @@ async function handleLinkConfirm(interaction) {
       });
     }
 
+    // ✅ CRITICAL CHECK: Verify no active links exist before proceeding
+    const [activeDiscordLinks] = await pool.query(
+      `SELECT p.*, rs.nickname 
+       FROM players p
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       AND p.discord_id = ? 
+       AND p.is_active = true`,
+      [guildId, discordId]
+    );
+
+    if (activeDiscordLinks.length > 0) {
+      const currentIgn = activeDiscordLinks[0].ign;
+      const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
+      
+      return interaction.editReply({
+        embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)],
+        components: []
+      });
+    }
+
+    // ✅ CRITICAL CHECK: Verify IGN is not actively linked to anyone else
+    const [activeIgnLinks] = await pool.query(
+      `SELECT p.*, rs.nickname 
+       FROM players p
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       AND LOWER(p.ign) = LOWER(?) 
+       AND p.is_active = true`,
+      [guildId, normalizedIgn]
+    );
+
+    if (activeIgnLinks.length > 0) {
+      const existingDiscordId = activeIgnLinks[0].discord_id;
+      const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
+      
+      return interaction.editReply({
+        embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${normalizedIgn}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)],
+        components: []
+      });
+    }
+
     // Confirm link for all servers
     const linkedServers = [];
     let errorMessage = null;
@@ -1037,116 +1082,10 @@ async function handleLinkConfirm(interaction) {
           [guildId, interaction.guild?.name || 'Unknown Guild']
         );
 
-        // Check if this exact link already exists (active or inactive)
-        const [existingExactLink] = await pool.query(
-          'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND LOWER(ign) = LOWER(?)',
-          [guildId, server.id, discordId, ign]
-        );
-
-        if (existingExactLink.length > 0) {
-          const existing = existingExactLink[0];
-          if (existing.is_active) {
-            // Already linked - this shouldn't happen due to the check in /link command
-            console.log(`Player already linked: ${ign} on ${server.nickname}`);
-            linkedServers.push(server.nickname);
-            continue;
-          } else {
-            // Reactivate inactive player
-            await pool.query(
-              'UPDATE players SET linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-              [existing.id]
-            );
-            
-            // Ensure economy record exists with proper starting balance for new records
-            // Get starting balance from eco_games_config
-            const [configResult] = await pool.query(
-              'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
-              [server.id, 'starting_balance']
-            );
-            
-            let startingBalance = 0; // Default starting balance
-            if (configResult.length > 0) {
-              startingBalance = parseInt(configResult[0].setting_value) || 0;
-            }
-            
-            console.log(`[LINK] Ensuring economy record for reactivated player ${ign} with starting balance: ${startingBalance} (server: ${server.nickname})`);
-            
-            await pool.query(
-              'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
-              [existing.id, guildId, startingBalance]
-            );
-            
-            linkedServers.push(server.nickname);
-            continue;
-          }
-        }
-
-        // Check if there's an inactive record with the same IGN but no discord_id (from unlink)
-        const [inactiveRecord] = await pool.query(
-          'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND discord_id IS NULL AND is_active = false',
-          [guildId, server.id, ign]
-        );
-
-        if (inactiveRecord.length > 0) {
-          // Reactivate the inactive record and set the discord_id
-          await pool.query(
-            'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-            [discordId, inactiveRecord[0].id]
-          );
-          
-          // Ensure economy record exists with proper starting balance for new records
-          // Get starting balance from eco_games_config
-          const [configResult] = await pool.query(
-            'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
-            [server.id, 'starting_balance']
-          );
-          
-          let startingBalance = 0; // Default starting balance
-          if (configResult.length > 0) {
-            startingBalance = parseInt(configResult[0].setting_value) || 0;
-          }
-          
-          console.log(`[LINK] Ensuring economy record for reactivated inactive player ${ign} with starting balance: ${startingBalance} (server: ${server.nickname})`);
-          
-          await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
-            [inactiveRecord[0].id, guildId, startingBalance]
-          );
-          
-          linkedServers.push(server.nickname);
-          continue;
-        }
-
-        // Check if IGN is already linked to a different Discord ID
-        const [existingIgnLink] = await pool.query(
-          'SELECT id, discord_id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
-          [guildId, server.id, ign]
-        );
-
-        if (existingIgnLink.length > 0) {
-          const existing = existingIgnLink[0];
-          if (existing.discord_id != discordId) {
-            throw new Error(`❌ This IGN is already linked to another Discord account on ${server.nickname}. Contact an admin to unlink.`);
-          }
-        }
-
-        // Check if Discord ID is already linked to a different IGN
-        const [existingDiscordLink] = await pool.query(
-          'SELECT id, ign FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND is_active = true',
-          [guildId, server.id, discordId]
-        );
-
-        if (existingDiscordLink.length > 0) {
-          const existing = existingDiscordLink[0];
-          if (existing.ign.toLowerCase() !== ign.toLowerCase()) {
-            throw new Error(`❌ Your Discord is already linked to a different IGN on ${server.nickname}. Use /unlink first.`);
-          }
-        }
-
-        // Insert new player
+        // ✅ Insert new player with normalized IGN
         const [playerResult] = await pool.query(
           'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-          [guildId, server.id, discordId, ign]
+          [guildId, server.id, discordId, normalizedIgn]
         );
         
         // Create economy record with starting balance
@@ -1161,7 +1100,7 @@ async function handleLinkConfirm(interaction) {
           startingBalance = parseInt(configResult[0].setting_value) || 0;
         }
         
-        console.log(`[LINK] Creating economy record for player ${ign} with starting balance: ${startingBalance} (server: ${server.nickname})`);
+        console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
         
         await pool.query(
           'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?)',
@@ -1171,10 +1110,15 @@ async function handleLinkConfirm(interaction) {
         linkedServers.push(server.nickname);
       } catch (error) {
         console.error(`Failed to link to server ${server.nickname}:`, error);
-        if (error.message.includes('already linked')) {
-          errorMessage = error.message;
+        
+        // Check for specific database constraint violations
+        if (error.message.includes('Duplicate entry') || error.message.includes('UNIQUE constraint failed')) {
+          errorMessage = `❌ This IGN is already linked to another Discord account on ${server.nickname}. Contact an admin to unlink.`;
           break;
         }
+        
+        errorMessage = `❌ Failed to link to ${server.nickname}: ${error.message}`;
+        break;
       }
     }
 
@@ -1198,49 +1142,28 @@ async function handleLinkConfirm(interaction) {
     try {
       const member = interaction.member;
       if (member && member.manageable && interaction.guild.ownerId !== interaction.user.id) {
-        const newNickname = `${ign} 🔗`.substring(0, 28); // Cap at 28 characters for safety
-        await member.setNickname(newNickname);
-        console.log(`[LINK] Set nickname for ${interaction.user.tag} to: ${newNickname}`);
+        await member.setNickname(normalizedIgn);
       }
     } catch (nicknameError) {
-      console.error('[LINK] Failed to set nickname:', nicknameError);
-      // Log silently, don't fail the linking process
+      console.log('Could not set nickname:', nicknameError.message);
     }
 
-    // Add ZentroLinked role after successful linking
-    try {
-      const member = interaction.member;
-      if (member) {
-        const { ensureZentroLinkedRole } = require('../utils/permissions');
-        
-        // Ensure ZentroLinked role exists
-        const zentroLinkedRole = await ensureZentroLinkedRole(interaction.guild);
-        
-        if (zentroLinkedRole) {
-          // Add the role to the member if they don't already have it
-          if (!member.roles.cache.has(zentroLinkedRole.id)) {
-            await member.roles.add(zentroLinkedRole);
-            console.log(`[LINK] Added ZentroLinked role to ${interaction.user.tag}`);
-          }
-        }
-      }
-    } catch (roleError) {
-      console.error('[LINK] Failed to add ZentroLinked role:', roleError);
-      // Log silently, don't fail the linking process
-    }
-    
+    const embed = successEmbed(
+      '✅ Account Linked Successfully!',
+      `Your Discord account has been linked to **${normalizedIgn}** on: **${serverList}**\n\nYou can now use:\n• \`/balance\` - Check your balance\n• \`/daily\` - Claim daily rewards\n• \`/shop\` - Buy items and kits\n• \`/blackjack\` - Play blackjack\n\n**⚠️ Remember:** This is a one-time link. Contact an admin if you need to change your linked name.`
+    );
+
     await interaction.editReply({
-      embeds: [successEmbed(
-        'Account Linked',
-        `Your Discord account has been successfully linked to **${ign}**!\n\n**Linked to servers:** ${serverList}\n\n✅ **ZentroLinked role added** - You now have the orange ZentroLinked role!\n\nYou can now use \`/daily\` to claim your daily rewards and participate in the economy.`
-      )],
+      embeds: [embed],
       components: []
     });
 
+    console.log(`[LINK] Successfully linked ${discordId} to ${normalizedIgn} on ${serverList}`);
+
   } catch (error) {
-    console.error('Error confirming link:', error);
+    console.error('Error in handleLinkConfirm:', error);
     await interaction.editReply({
-      embeds: [errorEmbed('Error', 'Failed to link account. Please try again.')],
+      embeds: [errorEmbed('Link Failed', 'An unexpected error occurred. Please try again or contact an admin.')],
       components: []
     });
   }

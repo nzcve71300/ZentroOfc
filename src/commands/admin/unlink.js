@@ -34,69 +34,75 @@ module.exports = {
       let playerInfo = [];
       
       if (isDiscordId) {
-        // Unlink by Discord ID - COMPLETELY REMOVE from database
+        // ✅ Unlink by Discord ID - MARK AS INACTIVE (not delete)
         const [players] = await pool.query(
           `SELECT p.*, rs.nickname 
            FROM players p
            JOIN rust_servers rs ON p.server_id = rs.id
            WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND p.discord_id = ?`,
+           AND p.discord_id = ? 
+           AND p.is_active = true`,
           [guildId, identifier]
         );
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No players found with Discord ID **${identifier}**.\n\nMake sure you're using the correct Discord ID.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${identifier}**.\n\nMake sure you're using the correct Discord ID.`)]
           });
         }
         
-        // Store player info before deletion
+        // Store player info before deactivation
         playerInfo = players.map(p => `${p.ign} (${p.nickname})`);
         
-        // Delete all player records for this Discord ID
-        const [deleteResult] = await pool.query(
-          `DELETE FROM players 
+        // ✅ Mark all player records as inactive for this Discord ID
+        const [updateResult] = await pool.query(
+          `UPDATE players 
+           SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
            WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND discord_id = ?`,
+           AND discord_id = ? 
+           AND is_active = true`,
           [guildId, identifier]
         );
         
-        result = { rowCount: deleteResult.affectedRows };
+        result = { rowCount: updateResult.affectedRows };
       } else {
-        // Unlink by IGN - COMPLETELY REMOVE from database
+        // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive
         const [players] = await pool.query(
           `SELECT p.*, rs.nickname 
            FROM players p
            JOIN rust_servers rs ON p.server_id = rs.id
            WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND LOWER(p.ign) = LOWER(?)`,
+           AND LOWER(p.ign) = LOWER(?) 
+           AND p.is_active = true`,
           [guildId, identifier]
         );
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No players found with in-game name **${identifier}**.\n\nMake sure you're using the correct in-game name.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with in-game name **${identifier}**.\n\nMake sure you're using the correct in-game name.`)]
           });
         }
         
-        // Store player info before deletion
+        // Store player info before deactivation
         playerInfo = players.map(p => `${p.ign} (${p.nickname})`);
         
-        // Delete all player records for this IGN
-        const [deleteResult] = await pool.query(
-          `DELETE FROM players 
+        // ✅ Mark all player records as inactive for this IGN (case-insensitive)
+        const [updateResult] = await pool.query(
+          `UPDATE players 
+           SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
            WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND LOWER(ign) = LOWER(?)`,
+           AND LOWER(ign) = LOWER(?) 
+           AND is_active = true`,
           [guildId, identifier]
         );
         
-        result = { rowCount: deleteResult.affectedRows };
+        result = { rowCount: updateResult.affectedRows };
       }
 
       const playerList = playerInfo.join(', ');
       const embed = successEmbed(
         'Players Unlinked', 
-        `✅ Successfully unlinked **${result.rowCount} player(s)** for **${identifier}**.\n\n**Removed players:**\n${playerList}\n\n**Note:** Players have been completely removed from the database and can now link again with new names.`
+        `✅ Successfully unlinked **${result.rowCount} player(s)** for **${identifier}**.\n\n**Unlinked players:**\n${playerList}\n\n**Note:** Players have been marked as inactive and can now link again with new names.`
       );
 
       await interaction.editReply({ embeds: [embed] });
