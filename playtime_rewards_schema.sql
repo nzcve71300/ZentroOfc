@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS player_playtime (
 );
 
 -- Add indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_playtime_rewards_enabled ON playtime_rewards_config(enabled);
-CREATE INDEX IF NOT EXISTS idx_player_playtime_last_reward ON player_playtime(last_reward);
-CREATE INDEX IF NOT EXISTS idx_player_playtime_session ON player_playtime(session_start);
+CREATE INDEX idx_playtime_rewards_enabled ON playtime_rewards_config(enabled);
+CREATE INDEX idx_player_playtime_last_reward ON player_playtime(last_reward);
+CREATE INDEX idx_player_playtime_session ON player_playtime(session_start);
 
 -- Verify tables were created
 SELECT 
