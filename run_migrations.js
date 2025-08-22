@@ -67,6 +67,11 @@ async function runMigrations() {
             .map(stmt => stmt.trim())
             .filter(stmt => stmt && !stmt.startsWith('--'));
             
+        console.log(`📋 Found ${playtimeStatements.length} statements to execute:`);
+        playtimeStatements.forEach((stmt, index) => {
+            console.log(`   ${index + 1}. ${stmt.substring(0, 60)}...`);
+        });
+            
         for (const statement of playtimeStatements) {
             if (statement.trim()) {
                 try {
