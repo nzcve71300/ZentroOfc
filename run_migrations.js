@@ -32,7 +32,7 @@ async function runMigrations() {
         const statements = linkingConstraintsSQL
             .split(';')
             .map(stmt => stmt.trim())
-            .filter(stmt => stmt && !stmt.startsWith('--') && !stmt.startsWith('SELECT'));
+            .filter(stmt => stmt && !stmt.startsWith('--'));
             
         for (const statement of statements) {
             if (statement.trim()) {
@@ -65,7 +65,7 @@ async function runMigrations() {
         const playtimeStatements = playtimeRewardsSQL
             .split(';')
             .map(stmt => stmt.trim())
-            .filter(stmt => stmt && !stmt.startsWith('--') && !stmt.startsWith('SELECT'));
+            .filter(stmt => stmt && !stmt.startsWith('--'));
             
         for (const statement of playtimeStatements) {
             if (statement.trim()) {
