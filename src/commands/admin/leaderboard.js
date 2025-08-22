@@ -61,11 +61,13 @@ module.exports = {
 
       const server = serverResult[0];
 
-      // Get top 12 players by kills
+      // Get top 12 players by kills with playtime
       const [topPlayers] = await pool.query(
-        `SELECT p.ign, p.discord_id, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak, p.linked_at
+        `SELECT p.ign, p.discord_id, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak, p.linked_at,
+                COALESCE(ppt.total_minutes, 0) as total_minutes
          FROM players p
          JOIN player_stats ps ON p.id = ps.player_id
+         LEFT JOIN player_playtime ppt ON p.id = ppt.player_id
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
          AND p.server_id = ?
          AND p.is_active = true
@@ -98,9 +100,14 @@ module.exports = {
         // Calculate K/D ratio
         const kdRatio = player.deaths > 0 ? (player.kills / player.deaths).toFixed(2) : player.kills.toString();
         
+        // Format playtime
+        const hours = Math.floor(player.total_minutes / 60);
+        const minutes = player.total_minutes % 60;
+        const playtimeText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        
         embed.addFields({
           name: `${medal} ${player.ign}`,
-          value: `**Kills:** ${player.kills.toLocaleString()} | **Deaths:** ${player.deaths.toLocaleString()} | **K/D:** ${kdRatio}\n**Current Streak:** ${player.kill_streak} | **Best Streak:** ${player.highest_streak}`,
+          value: `**Kills:** ${player.kills.toLocaleString()} | **Deaths:** ${player.deaths.toLocaleString()} | **K/D:** ${kdRatio} | **Playtime:** ${playtimeText}\n**Current Streak:** ${player.kill_streak} | **Best Streak:** ${player.highest_streak}`,
           inline: false
         });
       }
