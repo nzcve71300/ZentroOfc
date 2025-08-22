@@ -27,7 +27,31 @@ async function runMigrations() {
             path.join(__dirname, 'fix_linking_constraints.sql'), 
             'utf8'
         );
-        await connection.execute(linkingConstraintsSQL);
+        
+        // Split SQL into individual statements and execute them one by one
+        const statements = linkingConstraintsSQL
+            .split(';')
+            .map(stmt => stmt.trim())
+            .filter(stmt => stmt && !stmt.startsWith('--') && !stmt.startsWith('SELECT'));
+            
+        for (const statement of statements) {
+            if (statement.trim()) {
+                try {
+                    console.log(`   Executing: ${statement.substring(0, 50)}...`);
+                    await connection.execute(statement);
+                    console.log('   ✅ Success');
+                } catch (error) {
+                    if (error.code === 'ER_DUP_KEYNAME' || error.message.includes('Duplicate key name')) {
+                        console.log('   💡 Already exists (skipping)');
+                    } else if (error.code === 'ER_DUP_KEY') {
+                        console.log('   💡 Constraint already exists (skipping)');
+                    } else {
+                        console.log(`   ❌ Error: ${error.message}`);
+                        throw error;
+                    }
+                }
+            }
+        }
         console.log('✅ Linking constraints migration completed!');
         
         // Read and execute playtime_rewards_schema.sql
@@ -36,7 +60,31 @@ async function runMigrations() {
             path.join(__dirname, 'playtime_rewards_schema.sql'), 
             'utf8'
         );
-        await connection.execute(playtimeRewardsSQL);
+        
+        // Split SQL into individual statements and execute them one by one
+        const playtimeStatements = playtimeRewardsSQL
+            .split(';')
+            .map(stmt => stmt.trim())
+            .filter(stmt => stmt && !stmt.startsWith('--') && !stmt.startsWith('SELECT'));
+            
+        for (const statement of playtimeStatements) {
+            if (statement.trim()) {
+                try {
+                    console.log(`   Executing: ${statement.substring(0, 50)}...`);
+                    await connection.execute(statement);
+                    console.log('   ✅ Success');
+                } catch (error) {
+                    if (error.code === 'ER_TABLE_EXISTS_ERROR' || error.message.includes('already exists')) {
+                        console.log('   💡 Already exists (skipping)');
+                    } else if (error.code === 'ER_DUP_KEYNAME' || error.message.includes('Duplicate key name')) {
+                        console.log('   💡 Index already exists (skipping)');
+                    } else {
+                        console.log(`   ❌ Error: ${error.message}`);
+                        throw error;
+                    }
+                }
+            }
+        }
         console.log('✅ Playtime rewards schema migration completed!');
         
         console.log('\n🎉 All migrations completed successfully!');
