@@ -66,6 +66,9 @@ module.exports = {
         
         result = { rowCount: updateResult.affectedRows };
       } else {
+        // ✅ NORMALIZE IGN: trim and lowercase to match link command
+        const normalizedIgn = identifier.trim().toLowerCase();
+        
         // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive
         const [players] = await pool.query(
           `SELECT p.*, rs.nickname 
@@ -74,7 +77,7 @@ module.exports = {
            WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
            AND LOWER(p.ign) = LOWER(?) 
            AND p.is_active = true`,
-          [guildId, identifier]
+          [guildId, normalizedIgn]
         );
         
         if (players.length === 0) {
@@ -93,7 +96,7 @@ module.exports = {
            WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
            AND LOWER(ign) = LOWER(?) 
            AND is_active = true`,
-          [guildId, identifier]
+          [guildId, normalizedIgn]
         );
         
         result = { rowCount: updateResult.affectedRows };

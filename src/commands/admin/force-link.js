@@ -27,7 +27,8 @@ module.exports = {
 
     const guildId = interaction.guildId;
     const discordUser = interaction.options.getUser('discord_user');
-    const playerName = interaction.options.getString('ign').trim();
+    // ✅ NORMALIZE IGN: trim and lowercase to match link command
+    const playerName = interaction.options.getString('ign').trim().toLowerCase();
 
     // Validate inputs
     if (!playerName || playerName.length < 2) {

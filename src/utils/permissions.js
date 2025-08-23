@@ -38,6 +38,21 @@ async function ensureZentroAdminRole(guild) {
     console.log(`✅ Created Zentro Admin role in guild: ${guild.name}`);
     return role;
   } catch (error) {
+    // Handle specific 2FA error
+    if (error.code === 60003) {
+      console.error(`❌ Failed to create Zentro Admin role in guild ${guild.name}: Two-Factor Authentication required`);
+      console.error(`   Server: ${guild.name} (ID: ${guild.id})`);
+      console.error(`   Solution: Enable 2FA on the bot account or lower server verification level`);
+      return null;
+    }
+    
+    // Handle other permission errors
+    if (error.code === 50013) {
+      console.error(`❌ Failed to create Zentro Admin role in guild ${guild.name}: Missing permissions`);
+      console.error(`   Bot needs 'Manage Roles' permission`);
+      return null;
+    }
+    
     console.error(`❌ Failed to create Zentro Admin role in guild ${guild.name}:`, error);
     return null;
   }
@@ -64,6 +79,21 @@ async function ensureZentroLinkedRole(guild) {
     console.log(`✅ Created ZentroLinked role in guild: ${guild.name}`);
     return role;
   } catch (error) {
+    // Handle specific 2FA error
+    if (error.code === 60003) {
+      console.error(`❌ Failed to create ZentroLinked role in guild ${guild.name}: Two-Factor Authentication required`);
+      console.error(`   Server: ${guild.name} (ID: ${guild.id})`);
+      console.error(`   Solution: Enable 2FA on the bot account or lower server verification level`);
+      return null;
+    }
+    
+    // Handle other permission errors
+    if (error.code === 50013) {
+      console.error(`❌ Failed to create ZentroLinked role in guild ${guild.name}: Missing permissions`);
+      console.error(`   Bot needs 'Manage Roles' permission`);
+      return null;
+    }
+    
     console.error(`❌ Failed to create ZentroLinked role in guild ${guild.name}:`, error);
     return null;
   }
