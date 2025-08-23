@@ -1009,10 +1009,18 @@ async function handleCancelPurchase(interaction) {
 async function handleLinkConfirm(interaction) {
   await interaction.deferUpdate();
   
-  const [, , discordGuildId, discordId, ign] = interaction.customId.split('_');
+  // Parse custom ID: link_confirm_${discordGuildId}_${discordId}_${ign}
+  // IGN might contain underscores, so we need to handle this carefully
+  const parts = interaction.customId.split('_');
+  const discordGuildId = parts[2];
+  const discordId = parts[3];
+  // IGN is everything after the discord ID, joined back together
+  const ign = parts.slice(4).join('_');
   
   // ✅ NORMALIZE IGN: trim and lowercase
   const normalizedIgn = ign.trim().toLowerCase();
+  
+  console.log('🔍 Link Confirm Debug:', { discordGuildId, discordId, ign, normalizedIgn });
   
   try {
     const pool = require('../db');
