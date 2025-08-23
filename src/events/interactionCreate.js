@@ -2265,7 +2265,9 @@ async function handleRemoveShopItem(interaction) {
 async function handleRustInfo(interaction) {
   await interaction.deferUpdate();
   
-  const [, , guildId, discordId, serverId] = interaction.customId.split('_');
+  const [, , discordGuildId, discordId, serverId] = interaction.customId.split('_');
+  
+  console.log('🔍 Rust Info Debug:', { discordGuildId, discordId, serverId });
   
   try {
     // Get player info first
@@ -2276,10 +2278,13 @@ async function handleRustInfo(interaction) {
        AND p.discord_id = ?
        AND p.server_id = ?
        AND p.is_active = true`,
-      [guildId, discordId, serverId]
+      [discordGuildId, discordId, serverId]
     );
 
+    console.log('🔍 Player query result:', playerResult.length, 'players found');
+
     if (playerResult.length === 0) {
+      console.log('❌ No player found with these parameters');
       return interaction.followUp({
         content: 'Player data not found.',
         ephemeral: true
