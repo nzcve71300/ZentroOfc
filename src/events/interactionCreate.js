@@ -2268,11 +2268,10 @@ async function handleRustInfo(interaction) {
   const [, , guildId, discordId, serverId] = interaction.customId.split('_');
   
   try {
-    // Get player stats
+    // Get player info first
     const [playerResult] = await pool.query(
-      `SELECT p.*, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak
+      `SELECT p.*
        FROM players p
-       LEFT JOIN player_stats ps ON p.id = ps.player_id
        WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
        AND p.discord_id = ?
        AND p.server_id = ?
@@ -2288,8 +2287,16 @@ async function handleRustInfo(interaction) {
     }
 
     const player = playerResult[0];
-    const kills = player.kills || 0;
-    const deaths = player.deaths || 0;
+
+    // Get player stats (separate query to handle missing stats gracefully)
+    const [statsResult] = await pool.query(
+      'SELECT kills, deaths, kill_streak, highest_streak FROM player_stats WHERE player_id = ?',
+      [player.id]
+    );
+
+    const stats = statsResult.length > 0 ? statsResult[0] : { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0 };
+    const kills = stats.kills || 0;
+    const deaths = stats.deaths || 0;
     const kdRatio = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toString();
 
     // Get playtime data
