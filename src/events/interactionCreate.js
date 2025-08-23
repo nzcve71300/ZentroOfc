@@ -2265,7 +2265,12 @@ async function handleRemoveShopItem(interaction) {
 async function handleRustInfo(interaction) {
   await interaction.deferUpdate();
   
-  const [, , discordGuildId, discordId, serverId] = interaction.customId.split('_');
+  // Split by underscore, but handle server ID that might contain underscores
+  const parts = interaction.customId.split('_');
+  const discordGuildId = parts[2];
+  const discordId = parts[3];
+  // Server ID might contain underscores, so take everything after the discord ID
+  const serverId = parts.slice(4).join('_');
   
   console.log('🔍 Rust Info Debug:', { discordGuildId, discordId, serverId });
   
