@@ -1009,7 +1009,7 @@ async function handleCancelPurchase(interaction) {
 async function handleLinkConfirm(interaction) {
   await interaction.deferUpdate();
   
-  const [, , guildId, discordId, ign] = interaction.customId.split('_');
+  const [, , discordGuildId, discordId, ign] = interaction.customId.split('_');
   
   // ✅ NORMALIZE IGN: trim and lowercase
   const normalizedIgn = ign.trim().toLowerCase();
@@ -1020,7 +1020,7 @@ async function handleLinkConfirm(interaction) {
     // Get all servers for this guild
     const [servers] = await pool.query(
       'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
-      [guildId]
+      [discordGuildId]
     );
     
     if (servers.length === 0) {
@@ -1038,7 +1038,7 @@ async function handleLinkConfirm(interaction) {
        WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
        AND p.discord_id = ? 
        AND p.is_active = true`,
-      [guildId, discordId]
+      [discordGuildId, discordId]
     );
 
     if (activeDiscordLinks.length > 0) {
@@ -1059,7 +1059,7 @@ async function handleLinkConfirm(interaction) {
        WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
        AND LOWER(p.ign) = LOWER(?) 
        AND p.is_active = true`,
-      [guildId, normalizedIgn]
+      [discordGuildId, normalizedIgn]
     );
 
     if (activeIgnLinks.length > 0) {
@@ -1081,13 +1081,13 @@ async function handleLinkConfirm(interaction) {
         // Ensure guild exists
         await pool.query(
           'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
-          [guildId, interaction.guild?.name || 'Unknown Guild']
+          [discordGuildId, interaction.guild?.name || 'Unknown Guild']
         );
 
         // ✅ Insert new player with normalized IGN
         const [playerResult] = await pool.query(
           'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-          [guildId, server.id, discordId, normalizedIgn]
+          [discordGuildId, server.id, discordId, normalizedIgn]
         );
         
         // Create economy record with starting balance
@@ -1105,8 +1105,8 @@ async function handleLinkConfirm(interaction) {
         console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
         
         await pool.query(
-          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), ?)',
-          [playerResult.insertId, guildId, startingBalance]
+          'INSERT INTO economy (player_id, balance) VALUES (?, ?)',
+          [playerResult.insertId, startingBalance]
         );
         
         linkedServers.push(server.nickname);

@@ -15,7 +15,7 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply();
 
-    const guildId = interaction.guildId;
+    const discordGuildId = interaction.guildId;
     const discordId = interaction.user.id;
     // ✅ NORMALIZE IGN: trim spaces and force lowercase
     const ign = interaction.options.getString('in-game-name').trim().toLowerCase();
@@ -31,7 +31,7 @@ module.exports = {
       // Get all servers for this guild
       const [servers] = await pool.query(
         'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
-        [guildId]
+        [discordGuildId]
       );
 
       if (servers.length === 0) {
@@ -48,7 +48,7 @@ module.exports = {
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
          AND p.discord_id = ? 
          AND p.is_active = true`,
-        [guildId, discordId]
+        [discordGuildId, discordId]
       );
 
       console.log(`[LINK DEBUG] Found ${activeDiscordLinks.length} active links for Discord ID ${discordId}`);
@@ -70,7 +70,7 @@ module.exports = {
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
          AND LOWER(p.ign) = LOWER(?) 
          AND p.is_active = true`,
-        [guildId, ign]
+        [discordGuildId, ign]
       );
 
       if (activeIgnLinks.length > 0) {
@@ -89,7 +89,7 @@ module.exports = {
       // ✅ All checks passed - show confirmation
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(`link_confirm_${guildId}_${discordId}_${ign}`)
+          .setCustomId(`link_confirm_${discordGuildId}_${discordId}_${ign}`)
           .setLabel('Confirm Link')
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
