@@ -23,13 +23,13 @@ async function fixLinkingSystem() {
     
     // Step 2: Fix any missing economy records
     console.log('\n📋 Step 2: Fixing missing economy records...');
-    const [missingEconomy] = await pool.query(`
-      SELECT p.id, p.ign, p.discord_id, rs.nickname as server_name
-      FROM players p
-      JOIN rust_servers rs ON p.server_id = rs.id
-      LEFT JOIN economy e ON p.id = e.player_id
-      WHERE p.is_active = true AND e.player_id IS NULL
-    `);
+         const [missingEconomy] = await pool.query(`
+       SELECT p.id, p.ign, p.discord_id, p.guild_id, rs.nickname as server_name
+       FROM players p
+       JOIN rust_servers rs ON p.server_id = rs.id
+       LEFT JOIN economy e ON p.id = e.player_id
+       WHERE p.is_active = true AND e.player_id IS NULL
+     `);
     
     if (missingEconomy.length > 0) {
       console.log(`Found ${missingEconomy.length} players without economy records:`);
@@ -37,14 +37,14 @@ async function fixLinkingSystem() {
         console.log(`  - ${player.ign} (Discord: ${player.discord_id}) on ${player.server_name}`);
       });
       
-      // Create economy records for missing players
-      for (const player of missingEconomy) {
-        await pool.query(
-          'INSERT INTO economy (player_id, balance) VALUES (?, 0)',
-          [player.id]
-        );
-        console.log(`✅ Created economy record for ${player.ign}`);
-      }
+             // Create economy records for missing players
+       for (const player of missingEconomy) {
+         await pool.query(
+           'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, 0)',
+           [player.id, player.guild_id]
+         );
+         console.log(`✅ Created economy record for ${player.ign}`);
+       }
     } else {
       console.log('✅ All players have economy records');
     }

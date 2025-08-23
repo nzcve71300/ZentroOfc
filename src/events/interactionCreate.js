@@ -1105,8 +1105,8 @@ async function handleLinkConfirm(interaction) {
         console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
         
         await pool.query(
-          'INSERT INTO economy (player_id, balance) VALUES (?, ?)',
-          [playerResult.insertId, startingBalance]
+          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?)',
+          [playerResult.insertId, playerResult.insertId, startingBalance]
         );
         
         linkedServers.push(server.nickname);
