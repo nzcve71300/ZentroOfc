@@ -28,6 +28,16 @@ module.exports = {
     }
 
     try {
+      // 🛡️ BULLETPROOF CLEANUP: Clean up any edge cases before processing
+      await pool.query(
+        `UPDATE players 
+         SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
+         WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+         AND LOWER(TRIM(ign)) = LOWER(TRIM(?)) 
+         AND is_active = true 
+         AND discord_id IS NULL`
+      );
+      
       // Get all servers for this guild
       const [servers] = await pool.query(
         'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
@@ -62,13 +72,13 @@ module.exports = {
         });
       }
 
-      // ✅ CRITICAL CHECK 2: Check if this IGN is actively linked to ANYONE (case-insensitive)
+      // ✅ CRITICAL CHECK 2: Check if this IGN is actively linked to ANYONE (case-insensitive) - BULLETPROOF VERSION
       const [activeIgnLinks] = await pool.query(
         `SELECT p.*, rs.nickname 
          FROM players p
          JOIN rust_servers rs ON p.server_id = rs.id
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(p.ign) = LOWER(?) 
+         AND LOWER(TRIM(p.ign)) = LOWER(TRIM(?)) 
          AND p.is_active = true`,
         [discordGuildId, ign]
       );
