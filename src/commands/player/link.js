@@ -33,9 +33,10 @@ module.exports = {
         `UPDATE players 
          SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
          WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(TRIM(ign)) = LOWER(TRIM(?)) 
+         AND LOWER(ign) = LOWER(?) 
          AND is_active = true 
-         AND discord_id IS NULL`
+         AND discord_id IS NULL`,
+        [discordGuildId, ign]
       );
       
       // Get all servers for this guild
@@ -78,7 +79,7 @@ module.exports = {
          FROM players p
          JOIN rust_servers rs ON p.server_id = rs.id
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(TRIM(p.ign)) = LOWER(TRIM(?)) 
+         AND LOWER(p.ign) = LOWER(?) 
          AND p.is_active = true`,
         [discordGuildId, ign]
       );
