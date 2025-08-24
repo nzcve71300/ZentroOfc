@@ -1092,11 +1092,28 @@ async function handleLinkConfirm(interaction) {
           [discordGuildId, interaction.guild?.name || 'Unknown Guild']
         );
 
-        // ✅ Insert new player with normalized IGN
-        const [playerResult] = await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-          [discordGuildId, server.id, discordId, normalizedIgn]
+        // ✅ BULLETPROOF INSERT: Check for existing record first, then insert or update
+        const [existingPlayer] = await pool.query(
+          'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ?',
+          [discordGuildId, server.id, discordId]
         );
+        
+        let playerResult;
+        if (existingPlayer.length > 0) {
+          // Update existing record
+          const [updateResult] = await pool.query(
+            'UPDATE players SET ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
+            [normalizedIgn, existingPlayer[0].id]
+          );
+          playerResult = { insertId: existingPlayer[0].id };
+        } else {
+          // Insert new record
+          const [insertResult] = await pool.query(
+            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
+            [discordGuildId, server.id, discordId, normalizedIgn]
+          );
+          playerResult = insertResult;
+        }
         
         // Create economy record with starting balance
         // Get starting balance from eco_games_config
@@ -1113,7 +1130,7 @@ async function handleLinkConfirm(interaction) {
         console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
         
         await pool.query(
-          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?)',
+          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
           [playerResult.insertId, playerResult.insertId, startingBalance]
         );
         
