@@ -110,7 +110,7 @@ module.exports = {
 
       if (existingConfig.length === 0) {
         await connection.execute(`
-          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport, coordinates_x, coordinates_y, coordinates_z)
+          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport, position_x, position_y, position_z)
           VALUES (?, ?, false, 60, 0, ?, false, false, false, '', false, 0, 0, 0)
         `, [server.id.toString(), teleport, teleport.toUpperCase()]);
       }
@@ -215,7 +215,7 @@ module.exports = {
           updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
           break;
         case 'COORDINATES':
-          updateQuery = 'UPDATE teleport_configs SET coordinates_x = ?, coordinates_y = ?, coordinates_z = ? WHERE server_id = ? AND teleport_name = ?';
+          updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
           break;
       }
