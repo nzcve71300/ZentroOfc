@@ -27,8 +27,9 @@ module.exports = {
         .setRequired(true))
     .addStringOption(option =>
       option.setName('server')
-        .setDescription('Server to configure (optional, uses current server if not specified)')
-        .setRequired(false))
+        .setDescription('Server to configure')
+        .setRequired(true)
+        .setAutocomplete(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
@@ -46,35 +47,18 @@ module.exports = {
       });
 
       // Get server ID
-      let serverId;
-      if (serverName) {
-        const [servers] = await connection.execute(
-          'SELECT id FROM rust_servers WHERE nickname = ?',
-          [serverName]
-        );
-        if (servers.length === 0) {
-          await connection.end();
-          return await interaction.reply({
-            content: `❌ Server "${serverName}" not found.`,
-            ephemeral: true
-          });
-        }
-        serverId = servers[0].id;
-      } else {
-        // Use current guild's server
-        const [servers] = await connection.execute(
-          'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
-          [interaction.guildId]
-        );
-        if (servers.length === 0) {
-          await connection.end();
-          return await interaction.reply({
-            content: '❌ No server found for this Discord server.',
-            ephemeral: true
-          });
-        }
-        serverId = servers[0].id;
+      const [servers] = await connection.execute(
+        'SELECT id FROM rust_servers WHERE nickname = ?',
+        [serverName]
+      );
+      if (servers.length === 0) {
+        await connection.end();
+        return await interaction.reply({
+          content: `❌ Server "${serverName}" not found.`,
+          ephemeral: true
+        });
       }
+      const serverId = servers[0].id;
 
       // Validate option based on config type
       let validatedOption = option;
@@ -128,7 +112,7 @@ module.exports = {
 
       await connection.end();
 
-      const serverDisplay = serverName || 'current server';
+      const serverDisplay = serverName;
       await interaction.reply({
         content: `✅ **${config}** set to **${validatedOption}** for **${serverDisplay}**`,
         ephemeral: true
@@ -140,6 +124,39 @@ module.exports = {
         content: '❌ An error occurred while setting the configuration.',
         ephemeral: true
       });
+    }
+  },
+
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused();
+    
+    if (interaction.options.getFocused(true).name === 'server') {
+      try {
+        const connection = await mysql.createConnection({
+          host: process.env.DB_HOST,
+          user: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME,
+          port: process.env.DB_PORT || 3306
+        });
+
+        const [servers] = await connection.execute(
+          'SELECT nickname FROM rust_servers WHERE nickname LIKE ? ORDER BY nickname LIMIT 25',
+          [`%${focusedValue}%`]
+        );
+
+        await connection.end();
+
+        const choices = servers.map(server => ({
+          name: server.nickname,
+          value: server.nickname
+        }));
+
+        await interaction.respond(choices);
+      } catch (error) {
+        console.error('Error in set autocomplete:', error);
+        await interaction.respond([]);
+      }
     }
   },
 };
