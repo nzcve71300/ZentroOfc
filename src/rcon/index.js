@@ -5030,7 +5030,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     // Check if enabled
     if (!Boolean(config.enabled)) {
       console.log(`[TELEPORT] Teleport is DISABLED`);
-      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport system is disabled</color>`);
+      // Silent failure - no message sent
       return;
     }
 
@@ -5042,7 +5042,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
     if (playerResult[0].length === 0) {
       console.log(`[TELEPORT] Player ${player} not found in database`);
-      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>not found in database</color>`);
+      // Silent failure - no message sent
       return;
     }
 
@@ -5051,6 +5051,8 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
     // Check if player is banned (if use_list is enabled)
     if (Boolean(config.use_list)) {
+      console.log(`[TELEPORT DEBUG] Checking ban list for ${player} on ${teleportName}`);
+      
       const bannedResult = await pool.query(
         'SELECT * FROM teleport_banned_users WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)',
         [serverId.toString(), teleportName, discordId, player]
@@ -5058,7 +5060,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
       if (bannedResult[0].length > 0) {
         console.log(`[TELEPORT] Player ${player} is banned from ${teleportName}`);
-        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are banned from using ${teleportName.toUpperCase()} teleport</color>`);
+        // Silent failure - no message sent
         return;
       }
 
@@ -5070,7 +5072,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
       if (allowedResult[0].length === 0) {
         console.log(`[TELEPORT] Player ${player} not allowed for ${teleportName}`);
-        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not allowed to use ${teleportName.toUpperCase()} teleport</color>`);
+        // Silent failure - no message sent
         return;
       }
     }
@@ -5084,7 +5086,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     if (now - lastTeleport < cooldownMs) {
       const remainingMinutes = Math.ceil((cooldownMs - (now - lastTeleport)) / (60 * 1000));
       console.log(`[TELEPORT] Cooldown active: ${remainingMinutes} minutes remaining`);
-      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport cooldown:</color> <color=#FFD700>${remainingMinutes} minutes</color> <color=white>remaining</color>`);
+      // Silent failure - no message sent
       return;
     }
 
