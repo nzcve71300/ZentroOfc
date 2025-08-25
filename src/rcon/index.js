@@ -4944,21 +4944,23 @@ async function handleTeleportSystem(client, guildId, serverName, parsed, ip, por
     const playerName = parsed.Username;
     console.log(`[TELEPORT] Teleport request from ${playerName} on ${serverName}`);
 
-    // Get server ID
+    // Get server ID by server name and guild ID
     const [servers] = await pool.query(
-      'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
-      [guildId]
+      'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE rs.nickname = ? AND g.discord_id = ?',
+      [serverName, guildId]
     );
 
     if (servers.length === 0) {
-      console.log(`[TELEPORT] No server found for guild ${guildId}`);
+      console.log(`[TELEPORT] No server found for guild ${guildId} with name ${serverName}`);
       return;
     }
 
     const serverId = servers[0].id;
 
     // Handle teleport request
+    console.log(`[TELEPORT] Calling handleTeleportRequest for player ${playerName} on server ${serverId}`);
     const result = await teleportSystem.handleTeleportRequest(playerName, serverId, ip, port, password);
+    console.log(`[TELEPORT] Result:`, result);
 
     if (result.success) {
       // Execute teleport commands

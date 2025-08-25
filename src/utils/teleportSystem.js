@@ -8,6 +8,8 @@ class TeleportSystem {
 
   async handleTeleportRequest(playerName, serverId, serverIp, serverPort, serverPassword) {
     try {
+      console.log(`[TELEPORT SYSTEM] Starting teleport request for ${playerName} on server ${serverId}`);
+      
       const connection = await mysql.createConnection({
         host: process.env.DB_HOST,
         user: process.env.DB_USER,
@@ -17,10 +19,13 @@ class TeleportSystem {
       });
 
       // Get teleport configuration
+      console.log(`[TELEPORT SYSTEM] Querying config for server ${serverId}`);
       const [configs] = await connection.execute(`
         SELECT * FROM teleport_configs 
         WHERE server_id = ? AND teleport_name = 'default'
-      `, [serverId]);
+      `, [serverId.toString()]);
+      
+      console.log(`[TELEPORT SYSTEM] Found ${configs.length} configs`);
 
       if (configs.length === 0) {
         await connection.end();
@@ -36,10 +41,13 @@ class TeleportSystem {
       }
 
       // Get player info
+      console.log(`[TELEPORT SYSTEM] Looking up player ${playerName} on server ${serverId}`);
       const [players] = await connection.execute(`
         SELECT discord_id, ign FROM players 
         WHERE ign = ? AND server_id = ?
       `, [playerName, serverId.toString()]);
+      
+      console.log(`[TELEPORT SYSTEM] Found ${players.length} players`);
 
       if (players.length === 0) {
         await connection.end();
@@ -114,13 +122,16 @@ class TeleportSystem {
       }
 
       // Teleport command
-      commands.push(`global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${playerName}" "1"`);
+      const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${playerName}" "1"`;
+      commands.push(teleportCommand);
+      console.log(`[TELEPORT SYSTEM] Generated teleport command: ${teleportCommand}`);
 
       // Give kit if enabled
       if (config.use_kit && config.kit_name) {
         commands.push(`kit givetoplayer ${config.kit_name} ${playerName}`);
       }
 
+      console.log(`[TELEPORT SYSTEM] Returning success with ${commands.length} commands`);
       return {
         success: true,
         commands: commands,
