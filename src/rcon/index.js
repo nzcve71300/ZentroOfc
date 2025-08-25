@@ -4528,8 +4528,17 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
     });
 
     // Kill the player instantly
-    sendRconCommand(ip, port, password, `global.killplayer "${player}"`);
-    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>has been killed to set home teleport. Respawn on your bed!</color>`);
+    sendRconCommand(ip, port, password, `kill "${player}"`);
+    
+    // Set timeout to clean up state after 30 seconds
+    setTimeout(() => {
+      const currentState = homeTeleportState.get(stateKey);
+      if (currentState && currentState.step === 'waiting_for_respawn') {
+        homeTeleportState.delete(stateKey);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>home teleport setup timed out. Please try again.</color>`);
+        Logger.info(`Home teleport setup timed out for ${player}`);
+      }
+    }, 30000); // 30 seconds timeout
 
     Logger.info(`Set home: killed ${player} to trigger respawn`);
 
@@ -4671,8 +4680,15 @@ async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip
     // Get player position after respawn
     sendRconCommand(ip, port, password, `printpos "${player}"`);
     
-    // Send message to player
-    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>respawned! Getting your position to set home...</color>`);
+    // Set timeout to clean up position waiting state after 30 seconds
+    setTimeout(() => {
+      const currentState = homeTeleportState.get(stateKey);
+      if (currentState && currentState.step === 'waiting_for_position') {
+        homeTeleportState.delete(stateKey);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>home teleport setup timed out. Please try again.</color>`);
+        Logger.info(`Home teleport position setup timed out for ${player}`);
+      }
+    }, 30000); // 30 seconds timeout
 
     Logger.info(`Home teleport: respawn detected for ${player}, getting position`);
 
