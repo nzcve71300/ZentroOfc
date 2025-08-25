@@ -20,7 +20,8 @@ module.exports = {
           { name: 'TPN-USE-DELAY', value: 'TPN-USE-DELAY' },
           { name: 'TPN-USE-KIT', value: 'TPN-USE-KIT' },
           { name: 'TPN-KITNAME', value: 'TPN-KITNAME' },
-          { name: 'TPN-KILL', value: 'TPN-KILL' }
+          { name: 'TPN-KILL', value: 'TPN-KILL' },
+          { name: 'TPN-COORDINATES', value: 'TPN-COORDINATES' }
         ))
     .addStringOption(option =>
       option.setName('option')
@@ -112,6 +113,30 @@ module.exports = {
             });
           }
           break;
+
+        case 'TPN-COORDINATES':
+          // Validate coordinate format: "x,y,z"
+          const coordRegex = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
+          if (!coordRegex.test(option)) {
+            await connection.end();
+            return await interaction.reply({
+              content: '❌ Coordinates must be in format: "x,y,z" (e.g., "100.5,50.2,200.0")',
+              ephemeral: true
+            });
+          }
+          
+          // Parse coordinates
+          const coords = option.split(',').map(coord => parseFloat(coord.trim()));
+          if (coords.length !== 3) {
+            await connection.end();
+            return await interaction.reply({
+              content: '❌ Invalid coordinate format. Use: "x,y,z"',
+              ephemeral: true
+            });
+          }
+          
+          validatedOption = option; // Keep as string for display
+          break;
       }
 
       // Check if config exists
@@ -172,12 +197,25 @@ module.exports = {
           updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = "default"';
           updateParams = [validatedOption === 'on', server.id.toString()];
           break;
+        case 'TPN-COORDINATES':
+          const coords = option.split(',').map(coord => parseFloat(coord.trim()));
+          updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [coords[0], coords[1], coords[2], server.id.toString()];
+          break;
       }
 
       await connection.execute(updateQuery, updateParams);
 
+      // Create success message
+      let successMessage = `✅ **${config}** set to **${validatedOption}** for **${server.nickname}**`;
+      
+      if (config === 'TPN-COORDINATES') {
+        const coords = option.split(',').map(coord => parseFloat(coord.trim()));
+        successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** for **${server.nickname}**`;
+      }
+
       await interaction.reply({
-        content: `✅ **${config}** set to **${validatedOption}** for **${server.nickname}**`,
+        content: successMessage,
         ephemeral: true
       });
 
