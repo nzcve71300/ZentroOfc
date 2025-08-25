@@ -413,7 +413,11 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle Teleport System emote
       if (msg.includes(TELEPORT_EMOTES.teleport)) {
-        await handleTeleportSystem(client, guildId, serverName, parsed, ip, port, password);
+        const player = extractPlayerName(msg);
+        console.log(`[TELEPORT] Teleport emote detected for player: ${player}`);
+        if (player) {
+          await handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player);
+        }
       }
 
       // Handle ZORP zone entry/exit messages
@@ -4939,48 +4943,148 @@ setInterval(async () => {
 }, 5 * 60 * 1000); // Check every 5 minutes
 
 // Teleport System Handler
-async function handleTeleportSystem(client, guildId, serverName, parsed, ip, port, password) {
+async function handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player) {
   try {
-    const playerName = parsed.Username;
-    console.log(`[TELEPORT] Teleport request from ${playerName} on ${serverName}`);
-
-    // Get server ID by server name and guild ID
-    const [servers] = await pool.query(
-      'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE rs.nickname = ? AND g.discord_id = ?',
-      [serverName, guildId]
+    console.log(`[TELEPORT] Processing teleport for ${player} to teleport location`);
+    
+    // Get teleport configuration
+    const configResult = await pool.query(
+      'SELECT enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport FROM teleport_configs WHERE server_id = ? AND teleport_name = "default"',
+      [serverId.toString()]
     );
 
-    if (servers.length === 0) {
-      console.log(`[TELEPORT] No server found for guild ${guildId} with name ${serverName}`);
+    if (configResult[0].length === 0) {
+      console.log(`[TELEPORT] No teleport config found`);
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport system not configured</color>`);
       return;
     }
 
-    const serverId = servers[0].id;
+    const config = configResult[0][0];
+    console.log(`[TELEPORT] Config: enabled=${config.enabled}, cooldown=${config.cooldown_minutes}m, delay=${config.delay_minutes}m`);
+    
+    // Check if enabled
+    if (!config.enabled) {
+      console.log(`[TELEPORT] Teleport is DISABLED`);
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport system is disabled</color>`);
+      return;
+    }
 
-    // Handle teleport request
-    console.log(`[TELEPORT] Calling handleTeleportRequest for player ${playerName} on server ${serverId}`);
-    const result = await teleportSystem.handleTeleportRequest(playerName, serverId, ip, port, password);
-    console.log(`[TELEPORT] Result:`, result);
+    // Get player info for Discord ID
+    const playerResult = await pool.query(
+      'SELECT discord_id FROM players WHERE ign = ? AND server_id = ?',
+      [player, serverId.toString()]
+    );
 
-    if (result.success) {
-      // Execute teleport commands
-      for (const command of result.commands) {
-        await sendRconCommand(ip, port, password, command);
-        console.log(`[TELEPORT] Executed command: ${command}`);
+    if (playerResult[0].length === 0) {
+      console.log(`[TELEPORT] Player ${player} not found in database`);
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>not found in database</color>`);
+      return;
+    }
+
+    const playerData = playerResult[0][0];
+    const discordId = playerData.discord_id;
+
+    // Check if player is banned (if use_list is enabled)
+    if (config.use_list) {
+      const bannedResult = await pool.query(
+        'SELECT * FROM teleport_banned_users WHERE server_id = ? AND teleport_name = "default" AND (discord_id = ? OR ign = ?)',
+        [serverId.toString(), discordId, player]
+      );
+
+      if (bannedResult[0].length > 0) {
+        console.log(`[TELEPORT] Player ${player} is banned`);
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are banned from using teleports</color>`);
+        return;
       }
 
-      // Send success message to player
-      await sendRconCommand(ip, port, password, `say <color=#00FF00>${playerName}</color> <color=white>teleported to</color> <color=#FFD700>${result.displayName}</color>`);
+      // Check if player is allowed
+      const allowedResult = await pool.query(
+        'SELECT * FROM teleport_allowed_users WHERE server_id = ? AND teleport_name = "default" AND (discord_id = ? OR ign = ?)',
+        [serverId.toString(), discordId, player]
+      );
+
+      if (allowedResult[0].length === 0) {
+        console.log(`[TELEPORT] Player ${player} not allowed`);
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not allowed to use teleports</color>`);
+        return;
+      }
+    }
+
+    // Check cooldown
+    const lastUsageResult = await pool.query(
+      'SELECT used_at FROM teleport_usage WHERE server_id = ? AND teleport_name = "default" AND discord_id = ? ORDER BY used_at DESC LIMIT 1',
+      [serverId.toString(), discordId]
+    );
+
+    if (lastUsageResult[0].length > 0) {
+      const lastUsed = new Date(lastUsageResult[0][0].used_at);
+      const now = new Date();
+      const minutesSinceLastUse = (now - lastUsed) / (1000 * 60);
       
-      console.log(`[TELEPORT] Successfully teleported ${playerName} to ${result.displayName}`);
+      if (minutesSinceLastUse < config.cooldown_minutes) {
+        const remainingMinutes = Math.ceil(config.cooldown_minutes - minutesSinceLastUse);
+        console.log(`[TELEPORT] Cooldown active: ${remainingMinutes} minutes remaining`);
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport cooldown:</color> <color=#FFD700>${remainingMinutes} minutes</color> <color=white>remaining</color>`);
+        return;
+      }
+    }
+
+    // Record usage
+    await pool.query(
+      'INSERT INTO teleport_usage (server_id, teleport_name, discord_id, ign) VALUES (?, "default", ?, ?)',
+      [serverId.toString(), discordId, player]
+    );
+
+    console.log(`[TELEPORT] Proceeding with teleport for ${player}`);
+
+    const displayName = config.display_name || 'Teleport Location';
+
+    // If there's a delay, show countdown
+    if (config.delay_minutes > 0) {
+      sendRconCommand(ip, port, password, `say <color=#00FF00>${player}</color> <color=white>teleporting to</color> <color=#FFD700>${displayName}</color> <color=white>in</color> <color=#FFD700>${config.delay_minutes} minutes</color>`);
+      
+      // Wait for delay
+      setTimeout(async () => {
+        await executeTeleport(ip, port, password, player, config, displayName);
+      }, config.delay_minutes * 60 * 1000);
     } else {
-      // Send error message to player
-      await sendRconCommand(ip, port, password, `say <color=#FF0000>${playerName}</color> <color=white>${result.message}</color>`);
-      console.log(`[TELEPORT] Failed to teleport ${playerName}: ${result.message}`);
+      // Execute teleport immediately
+      await executeTeleport(ip, port, password, player, config, displayName);
     }
 
   } catch (error) {
     console.error('[TELEPORT] Error in handleTeleportSystem:', error);
+    sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>an error occurred while processing teleport</color>`);
+  }
+}
+
+async function executeTeleport(ip, port, password, player, config, displayName) {
+  try {
+    // Kill player if enabled
+    if (config.kill_before_teleport) {
+      const killCommand = `global.killplayer "${player}"`;
+      sendRconCommand(ip, port, password, killCommand);
+      console.log(`[TELEPORT] Executed kill command: ${killCommand}`);
+    }
+
+    // Execute teleport
+    const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${player}" "1"`;
+    sendRconCommand(ip, port, password, teleportCommand);
+    console.log(`[TELEPORT] Executed teleport command: ${teleportCommand}`);
+
+    // Give kit if enabled
+    if (config.use_kit && config.kit_name) {
+      const kitCommand = `kit givetoplayer ${config.kit_name} ${player}`;
+      sendRconCommand(ip, port, password, kitCommand);
+      console.log(`[TELEPORT] Executed kit command: ${kitCommand}`);
+    }
+
+    // Send success message
+    sendRconCommand(ip, port, password, `say <color=#00FF00>${player}</color> <color=white>teleported to</color> <color=#FFD700>${displayName}</color>`);
+    console.log(`[TELEPORT] Successfully teleported ${player} to ${displayName}`);
+
+  } catch (error) {
+    console.error('[TELEPORT] Error executing teleport:', error);
   }
 }
 
