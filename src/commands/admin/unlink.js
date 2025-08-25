@@ -17,9 +17,31 @@ module.exports = {
 
   async execute(interaction) {
     await interaction.deferReply();
+<<<<<<< HEAD
     
     if (!hasAdminPermissions(interaction.member)) {
       return sendAccessDeniedMessage(interaction, false);
+=======
+    if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
+
+    const guildId = interaction.guildId;
+    const identifier = interaction.options.getString('name');
+    
+    // Add null check and validation
+    if (!identifier) {
+      return await interaction.editReply({
+        embeds: [errorEmbed('Invalid Input', 'Please provide a Discord ID or in-game name.')]
+      });
+    }
+    
+    const trimmedIdentifier = identifier.trim();
+
+    // Validate input
+    if (!trimmedIdentifier || trimmedIdentifier.length < 2) {
+      return await interaction.editReply({
+        embeds: [errorEmbed('Invalid Input', 'Please provide a valid Discord ID or in-game name (at least 2 characters).')]
+      });
+>>>>>>> 4b860dde4894f4ff5dcd0416e160bb284bafe44b
     }
 
     const guildId = interaction.guildId;
@@ -38,8 +60,8 @@ module.exports = {
         [guildId]
 =======
       // Check if identifier is a Discord ID (numeric)
-      const isDiscordId = /^\d+$/.test(identifier);
-      const normalizedDiscordId = isDiscordId ? normalizeDiscordId(identifier) : null;
+      const isDiscordId = /^\d+$/.test(trimmedIdentifier);
+      const normalizedDiscordId = isDiscordId ? normalizeDiscordId(trimmedIdentifier) : null;
       
       let result;
       let playerInfo = [];
@@ -58,7 +80,7 @@ module.exports = {
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${identifier}** across all servers.\n\nMake sure you're using the correct Discord ID.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${trimmedIdentifier}** across all servers.\n\nMake sure you're using the correct Discord ID.`)]
           });
         }
         
@@ -80,7 +102,7 @@ module.exports = {
         result = { rowCount: updateResult.affectedRows };
       } else {
         // ✅ NORMALIZE IGN: use utility function for proper handling
-        const normalizedIgn = normalizeIgnForComparison(identifier);
+        const normalizedIgn = normalizeIgnForComparison(trimmedIdentifier);
         
         // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive - UNIVERSAL
         const [players] = await pool.query(
@@ -95,7 +117,7 @@ module.exports = {
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No active players found with in-game name **${identifier}** across all servers.\n\nMake sure you're using the correct in-game name.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with in-game name **${trimmedIdentifier}** across all servers.\n\nMake sure you're using the correct in-game name.`)]
           });
         }
         
@@ -136,14 +158,14 @@ module.exports = {
       }
 
       // Debug logging
-      console.log(`[UNLINK DEBUG] Identifier: ${identifier}`);
+      console.log(`[UNLINK DEBUG] Identifier: ${trimmedIdentifier}`);
       console.log(`[UNLINK DEBUG] Is Discord ID: ${isDiscordId}`);
       console.log(`[UNLINK DEBUG] Player info array:`, playerInfo);
       console.log(`[UNLINK DEBUG] Result row count: ${result.rowCount}`);
 
       // Ensure we have valid player info
       if (playerInfo.length === 0) {
-        playerInfo = [`Unknown player (${identifier})`];
+        playerInfo = [`Unknown player (${trimmedIdentifier})`];
       }
 
       // Extract just the player names for the success message
@@ -158,8 +180,12 @@ module.exports = {
       console.log(`[UNLINK DEBUG] Final player list: "${playerList}"`);
       const embed = successEmbed(
         'Players Unlinked', 
+<<<<<<< HEAD
         `✅ Successfully unlinked **${result.rowCount} player(s)** for **${identifier}**.\n\n**Unlinked players:**\n${playerList}\n\n**Note:** Players have been marked as inactive and can now link again with new names.`
 >>>>>>> c8521cc0b1cfc66d2a2a032b7e906b7684dc57cb
+=======
+        `✅ Successfully unlinked **${result.rowCount} player(s)** for **${trimmedIdentifier}**.\n\n**Unlinked players:**\n${playerList}\n\n**Note:** Players have been marked as inactive and can now link again with new names.`
+>>>>>>> 4b860dde4894f4ff5dcd0416e160bb284bafe44b
       );
 
       if (servers.length === 0) {
