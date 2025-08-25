@@ -5017,6 +5017,13 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
       position: `${config.position_x}, ${config.position_y}, ${config.position_z}`
     });
     
+    console.log(`[TELEPORT DEBUG] Raw config values from database:`, {
+      use_kit: config.use_kit,
+      kit_name: config.kit_name,
+      use_kit_type: typeof config.use_kit,
+      kit_name_type: typeof config.kit_name
+    });
+    
     // Debug: Log the exact query being used
     console.log(`[TELEPORT DEBUG] Query used: SELECT * FROM teleport_configs WHERE server_id = '${serverId.toString()}' AND teleport_name = '${teleportName}'`);
     
@@ -5136,12 +5143,16 @@ async function performTeleport(ip, port, password, player, config, displayName, 
     console.log(`[TELEPORT] Executed teleport command: ${teleportCommand}`);
 
     // Give kit if enabled
+    console.log(`[TELEPORT DEBUG] Kit check - use_kit: ${config.use_kit} (type: ${typeof config.use_kit}), kit_name: ${config.kit_name} (type: ${typeof config.kit_name})`);
+    
     if (config.use_kit && config.kit_name) {
       const kitCommand = `kit givetoplayer ${config.kit_name} ${player}`;
       sendRconCommand(ip, port, password, kitCommand);
       console.log(`[TELEPORT] Executed kit command: ${kitCommand}`);
     } else {
       console.log(`[TELEPORT DEBUG] Kit not given - use_kit: ${config.use_kit}, kit_name: ${config.kit_name}`);
+      if (!config.use_kit) console.log(`[TELEPORT DEBUG] Reason: use_kit is false/0`);
+      if (!config.kit_name) console.log(`[TELEPORT DEBUG] Reason: kit_name is empty/null`);
     }
 
     // Send success message
