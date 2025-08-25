@@ -853,6 +853,23 @@ async function setNewBounty(serverId, playerName, ip, port, password) {
     
     console.log(`🎯 New bounty set: ${playerName} on server ${serverId} for ${rewardAmount} ${currencyName}`);
     
+    // Log to admin feed channel
+    const [serverResult] = await pool.query(
+      'SELECT rs.nickname, rs.guild_id FROM rust_servers rs WHERE rs.id = ?',
+      [serverId]
+    );
+    
+    if (serverResult.length > 0) {
+      const serverName = serverResult[0].nickname;
+      const guildId = serverResult[0].guild_id;
+      
+      // Get Discord client from global reference
+      const client = global.discordClient;
+      if (client) {
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🎯 **Bounty Set:** ${playerName} has become a bounty worth ${rewardAmount} ${currencyName}`);
+      }
+    }
+    
   } catch (error) {
     console.error('Error setting new bounty:', error);
   }
@@ -920,6 +937,23 @@ async function handleBountyClaimed(guildId, serverName, killer, victim, serverId
     sendRconCommand(ip, port, password, `say <color=#FFD700>[BOUNTY]</color> <color=#8B0000>${killer}</color> <color=white>eliminated the bounty and earned</color> <color=#8B0000>${rewardAmount} ${currencyName}</color>`);
     
     console.log(`💰 Bounty claimed: ${killer} earned ${rewardAmount} ${currencyName} for killing ${victim}`);
+    
+    // Log to admin feed channel
+    const [serverResult] = await pool.query(
+      'SELECT rs.nickname, rs.guild_id FROM rust_servers rs WHERE rs.id = ?',
+      [serverId]
+    );
+    
+    if (serverResult.length > 0) {
+      const serverName = serverResult[0].nickname;
+      const guildId = serverResult[0].guild_id;
+      
+      // Get Discord client from global reference
+      const client = global.discordClient;
+      if (client) {
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `💰 **Bounty Claimed:** ${killer} eliminated bounty ${victim} and earned ${rewardAmount} ${currencyName}`);
+      }
+    }
     
   } catch (error) {
     console.error('Error handling bounty claim:', error);

@@ -143,6 +143,11 @@ The system provides detailed logging:
 - Kill streak updates
 - Error conditions
 
+### Admin Feed Logging
+Bounty events are automatically logged to the admin feed channel (`/channel-set4`):
+- **Bounty Set:** When a player becomes a bounty
+- **Bounty Claimed:** When a bounty is eliminated and reward is given
+
 ### Database Queries
 Monitor bounty activity:
 ```sql
