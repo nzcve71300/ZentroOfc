@@ -13,21 +13,21 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'TPN-LIST', value: 'TPN-LIST' },
-          { name: 'TPN-BANLIST', value: 'TPN-BANLIST' }
-        ))
-    .addStringOption(option =>
-      option.setName('teleport')
-        .setDescription('Select the teleport location')
-        .setRequired(true)
-        .addChoices(
-          { name: 'TPN (Default)', value: 'default' },
-          { name: 'TPNE', value: 'tpne' },
-          { name: 'TPE', value: 'tpe' },
-          { name: 'TPSE', value: 'tpse' },
-          { name: 'TPS', value: 'tps' },
-          { name: 'TPSW', value: 'tpsw' },
-          { name: 'TPW', value: 'tpw' },
-          { name: 'TPNW', value: 'tpnw' }
+          { name: 'TPN-BANLIST', value: 'TPN-BANLIST' },
+          { name: 'TPNE-LIST', value: 'TPNE-LIST' },
+          { name: 'TPNE-BANLIST', value: 'TPNE-BANLIST' },
+          { name: 'TPE-LIST', value: 'TPE-LIST' },
+          { name: 'TPE-BANLIST', value: 'TPE-BANLIST' },
+          { name: 'TPSE-LIST', value: 'TPSE-LIST' },
+          { name: 'TPSE-BANLIST', value: 'TPSE-BANLIST' },
+          { name: 'TPS-LIST', value: 'TPS-LIST' },
+          { name: 'TPS-BANLIST', value: 'TPS-BANLIST' },
+          { name: 'TPSW-LIST', value: 'TPSW-LIST' },
+          { name: 'TPSW-BANLIST', value: 'TPSW-BANLIST' },
+          { name: 'TPW-LIST', value: 'TPW-LIST' },
+          { name: 'TPW-BANLIST', value: 'TPW-BANLIST' },
+          { name: 'TPNW-LIST', value: 'TPNW-LIST' },
+          { name: 'TPNW-BANLIST', value: 'TPNW-BANLIST' }
         ))
     .addStringOption(option =>
       option.setName('name')
@@ -57,10 +57,13 @@ module.exports = {
   async execute(interaction) {
     try {
       const listName = interaction.options.getString('list-name');
-      const teleport = interaction.options.getString('teleport');
       const playerName = interaction.options.getString('name');
       const serverOption = interaction.options.getString('server');
       const guildId = interaction.guildId;
+
+      // Extract teleport name from list name (e.g., "TPNE-LIST" -> "tpne")
+      const teleportMatch = listName.match(/^(TPN|TPNE|TPE|TPSE|TPS|TPSW|TPW|TPNW)-/);
+      const teleport = teleportMatch ? teleportMatch[1].toLowerCase() : 'default';
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -100,7 +103,7 @@ module.exports = {
       }
 
       // Add to appropriate list
-      if (listName === 'TPN-LIST') {
+      if (listName.endsWith('-LIST')) {
         await connection.execute(`
           INSERT INTO teleport_allowed_users (server_id, teleport_name, discord_id, ign, added_by)
           VALUES (?, ?, ?, ?, ?)
@@ -111,10 +114,10 @@ module.exports = {
         `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **TPN-LIST** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
+          content: `✅ **${playerName}** added to **${listName}** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
           ephemeral: true
         });
-      } else if (listName === 'TPN-BANLIST') {
+      } else if (listName.endsWith('-BANLIST')) {
         await connection.execute(`
           INSERT INTO teleport_banned_users (server_id, teleport_name, discord_id, ign, banned_by)
           VALUES (?, ?, ?, ?, ?)
@@ -125,7 +128,7 @@ module.exports = {
         `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **TPN-BANLIST** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
+          content: `✅ **${playerName}** added to **${listName}** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
           ephemeral: true
         });
       }
