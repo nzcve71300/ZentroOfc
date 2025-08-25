@@ -25,10 +25,18 @@ module.exports = {
     if (!hasAdminPermissions(interaction.member)) return sendAccessDeniedMessage(interaction, false);
 
     const guildId = interaction.guildId;
+    
+    // Debug: Log all available options
+    console.log('[UNLINK DEBUG] All interaction options:', interaction.options.data);
+    console.log('[UNLINK DEBUG] Available option names:', interaction.options.data.map(opt => opt.name));
+    
     const identifier = interaction.options.getString('name');
+    console.log('[UNLINK DEBUG] Raw identifier value:', identifier);
+    console.log('[UNLINK DEBUG] Identifier type:', typeof identifier);
     
     // Add null check and validation
     if (!identifier) {
+      console.log('[UNLINK DEBUG] Identifier is null/undefined, showing error');
       return await interaction.editReply({
         embeds: [errorEmbed('Invalid Input', 'Please provide a Discord ID or in-game name.')]
       });
