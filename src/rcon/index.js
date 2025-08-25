@@ -3,6 +3,7 @@ const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const pool = require('../db');
 const { orangeEmbed } = require('../embeds/format');
 const killfeedProcessor = require('../utils/killfeedProcessor');
+const teleportSystem = require('../utils/teleportSystem');
 const path = require('path');
 const Logger = require('../utils/logger');
 
@@ -42,6 +43,7 @@ const KIT_EMOTES = {
 const TELEPORT_EMOTES = {
   bandit: 'd11_quick_chat_combat_slot_0',
   outpost: 'd11_quick_chat_combat_slot_2',
+  teleport: 'd11_quick_chat_location_slot_0',
 };
 
 // Kit delivery emote
@@ -408,6 +410,11 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle Kit Delivery emote
       await handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, port, password);
+
+      // Handle Teleport System emote
+      if (msg.includes(TELEPORT_EMOTES.teleport)) {
+        await handleTeleportSystem(client, guildId, serverName, parsed, ip, port, password);
+      }
 
       // Handle ZORP zone entry/exit messages
       await handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, password);
@@ -4930,6 +4937,50 @@ setInterval(async () => {
     console.error('Error in periodic playtime rewards:', error);
   }
 }, 5 * 60 * 1000); // Check every 5 minutes
+
+// Teleport System Handler
+async function handleTeleportSystem(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const playerName = parsed.Username;
+    console.log(`[TELEPORT] Teleport request from ${playerName} on ${serverName}`);
+
+    // Get server ID
+    const [servers] = await pool.query(
+      'SELECT rs.id FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ?',
+      [guildId]
+    );
+
+    if (servers.length === 0) {
+      console.log(`[TELEPORT] No server found for guild ${guildId}`);
+      return;
+    }
+
+    const serverId = servers[0].id;
+
+    // Handle teleport request
+    const result = await teleportSystem.handleTeleportRequest(playerName, serverId, ip, port, password);
+
+    if (result.success) {
+      // Execute teleport commands
+      for (const command of result.commands) {
+        await sendRconCommand(ip, port, password, command);
+        console.log(`[TELEPORT] Executed command: ${command}`);
+      }
+
+      // Send success message to player
+      await sendRconCommand(ip, port, password, `say <color=#00FF00>${playerName}</color> <color=white>teleported to</color> <color=#FFD700>${result.displayName}</color>`);
+      
+      console.log(`[TELEPORT] Successfully teleported ${playerName} to ${result.displayName}`);
+    } else {
+      // Send error message to player
+      await sendRconCommand(ip, port, password, `say <color=#FF0000>${playerName}</color> <color=white>${result.message}</color>`);
+      console.log(`[TELEPORT] Failed to teleport ${playerName}: ${result.message}`);
+    }
+
+  } catch (error) {
+    console.error('[TELEPORT] Error in handleTeleportSystem:', error);
+  }
+}
 
 // Export functions for use in commands
 module.exports = {
