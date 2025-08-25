@@ -267,7 +267,25 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle player joins/leaves with respawn spam prevention
       if (msg.match(/has entered the game/)) {
-        const player = msg.split(' ')[0];
+        console.log(`[RESPAWN DEBUG] Detected respawn/join message: ${msg}`);
+        
+        // Extract player name from LOG format: "08/25/2025 14:35:21:LOG: nzcve7130 [SCARLETT] has entered the game"
+        let player;
+        if (msg.includes('LOG:')) {
+          // Format: "08/25/2025 14:35:21:LOG: nzcve7130 [SCARLETT] has entered the game"
+          const match = msg.match(/LOG:\s+([^\s\[]+)/);
+          player = match ? match[1] : null;
+          console.log(`[RESPAWN DEBUG] LOG format detected, extracted player: ${player}`);
+        } else {
+          // Fallback to original method for non-LOG format
+          player = msg.split(' ')[0];
+          console.log(`[RESPAWN DEBUG] Non-LOG format, extracted player: ${player}`);
+        }
+        
+        if (!player) {
+          console.log(`[RESPAWN DEBUG] Could not extract player name from message`);
+          return;
+        }
         
         // Check if this is a real join or just a respawn
         const playerKey = `${guildId}_${serverName}_${player}`;
@@ -4516,6 +4534,9 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
 
     // Set state to waiting for respawn
     const stateKey = `${serverId}_${player}`;
+    console.log(`[HOME TELEPORT] Setting state key: ${stateKey}`);
+    console.log(`[HOME TELEPORT] Server ID: ${serverId}, Player: ${player}`);
+    
     homeTeleportState.set(stateKey, {
       player: player,
       step: 'waiting_for_respawn',
@@ -4526,6 +4547,8 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
       port: port,
       password: password
     });
+    
+    console.log(`[HOME TELEPORT] State set successfully. Total states: ${homeTeleportState.size}`);
 
     // Kill the player instantly - use correct Rust command format
     sendRconCommand(ip, port, password, `global.killplayer "${player}"`);
@@ -4650,6 +4673,7 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
 async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password) {
   try {
     console.log(`[HOME TELEPORT] Checking respawn for home teleport setup: ${player}`);
+    console.log(`[HOME TELEPORT] Guild ID: ${guildId}, Server Name: ${serverName}`);
     
     // Get server ID
     const [serverResult] = await pool.query(
@@ -4666,13 +4690,26 @@ async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip
     const stateKey = `${serverId}_${player}`;
     const playerState = homeTeleportState.get(stateKey);
 
+    console.log(`[HOME TELEPORT] Server ID: ${serverId}, State Key: ${stateKey}`);
+    console.log(`[HOME TELEPORT] Player State:`, playerState);
+
     if (!playerState || playerState.step !== 'waiting_for_respawn') {
       console.log(`[HOME TELEPORT] No home teleport setup in progress for ${player}`);
+      console.log(`[HOME TELEPORT] Available states:`, Array.from(homeTeleportState.keys()));
+      return;
+    }
+
+    // Check if we've already processed a respawn for this player (prevent duplicate processing)
+    if (playerState.respawnProcessed) {
+      console.log(`[HOME TELEPORT] Respawn already processed for ${player}, skipping`);
       return;
     }
 
     console.log(`[HOME TELEPORT] Respawn detected for home teleport setup: ${player}`);
 
+    // Mark respawn as processed to prevent duplicate handling
+    playerState.respawnProcessed = true;
+    
     // Update state to waiting for position
     playerState.step = 'waiting_for_position';
     homeTeleportState.set(stateKey, playerState);
