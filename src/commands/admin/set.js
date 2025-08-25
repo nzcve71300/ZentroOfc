@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const mysql = require('mysql2/promise');
+const { getServerByNickname, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
 require('dotenv').config();
 
 module.exports = {
@@ -32,11 +33,35 @@ module.exports = {
         .setAutocomplete(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guildId;
+    
+    try {
+      const servers = await getServersForGuild(guildId);
+      const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
+      await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
+    } catch (err) {
+      console.error('Autocomplete error:', err);
+      await interaction.respond([]);
+    }
+  },
+
   async execute(interaction) {
     try {
       const config = interaction.options.getString('config');
       const option = interaction.options.getString('option');
-      const serverName = interaction.options.getString('server');
+      const serverOption = interaction.options.getString('server');
+      const guildId = interaction.guildId;
+
+      // Get server using shared helper
+      const server = await getServerByNickname(guildId, serverOption);
+      if (!server) {
+        return await interaction.reply({
+          content: `❌ Server not found: ${serverOption}`,
+          ephemeral: true
+        });
+      }
 
       const connection = await mysql.createConnection({
         host: process.env.DB_HOST,
@@ -45,20 +70,6 @@ module.exports = {
         database: process.env.DB_NAME,
         port: process.env.DB_PORT || 3306
       });
-
-      // Get server ID
-      const [servers] = await connection.execute(
-        'SELECT id FROM rust_servers WHERE nickname = ?',
-        [serverName]
-      );
-      if (servers.length === 0) {
-        await connection.end();
-        return await interaction.reply({
-          content: `❌ Server "${serverName}" not found.`,
-          ephemeral: true
-        });
-      }
-      const serverId = servers[0].id;
 
       // Validate option based on config type
       let validatedOption = option;
@@ -103,60 +114,81 @@ module.exports = {
           break;
       }
 
-      // Update or insert the configuration
-      await connection.execute(`
-        INSERT INTO teleport_configs (server_id, teleport_name, ${config.toLowerCase()})
-        VALUES (?, 'default', ?)
-        ON DUPLICATE KEY UPDATE ${config.toLowerCase()} = VALUES(${config.toLowerCase()})
-      `, [serverId.toString(), validatedOption]);
+      // Check if config exists
+      const [existingConfigs] = await connection.execute(
+        'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = "default"',
+        [server.id.toString()]
+      );
 
-      await connection.end();
+      if (existingConfigs.length === 0) {
+        // Create default config
+        await connection.execute(`
+          INSERT INTO teleport_configs (
+            server_id, teleport_name, position_x, position_y, position_z, 
+            enabled, cooldown_minutes, delay_minutes, display_name, 
+            use_list, use_delay, use_kit, kit_name, kill_before_teleport
+          ) VALUES (?, 'default', 0, 0, 0, true, 60, 0, 'Teleport', false, false, false, NULL, false)
+        `, [server.id.toString()]);
+      }
 
-      const serverDisplay = serverName;
+      // Update the config
+      let updateQuery = '';
+      let updateParams = [];
+
+      switch (config) {
+        case 'TPN-USE':
+          updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption === 'on', server.id.toString()];
+          break;
+        case 'TPN-TIME':
+          updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption, server.id.toString()];
+          break;
+        case 'TPN-DELAYTIME':
+          updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption, server.id.toString()];
+          break;
+        case 'TPN-NAME':
+          updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption, server.id.toString()];
+          break;
+        case 'TPN-USELIST':
+          updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption === 'on', server.id.toString()];
+          break;
+        case 'TPN-USE-DELAY':
+          updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption === 'on', server.id.toString()];
+          break;
+        case 'TPN-USE-KIT':
+          updateQuery = 'UPDATE teleport_configs SET use_kit = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption === 'on', server.id.toString()];
+          break;
+        case 'TPN-KITNAME':
+          updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption, server.id.toString()];
+          break;
+        case 'TPN-KILL':
+          updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = "default"';
+          updateParams = [validatedOption === 'on', server.id.toString()];
+          break;
+      }
+
+      await connection.execute(updateQuery, updateParams);
+
       await interaction.reply({
-        content: `✅ **${config}** set to **${validatedOption}** for **${serverDisplay}**`,
+        content: `✅ **${config}** set to **${validatedOption}** for **${server.nickname}**`,
         ephemeral: true
       });
+
+      await connection.end();
 
     } catch (error) {
       console.error('Error in set command:', error);
       await interaction.reply({
-        content: '❌ An error occurred while setting the configuration.',
+        content: `❌ Error: ${error.message}`,
         ephemeral: true
       });
     }
-  },
-
-  async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
-    
-    if (interaction.options.getFocused(true).name === 'server') {
-      try {
-        const connection = await mysql.createConnection({
-          host: process.env.DB_HOST,
-          user: process.env.DB_USER,
-          password: process.env.DB_PASSWORD,
-          database: process.env.DB_NAME,
-          port: process.env.DB_PORT || 3306
-        });
-
-        const [servers] = await connection.execute(
-          'SELECT nickname FROM rust_servers WHERE nickname LIKE ? ORDER BY nickname LIMIT 25',
-          [`%${focusedValue}%`]
-        );
-
-        await connection.end();
-
-        const choices = servers.map(server => ({
-          name: server.nickname,
-          value: server.nickname
-        }));
-
-        await interaction.respond(choices);
-      } catch (error) {
-        console.error('Error in set autocomplete:', error);
-        await interaction.respond([]);
-      }
-    }
-  },
+  }
 };
