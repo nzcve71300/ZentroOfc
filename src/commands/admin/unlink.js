@@ -120,6 +120,17 @@ module.exports = {
         }
       }
 
+      // Debug logging
+      console.log(`[UNLINK DEBUG] Identifier: ${identifier}`);
+      console.log(`[UNLINK DEBUG] Is Discord ID: ${isDiscordId}`);
+      console.log(`[UNLINK DEBUG] Player info array:`, playerInfo);
+      console.log(`[UNLINK DEBUG] Result row count: ${result.rowCount}`);
+
+      // Ensure we have valid player info
+      if (playerInfo.length === 0) {
+        playerInfo = [`Unknown player (${identifier})`];
+      }
+
       const playerList = playerInfo.join(', ');
       const embed = successEmbed(
         'Players Unlinked', 
