@@ -5028,7 +5028,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     console.log(`[TELEPORT DEBUG] Query used: SELECT * FROM teleport_configs WHERE server_id = '${serverId.toString()}' AND teleport_name = '${teleportName}'`);
     
     // Check if enabled
-    if (!config.enabled) {
+    if (!Boolean(config.enabled)) {
       console.log(`[TELEPORT] Teleport is DISABLED`);
       sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport system is disabled</color>`);
       return;
@@ -5050,7 +5050,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     const discordId = playerData.discord_id;
 
     // Check if player is banned (if use_list is enabled)
-    if (config.use_list) {
+    if (Boolean(config.use_list)) {
       const bannedResult = await pool.query(
         'SELECT * FROM teleport_banned_users WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)',
         [serverId.toString(), teleportName, discordId, player]
@@ -5145,13 +5145,17 @@ async function performTeleport(ip, port, password, player, config, displayName, 
     // Give kit if enabled
     console.log(`[TELEPORT DEBUG] Kit check - use_kit: ${config.use_kit} (type: ${typeof config.use_kit}), kit_name: ${config.kit_name} (type: ${typeof config.kit_name})`);
     
-    if (config.use_kit && config.kit_name) {
+    // Convert numeric values to boolean (MySQL stores booleans as 0/1)
+    const useKit = Boolean(config.use_kit);
+    console.log(`[TELEPORT DEBUG] Converted use_kit to boolean: ${useKit}`);
+    
+    if (useKit && config.kit_name) {
       const kitCommand = `kit givetoplayer ${config.kit_name} ${player}`;
       sendRconCommand(ip, port, password, kitCommand);
       console.log(`[TELEPORT] Executed kit command: ${kitCommand}`);
     } else {
       console.log(`[TELEPORT DEBUG] Kit not given - use_kit: ${config.use_kit}, kit_name: ${config.kit_name}`);
-      if (!config.use_kit) console.log(`[TELEPORT DEBUG] Reason: use_kit is false/0`);
+      if (!useKit) console.log(`[TELEPORT DEBUG] Reason: use_kit is false/0`);
       if (!config.kit_name) console.log(`[TELEPORT DEBUG] Reason: kit_name is empty/null`);
     }
 
