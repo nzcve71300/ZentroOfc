@@ -9,26 +9,9 @@ module.exports = {
     .setDescription('Add players to teleport lists')
     .addStringOption(option =>
       option.setName('list-name')
-        .setDescription('Select the list type')
+        .setDescription('Select the list type (type to search)')
         .setRequired(true)
-        .addChoices(
-          { name: 'TPN-LIST', value: 'TPN-LIST' },
-          { name: 'TPN-BANLIST', value: 'TPN-BANLIST' },
-          { name: 'TPNE-LIST', value: 'TPNE-LIST' },
-          { name: 'TPNE-BANLIST', value: 'TPNE-BANLIST' },
-          { name: 'TPE-LIST', value: 'TPE-LIST' },
-          { name: 'TPE-BANLIST', value: 'TPE-BANLIST' },
-          { name: 'TPSE-LIST', value: 'TPSE-LIST' },
-          { name: 'TPSE-BANLIST', value: 'TPSE-BANLIST' },
-          { name: 'TPS-LIST', value: 'TPS-LIST' },
-          { name: 'TPS-BANLIST', value: 'TPS-BANLIST' },
-          { name: 'TPSW-LIST', value: 'TPSW-LIST' },
-          { name: 'TPSW-BANLIST', value: 'TPSW-BANLIST' },
-          { name: 'TPW-LIST', value: 'TPW-LIST' },
-          { name: 'TPW-BANLIST', value: 'TPW-BANLIST' },
-          { name: 'TPNW-LIST', value: 'TPNW-LIST' },
-          { name: 'TPNW-BANLIST', value: 'TPNW-BANLIST' }
-        ))
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('name')
         .setDescription('Player name or Discord ID')
@@ -42,12 +25,40 @@ module.exports = {
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guildId;
+    const focusedOption = interaction.options.getFocused(true);
     
     try {
-      const servers = await getServersForGuild(guildId);
-      const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
-      await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
+      if (focusedOption.name === 'server') {
+        const guildId = interaction.guildId;
+        const servers = await getServersForGuild(guildId);
+        const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
+        await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
+      } else if (focusedOption.name === 'list-name') {
+        // Generate all teleport list options
+        const teleports = ['TPN', 'TPNE', 'TPE', 'TPSE', 'TPS', 'TPSW', 'TPW', 'TPNW'];
+        const listTypes = [
+          { name: 'LIST (Allowed Users)', value: 'LIST' },
+          { name: 'BANLIST (Banned Users)', value: 'BANLIST' }
+        ];
+        
+        const allOptions = [];
+        teleports.forEach(teleport => {
+          listTypes.forEach(listType => {
+            allOptions.push({
+              name: `${teleport}-${listType.value}`,
+              value: `${teleport}-${listType.value}`
+            });
+          });
+        });
+        
+        // Filter based on user input
+        const filtered = allOptions.filter(option => 
+          option.name.toLowerCase().includes(focusedValue.toLowerCase())
+        );
+        
+        // Return first 25 results (Discord limit)
+        await interaction.respond(filtered.slice(0, 25));
+      }
     } catch (err) {
       console.error('Autocomplete error:', err);
       await interaction.respond([]);
@@ -84,8 +95,8 @@ module.exports = {
 
       // Determine if it's a Discord ID or IGN
       const isDiscordId = /^\d+$/.test(playerName);
-      const discordId = isDiscordId ? playerName : null;
-      const ign = isDiscordId ? null : playerName;
+      let discordId = isDiscordId ? playerName : null;
+      let ign = isDiscordId ? null : playerName;
 
       // Check if player exists in players table
       if (discordId) {
@@ -100,6 +111,21 @@ module.exports = {
             ephemeral: true
           });
         }
+        ign = players[0].ign;
+      } else {
+        // Check if IGN exists in players table
+        const [players] = await connection.execute(
+          'SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)',
+          [ign, server.id, guildId]
+        );
+        if (players.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ Player with IGN ${ign} not found on ${server.nickname}.`,
+            ephemeral: true
+          });
+        }
+        discordId = players[0].discord_id;
       }
 
       // Add to appropriate list
@@ -114,7 +140,7 @@ module.exports = {
         `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **${listName}** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
+          content: `✅ **${playerName}** added to **${listName}** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-BANLIST')) {
@@ -128,7 +154,7 @@ module.exports = {
         `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **${listName}** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
+          content: `✅ **${playerName}** added to **${listName}** on **${server.nickname}**`,
           ephemeral: true
         });
       }
@@ -138,7 +164,7 @@ module.exports = {
     } catch (error) {
       console.error('Error in add-to-list command:', error);
       await interaction.reply({
-        content: `❌ Error: ${error.message}`,
+        content: `❌ An error occurred while adding to list: ${error.message}`,
         ephemeral: true
       });
     }
