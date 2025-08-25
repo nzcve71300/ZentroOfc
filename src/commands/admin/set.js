@@ -117,6 +117,8 @@ module.exports = {
 
       // Validate option based on config type
       let validatedOption = option;
+      let coords = null; // Declare coords variable outside switch
+      
       switch (configType) {
         case 'USE':
         case 'USELIST':
@@ -156,7 +158,7 @@ module.exports = {
           validatedOption = option.trim();
           break;
         case 'COORDINATES':
-          const coords = option.split(',').map(coord => parseFloat(coord.trim()));
+          coords = option.split(',').map(coord => parseFloat(coord.trim()));
           if (coords.length !== 3 || coords.some(isNaN)) {
             await connection.end();
             return await interaction.reply({
