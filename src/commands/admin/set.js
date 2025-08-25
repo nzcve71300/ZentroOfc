@@ -9,90 +9,9 @@ module.exports = {
     .setDescription('Configure teleport system settings')
     .addStringOption(option =>
       option.setName('config')
-        .setDescription('Select the configuration option')
+        .setDescription('Select the configuration option (type to search)')
         .setRequired(true)
-        .addChoices(
-          { name: 'TPN-USE', value: 'TPN-USE' },
-          { name: 'TPN-TIME', value: 'TPN-TIME' },
-          { name: 'TPN-DELAYTIME', value: 'TPN-DELAYTIME' },
-          { name: 'TPN-NAME', value: 'TPN-NAME' },
-          { name: 'TPN-USELIST', value: 'TPN-USELIST' },
-          { name: 'TPN-USE-DELAY', value: 'TPN-USE-DELAY' },
-          { name: 'TPN-USE-KIT', value: 'TPN-USE-KIT' },
-          { name: 'TPN-KITNAME', value: 'TPN-KITNAME' },
-          { name: 'TPN-KILL', value: 'TPN-KILL' },
-          { name: 'TPN-COORDINATES', value: 'TPN-COORDINATES' },
-          { name: 'TPNE-USE', value: 'TPNE-USE' },
-          { name: 'TPNE-TIME', value: 'TPNE-TIME' },
-          { name: 'TPNE-DELAYTIME', value: 'TPNE-DELAYTIME' },
-          { name: 'TPNE-NAME', value: 'TPNE-NAME' },
-          { name: 'TPNE-USELIST', value: 'TPNE-USELIST' },
-          { name: 'TPNE-USE-DELAY', value: 'TPNE-USE-DELAY' },
-          { name: 'TPNE-USE-KIT', value: 'TPNE-USE-KIT' },
-          { name: 'TPNE-KITNAME', value: 'TPNE-KITNAME' },
-          { name: 'TPNE-KILL', value: 'TPNE-KILL' },
-          { name: 'TPNE-COORDINATES', value: 'TPNE-COORDINATES' },
-          { name: 'TPE-USE', value: 'TPE-USE' },
-          { name: 'TPE-TIME', value: 'TPE-TIME' },
-          { name: 'TPE-DELAYTIME', value: 'TPE-DELAYTIME' },
-          { name: 'TPE-NAME', value: 'TPE-NAME' },
-          { name: 'TPE-USELIST', value: 'TPE-USELIST' },
-          { name: 'TPE-USE-DELAY', value: 'TPE-USE-DELAY' },
-          { name: 'TPE-USE-KIT', value: 'TPE-USE-KIT' },
-          { name: 'TPE-KITNAME', value: 'TPE-KITNAME' },
-          { name: 'TPE-KILL', value: 'TPE-KILL' },
-          { name: 'TPE-COORDINATES', value: 'TPE-COORDINATES' },
-          { name: 'TPSE-USE', value: 'TPSE-USE' },
-          { name: 'TPSE-TIME', value: 'TPSE-TIME' },
-          { name: 'TPSE-DELAYTIME', value: 'TPSE-DELAYTIME' },
-          { name: 'TPSE-NAME', value: 'TPSE-NAME' },
-          { name: 'TPSE-USELIST', value: 'TPSE-USELIST' },
-          { name: 'TPSE-USE-DELAY', value: 'TPSE-USE-DELAY' },
-          { name: 'TPSE-USE-KIT', value: 'TPSE-USE-KIT' },
-          { name: 'TPSE-KITNAME', value: 'TPSE-KITNAME' },
-          { name: 'TPSE-KILL', value: 'TPSE-KILL' },
-          { name: 'TPSE-COORDINATES', value: 'TPSE-COORDINATES' },
-          { name: 'TPS-USE', value: 'TPS-USE' },
-          { name: 'TPS-TIME', value: 'TPS-TIME' },
-          { name: 'TPS-DELAYTIME', value: 'TPS-DELAYTIME' },
-          { name: 'TPS-NAME', value: 'TPS-NAME' },
-          { name: 'TPS-USELIST', value: 'TPS-USELIST' },
-          { name: 'TPS-USE-DELAY', value: 'TPS-USE-DELAY' },
-          { name: 'TPS-USE-KIT', value: 'TPS-USE-KIT' },
-          { name: 'TPS-KITNAME', value: 'TPS-KITNAME' },
-          { name: 'TPS-KILL', value: 'TPS-KILL' },
-          { name: 'TPS-COORDINATES', value: 'TPS-COORDINATES' },
-          { name: 'TPSW-USE', value: 'TPSW-USE' },
-          { name: 'TPSW-TIME', value: 'TPSW-TIME' },
-          { name: 'TPSW-DELAYTIME', value: 'TPSW-DELAYTIME' },
-          { name: 'TPSW-NAME', value: 'TPSW-NAME' },
-          { name: 'TPSW-USELIST', value: 'TPSW-USELIST' },
-          { name: 'TPSW-USE-DELAY', value: 'TPSW-USE-DELAY' },
-          { name: 'TPSW-USE-KIT', value: 'TPSW-USE-KIT' },
-          { name: 'TPSW-KITNAME', value: 'TPSW-KITNAME' },
-          { name: 'TPSW-KILL', value: 'TPSW-KILL' },
-          { name: 'TPSW-COORDINATES', value: 'TPSW-COORDINATES' },
-          { name: 'TPW-USE', value: 'TPW-USE' },
-          { name: 'TPW-TIME', value: 'TPW-TIME' },
-          { name: 'TPW-DELAYTIME', value: 'TPW-DELAYTIME' },
-          { name: 'TPW-NAME', value: 'TPW-NAME' },
-          { name: 'TPW-USELIST', value: 'TPW-USELIST' },
-          { name: 'TPW-USE-DELAY', value: 'TPW-USE-DELAY' },
-          { name: 'TPW-USE-KIT', value: 'TPW-USE-KIT' },
-          { name: 'TPW-KITNAME', value: 'TPW-KITNAME' },
-          { name: 'TPW-KILL', value: 'TPW-KILL' },
-          { name: 'TPW-COORDINATES', value: 'TPW-COORDINATES' },
-          { name: 'TPNW-USE', value: 'TPNW-USE' },
-          { name: 'TPNW-TIME', value: 'TPNW-TIME' },
-          { name: 'TPNW-DELAYTIME', value: 'TPNW-DELAYTIME' },
-          { name: 'TPNW-NAME', value: 'TPNW-NAME' },
-          { name: 'TPNW-USELIST', value: 'TPNW-USELIST' },
-          { name: 'TPNW-USE-DELAY', value: 'TPNW-USE-DELAY' },
-          { name: 'TPNW-USE-KIT', value: 'TPNW-USE-KIT' },
-          { name: 'TPNW-KITNAME', value: 'TPNW-KITNAME' },
-          { name: 'TPNW-KILL', value: 'TPNW-KILL' },
-          { name: 'TPNW-COORDINATES', value: 'TPNW-COORDINATES' }
-        ))
+        .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('option')
         .setDescription('Value for the configuration')
@@ -106,12 +25,48 @@ module.exports = {
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guildId;
+    const focusedOption = interaction.options.getFocused(true);
     
     try {
-      const servers = await getServersForGuild(guildId);
-      const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
-      await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
+      if (focusedOption.name === 'server') {
+        const guildId = interaction.guildId;
+        const servers = await getServersForGuild(guildId);
+        const filtered = servers.filter(s => s.nickname.toLowerCase().includes(focusedValue.toLowerCase()));
+        await interaction.respond(filtered.map(s => ({ name: s.nickname, value: s.nickname })));
+      } else if (focusedOption.name === 'config') {
+        // Generate all teleport configuration options
+        const teleports = ['TPN', 'TPNE', 'TPE', 'TPSE', 'TPS', 'TPSW', 'TPW', 'TPNW'];
+        const configTypes = [
+          { name: 'USE (Enable/Disable)', value: 'USE' },
+          { name: 'TIME (Cooldown)', value: 'TIME' },
+          { name: 'DELAYTIME (Delay)', value: 'DELAYTIME' },
+          { name: 'NAME (Display Name)', value: 'NAME' },
+          { name: 'USELIST (Use List)', value: 'USELIST' },
+          { name: 'USE-DELAY (Use Delay)', value: 'USE-DELAY' },
+          { name: 'USE-KIT (Use Kit)', value: 'USE-KIT' },
+          { name: 'KITNAME (Kit Name)', value: 'KITNAME' },
+          { name: 'KILL (Kill Before Teleport)', value: 'KILL' },
+          { name: 'COORDINATES (Teleport Location)', value: 'COORDINATES' }
+        ];
+        
+        const allOptions = [];
+        teleports.forEach(teleport => {
+          configTypes.forEach(configType => {
+            allOptions.push({
+              name: `${teleport}-${configType.value}`,
+              value: `${teleport}-${configType.value}`
+            });
+          });
+        });
+        
+        // Filter based on user input
+        const filtered = allOptions.filter(option => 
+          option.name.toLowerCase().includes(focusedValue.toLowerCase())
+        );
+        
+        // Return first 25 results (Discord limit)
+        await interaction.respond(filtered.slice(0, 25));
+      }
     } catch (err) {
       console.error('Autocomplete error:', err);
       await interaction.respond([]);
@@ -128,6 +83,7 @@ module.exports = {
       // Extract teleport name from config (e.g., "TPNE-USE" -> "tpne")
       const teleportMatch = config.match(/^(TPN|TPNE|TPE|TPSE|TPS|TPSW|TPW|TPNW)-/);
       const teleport = teleportMatch ? teleportMatch[1].toLowerCase() : 'default';
+      const configType = config.split('-')[1]; // e.g., "USE", "TIME"
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -146,163 +102,142 @@ module.exports = {
         port: process.env.DB_PORT || 3306
       });
 
-             // Validate option based on config type
-       let validatedOption = option;
-       
-       // Extract the config type (e.g., "TPNE-USE" -> "USE")
-       const configType = config.split('-')[1];
-       
-       switch (configType) {
-         case 'USE':
-         case 'USELIST':
-         case 'USE-DELAY':
-         case 'USE-KIT':
-         case 'KILL':
-           if (!['on', 'off'].includes(option.toLowerCase())) {
-             await connection.end();
-             return await interaction.reply({
-               content: '❌ Option must be "on" or "off" for this configuration.',
-               ephemeral: true
-             });
-           }
-           validatedOption = option.toLowerCase();
-           break;
-         
-         case 'TIME':
-         case 'DELAYTIME':
-           const timeValue = parseInt(option);
-           if (isNaN(timeValue) || timeValue < 0) {
-             await connection.end();
-             return await interaction.reply({
-               content: '❌ Time value must be a positive number.',
-               ephemeral: true
-             });
-           }
-           validatedOption = timeValue;
-           break;
-         
-         case 'NAME':
-         case 'KITNAME':
-           if (option.length > 100) {
-             await connection.end();
-             return await interaction.reply({
-               content: '❌ Name must be 100 characters or less.',
-               ephemeral: true
-             });
-           }
-           break;
-
-         case 'COORDINATES':
-           // Validate coordinate format: "x,y,z"
-           const coordRegex = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
-           if (!coordRegex.test(option)) {
-             await connection.end();
-             return await interaction.reply({
-               content: '❌ Coordinates must be in format: "x,y,z" (e.g., "100.5,50.2,200.0")',
-               ephemeral: true
-             });
-           }
-           
-           // Parse coordinates
-           const coords = option.split(',').map(coord => parseFloat(coord.trim()));
-           if (coords.length !== 3) {
-             await connection.end();
-             return await interaction.reply({
-               content: '❌ Invalid coordinate format. Use: "x,y,z"',
-               ephemeral: true
-             });
-           }
-           
-           validatedOption = option; // Keep as string for display
-           break;
-       }
-
-      // Check if config exists
-      const [existingConfigs] = await connection.execute(
+      // Check if config exists, create if not
+      const [existingConfig] = await connection.execute(
         'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
         [server.id.toString(), teleport]
       );
 
-      if (existingConfigs.length === 0) {
-        // Create default config
+      if (existingConfig.length === 0) {
         await connection.execute(`
-          INSERT INTO teleport_configs (
-            server_id, teleport_name, position_x, position_y, position_z, 
-            enabled, cooldown_minutes, delay_minutes, display_name, 
-            use_list, use_delay, use_kit, kit_name, kill_before_teleport
-          ) VALUES (?, ?, 0, 0, 0, true, 60, 0, ?, false, false, false, NULL, false)
-        `, [server.id.toString(), teleport, `${teleport.toUpperCase()} Teleport`]);
+          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport, coordinates_x, coordinates_y, coordinates_z)
+          VALUES (?, ?, false, 60, 0, ?, false, false, false, '', false, 0, 0, 0)
+        `, [server.id.toString(), teleport, teleport.toUpperCase()]);
       }
 
-             // Update the config
-       let updateQuery = '';
-       let updateParams = [];
+      // Validate option based on config type
+      let validatedOption = option;
+      switch (configType) {
+        case 'USE':
+        case 'USELIST':
+        case 'USE-DELAY':
+        case 'USE-KIT':
+        case 'KILL':
+          if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for ${configType}. Use: on/off or true/false`,
+              ephemeral: true
+            });
+          }
+          validatedOption = option.toLowerCase();
+          break;
+        case 'TIME':
+        case 'DELAYTIME':
+          const timeValue = parseInt(option);
+          if (isNaN(timeValue) || timeValue < 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for ${configType}. Use a positive number (minutes)`,
+              ephemeral: true
+            });
+          }
+          validatedOption = timeValue;
+          break;
+        case 'NAME':
+        case 'KITNAME':
+          if (option.trim().length === 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for ${configType}. Name cannot be empty`,
+              ephemeral: true
+            });
+          }
+          validatedOption = option.trim();
+          break;
+        case 'COORDINATES':
+          const coords = option.split(',').map(coord => parseFloat(coord.trim()));
+          if (coords.length !== 3 || coords.some(isNaN)) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid coordinates format. Use: x,y,z (e.g., 100,50,200)`,
+              ephemeral: true
+            });
+          }
+          break;
+        default:
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ Unknown config type: ${configType}`,
+            ephemeral: true
+          });
+      }
 
-       switch (configType) {
-         case 'USE':
-           updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption === 'on', server.id.toString(), teleport];
-           break;
-         case 'TIME':
-           updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption, server.id.toString(), teleport];
-           break;
-         case 'DELAYTIME':
-           updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption, server.id.toString(), teleport];
-           break;
-         case 'NAME':
-           updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption, server.id.toString(), teleport];
-           break;
-         case 'USELIST':
-           updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption === 'on', server.id.toString(), teleport];
-           break;
-         case 'USE-DELAY':
-           updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption === 'on', server.id.toString(), teleport];
-           break;
-         case 'USE-KIT':
-           updateQuery = 'UPDATE teleport_configs SET use_kit = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption === 'on', server.id.toString(), teleport];
-           break;
-         case 'KITNAME':
-           updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption, server.id.toString(), teleport];
-           break;
-         case 'KILL':
-           updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [validatedOption === 'on', server.id.toString(), teleport];
-           break;
-         case 'COORDINATES':
-           const coords = option.split(',').map(coord => parseFloat(coord.trim()));
-           updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
-           updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
-           break;
-       }
+      // Update the config
+      let updateQuery = '';
+      let updateParams = [];
+
+      switch (configType) {
+        case 'USE':
+          updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          break;
+        case 'TIME':
+          updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
+          break;
+        case 'DELAYTIME':
+          updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
+          break;
+        case 'NAME':
+          updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
+          break;
+        case 'USELIST':
+          updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          break;
+        case 'USE-DELAY':
+          updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          break;
+        case 'USE-KIT':
+          updateQuery = 'UPDATE teleport_configs SET use_kit = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          break;
+        case 'KITNAME':
+          updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
+          break;
+        case 'KILL':
+          updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          break;
+        case 'COORDINATES':
+          updateQuery = 'UPDATE teleport_configs SET coordinates_x = ?, coordinates_y = ?, coordinates_z = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
+          break;
+      }
 
       await connection.execute(updateQuery, updateParams);
+      await connection.end();
 
-             // Create success message
-       let successMessage = `✅ **${config}** set to **${validatedOption}** for **${teleport.toUpperCase()}** on **${server.nickname}**`;
-       
-       if (configType === 'COORDINATES') {
-         const coords = option.split(',').map(coord => parseFloat(coord.trim()));
-         successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** for **${teleport.toUpperCase()}** on **${server.nickname}**`;
-       }
+      // Create success message
+      let successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
+      if (configType === 'COORDINATES') {
+        successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** on **${server.nickname}**`;
+      }
 
       await interaction.reply({
         content: successMessage,
         ephemeral: true
       });
 
-      await connection.end();
-
     } catch (error) {
       console.error('Error in set command:', error);
       await interaction.reply({
-        content: `❌ Error: ${error.message}`,
+        content: `❌ An error occurred while setting the configuration: ${error.message}`,
         ephemeral: true
       });
     }
