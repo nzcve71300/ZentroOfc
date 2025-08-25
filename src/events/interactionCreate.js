@@ -1165,6 +1165,31 @@ async function handleLinkConfirm(interaction) {
 
     const serverList = linkedServers.join(', ');
     
+    // Create ZentroLinked role if it doesn't exist and assign it to the user
+    try {
+      const guild = interaction.guild;
+      let zentroLinkedRole = guild.roles.cache.find(role => role.name === 'ZentroLinked');
+      
+      if (!zentroLinkedRole) {
+        console.log(`[ROLE] Creating ZentroLinked role for guild: ${guild.name}`);
+        zentroLinkedRole = await guild.roles.create({
+          name: 'ZentroLinked',
+          color: '#00ff00', // Green color
+          reason: 'Auto-created role for linked players'
+        });
+        console.log(`[ROLE] Successfully created ZentroLinked role with ID: ${zentroLinkedRole.id}`);
+      }
+      
+      // Assign the role to the user
+      const member = interaction.member;
+      if (member && !member.roles.cache.has(zentroLinkedRole.id)) {
+        await member.roles.add(zentroLinkedRole);
+        console.log(`[ROLE] Assigned ZentroLinked role to user: ${member.user.username}`);
+      }
+    } catch (roleError) {
+      console.log('Could not create/assign ZentroLinked role:', roleError.message);
+    }
+    
     // Set Discord nickname after successful linking
     try {
       const member = interaction.member;
