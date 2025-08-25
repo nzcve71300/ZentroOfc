@@ -36,34 +36,33 @@ module.exports = {
       let playerInfo = [];
       
       if (isDiscordId) {
-        // ✅ Unlink by Discord ID - MARK AS INACTIVE (not delete)
+        // ✅ Unlink by Discord ID - MARK AS INACTIVE (not delete) - UNIVERSAL
         const [players] = await pool.query(
-          `SELECT p.*, rs.nickname 
+          `SELECT p.*, rs.nickname, g.name as guild_name
            FROM players p
            JOIN rust_servers rs ON p.server_id = rs.id
-           WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND p.discord_id = ? 
+           JOIN guilds g ON p.guild_id = g.id
+           WHERE p.discord_id = ? 
            AND p.is_active = true`,
-          [guildId, normalizedDiscordId]
+          [normalizedDiscordId]
         );
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${identifier}**.\n\nMake sure you're using the correct Discord ID.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${identifier}** across all servers.\n\nMake sure you're using the correct Discord ID.`)]
           });
         }
         
         // Store player info before deactivation
-        playerInfo = players.map(p => `${p.ign} (${p.nickname})`);
+        playerInfo = players.map(p => `${p.ign} (${p.nickname} - ${p.guild_name})`);
         
-        // ✅ Mark all player records as inactive for this Discord ID
+        // ✅ Mark all player records as inactive for this Discord ID - UNIVERSAL
         const [updateResult] = await pool.query(
           `UPDATE players 
            SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
-           WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND discord_id = ? 
+           WHERE discord_id = ? 
            AND is_active = true`,
-          [guildId, normalizedDiscordId]
+          [normalizedDiscordId]
         );
         
         result = { rowCount: updateResult.affectedRows };
@@ -71,37 +70,54 @@ module.exports = {
         // ✅ NORMALIZE IGN: use utility function for proper handling
         const normalizedIgn = normalizeIgnForComparison(identifier);
         
-        // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive
+        // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive - UNIVERSAL
         const [players] = await pool.query(
-          `SELECT p.*, rs.nickname 
+          `SELECT p.*, rs.nickname, g.name as guild_name
            FROM players p
            JOIN rust_servers rs ON p.server_id = rs.id
-           WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND LOWER(p.ign) = LOWER(?) 
+           JOIN guilds g ON p.guild_id = g.id
+           WHERE LOWER(p.ign) = LOWER(?) 
            AND p.is_active = true`,
-          [guildId, normalizedIgn]
+          [normalizedIgn]
         );
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No active players found with in-game name **${identifier}**.\n\nMake sure you're using the correct in-game name.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with in-game name **${identifier}** across all servers.\n\nMake sure you're using the correct in-game name.`)]
           });
         }
         
         // Store player info before deactivation
-        playerInfo = players.map(p => `${p.ign} (${p.nickname})`);
+        playerInfo = players.map(p => `${p.ign} (${p.nickname} - ${p.guild_name})`);
         
-        // ✅ Mark all player records as inactive for this IGN (case-insensitive)
+        // ✅ Mark all player records as inactive for this IGN (case-insensitive) - UNIVERSAL
         const [updateResult] = await pool.query(
           `UPDATE players 
            SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
-           WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND LOWER(ign) = LOWER(?) 
+           WHERE LOWER(ign) = LOWER(?) 
            AND is_active = true`,
-          [guildId, normalizedIgn]
+          [normalizedIgn]
         );
         
         result = { rowCount: updateResult.affectedRows };
+      }
+
+      // Remove ZentroLinked role from the user if they were unlinked by Discord ID
+      if (isDiscordId) {
+        try {
+          const guild = interaction.guild;
+          const zentroLinkedRole = guild.roles.cache.find(role => role.name === 'ZentroLinked');
+          
+          if (zentroLinkedRole) {
+            const member = await guild.members.fetch(normalizedDiscordId);
+            if (member && member.roles.cache.has(zentroLinkedRole.id)) {
+              await member.roles.remove(zentroLinkedRole);
+              console.log(`[ROLE] Removed ZentroLinked role from user: ${member.user.username}`);
+            }
+          }
+        } catch (roleError) {
+          console.log('Could not remove ZentroLinked role:', roleError.message);
+        }
       }
 
       const playerList = playerInfo.join(', ');
