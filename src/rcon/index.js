@@ -416,6 +416,20 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         const player = extractPlayerName(msg);
         console.log(`[TELEPORT] Teleport emote detected for player: ${player}`);
         if (player) {
+          // Get server ID
+          const [serverResult] = await pool.query(
+            'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+            [guildId, serverName]
+          );
+          
+          if (serverResult.length === 0) {
+            console.log(`[TELEPORT] No server found for ${serverName} in guild ${guildId}`);
+            return;
+          }
+          
+          const serverId = serverResult[0].id;
+          console.log(`[TELEPORT] Server ID: ${serverId} for ${serverName}`);
+          
           await handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player);
         }
       }
