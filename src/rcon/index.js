@@ -28,6 +28,14 @@ const KIT_EMOTES = {
   ELITEkit11: 'd11_quick_chat_i_have_phrase_format d11_Water',
   ELITEkit12: 'd11_quick_chat_i_have_phrase_format bow.hunting',
   ELITEkit13: 'd11_quick_chat_i_have_phrase_format pickaxe',
+  ELITEkit14: 'd11_quick_chat_activities_phrase_format d11_Metal_Fragments',
+  ELITEkit15: 'd11_quick_chat_activities_phrase_format d11_Medicine',
+  ELITEkit16: 'd11_quick_chat_activities_phrase_format d11_Stone',
+  ELITEkit17: 'd11_quick_chat_activities_phrase_format d11_Wood',
+  ELITEkit18: 'd11_quick_chat_activities_phrase_format d11_Metal',
+  ELITEkit19: 'd11_quick_chat_activities_phrase_format d11_Food',
+  ELITEkit20: 'd11_quick_chat_activities_phrase_format d11_Water',
+  ELITEkit21: 'd11_quick_chat_activities_phrase_format d11_Scrap',
 };
 
 // Teleport emote mappings

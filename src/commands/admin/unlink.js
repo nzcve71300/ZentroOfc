@@ -54,36 +54,36 @@ module.exports = {
       let queryParams = [];
 
       if (isDiscordId) {
-        // Search by Discord ID
+        // Search by Discord ID - only current guild
         [players] = await pool.query(`
           SELECT p.*, rs.nickname, g.name as guild_name
           FROM players p
           JOIN rust_servers rs ON p.server_id = rs.id
           JOIN guilds g ON p.guild_id = g.id
-          WHERE p.discord_id = ? AND p.is_active = true
-        `, [searchTerm]);
+          WHERE p.discord_id = ? AND p.is_active = true AND g.discord_id = ?
+        `, [searchTerm, interaction.guildId]);
         
-        updateQuery = 'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP WHERE discord_id = ? AND is_active = true';
-        queryParams = [searchTerm];
+        updateQuery = 'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP WHERE discord_id = ? AND is_active = true AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)';
+        queryParams = [searchTerm, interaction.guildId];
       } else {
-        // Search by in-game name
+        // Search by in-game name - only current guild
         [players] = await pool.query(`
           SELECT p.*, rs.nickname, g.name as guild_name
           FROM players p
           JOIN rust_servers rs ON p.server_id = rs.id
           JOIN guilds g ON p.guild_id = g.id
-          WHERE LOWER(p.ign) = LOWER(?) AND p.is_active = true
-        `, [searchTerm]);
+          WHERE LOWER(p.ign) = LOWER(?) AND p.is_active = true AND g.discord_id = ?
+        `, [searchTerm, interaction.guildId]);
         
-        updateQuery = 'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP WHERE LOWER(ign) = LOWER(?) AND is_active = true';
-        queryParams = [searchTerm];
+        updateQuery = 'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP WHERE LOWER(ign) = LOWER(?) AND is_active = true AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)';
+        queryParams = [searchTerm, interaction.guildId];
       }
 
       // Check if any players found
       if (players.length === 0) {
         const searchType = isDiscordId ? 'Discord ID' : 'in-game name';
         return await interaction.editReply({
-          embeds: [errorEmbed('No Players Found', `❌ No active players found with ${searchType} **${searchTerm}** across all servers.`)]
+          embeds: [errorEmbed('No Players Found', `❌ No active players found with ${searchType} **${searchTerm}** on this server.`)]
         });
       }
 
@@ -112,12 +112,16 @@ module.exports = {
       
       const embed = successEmbed(
         'Players Unlinked', 
+<<<<<<< HEAD
         `✅ Successfully unlinked **${updateResult.affectedRows} player(s)** for **${searchTerm}**.
 
 **Unlinked players:**
 ${playerList}
 
 **Note:** Players have been marked as inactive and can now link again with new names.`
+=======
+        `✅ Successfully unlinked **${updateResult.affectedRows} player(s)** for **${searchTerm}** on this server.\n\n**Unlinked players:**\n${playerList}\n\n**Note:** Players have been marked as inactive and can now link again with new names.`
+>>>>>>> 0a0b1925a4b4b49ea0ab6c73ed7cdc7a6955bca2
       );
 
       await interaction.editReply({ embeds: [embed] });
