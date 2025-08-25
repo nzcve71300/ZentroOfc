@@ -23,6 +23,8 @@ module.exports = {
           { name: 'Starting Balance', value: 'starting_balance' },
           { name: 'Playerkills Amount', value: 'playerkills_amount' },
           { name: 'Misckills Amount', value: 'misckills_amount' },
+          { name: 'Bounty System On/Off', value: 'bounty_toggle' },
+          { name: 'Bounty Rewards', value: 'bounty_rewards' },
           { name: 'Blackjack Min Bet', value: 'blackjack_min' },
           { name: 'Blackjack Max Bet', value: 'blackjack_max' },
           { name: 'Coinflip Min Bet', value: 'coinflip_min' },
@@ -156,6 +158,41 @@ module.exports = {
           value = `${misckillsAmount} ${currencyName}`;
           break;
 
+        case 'bounty_toggle':
+          const bountyEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          settingValue = bountyEnabled ? 'true' : 'false';
+          message = `Bounty system has been ${bountyEnabled ? 'enabled' : 'disabled'} on ${serverName}.`;
+          value = bountyEnabled ? '🟢 Enabled' : '🔴 Disabled';
+          
+          // Also update the bounty_configs table
+          await pool.query(
+            `INSERT INTO bounty_configs (server_id, enabled) 
+             VALUES (?, ?) 
+             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
+            [serverId, bountyEnabled]
+          );
+          break;
+
+        case 'bounty_rewards':
+          const bountyRewardAmount = parseInt(option);
+          if (isNaN(bountyRewardAmount) || bountyRewardAmount < 0) {
+            return interaction.editReply({
+              embeds: [errorEmbed('Invalid Amount', 'Bounty reward amount must be a positive number.')]
+            });
+          }
+          settingValue = bountyRewardAmount.toString();
+          message = `Bounty reward has been set to ${bountyRewardAmount} ${currencyName} on ${serverName}.`;
+          value = `${bountyRewardAmount} ${currencyName}`;
+          
+          // Also update the bounty_configs table
+          await pool.query(
+            `INSERT INTO bounty_configs (server_id, reward_amount) 
+             VALUES (?, ?) 
+             ON DUPLICATE KEY UPDATE reward_amount = VALUES(reward_amount)`,
+            [serverId, bountyRewardAmount]
+          );
+          break;
+
                  case 'blackjack_min':
          case 'blackjack_max':
          case 'coinflip_min':
@@ -200,7 +237,7 @@ module.exports = {
 
       embed.addFields({
         name: '💡 Available Settings',
-        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Starting Balance\n• Playerkills Amount\n• Misckills Amount\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
+        value: '• Blackjack On/Off\n• Coinflip On/Off\n• Daily Rewards Amount\n• Starting Balance\n• Playerkills Amount\n• Misckills Amount\n• Bounty System On/Off\n• Bounty Rewards\n• Blackjack Min/Max Bet\n• Coinflip Min/Max Bet',
         inline: false
       });
 
