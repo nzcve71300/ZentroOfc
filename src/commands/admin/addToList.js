@@ -98,7 +98,7 @@ module.exports = {
           discord_id = VALUES(discord_id),
           ign = VALUES(ign),
           added_by = VALUES(added_by)
-        `, [serverId, discordId, ign, interaction.user.id]);
+        `, [serverId.toString(), discordId, ign, interaction.user.id]);
 
         await interaction.reply({
           content: `✅ **${playerName}** added to **TPN-LIST** for **${serverName || 'current server'}**`,
@@ -112,7 +112,7 @@ module.exports = {
           discord_id = VALUES(discord_id),
           ign = VALUES(ign),
           banned_by = VALUES(banned_by)
-        `, [serverId, discordId, ign, interaction.user.id]);
+        `, [serverId.toString(), discordId, ign, interaction.user.id]);
 
         await interaction.reply({
           content: `✅ **${playerName}** added to **TPN-BANLIST** for **${serverName || 'current server'}**`,

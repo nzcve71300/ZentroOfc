@@ -124,7 +124,7 @@ module.exports = {
         INSERT INTO teleport_configs (server_id, teleport_name, ${config.toLowerCase()})
         VALUES (?, 'default', ?)
         ON DUPLICATE KEY UPDATE ${config.toLowerCase()} = VALUES(${config.toLowerCase()})
-      `, [serverId, validatedOption]);
+      `, [serverId.toString(), validatedOption]);
 
       await connection.end();
 

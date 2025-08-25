@@ -39,7 +39,7 @@ class TeleportSystem {
       const [players] = await connection.execute(`
         SELECT discord_id, ign FROM players 
         WHERE ign = ? AND server_id = ?
-      `, [playerName, serverId]);
+      `, [playerName, serverId.toString()]);
 
       if (players.length === 0) {
         await connection.end();
@@ -55,7 +55,7 @@ class TeleportSystem {
           SELECT * FROM teleport_banned_users 
           WHERE server_id = ? AND teleport_name = 'default' 
           AND (discord_id = ? OR ign = ?)
-        `, [serverId, discordId, playerName]);
+        `, [serverId.toString(), discordId, playerName]);
 
         if (banned.length > 0) {
           await connection.end();
@@ -67,7 +67,7 @@ class TeleportSystem {
           SELECT * FROM teleport_allowed_users 
           WHERE server_id = ? AND teleport_name = 'default' 
           AND (discord_id = ? OR ign = ?)
-        `, [serverId, discordId, playerName]);
+        `, [serverId.toString(), discordId, playerName]);
 
         if (allowed.length === 0) {
           await connection.end();
@@ -80,7 +80,7 @@ class TeleportSystem {
         SELECT used_at FROM teleport_usage 
         WHERE server_id = ? AND teleport_name = 'default' AND discord_id = ?
         ORDER BY used_at DESC LIMIT 1
-      `, [serverId, discordId]);
+      `, [serverId.toString(), discordId]);
 
       if (lastUsage.length > 0) {
         const lastUsed = new Date(lastUsage[0].used_at);
@@ -101,7 +101,7 @@ class TeleportSystem {
       await connection.execute(`
         INSERT INTO teleport_usage (server_id, teleport_name, discord_id, ign)
         VALUES (?, 'default', ?, ?)
-      `, [serverId, discordId, playerName]);
+      `, [serverId.toString(), discordId, playerName]);
 
       await connection.end();
 
