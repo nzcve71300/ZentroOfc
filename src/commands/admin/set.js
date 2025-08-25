@@ -223,13 +223,22 @@ module.exports = {
       await connection.execute(updateQuery, updateParams);
       
       // Verify the update worked
+      let verifyField = 'enabled';
+      if (configType === 'USE-KIT') verifyField = 'use_kit';
+      else if (configType === 'USELIST') verifyField = 'use_list';
+      else if (configType === 'USE-DELAY') verifyField = 'use_delay';
+      else if (configType === 'TIME') verifyField = 'cooldown_minutes';
+      else if (configType === 'DELAYTIME') verifyField = 'delay_minutes';
+      else if (configType === 'NAME') verifyField = 'display_name';
+      else if (configType === 'KITNAME') verifyField = 'kit_name';
+      
       const [verifyResult] = await connection.execute(
-        'SELECT use_kit FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+        `SELECT ${verifyField} FROM teleport_configs WHERE server_id = ? AND teleport_name = ?`,
         [server.id.toString(), teleport]
       );
       
       if (verifyResult.length > 0) {
-        console.log(`[SET COMMAND DEBUG] Verification - use_kit after update: ${verifyResult[0].use_kit}`);
+        console.log(`[SET COMMAND DEBUG] Verification - ${verifyField} after update: ${verifyResult[0][verifyField]}`);
       }
       
       await connection.end();
