@@ -100,95 +100,18 @@ module.exports = {
             [guildId, interaction.guild?.name || 'Unknown Guild']
           );
 
-          // Check if this exact link already exists
-          const [existingExactLink] = await pool.query(
-            'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND LOWER(ign) = LOWER(?)',
-            [guildId, server.id, discordId, playerName]
-          );
-
-          if (existingExactLink.length > 0) {
-            const existing = existingExactLink[0];
-            if (existing.is_active) {
-              // Already linked - skip
-              console.log(`Player already linked: ${playerName} on ${server.nickname}`);
-              linkedServers.push(server.nickname);
-              continue;
-            } else {
-              // Reactivate inactive player
-              await pool.query(
-                'UPDATE players SET linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-                [existing.id]
-              );
-              
-              // Ensure economy record exists
-              await pool.query(
-                'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
-                [existing.id, guildId]
-              );
-              
-              linkedServers.push(server.nickname);
-              continue;
-            }
-          }
-
-          // Check if there's an inactive record with the same IGN but no discord_id
-          const [inactiveRecord] = await pool.query(
-            'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND discord_id IS NULL AND is_active = false',
-            [guildId, server.id, playerName]
-          );
-
-          if (inactiveRecord.length > 0) {
-            // Reactivate the inactive record and set the discord_id
-            await pool.query(
-              'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-              [discordId, inactiveRecord[0].id]
-            );
-            
-            // Ensure economy record exists
-            await pool.query(
-              'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
-              [inactiveRecord[0].id, guildId]
-            );
-            
-            linkedServers.push(server.nickname);
-            continue;
-          }
-
-          // Check if IGN is already linked to a different Discord ID
-          const [existingIgnLink] = await pool.query(
-            'SELECT id, discord_id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
-            [guildId, server.id, playerName]
-          );
-
-          if (existingIgnLink.length > 0) {
-            const existing = existingIgnLink[0];
-            if (!compareDiscordIds(existing.discord_id, discordId)) {
-              // Force unlink the existing player
-              await pool.query(
-                'DELETE FROM players WHERE id = ?',
-                [existing.id]
-              );
-              console.log(`Force unlinked existing player ${playerName} on ${server.nickname}`);
-            }
-          }
-
-          // Check if Discord ID is already linked to a different IGN
-          const [existingDiscordLink] = await pool.query(
-            'SELECT id, ign FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND is_active = true',
+          // First, delete any existing records that would conflict with the unique constraint
+          // Delete records with the same Discord ID on this server
+          await pool.query(
+            'DELETE FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ?',
             [guildId, server.id, discordId]
           );
 
-          if (existingDiscordLink.length > 0) {
-            const existing = existingDiscordLink[0];
-            if (existing.ign.toLowerCase() !== playerName.toLowerCase()) {
-              // Force unlink the existing player
-              await pool.query(
-                'DELETE FROM players WHERE id = ?',
-                [existing.id]
-              );
-              console.log(`Force unlinked existing player ${existing.ign} on ${server.nickname}`);
-            }
-          }
+          // Delete records with the same IGN on this server
+          await pool.query(
+            'DELETE FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?)',
+            [guildId, server.id, playerName]
+          );
 
           // Insert new player
           const [playerResult] = await pool.query(
@@ -198,7 +121,7 @@ module.exports = {
           
           // Create economy record
           await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0)',
+            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT id FROM guilds WHERE discord_id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
             [playerResult.insertId, guildId]
           );
           
