@@ -98,6 +98,10 @@ const eventDetectionCooldowns = new Map(); // Track cooldowns per server to prev
 const EVENT_DETECTION_COOLDOWN = 30000; // 30 seconds cooldown between checks per server
 const EVENT_POLLING_INTERVAL = 30000; // Check every 30 seconds instead of 60
 
+// Bounty system tracking
+const bountyTracking = new Map(); // serverId -> Map of playerName -> killStreak
+const activeBounties = new Map(); // serverId -> current bounty player name
+
 // Helper function to calculate 3D distance between two points
 function calculateDistance(x1, y1, z1, x2, y2, z2) {
   return Math.sqrt(
@@ -512,16 +516,20 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
           
           sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for the kill!</color>`);
         }
-              } else if (killData.isScientistKill) {
-          const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
-          if (rewardResult && rewardResult.reward > 0) {
-            // Get currency name for this server
-            const { getCurrencyName } = require('../utils/economy');
-            const currencyName = await getCurrencyName(serverId);
-            
-            sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for killing a scientist!</color>`);
-          }
+        
+        // Handle bounty system for player kills only
+        await handleBountySystem(guildId, serverName, killData.killer, killData.victim, ip, port, password);
+        
+      } else if (killData.isScientistKill) {
+        const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
+        if (rewardResult && rewardResult.reward > 0) {
+          // Get currency name for this server
+          const { getCurrencyName } = require('../utils/economy');
+          const currencyName = await getCurrencyName(serverId);
+          
+          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for killing a scientist!</color>`);
         }
+      }
     } else {
       // Killfeed is disabled - only process stats and rewards without sending messages
       // Extract killer and victim for stats processing
@@ -544,6 +552,10 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
             
             sendRconCommand(ip, port, password, `say <color=#FFD700>${killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for the kill!</color>`);
           }
+          
+          // Handle bounty system for player kills only
+          await handleBountySystem(guildId, serverName, killer, victim, ip, port, password);
+          
         } else if (isScientistKill) {
           const rewardResult = await handleKillRewards(guildId, serverName, killer, victim, true);
           if (rewardResult && rewardResult.reward > 0) {
@@ -692,6 +704,225 @@ async function handleKillRewards(guildId, serverName, killer, victim, isScientis
   } catch (error) {
     console.error('Error handling kill rewards:', error);
     return { reward: 0, playerId: null };
+  }
+}
+
+async function handleBountySystem(guildId, serverName, killer, victim, ip, port, password) {
+  try {
+    // Only process player kills for bounty system
+    if (!killer || !victim) return;
+    
+    const sanitizedKiller = killer.replace(/\0/g, '').trim();
+    const sanitizedVictim = victim.replace(/\0/g, '').trim();
+    
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) return;
+    
+    const serverId = serverResult[0].id;
+    
+    // Check if bounty system is enabled
+    const [bountyConfig] = await pool.query(
+      'SELECT enabled, reward_amount, kills_required FROM bounty_configs WHERE server_id = ?',
+      [serverId]
+    );
+    
+    if (bountyConfig.length === 0 || !bountyConfig[0].enabled) {
+      return; // Bounty system is disabled
+    }
+    
+    const config = bountyConfig[0];
+    const killsRequired = config.kills_required || 5;
+    
+    // Check if victim was the current bounty
+    const currentBounty = activeBounties.get(serverId);
+    if (currentBounty === sanitizedVictim) {
+      // Bounty was claimed!
+      await handleBountyClaimed(guildId, serverName, sanitizedKiller, sanitizedVictim, serverId, config.reward_amount, ip, port, password);
+      return;
+    }
+    
+    // Update killer's kill streak
+    await updateKillStreak(serverId, sanitizedKiller, killsRequired, ip, port, password);
+    
+    // Reset victim's kill streak (they died)
+    await resetKillStreak(serverId, sanitizedVictim);
+    
+  } catch (error) {
+    console.error('Error handling bounty system:', error);
+  }
+}
+
+async function updateKillStreak(serverId, playerName, killsRequired, ip, port, password) {
+  try {
+    // Get or create bounty tracking record
+    const [trackingResult] = await pool.query(
+      'SELECT * FROM bounty_tracking WHERE server_id = ? AND player_name = ?',
+      [serverId, playerName]
+    );
+    
+    let currentStreak = 0;
+    let playerId = null;
+    
+    if (trackingResult.length > 0) {
+      currentStreak = trackingResult[0].kill_streak || 0;
+      playerId = trackingResult[0].player_id;
+    } else {
+      // Create new tracking record
+      const [playerResult] = await pool.query(
+        'SELECT id FROM players WHERE server_id = ? AND ign = ?',
+        [serverId, playerName]
+      );
+      
+      if (playerResult.length > 0) {
+        playerId = playerResult[0].id;
+      }
+      
+      await pool.query(
+        'INSERT INTO bounty_tracking (server_id, player_name, player_id, kill_streak) VALUES (?, ?, ?, 1)',
+        [serverId, playerName, playerId]
+      );
+      currentStreak = 1;
+    }
+    
+    // Update kill streak
+    const newStreak = currentStreak + 1;
+    await pool.query(
+      'UPDATE bounty_tracking SET kill_streak = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND player_name = ?',
+      [newStreak, serverId, playerName]
+    );
+    
+    // Check if player should become bounty
+    if (newStreak >= killsRequired) {
+      const currentBounty = activeBounties.get(serverId);
+      
+      // Only set new bounty if there isn't one already
+      if (!currentBounty) {
+        await setNewBounty(serverId, playerName, ip, port, password);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error updating kill streak:', error);
+  }
+}
+
+async function resetKillStreak(serverId, playerName) {
+  try {
+    await pool.query(
+      'UPDATE bounty_tracking SET kill_streak = 0, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND player_name = ?',
+      [serverId, playerName]
+    );
+  } catch (error) {
+    console.error('Error resetting kill streak:', error);
+  }
+}
+
+async function setNewBounty(serverId, playerName, ip, port, password) {
+  try {
+    // Get bounty configuration
+    const [bountyConfig] = await pool.query(
+      'SELECT reward_amount FROM bounty_configs WHERE server_id = ?',
+      [serverId]
+    );
+    
+    if (bountyConfig.length === 0) return;
+    
+    const rewardAmount = bountyConfig[0].reward_amount || 100;
+    
+    // Get currency name
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(serverId);
+    
+    // Set as active bounty
+    activeBounties.set(serverId, playerName);
+    
+    // Update database
+    await pool.query(
+      'UPDATE bounty_tracking SET is_active_bounty = TRUE, bounty_created_at = CURRENT_TIMESTAMP WHERE server_id = ? AND player_name = ?',
+      [serverId, playerName]
+    );
+    
+    // Send bounty announcement with specified colors and size
+    const bountyMessage = `[BOUNTY] Eliminate the Bounty <color=#8B0000>${playerName}</color> reward =<color=#8B0000>${rewardAmount} ${currencyName}</color>`;
+    sendRconCommand(ip, port, password, `say <size=35>${bountyMessage}</size>`);
+    
+    console.log(`🎯 New bounty set: ${playerName} on server ${serverId} for ${rewardAmount} ${currencyName}`);
+    
+  } catch (error) {
+    console.error('Error setting new bounty:', error);
+  }
+}
+
+async function handleBountyClaimed(guildId, serverName, killer, victim, serverId, rewardAmount, ip, port, password) {
+  try {
+    // Get currency name
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(serverId);
+    
+    // Find killer's player record
+    const [playerResult] = await pool.query(
+      'SELECT id, discord_id FROM players WHERE server_id = ? AND ign = ?',
+      [serverId, killer]
+    );
+    
+    if (playerResult.length === 0) {
+      console.log(`💰 Bounty claimed by ${killer} but player not found in database`);
+      return;
+    }
+    
+    const playerId = playerResult[0].id;
+    const discordId = playerResult[0].discord_id;
+    
+    // Check if player is Discord linked
+    if (!discordId) {
+      console.log(`💰 Bounty claimed by ${killer} but player not Discord linked`);
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${killer}</color> <color=white>claimed the bounty but needs to link Discord to receive reward</color>`);
+      return;
+    }
+    
+    // Get guild_id for the transaction
+    const [guildResult] = await pool.query(
+      'SELECT guild_id FROM rust_servers WHERE id = ?',
+      [serverId]
+    );
+    
+    if (guildResult.length === 0) return;
+    
+    const guildIdForTransaction = guildResult[0].guild_id;
+    
+    // Update player balance
+    await pool.query(
+      'UPDATE economy SET balance = balance + ? WHERE player_id = ?',
+      [rewardAmount, playerId]
+    );
+    
+    // Record transaction
+    await pool.query(
+      'INSERT INTO transactions (player_id, amount, type, guild_id) VALUES (?, ?, ?, ?)',
+      [playerId, rewardAmount, 'bounty_reward', guildIdForTransaction]
+    );
+    
+    // Update bounty tracking
+    await pool.query(
+      'UPDATE bounty_tracking SET is_active_bounty = FALSE, bounty_claimed_at = CURRENT_TIMESTAMP, claimed_by = ? WHERE server_id = ? AND player_name = ?',
+      [killer, serverId, victim]
+    );
+    
+    // Clear active bounty
+    activeBounties.delete(serverId);
+    
+    // Send success message
+    sendRconCommand(ip, port, password, `say <color=#FFD700>[BOUNTY]</color> <color=#8B0000>${killer}</color> <color=white>eliminated the bounty and earned</color> <color=#8B0000>${rewardAmount} ${currencyName}</color>`);
+    
+    console.log(`💰 Bounty claimed: ${killer} earned ${rewardAmount} ${currencyName} for killing ${victim}`);
+    
+  } catch (error) {
+    console.error('Error handling bounty claim:', error);
   }
 }
 
