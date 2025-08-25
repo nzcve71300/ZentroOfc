@@ -28,7 +28,12 @@ module.exports = {
 
     const guildId = interaction.guildId;
     const discordUser = interaction.options.getUser('discord_user');
+<<<<<<< Updated upstream
     const discordId = discordUser.id.toString(); // Ensure string format
+=======
+    const discordId = discordId.toString(); // Ensure string format
+    // ✅ NORMALIZE IGN: trim and lowercase to match link command
+>>>>>>> Stashed changes
     const playerName = normalizeIgnForComparison(interaction.options.getString('ign'));
 
     // Validate inputs
@@ -86,7 +91,11 @@ module.exports = {
 
       if (existingIgnLinks.length > 0) {
         const existingDiscordId = existingIgnLinks[0].discord_id;
+<<<<<<< Updated upstream
         if (!compareDiscordIds(existingDiscordId, discordId)) {
+=======
+        if (existingDiscordId !== discordId) {
+>>>>>>> Stashed changes
           warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${existingIgnLinks.map(p => p.nickname).join(', ')}`);
         }
       }
@@ -162,7 +171,11 @@ module.exports = {
 
           if (existingIgnLink.length > 0) {
             const existing = existingIgnLink[0];
+<<<<<<< Updated upstream
             if (!compareDiscordIds(existing.discord_id, discordId)) {
+=======
+            if (existing.discord_id !== discordId) {
+>>>>>>> Stashed changes
               // Force unlink the existing player
               await pool.query(
                 'DELETE FROM players WHERE id = ?',

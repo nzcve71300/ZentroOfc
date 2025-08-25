@@ -49,7 +49,7 @@ module.exports = {
         
         if (players.length === 0) {
           return await interaction.editReply({
-            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${identifier}**.\n\nMake sure you're using the correct Discord ID.`)]
+            embeds: [errorEmbed('No Players Found', `❌ No active players found with Discord ID **${normalizedDiscordId}**.\n\nMake sure you're using the correct Discord ID.`)]
           });
         }
         
@@ -68,7 +68,11 @@ module.exports = {
         
         result = { rowCount: updateResult.affectedRows };
       } else {
+<<<<<<< Updated upstream
         // ✅ NORMALIZE IGN: use utility function for proper handling
+=======
+        // ✅ NORMALIZE IGN: trim and lowercase to match link command
+>>>>>>> Stashed changes
         const normalizedIgn = normalizeIgnForComparison(identifier);
         
         // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive

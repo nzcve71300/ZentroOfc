@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
+const { normalizeDiscordId, compareDiscordIds } = require('../../utils/linking');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -88,7 +89,7 @@ module.exports = {
         console.log(`[LINK DEBUG] Found ${activeIgnLinks.length} active records for IGN ${ign}`);
         
         // Check if it's the same user trying to link the same IGN (should be allowed)
-        const sameUserLink = activeIgnLinks.find(link => link.discord_id === discordId);
+        const sameUserLink = activeIgnLinks.find(link => compareDiscordIds(link.discord_id, discordId));
         
         if (sameUserLink) {
           console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);

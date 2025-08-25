@@ -401,3 +401,175 @@ module.exports = {
   unblockIgn,
   getServersForGuild
 }; 
+/**
+ * Case-insensitive IGN search that handles all edge cases
+ */
+async function findPlayerByIgnCaseInsensitive(guildId, ign) {
+  const normalizedIgn = ign.trim();
+  
+  // Try exact match first
+  let [exactMatches] = await pool.query(
+    `SELECT p.*, rs.nickname 
+     FROM players p
+     JOIN rust_servers rs ON p.server_id = rs.id
+     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND p.ign = ? 
+     AND p.is_active = true`,
+    [guildId, normalizedIgn]
+  );
+  
+  if (exactMatches.length > 0) {
+    return exactMatches;
+  }
+  
+  // Try case-insensitive match
+  const [caseInsensitiveMatches] = await pool.query(
+    `SELECT p.*, rs.nickname 
+     FROM players p
+     JOIN rust_servers rs ON p.server_id = rs.id
+     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND LOWER(p.ign) = LOWER(?) 
+     AND p.is_active = true`,
+    [guildId, normalizedIgn]
+  );
+  
+  return caseInsensitiveMatches;
+}
+
+module.exports = {
+  ...module.exports,
+  findPlayerByIgnCaseInsensitive
+};
+
+
+/**
+ * 🛡️ FUTURE-PROOF IGN HANDLING: Handles ALL types of weird names
+ * This function normalizes IGNs for comparison while preserving original case
+ */
+function normalizeIgnForComparison(ign) {
+  if (!ign) return '';
+  
+  // Only trim spaces, preserve everything else
+  return ign.trim();
+}
+
+/**
+ * 🔍 ROBUST IGN SEARCH: Finds players by IGN with comprehensive edge case handling
+ */
+async function findPlayerByIgnRobust(guildId, ign) {
+  const normalizedIgn = normalizeIgnForComparison(ign);
+  
+  if (!normalizedIgn) {
+    return [];
+  }
+  
+  // Try exact match first (case-sensitive)
+  let [exactMatches] = await pool.query(
+    `SELECT p.*, rs.nickname 
+     FROM players p
+     JOIN rust_servers rs ON p.server_id = rs.id
+     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND p.ign = ? 
+     AND p.is_active = true`,
+    [guildId, normalizedIgn]
+  );
+  
+  if (exactMatches.length > 0) {
+    return exactMatches;
+  }
+  
+  // Try case-insensitive match
+  const [caseInsensitiveMatches] = await pool.query(
+    `SELECT p.*, rs.nickname 
+     FROM players p
+     JOIN rust_servers rs ON p.server_id = rs.id
+     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND LOWER(p.ign) = LOWER(?) 
+     AND p.is_active = true`,
+    [guildId, normalizedIgn]
+  );
+  
+  return caseInsensitiveMatches;
+}
+
+/**
+ * 🔍 COMPREHENSIVE IGN VALIDATION: Validates IGNs for all edge cases
+ */
+function validateIgn(ign) {
+  if (!ign || typeof ign !== 'string') {
+    return { valid: false, error: 'IGN must be a non-empty string' };
+  }
+  
+  const trimmed = ign.trim();
+  
+  if (trimmed.length === 0) {
+    return { valid: false, error: 'IGN cannot be empty or only spaces' };
+  }
+  
+  if (trimmed.length > 32) {
+    return { valid: false, error: 'IGN cannot be longer than 32 characters' };
+  }
+  
+  // Be very permissive - allow any characters that might appear in Rust names
+  // This includes: letters, numbers, spaces, underscores, dashes, dots, unicode, symbols
+  
+  return { valid: true, normalized: trimmed };
+}
+
+/**
+ * 🔍 SAFE IGN COMPARISON: Compares IGNs safely for all edge cases
+ */
+function compareIgns(ign1, ign2) {
+  const norm1 = normalizeIgnForComparison(ign1);
+  const norm2 = normalizeIgnForComparison(ign2);
+  
+  // Exact match first
+  if (norm1 === norm2) {
+    return true;
+  }
+  
+  // Case-insensitive match
+  return norm1.toLowerCase() === norm2.toLowerCase();
+}
+
+module.exports = {
+  ...module.exports,
+  normalizeIgnForComparison,
+  findPlayerByIgnRobust,
+  validateIgn,
+  compareIgns
+};
+
+
+/**
+ * 🔧 DISCORD ID UTILITY: Ensures consistent Discord ID handling
+ */
+function normalizeDiscordId(discordId) {
+  if (!discordId) return null;
+  
+  // Convert to string and trim
+  const normalized = discordId.toString().trim();
+  
+  // Validate Discord ID format (should be 17-19 digits)
+  if (!/^d{17,19}$/.test(normalized)) {
+    console.warn(`⚠️ Invalid Discord ID format: ${discordId}`);
+  }
+  
+  return normalized;
+}
+
+/**
+ * 🔍 SAFE DISCORD ID COMPARISON: Compares Discord IDs safely
+ */
+function compareDiscordIds(id1, id2) {
+  const norm1 = normalizeDiscordId(id1);
+  const norm2 = normalizeDiscordId(id2);
+  
+  return norm1 === norm2;
+}
+
+module.exports = {
+  ...module.exports,
+  normalizeDiscordId,
+  compareDiscordIds
+};
