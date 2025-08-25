@@ -35,7 +35,15 @@ module.exports = {
           { name: 'Elite List 10', value: 'Elite10' },
           { name: 'Elite List 11', value: 'Elite11' },
           { name: 'Elite List 12', value: 'Elite12' },
-          { name: 'Elite List 13', value: 'Elite13' }
+          { name: 'Elite List 13', value: 'Elite13' },
+          { name: 'Elite List 14', value: 'Elite14' },
+          { name: 'Elite List 15', value: 'Elite15' },
+          { name: 'Elite List 16', value: 'Elite16' },
+          { name: 'Elite List 17', value: 'Elite17' },
+          { name: 'Elite List 18', value: 'Elite18' },
+          { name: 'Elite List 19', value: 'Elite19' },
+          { name: 'Elite List 20', value: 'Elite20' },
+          { name: 'Elite List 21', value: 'Elite21' }
         )),
 
   async autocomplete(interaction) {
@@ -128,7 +136,15 @@ module.exports = {
         'Elite10': 'ELITEkit10',
         'Elite11': 'ELITEkit11',
         'Elite12': 'ELITEkit12',
-        'Elite13': 'ELITEkit13'
+        'Elite13': 'ELITEkit13',
+        'Elite14': 'ELITEkit14',
+        'Elite15': 'ELITEkit15',
+        'Elite16': 'ELITEkit16',
+        'Elite17': 'ELITEkit17',
+        'Elite18': 'ELITEkit18',
+        'Elite19': 'ELITEkit19',
+        'Elite20': 'ELITEkit20',
+        'Elite21': 'ELITEkit21'
       };
 
       const kitName = kitNameMap[kitlist] || kitlist;
