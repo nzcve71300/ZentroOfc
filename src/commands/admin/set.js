@@ -217,7 +217,21 @@ module.exports = {
           break;
       }
 
+      console.log(`[SET COMMAND DEBUG] Executing query: ${updateQuery}`);
+      console.log(`[SET COMMAND DEBUG] Parameters:`, updateParams);
+      
       await connection.execute(updateQuery, updateParams);
+      
+      // Verify the update worked
+      const [verifyResult] = await connection.execute(
+        'SELECT use_kit FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+        [server.id.toString(), teleport]
+      );
+      
+      if (verifyResult.length > 0) {
+        console.log(`[SET COMMAND DEBUG] Verification - use_kit after update: ${verifyResult[0].use_kit}`);
+      }
+      
       await connection.end();
 
       // Create success message
