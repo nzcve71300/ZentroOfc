@@ -536,16 +536,16 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
         // Handle bounty system for player kills only
         await handleBountySystem(guildId, serverName, killData.killer, killData.victim, ip, port, password);
         
-      } else if (killData.isScientistKill) {
-        const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
-        if (rewardResult && rewardResult.reward > 0) {
-          // Get currency name for this server
-          const { getCurrencyName } = require('../utils/economy');
-          const currencyName = await getCurrencyName(serverId);
-          
-          sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for killing a scientist!</color>`);
+              } else if (killData.isScientistKill) {
+          const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
+          if (rewardResult && rewardResult.reward > 0) {
+            // Get currency name for this server
+            const { getCurrencyName } = require('../utils/economy');
+            const currencyName = await getCurrencyName(serverId);
+            
+            sendRconCommand(ip, port, password, `say <color=#FFD700>${killData.killer}</color> <color=white>earned</color> <color=#00FF00>${rewardResult.reward} ${currencyName}</color> <color=white>for killing a scientist!</color>`);
+          }
         }
-      }
     } else {
       // Killfeed is disabled - only process stats and rewards without sending messages
       // Extract killer and victim for stats processing
@@ -4557,7 +4557,7 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
     setTimeout(() => {
       const currentState = homeTeleportState.get(stateKey);
       if (currentState && currentState.step === 'waiting_for_respawn') {
-        homeTeleportState.delete(stateKey);
+      homeTeleportState.delete(stateKey);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>home teleport setup timed out. Please try again.</color>`);
         Logger.info(`Home teleport setup timed out for ${player}`);
       }
