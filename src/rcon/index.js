@@ -441,6 +441,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         if (msg.includes(teleportEmote.emote)) {
           const player = extractPlayerName(msg);
           console.log(`[TELEPORT] ${teleportEmote.name.toUpperCase()} emote detected for player: ${player}`);
+          console.log(`[TELEPORT DEBUG] Teleport name being passed: '${teleportEmote.name}'`);
           if (player) {
             // Get server ID
             const [serverResult] = await pool.query(
@@ -4838,10 +4839,17 @@ async function handleTeleportKillRespawn(client, guildId, serverName, player, ip
     // Clean up the state
     teleportKillState.delete(stateKey);
 
-    // Perform the teleport now that player has respawned
-    await performTeleport(ip, port, password, player, playerState.config, playerState.displayName);
-
-    console.log(`[TELEPORT] Successfully teleported ${player} after respawn to ${playerState.displayName}`);
+    // Wait 5 seconds after respawn before teleporting
+    console.log(`[TELEPORT] Waiting 5 seconds after respawn before teleporting ${player}`);
+    
+    setTimeout(async () => {
+      try {
+        await performTeleport(ip, port, password, player, playerState.config, playerState.displayName);
+        console.log(`[TELEPORT] Successfully teleported ${player} after respawn to ${playerState.displayName}`);
+      } catch (error) {
+        console.error('[TELEPORT] Error performing teleport after respawn:', error);
+      }
+    }, 5000); // 5 seconds delay
 
   } catch (error) {
     console.error('[TELEPORT] Error handling teleport kill respawn:', error);
@@ -5070,6 +5078,9 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
       position: `${config.position_x}, ${config.position_y}, ${config.position_z}`
     });
     
+    // Debug: Log the exact query being used
+    console.log(`[TELEPORT DEBUG] Query used: SELECT * FROM teleport_configs WHERE server_id = '${serverId.toString()}' AND teleport_name = '${teleportName}'`);
+    
     // Check if enabled
     if (!config.enabled) {
       console.log(`[TELEPORT] Teleport is DISABLED`);
@@ -5230,6 +5241,12 @@ async function executeTeleport(ip, port, password, player, config, displayName, 
 async function performTeleport(ip, port, password, player, config, displayName) {
   try {
     console.log(`[TELEPORT] Performing teleport for ${player}`);
+    console.log(`[TELEPORT DEBUG] Config being used:`, {
+      position: `${config.position_x}, ${config.position_y}, ${config.position_z}`,
+      use_kit: config.use_kit,
+      kit_name: config.kit_name,
+      display_name: config.display_name
+    });
 
     // Execute teleport
     const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${player}" "1"`;
