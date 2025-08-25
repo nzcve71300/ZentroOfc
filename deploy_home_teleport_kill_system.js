@@ -29,7 +29,7 @@ async function deployHomeTeleportKillSystem() {
     console.log('\n🎉 Home Teleport Kill System Ready!');
     console.log('\n📋 New System Flow:');
     console.log('1. Player uses SET HOME emote (building slot 3)');
-    console.log('2. Bot instantly kills player with: kill "IGN"');
+    console.log('2. Bot instantly kills player with: global.killplayer "IGN"');
     console.log('3. Player respawns on their bed');
     console.log('4. Bot detects respawn: "player has entered the game"');
     console.log('5. Bot gets player position with: printpos "player"');
@@ -39,7 +39,7 @@ async function deployHomeTeleportKillSystem() {
 
     console.log('\n📋 Changes Made:');
     console.log('✅ Removed yes/no confirmation system');
-    console.log('✅ Added instant kill on set home emote (kill command)');
+    console.log('✅ Added instant kill on set home emote (global.killplayer command)');
     console.log('✅ Added respawn detection for home setup');
     console.log('✅ Added automatic position capture after respawn');
     console.log('✅ Added 30-second timeout for setup process');
@@ -56,7 +56,7 @@ async function deployHomeTeleportKillSystem() {
     console.log('   - Player can teleport home');
 
     console.log('\n💡 How It Works:');
-    console.log('• SET HOME emote: Instantly kills player with kill command');
+    console.log('• SET HOME emote: Instantly kills player with global.killplayer command');
     console.log('• Respawn detection: Monitors "has entered the game" messages');
     console.log('• Position capture: Uses printpos command after respawn');
     console.log('• Home storage: Saves coordinates to database');

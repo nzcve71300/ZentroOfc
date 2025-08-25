@@ -4527,8 +4527,8 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
       password: password
     });
 
-    // Kill the player instantly
-    sendRconCommand(ip, port, password, `kill "${player}"`);
+    // Kill the player instantly - use correct Rust command format
+    sendRconCommand(ip, port, password, `global.killplayer "${player}"`);
     
     // Set timeout to clean up state after 30 seconds
     setTimeout(() => {
