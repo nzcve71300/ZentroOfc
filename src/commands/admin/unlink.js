@@ -112,16 +112,6 @@ module.exports = {
       
       const embed = successEmbed(
         'Players Unlinked', 
-<<<<<<< HEAD
-        `✅ Successfully unlinked **${updateResult.affectedRows} player(s)** for **${searchTerm}**.
-
-**Unlinked players:**
-${playerList}
-
-**Note:** Players have been marked as inactive and can now link again with new names.`
-=======
-        `✅ Successfully unlinked **${updateResult.affectedRows} player(s)** for **${searchTerm}** on this server.\n\n**Unlinked players:**\n${playerList}\n\n**Note:** Players have been marked as inactive and can now link again with new names.`
->>>>>>> 0a0b1925a4b4b49ea0ab6c73ed7cdc7a6955bca2
       );
 
       await interaction.editReply({ embeds: [embed] });
