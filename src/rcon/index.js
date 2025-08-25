@@ -76,6 +76,10 @@ const zorpZoneStates = new Map(); // Track current zone states
 const homeTeleportState = new Map(); // Track home teleport state
 const homeTeleportCooldowns = new Map(); // Track cooldowns per player
 
+// Teleport System state tracking
+const teleportKillState = new Map(); // Track teleport kill state
+const teleportCooldowns = new Map(); // Track teleport cooldowns per player
+
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
 const BOOKARIDE_CHOICES = {
@@ -315,6 +319,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           
           // Check if this respawn is for home teleport setup
           await handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password);
+          
+          // Check if this respawn is for teleport kill setup
+          await handleTeleportKillRespawn(client, guildId, serverName, player, ip, port, password);
           
           return; // Skip this "join" - it's probably a respawn
         }
@@ -4788,6 +4795,59 @@ async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip
   }
 }
 
+async function handleTeleportKillRespawn(client, guildId, serverName, player, ip, port, password) {
+  try {
+    console.log(`[TELEPORT] Checking respawn for teleport kill setup: ${player}`);
+    console.log(`[TELEPORT] Guild ID: ${guildId}, Server Name: ${serverName}`);
+    
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) {
+      console.log(`[TELEPORT] No server found for ${serverName}`);
+      return;
+    }
+
+    const serverId = serverResult[0].id;
+    const stateKey = `${serverId}_${player}_teleport`;
+    const playerState = teleportKillState.get(stateKey);
+
+    console.log(`[TELEPORT] Server ID: ${serverId}, State Key: ${stateKey}`);
+    console.log(`[TELEPORT] Player State:`, playerState);
+
+    if (!playerState || playerState.step !== 'waiting_for_respawn') {
+      console.log(`[TELEPORT] No teleport kill setup in progress for ${player}`);
+      console.log(`[TELEPORT] Available teleport states:`, Array.from(teleportKillState.keys()));
+      return;
+    }
+
+    // Check if we've already processed a respawn for this player (prevent duplicate processing)
+    if (playerState.respawnProcessed) {
+      console.log(`[TELEPORT] Respawn already processed for ${player}, skipping`);
+      return;
+    }
+
+    console.log(`[TELEPORT] Respawn detected for teleport kill setup: ${player}`);
+
+    // Mark respawn as processed to prevent duplicate handling
+    playerState.respawnProcessed = true;
+    
+    // Clean up the state
+    teleportKillState.delete(stateKey);
+
+    // Perform the teleport now that player has respawned
+    await performTeleport(ip, port, password, player, playerState.config, playerState.displayName);
+
+    console.log(`[TELEPORT] Successfully teleported ${player} after respawn to ${playerState.displayName}`);
+
+  } catch (error) {
+    console.error('[TELEPORT] Error handling teleport kill respawn:', error);
+  }
+}
+
 // Playtime tracking functions
 async function handlePlaytimeOnline(guildId, serverName, playerName) {
   try {
@@ -4980,22 +5040,35 @@ setInterval(async () => {
 // Teleport System Handler
 async function handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player, teleportName = 'default') {
   try {
-    console.log(`[TELEPORT] Processing teleport for ${player} to teleport location`);
+    console.log(`[TELEPORT] Processing teleport for ${player} to teleport location: ${teleportName}`);
     
     // Get teleport configuration
     const configResult = await pool.query(
-      'SELECT enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+      'SELECT enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport, position_x, position_y, position_z FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
       [serverId.toString(), teleportName]
     );
 
+    console.log(`[TELEPORT DEBUG] Query result length: ${configResult[0].length}`);
+    console.log(`[TELEPORT DEBUG] Looking for teleport_name: ${teleportName} on server_id: ${serverId}`);
+
     if (configResult[0].length === 0) {
-      console.log(`[TELEPORT] No teleport config found`);
-      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport system not configured</color>`);
+      console.log(`[TELEPORT] No teleport config found for ${teleportName}`);
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport system not configured for ${teleportName.toUpperCase()}</color>`);
       return;
     }
 
     const config = configResult[0][0];
-    console.log(`[TELEPORT] Config: enabled=${config.enabled}, cooldown=${config.cooldown_minutes}m, delay=${config.delay_minutes}m`);
+    console.log(`[TELEPORT] Config found for ${teleportName}:`, {
+      enabled: config.enabled,
+      cooldown: config.cooldown_minutes,
+      delay: config.delay_minutes,
+      display_name: config.display_name,
+      use_list: config.use_list,
+      use_kit: config.use_kit,
+      kit_name: config.kit_name,
+      kill_before_teleport: config.kill_before_teleport,
+      position: `${config.position_x}, ${config.position_y}, ${config.position_z}`
+    });
     
     // Check if enabled
     if (!config.enabled) {
@@ -5045,30 +5118,21 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
       }
     }
 
-    // Check cooldown
-    const lastUsageResult = await pool.query(
-      'SELECT used_at FROM teleport_usage WHERE server_id = ? AND teleport_name = ? AND discord_id = ? ORDER BY used_at DESC LIMIT 1',
-      [serverId.toString(), teleportName, discordId]
-    );
+    // Check cooldown using in-memory tracking for better performance
+    const cooldownKey = `${serverId}_${teleportName}_${discordId}`;
+    const now = Date.now();
+    const lastTeleport = teleportCooldowns.get(cooldownKey) || 0;
+    const cooldownMs = config.cooldown_minutes * 60 * 1000;
 
-    if (lastUsageResult[0].length > 0) {
-      const lastUsed = new Date(lastUsageResult[0][0].used_at);
-      const now = new Date();
-      const minutesSinceLastUse = (now - lastUsed) / (1000 * 60);
-      
-      if (minutesSinceLastUse < config.cooldown_minutes) {
-        const remainingMinutes = Math.ceil(config.cooldown_minutes - minutesSinceLastUse);
-        console.log(`[TELEPORT] Cooldown active: ${remainingMinutes} minutes remaining`);
-        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport cooldown:</color> <color=#FFD700>${remainingMinutes} minutes</color> <color=white>remaining</color>`);
-        return;
-      }
+    if (now - lastTeleport < cooldownMs) {
+      const remainingMinutes = Math.ceil((cooldownMs - (now - lastTeleport)) / (60 * 1000));
+      console.log(`[TELEPORT] Cooldown active: ${remainingMinutes} minutes remaining`);
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport cooldown:</color> <color=#FFD700>${remainingMinutes} minutes</color> <color=white>remaining</color>`);
+      return;
     }
 
-    // Record usage
-    await pool.query(
-      'INSERT INTO teleport_usage (server_id, teleport_name, discord_id, ign) VALUES (?, ?, ?, ?)',
-      [serverId.toString(), teleportName, discordId, player]
-    );
+    // Record usage in memory for cooldown tracking
+    teleportCooldowns.set(cooldownKey, now);
 
     console.log(`[TELEPORT] Proceeding with teleport for ${player} to ${teleportName}`);
 
@@ -5080,11 +5144,11 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
       
       // Wait for delay
       setTimeout(async () => {
-        await executeTeleport(ip, port, password, player, config, displayName);
+        await executeTeleport(ip, port, password, player, config, displayName, teleportName, guildId, serverName);
       }, config.delay_minutes * 60 * 1000);
     } else {
       // Execute teleport immediately
-      await executeTeleport(ip, port, password, player, config, displayName);
+      await executeTeleport(ip, port, password, player, config, displayName, teleportName, guildId, serverName);
     }
 
   } catch (error) {
@@ -5093,14 +5157,79 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
   }
 }
 
-async function executeTeleport(ip, port, password, player, config, displayName) {
+async function executeTeleport(ip, port, password, player, config, displayName, teleportName, guildId, serverName) {
   try {
+    console.log(`[TELEPORT DEBUG] executeTeleport called for ${player} with config:`, {
+      kill_before_teleport: config.kill_before_teleport,
+      use_kit: config.use_kit,
+      kit_name: config.kit_name,
+      position: `${config.position_x}, ${config.position_y}, ${config.position_z}`
+    });
+
     // Kill player if enabled
     if (config.kill_before_teleport) {
+      console.log(`[TELEPORT] Kill before teleport enabled, setting up kill-then-teleport sequence`);
+      
+      // Get server ID for state tracking
+      const [serverResult] = await pool.query(
+        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+        [guildId, serverName]
+      );
+
+      if (serverResult.length === 0) {
+        console.log(`[TELEPORT] No server found for ${serverName}`);
+        return;
+      }
+
+      const serverId = serverResult[0].id;
+      const stateKey = `${serverId}_${player}_teleport`;
+      
+      // Set teleport kill state
+      teleportKillState.set(stateKey, {
+        player: player,
+        step: 'waiting_for_respawn',
+        timestamp: Date.now(),
+        config: config,
+        displayName: displayName,
+        teleportName: teleportName,
+        guildId: guildId,
+        serverName: serverName,
+        ip: ip,
+        port: port,
+        password: password
+      });
+
+      console.log(`[TELEPORT] Set teleport kill state for ${player}, key: ${stateKey}`);
+
+      // Kill the player
       const killCommand = `global.killplayer "${player}"`;
       sendRconCommand(ip, port, password, killCommand);
       console.log(`[TELEPORT] Executed kill command: ${killCommand}`);
+
+      // Set timeout to clean up state after 30 seconds
+      setTimeout(() => {
+        const currentState = teleportKillState.get(stateKey);
+        if (currentState && currentState.step === 'waiting_for_respawn') {
+          teleportKillState.delete(stateKey);
+          sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport timed out. Please try again.</color>`);
+          console.log(`[TELEPORT] Teleport timed out for ${player}`);
+        }
+      }, 30000); // 30 seconds timeout
+
+      return; // Don't teleport yet, wait for respawn
     }
+
+    // If no kill required, teleport immediately
+    await performTeleport(ip, port, password, player, config, displayName);
+
+  } catch (error) {
+    console.error('[TELEPORT] Error executing teleport:', error);
+  }
+}
+
+async function performTeleport(ip, port, password, player, config, displayName) {
+  try {
+    console.log(`[TELEPORT] Performing teleport for ${player}`);
 
     // Execute teleport
     const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${player}" "1"`;
@@ -5112,6 +5241,8 @@ async function executeTeleport(ip, port, password, player, config, displayName) 
       const kitCommand = `kit givetoplayer ${config.kit_name} ${player}`;
       sendRconCommand(ip, port, password, kitCommand);
       console.log(`[TELEPORT] Executed kit command: ${kitCommand}`);
+    } else {
+      console.log(`[TELEPORT DEBUG] Kit not given - use_kit: ${config.use_kit}, kit_name: ${config.kit_name}`);
     }
 
     // Send success message
@@ -5119,7 +5250,7 @@ async function executeTeleport(ip, port, password, player, config, displayName) 
     console.log(`[TELEPORT] Successfully teleported ${player} to ${displayName}`);
 
   } catch (error) {
-    console.error('[TELEPORT] Error executing teleport:', error);
+    console.error('[TELEPORT] Error performing teleport:', error);
   }
 }
 
