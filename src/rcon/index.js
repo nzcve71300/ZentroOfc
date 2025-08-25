@@ -4844,6 +4844,7 @@ async function handleTeleportKillRespawn(client, guildId, serverName, player, ip
     
     setTimeout(async () => {
       try {
+        console.log(`[TELEPORT] 5 seconds elapsed, now performing teleport for ${player}`);
         await performTeleport(ip, port, password, player, playerState.config, playerState.displayName);
         console.log(`[TELEPORT] Successfully teleported ${player} after respawn to ${playerState.displayName}`);
       } catch (error) {
