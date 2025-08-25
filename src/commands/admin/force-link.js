@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const pool = require('../../db');
+const { normalizeDiscordId, compareDiscordIds, normalizeIgnForComparison } = require('../../utils/linking');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,8 +28,8 @@ module.exports = {
 
     const guildId = interaction.guildId;
     const discordUser = interaction.options.getUser('discord_user');
-    // ✅ NORMALIZE IGN: trim and lowercase to match link command
-    const playerName = interaction.options.getString('ign').trim().toLowerCase();
+    const discordId = discordUser.id.toString(); // Ensure string format
+    const playerName = normalizeIgnForComparison(interaction.options.getString('ign'));
 
     // Validate inputs
     if (!playerName || playerName.length < 2) {
@@ -62,7 +63,7 @@ module.exports = {
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
          AND p.discord_id = ? 
          AND p.is_active = true`,
-        [guildId, discordUser.id]
+        [guildId, discordId]
       );
 
       if (existingDiscordLinks.length > 0) {
@@ -85,7 +86,7 @@ module.exports = {
 
       if (existingIgnLinks.length > 0) {
         const existingDiscordId = existingIgnLinks[0].discord_id;
-        if (existingDiscordId !== discordUser.id) {
+        if (!compareDiscordIds(existingDiscordId, discordId)) {
           warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${existingIgnLinks.map(p => p.nickname).join(', ')}`);
         }
       }
@@ -102,7 +103,7 @@ module.exports = {
           // Check if this exact link already exists
           const [existingExactLink] = await pool.query(
             'SELECT id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND LOWER(ign) = LOWER(?)',
-            [guildId, server.id, discordUser.id, playerName]
+            [guildId, server.id, discordId, playerName]
           );
 
           if (existingExactLink.length > 0) {
@@ -140,7 +141,7 @@ module.exports = {
             // Reactivate the inactive record and set the discord_id
             await pool.query(
               'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-              [discordUser.id, inactiveRecord[0].id]
+              [discordId, inactiveRecord[0].id]
             );
             
             // Ensure economy record exists
@@ -161,7 +162,7 @@ module.exports = {
 
           if (existingIgnLink.length > 0) {
             const existing = existingIgnLink[0];
-            if (existing.discord_id !== discordUser.id) {
+            if (!compareDiscordIds(existing.discord_id, discordId)) {
               // Force unlink the existing player
               await pool.query(
                 'DELETE FROM players WHERE id = ?',
@@ -174,7 +175,7 @@ module.exports = {
           // Check if Discord ID is already linked to a different IGN
           const [existingDiscordLink] = await pool.query(
             'SELECT id, ign FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND is_active = true',
-            [guildId, server.id, discordUser.id]
+            [guildId, server.id, discordId]
           );
 
           if (existingDiscordLink.length > 0) {
@@ -192,7 +193,7 @@ module.exports = {
           // Insert new player
           const [playerResult] = await pool.query(
             'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [guildId, server.id, discordUser.id, playerName]
+            [guildId, server.id, discordId, playerName]
           );
           
           // Create economy record

@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const pool = require('../../db');
+const { normalizeDiscordId, compareDiscordIds, normalizeIgnForComparison } = require('../../utils/linking');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -29,6 +30,7 @@ module.exports = {
     try {
       // Check if identifier is a Discord ID (numeric)
       const isDiscordId = /^\d+$/.test(identifier);
+      const normalizedDiscordId = isDiscordId ? normalizeDiscordId(identifier) : null;
       
       let result;
       let playerInfo = [];
@@ -42,7 +44,7 @@ module.exports = {
            WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
            AND p.discord_id = ? 
            AND p.is_active = true`,
-          [guildId, identifier]
+          [guildId, normalizedDiscordId]
         );
         
         if (players.length === 0) {
@@ -61,13 +63,13 @@ module.exports = {
            WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
            AND discord_id = ? 
            AND is_active = true`,
-          [guildId, identifier]
+          [guildId, normalizedDiscordId]
         );
         
         result = { rowCount: updateResult.affectedRows };
       } else {
-        // ✅ NORMALIZE IGN: trim and lowercase to match link command
-        const normalizedIgn = identifier.trim().toLowerCase();
+        // ✅ NORMALIZE IGN: use utility function for proper handling
+        const normalizedIgn = normalizeIgnForComparison(identifier);
         
         // ✅ Unlink by IGN - MARK AS INACTIVE (not delete) - case-insensitive
         const [players] = await pool.query(
