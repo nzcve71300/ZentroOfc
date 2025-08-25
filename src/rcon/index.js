@@ -69,10 +69,7 @@ const BOOKARIDE_CHOICES = {
 // Home Teleport constants
 const SET_HOME_EMOTE = 'd11_quick_chat_building_slot_3';
 const TELEPORT_HOME_EMOTE = 'd11_quick_chat_combat_slot_1';
-const HOME_CHOICES = {
-  yes: 'd11_quick_chat_responses_slot_0',
-  no: 'd11_quick_chat_responses_slot_1',
-};
+// HOME_CHOICES removed - no longer using yes/no confirmation for home teleport
 
 // ZORP constants
 const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
@@ -280,6 +277,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         // If player "joined" within the last 30 seconds, it's likely a respawn
         if (now - lastJoin < JOIN_COOLDOWN) {
           console.log(`[PLAYERFEED] Ignoring respawn for ${player} (last join was ${Math.round((now - lastJoin) / 1000)}s ago)`);
+          
+          // Check if this respawn is for home teleport setup
+          await handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password);
+          
           return; // Skip this "join" - it's probably a respawn
         }
         
@@ -373,10 +374,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         await handleTeleportHome(client, guildId, serverName, parsed, ip, port, password);
       }
 
-      // Handle Home choice emotes (Yes/No)
-      if (msg.includes(HOME_CHOICES.yes) || msg.includes(HOME_CHOICES.no)) {
-        await handleHomeChoice(client, guildId, serverName, parsed, ip, port, password);
-      }
+      // Home choice emotes removed - no longer using yes/no confirmation for home teleport
 
       // Handle ZORP emotes
       await handleZorpEmote(client, guildId, serverName, parsed, ip, port, password);
@@ -1251,8 +1249,8 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
         // Update cooldown
         recentTeleports.set(cooldownKey, currentTime);
         
-        // Send to admin feed
-        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
+        // Note: Removed admin feed logging to prevent spam
+        // await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
         
       }, config.delay_seconds * 1000);
       return; // CRITICAL FIX: Prevent execution of immediate teleport code
@@ -1268,8 +1266,8 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       // Update cooldown
       recentTeleports.set(cooldownKey, now);
       
-      // Send to admin feed
-      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
+      // Note: Removed admin feed logging to prevent spam
+      // await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🚀 **Position Teleport:** ${player} teleported to ${positionDisplayName}`);
       Logger.info(`Teleport completed: ${player} → ${positionDisplayName}`);
     }
 
@@ -4516,81 +4514,31 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
       return;
     }
 
-    // Set state to waiting for confirmation
+    // Set state to waiting for respawn
     const stateKey = `${serverId}_${player}`;
     homeTeleportState.set(stateKey, {
       player: player,
-      step: 'waiting_for_confirmation',
-      timestamp: now
+      step: 'waiting_for_respawn',
+      timestamp: now,
+      guildId: guildId,
+      serverName: serverName,
+      ip: ip,
+      port: port,
+      password: password
     });
 
-    // Send confirmation message
-    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>are you stood in your base?</color><br><color=#00ff00>Yes</color> <color=white>or</color> <color=#ff0000>No</color>`);
+    // Kill the player instantly
+    sendRconCommand(ip, port, password, `global.killplayer "${player}"`);
+    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>has been killed to set home teleport. Respawn on your bed!</color>`);
 
-    Logger.info(`Set home confirmation sent to ${player}`);
+    Logger.info(`Set home: killed ${player} to trigger respawn`);
 
   } catch (error) {
     Logger.error('Error handling set home:', error);
   }
 }
 
-async function handleHomeChoice(client, guildId, serverName, parsed, ip, port, password) {
-  try {
-    const player = extractPlayerName(parsed.Message);
-    if (!player) return;
-
-    // Get server ID
-    const [serverResult] = await pool.query(
-      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
-      [guildId, serverName]
-    );
-
-    if (serverResult.length === 0) {
-      Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
-      return;
-    }
-
-    const serverId = serverResult[0].id;
-    const stateKey = `${serverId}_${player}`;
-    const playerState = homeTeleportState.get(stateKey);
-
-    if (!playerState || playerState.step !== 'waiting_for_confirmation') {
-      return; // Not in set home flow
-    }
-
-    // Determine choice
-    let choice = null;
-    if (parsed.Message.includes(HOME_CHOICES.yes)) {
-      choice = 'yes';
-    } else if (parsed.Message.includes(HOME_CHOICES.no)) {
-      choice = 'no';
-    }
-
-    if (!choice) return;
-
-    if (choice === 'no') {
-      // Cancel the operation
-      homeTeleportState.delete(stateKey);
-      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>home setting cancelled</color>`);
-      Logger.info(`Set home cancelled by ${player}`);
-      return;
-    }
-
-    if (choice === 'yes') {
-      // Update state to waiting for position
-      playerState.step = 'waiting_for_position';
-      homeTeleportState.set(stateKey, playerState);
-      console.log(`[HOME TELEPORT DEBUG] Set state to waiting_for_position for key: ${stateKey}, state:`, playerState);
-
-      // Get player position
-      sendRconCommand(ip, port, password, `printpos ${player}`);
-      Logger.info(`Position request sent for ${player}`);
-    }
-
-  } catch (error) {
-    Logger.error('Error handling home choice:', error);
-  }
-}
+// handleHomeChoice function removed - no longer using yes/no confirmation for home teleport
 
 async function handleTeleportHome(client, guildId, serverName, parsed, ip, port, password) {
   try {
@@ -4687,6 +4635,49 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
 
   } catch (error) {
     Logger.error('Error handling teleport home:', error);
+  }
+}
+
+async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password) {
+  try {
+    console.log(`[HOME TELEPORT] Checking respawn for home teleport setup: ${player}`);
+    
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) {
+      console.log(`[HOME TELEPORT] No server found for ${serverName}`);
+      return;
+    }
+
+    const serverId = serverResult[0].id;
+    const stateKey = `${serverId}_${player}`;
+    const playerState = homeTeleportState.get(stateKey);
+
+    if (!playerState || playerState.step !== 'waiting_for_respawn') {
+      console.log(`[HOME TELEPORT] No home teleport setup in progress for ${player}`);
+      return;
+    }
+
+    console.log(`[HOME TELEPORT] Respawn detected for home teleport setup: ${player}`);
+
+    // Update state to waiting for position
+    playerState.step = 'waiting_for_position';
+    homeTeleportState.set(stateKey, playerState);
+
+    // Get player position after respawn
+    sendRconCommand(ip, port, password, `printpos "${player}"`);
+    
+    // Send message to player
+    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>respawned! Getting your position to set home...</color>`);
+
+    Logger.info(`Home teleport: respawn detected for ${player}, getting position`);
+
+  } catch (error) {
+    Logger.error('Error handling home teleport respawn:', error);
   }
 }
 
