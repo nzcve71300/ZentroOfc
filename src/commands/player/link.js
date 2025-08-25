@@ -87,14 +87,22 @@ module.exports = {
       if (activeIgnLinks.length > 0) {
         console.log(`[LINK DEBUG] Found ${activeIgnLinks.length} active records for IGN ${ign}`);
         
-        // IGN is actively linked to someone else
-        const existingDiscordId = activeIgnLinks[0].discord_id;
-        const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
+        // Check if it's the same user trying to link the same IGN (should be allowed)
+        const sameUserLink = activeIgnLinks.find(link => link.discord_id === discordId);
         
-        console.log(`[LINK DEBUG] IGN ${ign} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
-        return await interaction.editReply({
-          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
-        });
+        if (sameUserLink) {
+          console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);
+          // Allow the user to update their existing link - continue to confirmation
+        } else {
+          // IGN is actively linked to someone else
+          const existingDiscordId = activeIgnLinks[0].discord_id;
+          const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
+          
+          console.log(`[LINK DEBUG] IGN ${ign} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
+          return await interaction.editReply({
+            embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
+          });
+        }
       }
 
       // ✅ All checks passed - show confirmation
