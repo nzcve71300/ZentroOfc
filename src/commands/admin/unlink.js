@@ -54,7 +54,10 @@ module.exports = {
         }
         
         // Store player info before deactivation
-        playerInfo = players.map(p => `${p.ign} (${p.nickname} - ${p.guild_name})`);
+        playerInfo = players.map(p => {
+          console.log(`[UNLINK DEBUG] Player data:`, p);
+          return `${p.ign || 'Unknown'} (${p.nickname || 'Unknown'} - ${p.guild_name || 'Unknown'})`;
+        });
         
         // ✅ Mark all player records as inactive for this Discord ID - UNIVERSAL
         const [updateResult] = await pool.query(
@@ -88,7 +91,10 @@ module.exports = {
         }
         
         // Store player info before deactivation
-        playerInfo = players.map(p => `${p.ign} (${p.nickname} - ${p.guild_name})`);
+        playerInfo = players.map(p => {
+          console.log(`[UNLINK DEBUG] Player data:`, p);
+          return `${p.ign || 'Unknown'} (${p.nickname || 'Unknown'} - ${p.guild_name || 'Unknown'})`;
+        });
         
         // ✅ Mark all player records as inactive for this IGN (case-insensitive) - UNIVERSAL
         const [updateResult] = await pool.query(
@@ -131,7 +137,16 @@ module.exports = {
         playerInfo = [`Unknown player (${identifier})`];
       }
 
-      const playerList = playerInfo.join(', ');
+      // Extract just the player names for the success message
+      const playerNames = playerInfo.map(info => {
+        const match = info.match(/^([^(]+)/);
+        const name = match ? match[1].trim() : info;
+        console.log(`[UNLINK DEBUG] Extracted name: "${name}" from info: "${info}"`);
+        return name;
+      });
+
+      const playerList = playerNames.join(', ');
+      console.log(`[UNLINK DEBUG] Final player list: "${playerList}"`);
       const embed = successEmbed(
         'Players Unlinked', 
         `✅ Successfully unlinked **${result.rowCount} player(s)** for **${identifier}**.\n\n**Unlinked players:**\n${playerList}\n\n**Note:** Players have been marked as inactive and can now link again with new names.`
