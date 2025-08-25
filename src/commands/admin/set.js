@@ -45,7 +45,6 @@ module.exports = {
           { name: 'USE-DELAY (Use Delay)', value: 'USE-DELAY' },
           { name: 'USE-KIT (Use Kit)', value: 'USE-KIT' },
           { name: 'KITNAME (Kit Name)', value: 'KITNAME' },
-          { name: 'KILL (Kill Before Teleport)', value: 'KILL' },
           { name: 'COORDINATES (Teleport Location)', value: 'COORDINATES' }
         ];
         
@@ -110,8 +109,8 @@ module.exports = {
 
       if (existingConfig.length === 0) {
         await connection.execute(`
-          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport, position_x, position_y, position_z)
-          VALUES (?, ?, false, 60, 0, ?, false, false, false, '', false, 0, 0, 0)
+          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, position_x, position_y, position_z)
+          VALUES (?, ?, false, 60, 0, ?, false, false, false, '', 0, 0, 0)
         `, [server.id.toString(), teleport, teleport.toUpperCase()]);
       }
 
@@ -124,7 +123,6 @@ module.exports = {
         case 'USELIST':
         case 'USE-DELAY':
         case 'USE-KIT':
-        case 'KILL':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
             return await interaction.reply({
@@ -212,10 +210,7 @@ module.exports = {
           updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [validatedOption, server.id.toString(), teleport];
           break;
-        case 'KILL':
-          updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = ?';
-          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
-          break;
+
         case 'COORDINATES':
           updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
