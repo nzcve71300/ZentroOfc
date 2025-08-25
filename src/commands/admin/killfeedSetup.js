@@ -16,7 +16,15 @@ module.exports = {
       option.setName('format_string')
         .setDescription('Killfeed format string with placeholders')
         .setRequired(true)
-        .setMaxLength(500)),
+        .setMaxLength(500))
+    .addStringOption(option =>
+      option.setName('randomizer')
+        .setDescription('Enable or disable kill phrase randomizer')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Enable', value: 'enable' },
+          { name: 'Disable', value: 'disable' }
+        )),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -50,6 +58,7 @@ module.exports = {
 
     const serverOption = interaction.options.getString('server');
     const formatString = interaction.options.getString('format_string');
+    const randomizerOption = interaction.options.getString('randomizer');
     const guildId = interaction.guildId;
 
     try {
@@ -70,7 +79,7 @@ module.exports = {
 
       // Check if killfeed config exists
       let [killfeedResult] = await pool.query(
-        'SELECT id, enabled FROM killfeed_configs WHERE server_id = ?',
+        'SELECT id, enabled, randomizer_enabled FROM killfeed_configs WHERE server_id = ?',
         [serverId]
       );
 
@@ -81,7 +90,7 @@ module.exports = {
           [serverId, formatString]
         );
         [killfeedResult] = await pool.query(
-          'SELECT id, enabled FROM killfeed_configs WHERE server_id = ?',
+          'SELECT id, enabled, randomizer_enabled FROM killfeed_configs WHERE server_id = ?',
           [serverId]
         );
       }
@@ -93,6 +102,15 @@ module.exports = {
         'UPDATE killfeed_configs SET format_string = ? WHERE id = ?',
         [formatString, killfeed.id]
       );
+
+      // Update randomizer setting if provided
+      if (randomizerOption) {
+        const randomizerEnabled = randomizerOption === 'enable';
+        await pool.query(
+          'UPDATE killfeed_configs SET randomizer_enabled = ? WHERE id = ?',
+          [randomizerEnabled, killfeed.id]
+        );
+      }
 
       // Create preview of the format
       const preview = formatString
@@ -112,7 +130,7 @@ module.exports = {
 
       embed.addFields({
         name: '📋 Current Configuration',
-        value: `**Status:** ${killfeed.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${formatString}`,
+        value: `**Status:** ${killfeed.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n**Format:** ${formatString}\n**Randomizer:** ${killfeed.randomizer_enabled ? '🟢 Enabled' : '🔴 Disabled'}`,
         inline: false
       });
 
@@ -125,6 +143,12 @@ module.exports = {
       embed.addFields({
         name: '🔧 Available Placeholders',
         value: '`{Killer}` - Killer name\n`{Victim}` - Victim name\n`{KillerKD}` - Killer K/D ratio\n`{VictimKD}` - Victim K/D ratio\n`{KillerStreak}` - Killer kill streak\n`{VictimStreak}` - Victim kill streak\n`{KillerHighest}` - Killer highest streak\n`{VictimHighest}` - Victim highest streak',
+        inline: false
+      });
+
+      embed.addFields({
+        name: '🎲 Randomizer Feature',
+        value: 'When enabled, the word "killed" will be randomly replaced with: killed, murked, clapped, smoked, deleted, dropped, rekt, bonked',
         inline: false
       });
 

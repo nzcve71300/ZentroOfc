@@ -133,7 +133,7 @@ class KillfeedProcessor {
     async getKillfeedConfig(serverId) {
     try {
       const [result] = await pool.query(
-        'SELECT enabled, format_string FROM killfeed_configs WHERE server_id = ?',
+        'SELECT enabled, format_string, randomizer_enabled FROM killfeed_configs WHERE server_id = ?',
         [serverId]
       );
       
@@ -143,7 +143,8 @@ class KillfeedProcessor {
         // Return default config if none exists
         return {
           enabled: true, // Default to enabled
-          format_string: '{Killer} ☠️ {Victim}'
+          format_string: '{Killer} ☠️ {Victim}',
+          randomizer_enabled: false // Default to disabled
         };
       }
     } catch (error) {
@@ -151,7 +152,8 @@ class KillfeedProcessor {
       // Return default config on error
       return {
         enabled: true,
-        format_string: '{Killer} ☠️ {Victim}'
+        format_string: '{Killer} ☠️ {Victim}',
+        randomizer_enabled: false // Default to disabled
       };
     }
   }
@@ -457,26 +459,14 @@ class KillfeedProcessor {
 
   applyKillPhraseRandomizer(formattedMessage) {
     const killPhrases = [
-      'eliminated',
-      'gunned down',
-      'slaughtered',
-      'destroyed',
-      'took out',
-      'obliterated',
+      'killed',    // the classic, keep it in
+      'murked',
+      'clapped',
+      'smoked',
+      'deleted',
       'dropped',
-      'annihilated',
-      'wrecked',
-      'snapped',
-      'ended',
-      'demolished',
-      'neutralized',
-      'wiped out',
-      'punished',
-      'executed',
-      'blasted',
-      'crushed',
-      'flattened',
-      'smoked'
+      'rekt',
+      'bonked'
     ];
 
     // Replace "killed" with a random phrase
