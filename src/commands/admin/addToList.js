@@ -16,6 +16,20 @@ module.exports = {
           { name: 'TPN-BANLIST', value: 'TPN-BANLIST' }
         ))
     .addStringOption(option =>
+      option.setName('teleport')
+        .setDescription('Select the teleport location')
+        .setRequired(true)
+        .addChoices(
+          { name: 'TPN (Default)', value: 'default' },
+          { name: 'TPNE', value: 'tpne' },
+          { name: 'TPE', value: 'tpe' },
+          { name: 'TPSE', value: 'tpse' },
+          { name: 'TPS', value: 'tps' },
+          { name: 'TPSW', value: 'tpsw' },
+          { name: 'TPW', value: 'tpw' },
+          { name: 'TPNW', value: 'tpnw' }
+        ))
+    .addStringOption(option =>
       option.setName('name')
         .setDescription('Player name or Discord ID')
         .setRequired(true))
@@ -43,6 +57,7 @@ module.exports = {
   async execute(interaction) {
     try {
       const listName = interaction.options.getString('list-name');
+      const teleport = interaction.options.getString('teleport');
       const playerName = interaction.options.getString('name');
       const serverOption = interaction.options.getString('server');
       const guildId = interaction.guildId;
@@ -88,29 +103,29 @@ module.exports = {
       if (listName === 'TPN-LIST') {
         await connection.execute(`
           INSERT INTO teleport_allowed_users (server_id, teleport_name, discord_id, ign, added_by)
-          VALUES (?, 'default', ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
           discord_id = VALUES(discord_id),
           ign = VALUES(ign),
           added_by = VALUES(added_by)
-        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+        `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **TPN-LIST** for **${server.nickname}**`,
+          content: `✅ **${playerName}** added to **TPN-LIST** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName === 'TPN-BANLIST') {
         await connection.execute(`
           INSERT INTO teleport_banned_users (server_id, teleport_name, discord_id, ign, banned_by)
-          VALUES (?, 'default', ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
           discord_id = VALUES(discord_id),
           ign = VALUES(ign),
           banned_by = VALUES(banned_by)
-        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+        `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **TPN-BANLIST** for **${server.nickname}**`,
+          content: `✅ **${playerName}** added to **TPN-BANLIST** for **${teleport.toUpperCase()}** on **${server.nickname}**`,
           ephemeral: true
         });
       }

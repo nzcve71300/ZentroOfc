@@ -24,6 +24,20 @@ module.exports = {
           { name: 'TPN-COORDINATES', value: 'TPN-COORDINATES' }
         ))
     .addStringOption(option =>
+      option.setName('teleport')
+        .setDescription('Select the teleport location')
+        .setRequired(true)
+        .addChoices(
+          { name: 'TPN (Default)', value: 'default' },
+          { name: 'TPNE', value: 'tpne' },
+          { name: 'TPE', value: 'tpe' },
+          { name: 'TPSE', value: 'tpse' },
+          { name: 'TPS', value: 'tps' },
+          { name: 'TPSW', value: 'tpsw' },
+          { name: 'TPW', value: 'tpw' },
+          { name: 'TPNW', value: 'tpnw' }
+        ))
+    .addStringOption(option =>
       option.setName('option')
         .setDescription('Value for the configuration')
         .setRequired(true))
@@ -51,6 +65,7 @@ module.exports = {
   async execute(interaction) {
     try {
       const config = interaction.options.getString('config');
+      const teleport = interaction.options.getString('teleport');
       const option = interaction.options.getString('option');
       const serverOption = interaction.options.getString('server');
       const guildId = interaction.guildId;
@@ -141,8 +156,8 @@ module.exports = {
 
       // Check if config exists
       const [existingConfigs] = await connection.execute(
-        'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = "default"',
-        [server.id.toString()]
+        'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+        [server.id.toString(), teleport]
       );
 
       if (existingConfigs.length === 0) {
@@ -152,8 +167,8 @@ module.exports = {
             server_id, teleport_name, position_x, position_y, position_z, 
             enabled, cooldown_minutes, delay_minutes, display_name, 
             use_list, use_delay, use_kit, kit_name, kill_before_teleport
-          ) VALUES (?, 'default', 0, 0, 0, true, 60, 0, 'Teleport', false, false, false, NULL, false)
-        `, [server.id.toString()]);
+          ) VALUES (?, ?, 0, 0, 0, true, 60, 0, ?, false, false, false, NULL, false)
+        `, [server.id.toString(), teleport, `${teleport.toUpperCase()} Teleport`]);
       }
 
       // Update the config
@@ -162,56 +177,56 @@ module.exports = {
 
       switch (config) {
         case 'TPN-USE':
-          updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption === 'on', server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on', server.id.toString(), teleport];
           break;
         case 'TPN-TIME':
-          updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption, server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
           break;
         case 'TPN-DELAYTIME':
-          updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption, server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
           break;
         case 'TPN-NAME':
-          updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption, server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
           break;
         case 'TPN-USELIST':
-          updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption === 'on', server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on', server.id.toString(), teleport];
           break;
         case 'TPN-USE-DELAY':
-          updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption === 'on', server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on', server.id.toString(), teleport];
           break;
         case 'TPN-USE-KIT':
-          updateQuery = 'UPDATE teleport_configs SET use_kit = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption === 'on', server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET use_kit = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on', server.id.toString(), teleport];
           break;
         case 'TPN-KITNAME':
-          updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption, server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, server.id.toString(), teleport];
           break;
         case 'TPN-KILL':
-          updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [validatedOption === 'on', server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET kill_before_teleport = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on', server.id.toString(), teleport];
           break;
         case 'TPN-COORDINATES':
           const coords = option.split(',').map(coord => parseFloat(coord.trim()));
-          updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = "default"';
-          updateParams = [coords[0], coords[1], coords[2], server.id.toString()];
+          updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
           break;
       }
 
       await connection.execute(updateQuery, updateParams);
 
       // Create success message
-      let successMessage = `✅ **${config}** set to **${validatedOption}** for **${server.nickname}**`;
+      let successMessage = `✅ **${config}** set to **${validatedOption}** for **${teleport.toUpperCase()}** on **${server.nickname}**`;
       
       if (config === 'TPN-COORDINATES') {
         const coords = option.split(',').map(coord => parseFloat(coord.trim()));
-        successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** for **${server.nickname}**`;
+        successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** for **${teleport.toUpperCase()}** on **${server.nickname}**`;
       }
 
       await interaction.reply({

@@ -44,6 +44,13 @@ const TELEPORT_EMOTES = {
   bandit: 'd11_quick_chat_combat_slot_0',
   outpost: 'd11_quick_chat_combat_slot_2',
   teleport: 'd11_quick_chat_location_slot_0',
+  tpne: 'd11_quick_chat_location_slot_1',
+  tpe: 'd11_quick_chat_location_slot_2',
+  tpse: 'd11_quick_chat_location_slot_3',
+  tps: 'd11_quick_chat_location_slot_4',
+  tpsw: 'd11_quick_chat_location_slot_5',
+  tpw: 'd11_quick_chat_location_slot_6',
+  tpnw: 'd11_quick_chat_location_slot_7',
 };
 
 // Kit delivery emote
@@ -411,26 +418,40 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Handle Kit Delivery emote
       await handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, port, password);
 
-      // Handle Teleport System emote
-      if (msg.includes(TELEPORT_EMOTES.teleport)) {
-        const player = extractPlayerName(msg);
-        console.log(`[TELEPORT] Teleport emote detected for player: ${player}`);
-        if (player) {
-          // Get server ID
-          const [serverResult] = await pool.query(
-            'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
-            [guildId, serverName]
-          );
-          
-          if (serverResult.length === 0) {
-            console.log(`[TELEPORT] No server found for ${serverName} in guild ${guildId}`);
-            return;
+      // Handle Teleport System emotes
+      const teleportEmotes = [
+        { emote: TELEPORT_EMOTES.teleport, name: 'default' },
+        { emote: TELEPORT_EMOTES.tpne, name: 'tpne' },
+        { emote: TELEPORT_EMOTES.tpe, name: 'tpe' },
+        { emote: TELEPORT_EMOTES.tpse, name: 'tpse' },
+        { emote: TELEPORT_EMOTES.tps, name: 'tps' },
+        { emote: TELEPORT_EMOTES.tpsw, name: 'tpsw' },
+        { emote: TELEPORT_EMOTES.tpw, name: 'tpw' },
+        { emote: TELEPORT_EMOTES.tpnw, name: 'tpnw' }
+      ];
+
+      for (const teleportEmote of teleportEmotes) {
+        if (msg.includes(teleportEmote.emote)) {
+          const player = extractPlayerName(msg);
+          console.log(`[TELEPORT] ${teleportEmote.name.toUpperCase()} emote detected for player: ${player}`);
+          if (player) {
+            // Get server ID
+            const [serverResult] = await pool.query(
+              'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+              [guildId, serverName]
+            );
+            
+            if (serverResult.length === 0) {
+              console.log(`[TELEPORT] No server found for ${serverName} in guild ${guildId}`);
+              return;
+            }
+            
+            const serverId = serverResult[0].id;
+            console.log(`[TELEPORT] Server ID: ${serverId} for ${serverName}`);
+            
+            await handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player, teleportEmote.name);
           }
-          
-          const serverId = serverResult[0].id;
-          console.log(`[TELEPORT] Server ID: ${serverId} for ${serverName}`);
-          
-          await handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player);
+          break; // Only handle one teleport emote per message
         }
       }
 
@@ -4957,14 +4978,14 @@ setInterval(async () => {
 }, 5 * 60 * 1000); // Check every 5 minutes
 
 // Teleport System Handler
-async function handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player) {
+async function handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player, teleportName = 'default') {
   try {
     console.log(`[TELEPORT] Processing teleport for ${player} to teleport location`);
     
     // Get teleport configuration
     const configResult = await pool.query(
-      'SELECT enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport FROM teleport_configs WHERE server_id = ? AND teleport_name = "default"',
-      [serverId.toString()]
+      'SELECT enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, kill_before_teleport FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+      [serverId.toString(), teleportName]
     );
 
     if (configResult[0].length === 0) {
@@ -5001,33 +5022,33 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     // Check if player is banned (if use_list is enabled)
     if (config.use_list) {
       const bannedResult = await pool.query(
-        'SELECT * FROM teleport_banned_users WHERE server_id = ? AND teleport_name = "default" AND (discord_id = ? OR ign = ?)',
-        [serverId.toString(), discordId, player]
+        'SELECT * FROM teleport_banned_users WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)',
+        [serverId.toString(), teleportName, discordId, player]
       );
 
       if (bannedResult[0].length > 0) {
-        console.log(`[TELEPORT] Player ${player} is banned`);
-        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are banned from using teleports</color>`);
+        console.log(`[TELEPORT] Player ${player} is banned from ${teleportName}`);
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are banned from using ${teleportName.toUpperCase()} teleport</color>`);
         return;
       }
 
       // Check if player is allowed
       const allowedResult = await pool.query(
-        'SELECT * FROM teleport_allowed_users WHERE server_id = ? AND teleport_name = "default" AND (discord_id = ? OR ign = ?)',
-        [serverId.toString(), discordId, player]
+        'SELECT * FROM teleport_allowed_users WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)',
+        [serverId.toString(), teleportName, discordId, player]
       );
 
       if (allowedResult[0].length === 0) {
-        console.log(`[TELEPORT] Player ${player} not allowed`);
-        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not allowed to use teleports</color>`);
+        console.log(`[TELEPORT] Player ${player} not allowed for ${teleportName}`);
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not allowed to use ${teleportName.toUpperCase()} teleport</color>`);
         return;
       }
     }
 
     // Check cooldown
     const lastUsageResult = await pool.query(
-      'SELECT used_at FROM teleport_usage WHERE server_id = ? AND teleport_name = "default" AND discord_id = ? ORDER BY used_at DESC LIMIT 1',
-      [serverId.toString(), discordId]
+      'SELECT used_at FROM teleport_usage WHERE server_id = ? AND teleport_name = ? AND discord_id = ? ORDER BY used_at DESC LIMIT 1',
+      [serverId.toString(), teleportName, discordId]
     );
 
     if (lastUsageResult[0].length > 0) {
@@ -5045,13 +5066,13 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
     // Record usage
     await pool.query(
-      'INSERT INTO teleport_usage (server_id, teleport_name, discord_id, ign) VALUES (?, "default", ?, ?)',
-      [serverId.toString(), discordId, player]
+      'INSERT INTO teleport_usage (server_id, teleport_name, discord_id, ign) VALUES (?, ?, ?, ?)',
+      [serverId.toString(), teleportName, discordId, player]
     );
 
-    console.log(`[TELEPORT] Proceeding with teleport for ${player}`);
+    console.log(`[TELEPORT] Proceeding with teleport for ${player} to ${teleportName}`);
 
-    const displayName = config.display_name || 'Teleport Location';
+    const displayName = config.display_name || `${teleportName.toUpperCase()} Teleport`;
 
     // If there's a delay, show countdown
     if (config.delay_minutes > 0) {
