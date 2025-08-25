@@ -29,18 +29,21 @@ async function deployHomeTeleportKillSystem() {
     console.log('\n🎉 Home Teleport Kill System Ready!');
     console.log('\n📋 New System Flow:');
     console.log('1. Player uses SET HOME emote (building slot 3)');
-    console.log('2. Bot instantly kills player with: global.killplayer "IGN"');
+    console.log('2. Bot instantly kills player with: kill "IGN"');
     console.log('3. Player respawns on their bed');
     console.log('4. Bot detects respawn: "player has entered the game"');
     console.log('5. Bot gets player position with: printpos "player"');
     console.log('6. Bot sets home teleport at respawn location');
-    console.log('7. Player can now use TELEPORT HOME emote (combat slot 1)');
+    console.log('7. Bot shows success message: "home location saved successfully!"');
+    console.log('8. Player can now use TELEPORT HOME emote (combat slot 1)');
 
     console.log('\n📋 Changes Made:');
     console.log('✅ Removed yes/no confirmation system');
-    console.log('✅ Added instant kill on set home emote');
+    console.log('✅ Added instant kill on set home emote (kill command)');
     console.log('✅ Added respawn detection for home setup');
     console.log('✅ Added automatic position capture after respawn');
+    console.log('✅ Added 30-second timeout for setup process');
+    console.log('✅ Only shows success message at the end');
     console.log('✅ Kept teleport home functionality unchanged');
 
     console.log('\n📋 Next Steps:');
@@ -53,10 +56,12 @@ async function deployHomeTeleportKillSystem() {
     console.log('   - Player can teleport home');
 
     console.log('\n💡 How It Works:');
-    console.log('• SET HOME emote: Instantly kills player');
+    console.log('• SET HOME emote: Instantly kills player with kill command');
     console.log('• Respawn detection: Monitors "has entered the game" messages');
     console.log('• Position capture: Uses printpos command after respawn');
     console.log('• Home storage: Saves coordinates to database');
+    console.log('• Success message: Only shows at the end');
+    console.log('• Timeout: 30 seconds for each step');
     console.log('• Teleport home: Works exactly as before');
 
     console.log('\n🚀 Benefits:');
