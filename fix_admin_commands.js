@@ -40,28 +40,28 @@ const { normalizeDiscordId, compareDiscordIds, normalizeIgnForComparison } = req
     
     // Fix Discord ID comparisons
     const discordIdComparisons = [
-      { old: "discordUser.id", new: "discordId" },
-      { old: "existing.discord_id !== discordUser.id", new: "!compareDiscordIds(existing.discord_id, discordId)" },
-      { old: "existingDiscordId !== discordUser.id", new: "!compareDiscordIds(existingDiscordId, discordId)" }
+      { old: "discordUser.id", replacement: "discordId" },
+      { old: "existing.discord_id !== discordUser.id", replacement: "!compareDiscordIds(existing.discord_id, discordId)" },
+      { old: "existingDiscordId !== discordUser.id", replacement: "!compareDiscordIds(existingDiscordId, discordId)" }
     ];
     
-    discordIdComparisons.forEach(({ old, new }) => {
+    discordIdComparisons.forEach(({ old, replacement }) => {
       if (forceLinkContent.includes(old)) {
-        forceLinkContent = forceLinkContent.replace(new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), new);
-        console.log(`✅ Fixed Discord ID comparison: ${old} -> ${new}`);
+        forceLinkContent = forceLinkContent.replace(new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replacement);
+        console.log(`✅ Fixed Discord ID comparison: ${old} -> ${replacement}`);
       }
     });
     
     // Fix IGN comparisons
     const ignComparisons = [
-      { old: "currentIgn.toLowerCase() !== playerName.toLowerCase()", new: "currentIgn.toLowerCase() !== playerName.toLowerCase()" },
-      { old: "existing.ign.toLowerCase() !== playerName.toLowerCase()", new: "existing.ign.toLowerCase() !== playerName.toLowerCase()" }
+      { old: "currentIgn.toLowerCase() !== playerName.toLowerCase()", replacement: "currentIgn.toLowerCase() !== playerName.toLowerCase()" },
+      { old: "existing.ign.toLowerCase() !== playerName.toLowerCase()", replacement: "existing.ign.toLowerCase() !== playerName.toLowerCase()" }
     ];
     
-    ignComparisons.forEach(({ old, new }) => {
+    ignComparisons.forEach(({ old, replacement }) => {
       if (forceLinkContent.includes(old)) {
-        forceLinkContent = forceLinkContent.replace(new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), new);
-        console.log(`✅ Fixed IGN comparison: ${old} -> ${new}`);
+        forceLinkContent = forceLinkContent.replace(new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replacement);
+        console.log(`✅ Fixed IGN comparison: ${old} -> ${replacement}`);
       }
     });
     
