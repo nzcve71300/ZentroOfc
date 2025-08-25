@@ -1194,7 +1194,10 @@ async function handleLinkConfirm(interaction) {
     try {
       const member = interaction.member;
       if (member && member.manageable && interaction.guild.ownerId !== interaction.user.id) {
+        // Add a small delay to ensure Discord processes the role assignment first
+        await new Promise(resolve => setTimeout(resolve, 500));
         await member.setNickname(normalizedIgn);
+        console.log(`[NICKNAME] Set nickname for ${member.user.username} to "${normalizedIgn}"`);
       }
     } catch (nicknameError) {
       console.log('Could not set nickname:', nicknameError.message);
