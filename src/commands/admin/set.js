@@ -80,6 +80,13 @@ module.exports = {
           { name: 'COINFLIP-MAX (Max Bet)', value: 'COINFLIP-MAX' }
         ];
         
+        // Add Killfeed configuration options SECOND
+        const killfeedConfigTypes = [
+          { name: 'KILLFEEDGAME (On/Off)', value: 'KILLFEEDGAME' },
+          { name: 'KILLFEED-SETUP (Format String)', value: 'KILLFEED-SETUP' },
+          { name: 'KILLFEED-RANDOMIZER (On/Off)', value: 'KILLFEED-RANDOMIZER' }
+        ];
+        
         economyConfigTypes.forEach(configType => {
           allOptions.push({
             name: configType.name,
@@ -87,7 +94,15 @@ module.exports = {
           });
         });
         
-        // Add event options SECOND (Bradley/Helicopter)
+        // Add Killfeed options SECOND
+        killfeedConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: configType.name,
+            value: configType.value
+          });
+        });
+        
+        // Add event options THIRD (Bradley/Helicopter)
         events.forEach(event => {
           eventConfigTypes.forEach(configType => {
             allOptions.push({
@@ -151,6 +166,10 @@ module.exports = {
       // Extract Economy config from config (e.g., "BLACKJACK-TOGGLE" -> "blackjack_toggle")
       const economyMatch = config.match(/^(BLACKJACK|COINFLIP|DAILY|STARTING|PLAYERKILLS|MISCKILLS|BOUNTY)-/);
       const isEconomyConfig = economyMatch !== null;
+      
+      // Extract Killfeed config from config (e.g., "KILLFEEDGAME" -> "killfeed")
+      const killfeedMatch = config.match(/^(KILLFEEDGAME|KILLFEED-SETUP|KILLFEED-RANDOMIZER)$/);
+      const isKillfeedConfig = killfeedMatch !== null;
       
       const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
 
@@ -341,6 +360,131 @@ module.exports = {
           content: `✅ ${message}`,
           ephemeral: true
         });
+      }
+
+      // Handle Killfeed configurations
+      if (isKillfeedConfig) {
+        // Check if killfeed config exists, create if not
+        let [killfeedResult] = await connection.execute(
+          'SELECT id, enabled, format_string, randomizer_enabled FROM killfeed_configs WHERE server_id = ?',
+          [server.id.toString()]
+        );
+
+        if (killfeedResult.length === 0) {
+          // Create new killfeed config with default format
+          const defaultFormat = '{Killer} ☠️ {Victim}';
+          await connection.execute(
+            'INSERT INTO killfeed_configs (server_id, enabled, format_string, randomizer_enabled) VALUES (?, false, ?, false)',
+            [server.id.toString(), defaultFormat]
+          );
+          [killfeedResult] = await connection.execute(
+            'SELECT id, enabled, format_string, randomizer_enabled FROM killfeed_configs WHERE server_id = ?',
+            [server.id.toString()]
+          );
+        }
+
+        const killfeed = killfeedResult[0];
+
+        if (config === 'KILLFEEDGAME') {
+          // Handle killfeed on/off
+          const enabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          
+          await connection.execute(
+            'UPDATE killfeed_configs SET enabled = ? WHERE id = ?',
+            [enabled, killfeed.id]
+          );
+
+          // Get server connection info for RCON
+          const [serverInfo] = await connection.execute(
+            'SELECT ip, port, password FROM rust_servers WHERE id = ?',
+            [server.id.toString()]
+          );
+
+          if (serverInfo.length > 0) {
+            const { ip, port, password } = serverInfo[0];
+            const { sendRconCommand } = require('../../rcon');
+            
+            if (enabled) {
+              // Enable custom killfeed - disable game's default killfeed
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Hide"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Off"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Stop"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "false"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Disable"');
+              console.log(`✅ Disabled game's default killfeed for ${server.nickname}`);
+            } else {
+              // Disable custom killfeed - enable game's default killfeed
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Show"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "On"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Start"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "true"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+              sendRconCommand(ip, port, password, 'oxide.call KillFeed "Enable"');
+              console.log(`✅ Enabled game's default killfeed for ${server.nickname}`);
+            }
+          }
+
+          await connection.end();
+          
+          return await interaction.reply({
+            content: `✅ **${server.nickname}** killfeed has been **${enabled ? 'enabled' : 'disabled'}**.`,
+            ephemeral: true
+          });
+        } else if (config === 'KILLFEED-SETUP') {
+          // Handle killfeed format string
+          if (option.trim().length === 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Format string cannot be empty.`,
+              ephemeral: true
+            });
+          }
+
+          await connection.execute(
+            'UPDATE killfeed_configs SET format_string = ? WHERE id = ?',
+            [option.trim(), killfeed.id]
+          );
+
+          // Create preview of the format
+          const preview = option.trim()
+            .replace(/{Killer}/g, 'Player1')
+            .replace(/{Victim}/g, 'Player2')
+            .replace(/{KillerKD}/g, '5.2')
+            .replace(/{VictimKD}/g, '2.1')
+            .replace(/{KillerStreak}/g, '3')
+            .replace(/{VictimStreak}/g, '1')
+            .replace(/{KillerHighest}/g, '8')
+            .replace(/{VictimHighest}/g, '4');
+
+          await connection.end();
+          
+          return await interaction.reply({
+            content: `✅ **${server.nickname}** killfeed format updated to: \`${option.trim()}\`\n\n**Preview:** ${preview}\n\n**Available placeholders:** {Killer}, {Victim}, {KillerKD}, {VictimKD}, {KillerStreak}, {VictimStreak}, {KillerHighest}, {VictimHighest}`,
+            ephemeral: true
+          });
+        } else if (config === 'KILLFEED-RANDOMIZER') {
+          // Handle killfeed randomizer on/off
+          const randomizerEnabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          
+          await connection.execute(
+            'UPDATE killfeed_configs SET randomizer_enabled = ? WHERE id = ?',
+            [randomizerEnabled, killfeed.id]
+          );
+
+          await connection.end();
+          
+          return await interaction.reply({
+            content: `✅ **${server.nickname}** killfeed randomizer has been **${randomizerEnabled ? 'enabled' : 'disabled'}**.`,
+            ephemeral: true
+          });
+        }
       }
 
       // Validate option based on config type
