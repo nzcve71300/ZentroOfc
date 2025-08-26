@@ -63,7 +63,6 @@ const recentTeleports = new Map();
 const bookARideState = new Map();
 const bookARideCooldowns = new Map();
 const lastPrintposRequest = new Map();
-const eventFlags = new Map(); // Track event states to prevent duplicate messages
 const kitClaimDeduplication = new Map(); // Track recent kit claims to prevent duplicates
 const nightSkipVotes = new Map(); // Track night skip voting state
 const nightSkipVoteCounts = new Map(); // Track vote counts per server
@@ -115,6 +114,10 @@ const JOIN_COOLDOWN = 30000; // 30 seconds cooldown between join messages
 const eventDetectionCooldowns = new Map(); // Track cooldowns per server to prevent spam
 const EVENT_DETECTION_COOLDOWN = 30000; // 30 seconds cooldown between checks per server
 const EVENT_POLLING_INTERVAL = 30000; // Check every 30 seconds instead of 60
+
+// Event detection state tracking
+const eventFlags = new Map(); // Track event states to prevent duplicate messages
+const serverEventStates = new Map(); // Track server-specific event states
 
 // Bounty system tracking
 const bountyTracking = new Map(); // serverId -> Map of playerName -> killStreak
@@ -519,6 +522,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       if (now - lastCheck > 15000) { // 15 seconds instead of 30 seconds
         await checkPlayerOnlineStatus(client, guildId, serverName, ip, port, password);
         onlineStatusChecks.set(key, now);
+      }
+
+      // Check event gibs every 30 seconds
+      const lastEventCheck = eventDetectionCooldowns.get(key) || 0;
+      if (now - lastEventCheck > 30000) { // 30 seconds
+        await checkEventGibs(client, guildId, serverName, serverId, ip, port, password);
+        eventDetectionCooldowns.set(key, now);
       }
 
     } catch (err) {
@@ -5032,7 +5042,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     // Check if enabled
     if (!Boolean(config.enabled)) {
       console.log(`[TELEPORT] Teleport is DISABLED`);
-      // Silent failure - no message sent
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>${teleportName.toUpperCase()} teleport is currently disabled</color>`);
       return;
     }
 
@@ -5044,7 +5054,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
     if (playerResult[0].length === 0) {
       console.log(`[TELEPORT] Player ${player} not found in database`);
-      // Silent failure - no message sent
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not linked to Discord. Please use /link first</color>`);
       return;
     }
 
@@ -5062,7 +5072,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
       if (bannedResult[0].length > 0) {
         console.log(`[TELEPORT] Player ${player} is banned from ${teleportName}`);
-        // Silent failure - no message sent
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are banned from using ${teleportName.toUpperCase()} teleport</color>`);
         return;
       }
 
@@ -5074,7 +5084,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
       if (allowedResult[0].length === 0) {
         console.log(`[TELEPORT] Player ${player} not allowed for ${teleportName}`);
-        // Silent failure - no message sent
+        sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not allowed to use ${teleportName.toUpperCase()} teleport</color>`);
         return;
       }
     }
@@ -5178,6 +5188,91 @@ async function performTeleport(ip, port, password, player, config, displayName, 
   }
 }
 
+// Event detection function
+async function checkEventGibs(client, guildId, serverName, serverId, ip, port, password) {
+  try {
+    // Get event configuration
+    const [bradleyConfig] = await pool.query(
+      'SELECT enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? AND event_type = ?',
+      [serverId.toString(), 'bradley']
+    );
+
+    const [helicopterConfig] = await pool.query(
+      'SELECT enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? AND event_type = ?',
+      [serverId.toString(), 'helicopter']
+    );
+
+    // Check Bradley gibs
+    if (bradleyConfig.length > 0 && bradleyConfig[0].enabled) {
+      const bradleyResult = await sendRconCommand(ip, port, password, 'find_entity servergibs_bradley');
+      
+      if (bradleyResult && bradleyResult.includes('servergibs_bradley')) {
+        const stateKey = `${serverId}_bradley`;
+        const currentState = serverEventStates.get(stateKey);
+        
+        if (!currentState || !currentState.hasGibs) {
+          serverEventStates.set(stateKey, { hasGibs: true, timestamp: Date.now() });
+          
+          // Send kill message
+          if (bradleyConfig[0].kill_message) {
+            sendRconCommand(ip, port, password, `say ${bradleyConfig[0].kill_message}`);
+          }
+          
+          // Set timeout to clear state after 10 minutes
+          setTimeout(() => {
+            const currentState = serverEventStates.get(stateKey);
+            if (currentState && currentState.hasGibs) {
+              currentState.hasGibs = false;
+              serverEventStates.set(stateKey, currentState);
+              
+              // Send respawn message
+              if (bradleyConfig[0].respawn_message) {
+                sendRconCommand(ip, port, password, `say ${bradleyConfig[0].respawn_message}`);
+              }
+            }
+          }, 600000); // 10 minutes
+        }
+      }
+    }
+
+    // Check Helicopter gibs
+    if (helicopterConfig.length > 0 && helicopterConfig[0].enabled) {
+      const helicopterResult = await sendRconCommand(ip, port, password, 'find_entity servergibs_patrolhelicopter');
+      
+      if (helicopterResult && helicopterResult.includes('servergibs_patrolhelicopter')) {
+        const stateKey = `${serverId}_helicopter`;
+        const currentState = serverEventStates.get(stateKey);
+        
+        if (!currentState || !currentState.hasGibs) {
+          serverEventStates.set(stateKey, { hasGibs: true, timestamp: Date.now() });
+          
+          // Send kill message
+          if (helicopterConfig[0].kill_message) {
+            sendRconCommand(ip, port, password, `say ${helicopterConfig[0].kill_message}`);
+          }
+          
+          // Set timeout to clear state after 10 minutes
+          setTimeout(() => {
+            const currentState = serverEventStates.get(stateKey);
+            if (currentState && currentState.hasGibs) {
+              currentState.hasGibs = false;
+              serverEventStates.set(stateKey, currentState);
+              
+              // Send respawn message
+              if (helicopterConfig[0].respawn_message) {
+                sendRconCommand(ip, port, password, `say ${helicopterConfig[0].respawn_message}`);
+              }
+            }
+          }, 600000); // 10 minutes
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('[EVENT DETECTION] Error checking event gibs:', error);
+  }
+}
+
 // Export functions for use in commands
 module.exports = {
   startRconListeners,
@@ -5188,5 +5283,6 @@ module.exports = {
   sendFeedEmbed,
   updatePlayerCountChannel,
   enableTeamActionLogging,
-  populateTeamIds
+  populateTeamIds,
+  checkEventGibs
 }; 

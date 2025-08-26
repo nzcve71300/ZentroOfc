@@ -48,12 +48,32 @@ module.exports = {
           { name: 'COORDINATES (Teleport Location)', value: 'COORDINATES' }
         ];
         
+        // Generate event configuration options
+        const events = ['BRADLEY', 'HELICOPTER'];
+        const eventConfigTypes = [
+          { name: 'SCOUT (On/Off)', value: 'SCOUT' },
+          { name: 'KILLMSG (Kill Message)', value: 'KILLMSG' },
+          { name: 'RESPAWNMSG (Respawn Message)', value: 'RESPAWNMSG' }
+        ];
+        
         const allOptions = [];
+        
+        // Add teleport options
         teleports.forEach(teleport => {
           configTypes.forEach(configType => {
             allOptions.push({
               name: `${teleport}-${configType.value}`,
               value: `${teleport}-${configType.value}`
+            });
+          });
+        });
+        
+        // Add event options
+        events.forEach(event => {
+          eventConfigTypes.forEach(configType => {
+            allOptions.push({
+              name: `${event}-${configType.value}`,
+              value: `${event}-${configType.value}`
             });
           });
         });
@@ -82,7 +102,12 @@ module.exports = {
       // Extract teleport name from config (e.g., "TPNE-USE" -> "tpne")
       const teleportMatch = config.match(/^(TPN|TPNE|TPE|TPSE|TPS|TPSW|TPW|TPNW)-/);
       const teleport = teleportMatch ? teleportMatch[1].toLowerCase() : 'default';
-      const configType = config.split('-')[1]; // e.g., "USE", "TIME"
+      
+      // Extract event name from config (e.g., "BRADLEY-SCOUT" -> "bradley")
+      const eventMatch = config.match(/^(BRADLEY|HELICOPTER)-/);
+      const eventType = eventMatch ? eventMatch[1].toLowerCase() : null;
+      
+      const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -101,17 +126,41 @@ module.exports = {
         port: process.env.DB_PORT || 3306
       });
 
-      // Check if config exists, create if not
-      const [existingConfig] = await connection.execute(
-        'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
-        [server.id.toString(), teleport]
-      );
+      // Handle teleport configurations
+      if (teleportMatch) {
+        // Check if config exists, create if not
+        const [existingConfig] = await connection.execute(
+          'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+          [server.id.toString(), teleport]
+        );
 
-      if (existingConfig.length === 0) {
-        await connection.execute(`
-          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, position_x, position_y, position_z)
-          VALUES (?, ?, false, 60, 0, ?, false, false, false, '', 0, 0, 0)
-        `, [server.id.toString(), teleport, teleport.toUpperCase()]);
+        if (existingConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, position_x, position_y, position_z)
+            VALUES (?, ?, false, 60, 0, ?, false, false, false, '', 0, 0, 0)
+          `, [server.id.toString(), teleport, teleport.toUpperCase()]);
+        }
+      }
+      
+      // Handle event configurations
+      if (eventMatch) {
+        // Check if event config exists, create if not
+        const [existingEventConfig] = await connection.execute(
+          'SELECT * FROM event_configs WHERE server_id = ? AND event_type = ?',
+          [server.id.toString(), eventType]
+        );
+
+        if (existingEventConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message)
+            VALUES (?, ?, false, ?, ?)
+          `, [
+            server.id.toString(),
+            eventType,
+            eventType === 'bradley' ? '<color=#00ffff>Brad got taken</color>' : '<color=#00ffff>Heli got taken</color>',
+            eventType === 'bradley' ? '<color=#00ffff>Bradley APC has respawned</color>' : '<color=#00ffff>Patrol Helicopter has respawned</color>'
+          ]);
+        }
       }
 
       // Validate option based on config type
@@ -123,6 +172,7 @@ module.exports = {
         case 'USELIST':
         case 'USE-DELAY':
         case 'USE-KIT':
+        case 'SCOUT':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
             return await interaction.reply({
@@ -146,10 +196,12 @@ module.exports = {
           break;
         case 'NAME':
         case 'KITNAME':
+        case 'KILLMSG':
+        case 'RESPAWNMSG':
           if (option.trim().length === 0) {
             await connection.end();
             return await interaction.reply({
-              content: `❌ Invalid value for ${configType}. Name cannot be empty`,
+              content: `❌ Invalid value for ${configType}. Message cannot be empty`,
               ephemeral: true
             });
           }
@@ -215,6 +267,20 @@ module.exports = {
           updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
           break;
+          
+        // Event configurations
+        case 'SCOUT':
+          updateQuery = 'UPDATE event_configs SET enabled = ? WHERE server_id = ? AND event_type = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), eventType];
+          break;
+        case 'KILLMSG':
+          updateQuery = 'UPDATE event_configs SET kill_message = ? WHERE server_id = ? AND event_type = ?';
+          updateParams = [validatedOption, server.id.toString(), eventType];
+          break;
+        case 'RESPAWNMSG':
+          updateQuery = 'UPDATE event_configs SET respawn_message = ? WHERE server_id = ? AND event_type = ?';
+          updateParams = [validatedOption, server.id.toString(), eventType];
+          break;
       }
 
       console.log(`[SET COMMAND DEBUG] Executing query: ${updateQuery}`);
@@ -224,17 +290,32 @@ module.exports = {
       
       // Verify the update worked
       let verifyField = 'enabled';
-      if (configType === 'USE-KIT') verifyField = 'use_kit';
-      else if (configType === 'USELIST') verifyField = 'use_list';
-      else if (configType === 'USE-DELAY') verifyField = 'use_delay';
-      else if (configType === 'TIME') verifyField = 'cooldown_minutes';
-      else if (configType === 'DELAYTIME') verifyField = 'delay_minutes';
-      else if (configType === 'NAME') verifyField = 'display_name';
-      else if (configType === 'KITNAME') verifyField = 'kit_name';
+      let verifyTable = 'teleport_configs';
+      let verifyId = teleport;
+      let verifyIdField = 'teleport_name';
+      
+      if (teleportMatch) {
+        // Teleport configuration verification
+        if (configType === 'USE-KIT') verifyField = 'use_kit';
+        else if (configType === 'USELIST') verifyField = 'use_list';
+        else if (configType === 'USE-DELAY') verifyField = 'use_delay';
+        else if (configType === 'TIME') verifyField = 'cooldown_minutes';
+        else if (configType === 'DELAYTIME') verifyField = 'delay_minutes';
+        else if (configType === 'NAME') verifyField = 'display_name';
+        else if (configType === 'KITNAME') verifyField = 'kit_name';
+      } else if (eventMatch) {
+        // Event configuration verification
+        verifyTable = 'event_configs';
+        verifyId = eventType;
+        verifyIdField = 'event_type';
+        
+        if (configType === 'KILLMSG') verifyField = 'kill_message';
+        else if (configType === 'RESPAWNMSG') verifyField = 'respawn_message';
+      }
       
       const [verifyResult] = await connection.execute(
-        `SELECT ${verifyField} FROM teleport_configs WHERE server_id = ? AND teleport_name = ?`,
-        [server.id.toString(), teleport]
+        `SELECT ${verifyField} FROM ${verifyTable} WHERE server_id = ? AND ${verifyIdField} = ?`,
+        [server.id.toString(), verifyId]
       );
       
       if (verifyResult.length > 0) {
@@ -247,6 +328,8 @@ module.exports = {
       let successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       if (configType === 'COORDINATES') {
         successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** on **${server.nickname}**`;
+      } else if (eventMatch) {
+        successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       }
 
       await interaction.reply({
