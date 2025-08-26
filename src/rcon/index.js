@@ -527,6 +527,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Check event gibs every 30 seconds
       const lastEventCheck = eventDetectionCooldowns.get(key) || 0;
       if (now - lastEventCheck > 30000) { // 30 seconds
+        console.log(`[EVENT DEBUG] Running event check for ${serverName} (${guildId})`);
         // Get server ID for event detection
         const [serverResult] = await pool.query(
           'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
@@ -535,7 +536,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         
         if (serverResult.length > 0) {
           const serverId = serverResult[0].id;
+          console.log(`[EVENT DEBUG] Found server ID: ${serverId}, calling checkEventGibs`);
           await checkEventGibs(client, guildId, serverName, serverId, ip, port, password);
+        } else {
+          console.log(`[EVENT DEBUG] No server found for ${serverName} in guild ${guildId}`);
         }
         eventDetectionCooldowns.set(key, now);
       }
@@ -5200,6 +5204,8 @@ async function performTeleport(ip, port, password, player, config, displayName, 
 // Event detection function
 async function checkEventGibs(client, guildId, serverName, serverId, ip, port, password) {
   try {
+    console.log(`[EVENT DEBUG] Checking events for ${serverName} (${serverId})`);
+    
     // Get event configuration
     const [bradleyConfig] = await pool.query(
       'SELECT enabled, kill_message, respawn_message FROM event_configs WHERE server_id = ? AND event_type = ?',
@@ -5211,26 +5217,42 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
       [serverId.toString(), 'helicopter']
     );
 
+    console.log(`[EVENT DEBUG] Bradley config: ${bradleyConfig.length > 0 ? 'Found' : 'Not found'}, Enabled: ${bradleyConfig.length > 0 ? bradleyConfig[0].enabled : 'N/A'}`);
+    console.log(`[EVENT DEBUG] Helicopter config: ${helicopterConfig.length > 0 ? 'Found' : 'Not found'}, Enabled: ${helicopterConfig.length > 0 ? helicopterConfig[0].enabled : 'N/A'}`);
+
     // Check Bradley gibs
     if (bradleyConfig.length > 0 && bradleyConfig[0].enabled) {
+      console.log(`[EVENT DEBUG] Bradley enabled, checking for gibs...`);
       const bradleyResult = await sendRconCommand(ip, port, password, 'find_entity servergibs_bradley');
+      console.log(`[EVENT DEBUG] Bradley gib check result: ${bradleyResult ? 'Got response' : 'No response'}`);
+      
+      if (bradleyResult) {
+        console.log(`[EVENT DEBUG] Bradley response: ${bradleyResult.substring(0, 100)}...`);
+      }
       
       if (bradleyResult && bradleyResult.includes('servergibs_bradley')) {
+        console.log(`[EVENT DEBUG] Bradley gibs found!`);
         const stateKey = `${serverId}_bradley`;
         const currentState = serverEventStates.get(stateKey);
         
+        console.log(`[EVENT DEBUG] Current state: ${currentState ? JSON.stringify(currentState) : 'None'}`);
+        
         if (!currentState || !currentState.hasGibs) {
+          console.log(`[EVENT DEBUG] Setting new state and sending kill message`);
           serverEventStates.set(stateKey, { hasGibs: true, timestamp: Date.now() });
           
           // Send kill message
           if (bradleyConfig[0].kill_message) {
-            sendRconCommand(ip, port, password, `say ${bradleyConfig[0].kill_message}`);
+            console.log(`[EVENT DEBUG] Sending kill message: ${bradleyConfig[0].kill_message}`);
+            const messageResult = await sendRconCommand(ip, port, password, `say ${bradleyConfig[0].kill_message}`);
+            console.log(`[EVENT DEBUG] Kill message result: ${messageResult ? 'Sent' : 'Failed'}`);
           }
           
           // Set timeout to clear state after 10 minutes
           setTimeout(() => {
             const currentState = serverEventStates.get(stateKey);
             if (currentState && currentState.hasGibs) {
+              console.log(`[EVENT DEBUG] Clearing Bradley state and sending respawn message`);
               currentState.hasGibs = false;
               serverEventStates.set(stateKey, currentState);
               
@@ -5240,30 +5262,49 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
               }
             }
           }, 600000); // 10 minutes
+        } else {
+          console.log(`[EVENT DEBUG] Bradley already has gibs, skipping message`);
         }
+      } else {
+        console.log(`[EVENT DEBUG] No Bradley gibs found`);
       }
+    } else {
+      console.log(`[EVENT DEBUG] Bradley not enabled or no config found`);
     }
 
     // Check Helicopter gibs
     if (helicopterConfig.length > 0 && helicopterConfig[0].enabled) {
+      console.log(`[EVENT DEBUG] Helicopter enabled, checking for gibs...`);
       const helicopterResult = await sendRconCommand(ip, port, password, 'find_entity servergibs_patrolhelicopter');
+      console.log(`[EVENT DEBUG] Helicopter gib check result: ${helicopterResult ? 'Got response' : 'No response'}`);
+      
+      if (helicopterResult) {
+        console.log(`[EVENT DEBUG] Helicopter response: ${helicopterResult.substring(0, 100)}...`);
+      }
       
       if (helicopterResult && helicopterResult.includes('servergibs_patrolhelicopter')) {
+        console.log(`[EVENT DEBUG] Helicopter gibs found!`);
         const stateKey = `${serverId}_helicopter`;
         const currentState = serverEventStates.get(stateKey);
         
+        console.log(`[EVENT DEBUG] Current helicopter state: ${currentState ? JSON.stringify(currentState) : 'None'}`);
+        
         if (!currentState || !currentState.hasGibs) {
+          console.log(`[EVENT DEBUG] Setting new helicopter state and sending kill message`);
           serverEventStates.set(stateKey, { hasGibs: true, timestamp: Date.now() });
           
           // Send kill message
           if (helicopterConfig[0].kill_message) {
-            sendRconCommand(ip, port, password, `say ${helicopterConfig[0].kill_message}`);
+            console.log(`[EVENT DEBUG] Sending helicopter kill message: ${helicopterConfig[0].kill_message}`);
+            const messageResult = await sendRconCommand(ip, port, password, `say ${helicopterConfig[0].kill_message}`);
+            console.log(`[EVENT DEBUG] Helicopter kill message result: ${messageResult ? 'Sent' : 'Failed'}`);
           }
           
           // Set timeout to clear state after 10 minutes
           setTimeout(() => {
             const currentState = serverEventStates.get(stateKey);
             if (currentState && currentState.hasGibs) {
+              console.log(`[EVENT DEBUG] Clearing helicopter state and sending respawn message`);
               currentState.hasGibs = false;
               serverEventStates.set(stateKey, currentState);
               
@@ -5273,8 +5314,14 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
               }
             }
           }, 600000); // 10 minutes
+        } else {
+          console.log(`[EVENT DEBUG] Helicopter already has gibs, skipping message`);
         }
+      } else {
+        console.log(`[EVENT DEBUG] No helicopter gibs found`);
       }
+    } else {
+      console.log(`[EVENT DEBUG] Helicopter not enabled or no config found`);
     }
 
   } catch (error) {
