@@ -92,6 +92,29 @@ module.exports = {
           });
         });
         
+        // Add Economy configuration options
+        const economyConfigTypes = [
+          { name: 'BLACKJACK-TOGGLE (On/Off)', value: 'BLACKJACK-TOGGLE' },
+          { name: 'COINFLIP-TOGGLE (On/Off)', value: 'COINFLIP-TOGGLE' },
+          { name: 'DAILY-AMOUNT (Reward Amount)', value: 'DAILY-AMOUNT' },
+          { name: 'STARTING-BALANCE (Amount)', value: 'STARTING-BALANCE' },
+          { name: 'PLAYERKILLS-AMOUNT (Reward)', value: 'PLAYERKILLS-AMOUNT' },
+          { name: 'MISCKILLS-AMOUNT (Reward)', value: 'MISCKILLS-AMOUNT' },
+          { name: 'BOUNTY-TOGGLE (On/Off)', value: 'BOUNTY-TOGGLE' },
+          { name: 'BOUNTY-REWARDS (Amount)', value: 'BOUNTY-REWARDS' },
+          { name: 'BLACKJACK-MIN (Min Bet)', value: 'BLACKJACK-MIN' },
+          { name: 'BLACKJACK-MAX (Max Bet)', value: 'BLACKJACK-MAX' },
+          { name: 'COINFLIP-MIN (Min Bet)', value: 'COINFLIP-MIN' },
+          { name: 'COINFLIP-MAX (Max Bet)', value: 'COINFLIP-MAX' }
+        ];
+        
+        economyConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: configType.name,
+            value: configType.value
+          });
+        });
+        
         // Filter based on user input
         const filtered = allOptions.filter(option => 
           option.name.toLowerCase().includes(focusedValue.toLowerCase())
@@ -124,6 +147,10 @@ module.exports = {
       // Extract BAR config from config (e.g., "BAR-USE" -> "bar")
       const barMatch = config.match(/^BAR-/);
       const isBarConfig = barMatch !== null;
+      
+      // Extract Economy config from config (e.g., "BLACKJACK-TOGGLE" -> "blackjack_toggle")
+      const economyMatch = config.match(/^(BLACKJACK|COINFLIP|DAILY|STARTING|PLAYERKILLS|MISCKILLS|BOUNTY)-/);
+      const isEconomyConfig = economyMatch !== null;
       
       const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
 
@@ -194,6 +221,126 @@ module.exports = {
             INSERT INTO rider_config (server_id, enabled, cooldown) VALUES (?, 1, 300)
           `, [server.id.toString()]);
         }
+      }
+
+      // Handle Economy configurations
+      if (isEconomyConfig) {
+        // Get currency name for this server
+        const { getCurrencyName } = require('../../utils/economy');
+        const currencyName = await getCurrencyName(server.id.toString());
+        
+        // Convert config name to database format
+        let settingName = '';
+        switch (config) {
+          case 'BLACKJACK-TOGGLE':
+            settingName = 'blackjack_toggle';
+            break;
+          case 'COINFLIP-TOGGLE':
+            settingName = 'coinflip_toggle';
+            break;
+          case 'DAILY-AMOUNT':
+            settingName = 'daily_amount';
+            break;
+          case 'STARTING-BALANCE':
+            settingName = 'starting_balance';
+            break;
+          case 'PLAYERKILLS-AMOUNT':
+            settingName = 'playerkills_amount';
+            break;
+          case 'MISCKILLS-AMOUNT':
+            settingName = 'misckills_amount';
+            break;
+          case 'BOUNTY-TOGGLE':
+            settingName = 'bounty_toggle';
+            break;
+          case 'BOUNTY-REWARDS':
+            settingName = 'bounty_rewards';
+            break;
+          case 'BLACKJACK-MIN':
+            settingName = 'blackjack_min';
+            break;
+          case 'BLACKJACK-MAX':
+            settingName = 'blackjack_max';
+            break;
+          case 'COINFLIP-MIN':
+            settingName = 'coinflip_min';
+            break;
+          case 'COINFLIP-MAX':
+            settingName = 'coinflip_max';
+            break;
+        }
+        
+        // Validate and process the option value
+        let settingValue = '';
+        let message = '';
+        
+        if (config.includes('TOGGLE')) {
+          const enabled = option.toLowerCase() === 'on' || option.toLowerCase() === 'true' || option === '1';
+          settingValue = enabled ? 'true' : 'false';
+          const gameType = config.includes('BLACKJACK') ? 'Blackjack' : config.includes('COINFLIP') ? 'Coinflip' : 'Bounty system';
+          message = `${gameType} has been ${enabled ? 'enabled' : 'disabled'} on ${server.nickname}.`;
+          
+          // Handle bounty toggle specifically
+          if (config === 'BOUNTY-TOGGLE') {
+            await connection.execute(
+              `INSERT INTO bounty_configs (server_id, enabled) 
+               VALUES (?, ?) 
+               ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
+              [server.id.toString(), enabled]
+            );
+          }
+        } else if (config.includes('AMOUNT') || config.includes('BALANCE') || config.includes('REWARDS') || config.includes('MIN') || config.includes('MAX')) {
+          const amount = parseInt(option);
+          if (isNaN(amount) || amount < 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid amount. Must be a positive number.`,
+              ephemeral: true
+            });
+          }
+          settingValue = amount.toString();
+          
+          if (config === 'DAILY-AMOUNT') {
+            message = `Daily reward amount has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+          } else if (config === 'STARTING-BALANCE') {
+            message = `Starting balance has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+          } else if (config === 'PLAYERKILLS-AMOUNT') {
+            message = `Player kills reward has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+          } else if (config === 'MISCKILLS-AMOUNT') {
+            message = `Scientist kills reward has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+          } else if (config === 'BOUNTY-REWARDS') {
+            message = `Bounty reward has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+            
+            // Handle bounty rewards specifically
+            await connection.execute(
+              `INSERT INTO bounty_configs (server_id, reward_amount) 
+               VALUES (?, ?) 
+               ON DUPLICATE KEY UPDATE reward_amount = VALUES(reward_amount)`,
+              [server.id.toString(), amount]
+            );
+          } else if (config.includes('BLACKJACK')) {
+            const limitType = config.includes('MIN') ? 'minimum' : 'maximum';
+            message = `Blackjack ${limitType} bet has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+          } else if (config.includes('COINFLIP')) {
+            const limitType = config.includes('MIN') ? 'minimum' : 'maximum';
+            message = `Coinflip ${limitType} bet has been set to ${amount} ${currencyName} on ${server.nickname}.`;
+          }
+        }
+        
+        // Insert or update the configuration
+        await connection.execute(
+          `INSERT INTO eco_games_config (server_id, setting_name, setting_value) 
+           VALUES (?, ?, ?) 
+           ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+          [server.id.toString(), settingName, settingValue]
+        );
+        
+        await connection.end();
+        
+        return await interaction.reply({
+          content: `✅ ${message}`,
+          ephemeral: true
+        });
       }
 
       // Validate option based on config type
