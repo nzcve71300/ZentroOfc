@@ -56,6 +56,12 @@ module.exports = {
           { name: 'RESPAWNMSG (Respawn Message)', value: 'RESPAWNMSG' }
         ];
         
+        // Generate BAR (Book-a-Ride) configuration options
+        const barConfigTypes = [
+          { name: 'USE (On/Off)', value: 'USE' },
+          { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
+        ];
+        
         const allOptions = [];
         
         // Add teleport options
@@ -75,6 +81,14 @@ module.exports = {
               name: `${event}-${configType.value}`,
               value: `${event}-${configType.value}`
             });
+          });
+        });
+        
+        // Add BAR options
+        barConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: `BAR-${configType.value}`,
+            value: `BAR-${configType.value}`
           });
         });
         
@@ -106,6 +120,10 @@ module.exports = {
       // Extract event name from config (e.g., "BRADLEY-SCOUT" -> "bradley")
       const eventMatch = config.match(/^(BRADLEY|HELICOPTER)-/);
       const eventType = eventMatch ? eventMatch[1].toLowerCase() : null;
+      
+      // Extract BAR config from config (e.g., "BAR-USE" -> "bar")
+      const barMatch = config.match(/^BAR-/);
+      const isBarConfig = barMatch !== null;
       
       const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
 
@@ -162,6 +180,21 @@ module.exports = {
           ]);
         }
       }
+      
+      // Handle BAR configurations
+      if (isBarConfig) {
+        // Check if BAR config exists, create if not
+        const [existingBarConfig] = await connection.execute(
+          'SELECT * FROM rider_config WHERE server_id = ?',
+          [server.id.toString()]
+        );
+
+        if (existingBarConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO rider_config (server_id, enabled, cooldown) VALUES (?, 1, 300)
+          `, [server.id.toString()]);
+        }
+      }
 
       // Validate option based on config type
       let validatedOption = option;
@@ -184,6 +217,7 @@ module.exports = {
           break;
         case 'TIME':
         case 'DELAYTIME':
+        case 'COOLDOWN':
           const timeValue = parseInt(option);
           if (isNaN(timeValue) || timeValue < 0) {
             await connection.end();
@@ -231,8 +265,13 @@ module.exports = {
 
       switch (configType) {
         case 'USE':
-          updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
-          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          } else {
+            updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          }
           break;
         case 'TIME':
           updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
@@ -262,7 +301,12 @@ module.exports = {
           updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [validatedOption, server.id.toString(), teleport];
           break;
-
+        case 'COOLDOWN':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET cooldown = ? WHERE server_id = ?';
+            updateParams = [validatedOption, server.id.toString()];
+          }
+          break;
         case 'COORDINATES':
           updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [coords[0], coords[1], coords[2], server.id.toString(), teleport];
@@ -311,11 +355,18 @@ module.exports = {
         
         if (configType === 'KILLMSG') verifyField = 'kill_message';
         else if (configType === 'RESPAWNMSG') verifyField = 'respawn_message';
+      } else if (isBarConfig) {
+        // BAR configuration verification
+        verifyTable = 'rider_config';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        
+        if (configType === 'COOLDOWN') verifyField = 'cooldown';
       }
       
       const [verifyResult] = await connection.execute(
-        `SELECT ${verifyField} FROM ${verifyTable} WHERE server_id = ? AND ${verifyIdField} = ?`,
-        [server.id.toString(), verifyId]
+        `SELECT ${verifyField} FROM ${verifyTable} WHERE ${verifyIdField} = ?`,
+        [verifyId]
       );
       
       if (verifyResult.length > 0) {
@@ -329,6 +380,8 @@ module.exports = {
       if (configType === 'COORDINATES') {
         successMessage = `✅ **${config}** set to **${coords[0]}, ${coords[1]}, ${coords[2]}** on **${server.nickname}**`;
       } else if (eventMatch) {
+        successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
+      } else if (isBarConfig) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       }
 
