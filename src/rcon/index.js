@@ -527,7 +527,16 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Check event gibs every 30 seconds
       const lastEventCheck = eventDetectionCooldowns.get(key) || 0;
       if (now - lastEventCheck > 30000) { // 30 seconds
-        await checkEventGibs(client, guildId, serverName, serverId, ip, port, password);
+        // Get server ID for event detection
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+        
+        if (serverResult.length > 0) {
+          const serverId = serverResult[0].id;
+          await checkEventGibs(client, guildId, serverName, serverId, ip, port, password);
+        }
         eventDetectionCooldowns.set(key, now);
       }
 
