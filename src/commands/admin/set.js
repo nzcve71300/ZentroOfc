@@ -64,35 +64,7 @@ module.exports = {
         
         const allOptions = [];
         
-        // Add teleport options
-        teleports.forEach(teleport => {
-          configTypes.forEach(configType => {
-            allOptions.push({
-              name: `${teleport}-${configType.value}`,
-              value: `${teleport}-${configType.value}`
-            });
-          });
-        });
-        
-        // Add event options
-        events.forEach(event => {
-          eventConfigTypes.forEach(configType => {
-            allOptions.push({
-              name: `${event}-${configType.value}`,
-              value: `${event}-${configType.value}`
-            });
-          });
-        });
-        
-        // Add BAR options
-        barConfigTypes.forEach(configType => {
-          allOptions.push({
-            name: `BAR-${configType.value}`,
-            value: `BAR-${configType.value}`
-          });
-        });
-        
-        // Add Economy configuration options
+        // Add Economy configuration options FIRST (most important)
         const economyConfigTypes = [
           { name: 'BLACKJACK-TOGGLE (On/Off)', value: 'BLACKJACK-TOGGLE' },
           { name: 'COINFLIP-TOGGLE (On/Off)', value: 'COINFLIP-TOGGLE' },
@@ -112,6 +84,34 @@ module.exports = {
           allOptions.push({
             name: configType.name,
             value: configType.value
+          });
+        });
+        
+        // Add event options SECOND (Bradley/Helicopter)
+        events.forEach(event => {
+          eventConfigTypes.forEach(configType => {
+            allOptions.push({
+              name: `${event}-${configType.value}`,
+              value: `${event}-${configType.value}`
+            });
+          });
+        });
+        
+        // Add BAR options THIRD
+        barConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: `BAR-${configType.value}`,
+            value: `BAR-${configType.value}`
+          });
+        });
+        
+        // Add teleport options LAST (least important for economy configs)
+        teleports.forEach(teleport => {
+          configTypes.forEach(configType => {
+            allOptions.push({
+              name: `${teleport}-${configType.value}`,
+              value: `${teleport}-${configType.value}`
+            });
           });
         });
         
