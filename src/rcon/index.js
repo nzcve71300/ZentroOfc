@@ -284,10 +284,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       Logger.quiet('[RCON MSG]', msg);
       
-      // Debug: Log all messages that might be note panel related
-      if (msg.includes('[NOTE PANEL]') || msg.includes('note:update')) {
-        Logger.debug(`[NOTEFEED DEBUG] Potential note panel message detected: ${msg}`);
-      }
+
 
       // Handle player joins/leaves with respawn spam prevention
       if (msg.match(/has entered the game/)) {
@@ -349,8 +346,6 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle note panel messages FIRST (before other handlers)
       if (msg.includes('[NOTE PANEL]') && msg.includes('changed name from')) {
-        Logger.debug(`[NOTEFEED] Note panel message detected: ${msg}`);
-        
         // Use a more flexible regex that handles multi-line content
         const match = msg.match(/\[NOTE PANEL\] Player \[ ([^\]]+) \] changed name from \[ ([^\]]*) \] to \[ ([^\]]*) \]/s);
         if (match) {
@@ -358,20 +353,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           const oldNote = match[2].replace(/\\n/g, '\n').trim();
           const newNote = match[3].replace(/\\n/g, '\n').trim();
           
-          Logger.debug(`[NOTEFEED] Parsed - Player: "${player}", Old: "${oldNote}", New: "${newNote}"`);
-          
           if (newNote && newNote !== oldNote) {
-            Logger.debug(`[NOTEFEED] Sending in-game message: ${newNote}`);
             // Send green and bold message in-game
             sendRconCommand(ip, port, password, `say <color=green><b>${newNote}</b></color>`);
             // Send to notefeed
             await sendFeedEmbed(client, guildId, serverName, 'notefeed', `**${player}** says: ${newNote}`);
             Logger.event(`[NOTEFEED] Note sent to Discord from ${player}: ${newNote}`);
-          } else {
-            Logger.debug(`[NOTEFEED] New note is empty or same as old note, skipping`);
           }
-        } else {
-          Logger.debug(`[NOTEFEED] Regex match failed for note panel message`);
         }
         // Return early to prevent other handlers from processing this message
         return;
@@ -1069,8 +1057,6 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
     }
   }
 
-        Logger.debug('Processing kit message:', kitMsg);
-
   for (const [kitKey, emote] of Object.entries(KIT_EMOTES)) {
     let player = null;
     let processedEmote = false;
@@ -1079,13 +1065,11 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
     if (typeof kitMsg === 'string' && kitMsg.includes(emote)) {
       player = extractPlayerName(kitMsg);
       processedEmote = true;
-              Logger.debug('Found kit emote in string:', kitKey, 'player:', player);
     } 
     // Only check object format if string format didn't match
     else if (typeof kitMsg === 'object' && kitMsg.Message && kitMsg.Message.includes(emote)) {
       player = kitMsg.Username || null;
       processedEmote = true;
-              Logger.debug('Found kit emote in object:', kitKey, 'player:', player);
     }
     
     // Only process if we found a valid player and haven't processed this emote yet
@@ -1099,15 +1083,12 @@ async function handleKitEmotes(client, guildId, serverName, parsed, ip, port, pa
 
 async function handleKitClaim(client, guildId, serverName, ip, port, password, kitKey, player) {
   try {
-    console.log('[KIT CLAIM DEBUG] Processing claim for:', kitKey, 'player:', player, 'server:', serverName);
-    
     // Deduplication check - prevent same kit claim within 10 seconds
     const dedupKey = `${serverName}:${player}:${kitKey}`;
     const now = Date.now();
     const lastClaim = kitClaimDeduplication.get(dedupKey);
     
     if (lastClaim && (now - lastClaim) < 10000) {
-      console.log('[KIT CLAIM DEBUG] Duplicate claim detected, skipping:', dedupKey);
       return;
     }
     
@@ -1140,10 +1121,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       [serverId, kitKey]
     );
 
-    console.log('[KIT CLAIM DEBUG] Autokit config:', autokitResult);
-
     if (autokitResult.length === 0 || !autokitResult[0].enabled) {
-      console.log('[KIT CLAIM DEBUG] Kit not enabled or not found:', kitKey);
       return;
     }
 
@@ -1758,11 +1736,9 @@ function getServerInfo(ip, port, password) {
 }
 
 function extractPlayerName(logLine) {
-  console.log(`[EXTRACT DEBUG] Processing logLine: ${logLine}`);
   // Try multiple formats for player name extraction
   let match = logLine.match(/\[CHAT LOCAL\] (.*?) :/);
   if (match) {
-    console.log(`[EXTRACT DEBUG] Found match: ${match[1]}`);
     return match[1];
   }
   
@@ -1804,14 +1780,11 @@ function extractPlayerName(logLine) {
 
 function sendRconCommand(ip, port, password, command) {
   return new Promise((resolve, reject) => {
-    console.log(`[RCON] Sending command to ${ip}:${port}: ${command}`);
-    
     const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
     
     let responseReceived = false;
     
     ws.on('open', () => {
-      console.log(`[RCON] Connected to ${ip}:${port}`);
       ws.send(JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' }));
     });
     
@@ -1825,21 +1798,16 @@ function sendRconCommand(ip, port, password, command) {
     ws.on('message', async (data) => {
       try {
         const parsed = JSON.parse(data);
-        console.log(`[RCON] Received response from ${ip}:${port}:`, parsed);
         
         if (parsed.Message) {
           // Check if this is a position response and inject it into main message handler
-                Logger.debug('Processing command response');
           
           // Clean the message by removing invisible characters
           const cleanMessage = parsed.Message.replace(/[\x00-\x1F\x7F]/g, '').trim();
-          Logger.debug('Message cleaned');
           
           if (cleanMessage.match(/^\([^)]+\)$/)) {
-            Logger.debug('Position response from command handler');
             // Inject this message into the main WebSocket handler by triggering it manually
             // Find the main connection for this server by looking up server details
-                  Logger.debug('Looking for server connection');
             
             try {
               // Look up the server details from database to get guildId and serverName
@@ -1852,17 +1820,13 @@ function sendRconCommand(ip, port, password, command) {
                 const serverName = serverResult[0].nickname;
                 const guildId = serverResult[0].discord_id;
                 const connectionKey = `${guildId}_${serverName}`;
-                console.log(`[BOOK-A-RIDE DEBUG] Looking for connection key: ${connectionKey}`);
                 
                 const mainConnection = activeConnections[connectionKey];
                 if (mainConnection && mainConnection.readyState === 1) {
                   // Simulate a message event on the main connection
                   const simulatedData = JSON.stringify({ Message: cleanMessage });
-                  Logger.debug('Injecting position response into main handler');
                   // We'll trigger the main handler by emitting a message event
                   mainConnection.emit('message', simulatedData);
-                } else {
-                  Logger.debug('Main connection not ready');
                 }
               } else {
                 Logger.warn(`Server not found in database for ${ip}:${port}`);
@@ -1897,7 +1861,7 @@ function sendRconCommand(ip, port, password, command) {
 
 async function sendFeedEmbed(client, guildId, serverName, channelType, message) {
   try {
-    Logger.debug(`[SEND_FEED] Attempting to send ${channelType} message for ${serverName}: ${message}`);
+
     
     // Get the channel ID from database
     const [result] = await pool.query(
@@ -1910,12 +1874,10 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
     );
 
     if (result.length === 0) {
-      Logger.debug(`No ${channelType} channel configured for ${serverName}`);
       return;
     }
 
     const channelId = result[0].channel_id;
-    Logger.debug(`[SEND_FEED] Found channel ID: ${channelId} for ${channelType}`);
     
     const channel = await client.channels.fetch(channelId);
     
@@ -1923,8 +1885,6 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
       Logger.error(`Channel not found: ${channelId}`);
       return;
     }
-
-    Logger.debug(`[SEND_FEED] Channel found: #${channel.name} (${channel.type})`);
 
     // Create embed
     const embed = new EmbedBuilder()
@@ -1935,7 +1895,6 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
 
     await channel.send({ embeds: [embed] });
     Logger.adminFeed(`Sent to ${serverName}: ${message}`);
-    Logger.debug(`[SEND_FEED] Successfully sent ${channelType} message to ${serverName}`);
   } catch (error) {
     Logger.error('Error sending feed embed:', error);
   }
@@ -1954,7 +1913,6 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
     );
 
     if (result.length === 0) {
-      Logger.debug(`No player count channel configured for ${serverName}`);
       return;
     }
 
