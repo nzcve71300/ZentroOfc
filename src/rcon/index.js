@@ -44,6 +44,7 @@ const TELEPORT_EMOTES = {
   bandit: 'd11_quick_chat_combat_slot_0',
   outpost: 'd11_quick_chat_combat_slot_2',
   teleport: 'd11_quick_chat_location_slot_0',
+  tpn: 'd11_quick_chat_location_slot_0', // TPN uses the same emote as teleport
   tpne: 'd11_quick_chat_location_slot_1',
   tpe: 'd11_quick_chat_location_slot_2',
   tpse: 'd11_quick_chat_location_slot_3',
@@ -426,6 +427,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       // Handle Teleport System emotes
       const teleportEmotes = [
         { emote: TELEPORT_EMOTES.teleport, name: 'default' },
+        { emote: TELEPORT_EMOTES.tpn, name: 'tpn' },
         { emote: TELEPORT_EMOTES.tpne, name: 'tpne' },
         { emote: TELEPORT_EMOTES.tpe, name: 'tpe' },
         { emote: TELEPORT_EMOTES.tpse, name: 'tpse' },
