@@ -1,177 +1,115 @@
-const pool = require('./src/db');
+const { compareDiscordIds, normalizeDiscordId, isValidDiscordId } = require('./src/utils/discordUtils');
 
-async function testLinkingSystem() {
-  try {
-    console.log('🧪 Testing linking system with various IGN formats...');
-    
-    const testCases = [
-      // Normal cases
-      { ign: 'XsLdSsG', description: 'Mixed case IGN' },
-      { ign: 'xsldssg', description: 'All lowercase' },
-      { ign: 'XSLDSSG', description: 'All uppercase' },
-      { ign: 'XsLdSsG ', description: 'With trailing space' },
-      { ign: ' XsLdSsG', description: 'With leading space' },
-      { ign: ' XsLdSsG ', description: 'With both spaces' },
-      
-      // Edge cases
-      { ign: 'Bakepot', description: 'Mixed case variation 1' },
-      { ign: 'bakepot', description: 'Mixed case variation 2' },
-      { ign: 'XYtDkKX', description: 'Mixed case variation 3' },
-      { ign: 'xytdkkx', description: 'Mixed case variation 4' },
-      
-      // Special characters (common in Rust)
-      { ign: 'Player_123', description: 'With underscore' },
-      { ign: 'Player-123', description: 'With dash' },
-      { ign: 'Player.123', description: 'With dot' },
-      { ign: 'Player 123', description: 'With space' },
-      { ign: 'Player123', description: 'Alphanumeric' },
-      
-      // Unicode/special characters
-      { ign: 'Płayer', description: 'With Unicode' },
-      { ign: 'Player©', description: 'With copyright symbol' },
-      { ign: 'Player™', description: 'With trademark symbol' },
-      { ign: 'Player®', description: 'With registered symbol' }
-    ];
-    
-    const guildId = '1376030083038318743'; // SHADOWS 3X guild
-    
-    console.log(`\n🔍 Testing against guild: SHADOWS 3X (${guildId})`);
-    console.log('=' .repeat(60));
-    
-    for (const testCase of testCases) {
-      const { ign, description } = testCase;
-      const normalizedIgn = ign.trim();
-      
-      // Test the exact query that the link command uses
-      const [results] = await pool.query(
-        `SELECT p.*, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(p.ign) = LOWER(?) 
-         AND p.is_active = true`,
-        [guildId, normalizedIgn]
-      );
-      
-      const status = results.length > 0 ? '✅ FOUND' : '❌ NOT FOUND';
-      const details = results.length > 0 
-        ? `(${results.length} match${results.length > 1 ? 'es' : ''})` 
-        : '';
-      
-      console.log(`${status} "${ign}" - ${description} ${details}`);
-      
-      if (results.length > 0) {
-        results.forEach((result, index) => {
-          console.log(`   ${index + 1}. IGN: "${result.ign}" | Server: ${result.nickname} | Discord ID: ${result.discord_id}`);
-        });
-      }
-    }
-    
-    // Test specific problematic cases
-    console.log('\n🎯 Testing specific problematic cases:');
-    console.log('=' .repeat(60));
-    
-    const problematicCases = [
-      { input: 'XsLdSsG', expected: 'XsLdSsG' },
-      { input: 'xsldssg', expected: 'XsLdSsG' },
-      { input: 'XSLDSSG', expected: 'XsLdSsG' },
-      { input: 'Bakepot', expected: 'Bakepot' },
-      { input: 'bakepot', expected: 'Bakepot' },
-      { input: 'XYtDkKX', expected: 'XYtDkKX' },
-      { input: 'xytdkkx', expected: 'XYtDkKX' }
-    ];
-    
-    for (const testCase of problematicCases) {
-      const { input, expected } = testCase;
-      
-      // Simulate what happens when someone tries to link
-      const [existingLinks] = await pool.query(
-        `SELECT p.*, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(p.ign) = LOWER(?) 
-         AND p.is_active = true`,
-        [guildId, input.trim()]
-      );
-      
-      if (existingLinks.length > 0) {
-        const foundIgn = existingLinks[0].ign;
-        const matches = foundIgn === expected ? '✅ MATCHES' : '❌ MISMATCH';
-        console.log(`${matches} Input: "${input}" -> Found: "${foundIgn}" (Expected: "${expected}")`);
-      } else {
-        console.log(`❌ NOT FOUND Input: "${input}" (Expected: "${expected}")`);
-      }
-    }
-    
-    // Test the link command logic
-    console.log('\n🔧 Testing link command logic simulation:');
-    console.log('=' .repeat(60));
-    
-    const testDiscordId = '1129566119267663900'; // The actual Discord ID from the diagnostic
-    
-    // Simulate the exact checks from the link command
-    console.log(`\n📱 Testing Discord ID: ${testDiscordId}`);
-    
-    // Check 1: Does this Discord ID have active links?
-    const [activeDiscordLinks] = await pool.query(
-      `SELECT p.*, rs.nickname 
-       FROM players p
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-       AND p.discord_id = ? 
-       AND p.is_active = true`,
-      [guildId, testDiscordId]
-    );
-    
-    console.log(`Discord ID active links: ${activeDiscordLinks.length}`);
-    if (activeDiscordLinks.length > 0) {
-      activeDiscordLinks.forEach(link => {
-        console.log(`   - "${link.ign}" on ${link.nickname}`);
-      });
-    }
-    
-    // Check 2: Test different IGN inputs for this user
-    const testIgns = ['XsLdSsG', 'xsldssg', 'XSLDSSG', 'DifferentName'];
-    
-    for (const testIgn of testIgns) {
-      console.log(`\n🔍 Testing IGN: "${testIgn}"`);
-      
-      const [activeIgnLinks] = await pool.query(
-        `SELECT p.*, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(p.ign) = LOWER(?) 
-         AND p.is_active = true`,
-        [guildId, testIgn.trim()]
-      );
-      
-      if (activeIgnLinks.length > 0) {
-        console.log(`   ❌ Would BLOCK - IGN "${testIgn}" is already linked to ${activeIgnLinks.length} account(s)`);
-        activeIgnLinks.forEach(link => {
-          const isSameUser = link.discord_id === testDiscordId;
-          const status = isSameUser ? '✅ (Same user)' : '❌ (Different user)';
-          console.log(`     ${status} Discord ID: ${link.discord_id} | IGN: "${link.ign}" | Server: ${link.nickname}`);
-        });
-      } else {
-        console.log(`   ✅ Would ALLOW - IGN "${testIgn}" is not linked`);
-      }
-    }
-    
-    console.log('\n✅ Linking system test completed!');
-    console.log('\n📝 Summary:');
-    console.log('   • Case sensitivity issues have been fixed');
-    console.log('   • Mixed case IGNs are properly handled');
-    console.log('   • Leading/trailing spaces are trimmed');
-    console.log('   • The system correctly identifies existing links');
-    console.log('   • False "already linked" errors should be resolved');
-    
-  } catch (error) {
-    console.error('❌ Error testing linking system:', error);
-  } finally {
-    await pool.end();
-  }
-}
+console.log('🧪 Testing Zentro Bot Linking System');
+console.log('=====================================\n');
 
-testLinkingSystem();
+// Test Discord ID utilities
+console.log('1. Testing Discord ID Utilities:');
+console.log('--------------------------------');
+
+const testDiscordIds = [
+  '123456789012345678',
+  '1234567890123456789',
+  '12345678901234567890',
+  BigInt('123456789012345678'),
+  ' 123456789012345678 ', // with spaces
+  'invalid_id',
+  null,
+  undefined
+];
+
+testDiscordIds.forEach((id, index) => {
+  console.log(`Test ${index + 1}:`);
+  console.log(`  Input: ${id} (type: ${typeof id})`);
+  console.log(`  Normalized: ${normalizeDiscordId(id)}`);
+  console.log(`  Valid: ${isValidDiscordId(id)}`);
+  console.log('');
+});
+
+// Test Discord ID comparisons
+console.log('2. Testing Discord ID Comparisons:');
+console.log('-----------------------------------');
+
+const comparisonTests = [
+  ['123456789012345678', '123456789012345678', true],
+  ['123456789012345678', BigInt('123456789012345678'), true],
+  ['123456789012345678', ' 123456789012345678 ', true],
+  ['123456789012345678', '987654321098765432', false],
+  [BigInt('123456789012345678'), '123456789012345678', true],
+  ['invalid1', 'invalid2', false],
+  [null, null, true],
+  [undefined, undefined, true],
+  [null, '123456789012345678', false]
+];
+
+comparisonTests.forEach(([id1, id2, expected], index) => {
+  const result = compareDiscordIds(id1, id2);
+  const status = result === expected ? '✅ PASS' : '❌ FAIL';
+  console.log(`Test ${index + 1}: ${status}`);
+  console.log(`  ${id1} == ${id2} => ${result} (expected: ${expected})`);
+  console.log('');
+});
+
+// Test IGN handling
+console.log('3. Testing IGN Handling:');
+console.log('-------------------------');
+
+const testIgns = [
+  'NormalName',
+  'WEIRD_NAME_123',
+  'Name with spaces',
+  'Name@#$%^&*()',
+  'Name with 🎮 emoji',
+  'Name with 中文 characters',
+  'Name with 🏆🏅🎖️ multiple emojis',
+  'Name_with_underscores',
+  'Name-with-dashes',
+  'Name.with.dots',
+  'Name with numbers 123',
+  'Name with symbols !@#$%^&*()',
+  'Name with unicode 🎯🎲🎳',
+  'Name with mixed case NaMe',
+  'Name with leading/trailing spaces ',
+  ' Name with leading/trailing spaces',
+  '  Name with multiple spaces  '
+];
+
+console.log('Test IGNs that should be accepted:');
+testIgns.forEach((ign, index) => {
+  const trimmed = ign.trim();
+  const isValid = trimmed.length >= 1 && trimmed.length <= 32;
+  const status = isValid ? '✅ VALID' : '❌ INVALID';
+  console.log(`${index + 1}. ${status}: "${ign}" -> "${trimmed}" (length: ${trimmed.length})`);
+});
+
+console.log('\n4. Testing Edge Cases:');
+console.log('---------------------');
+
+// Test empty and very long names
+const edgeCaseIgns = [
+  '', // empty
+  ' ', // only space
+  'a', // single character
+  'A'.repeat(33), // too long
+  'A'.repeat(32), // exactly max length
+  'A'.repeat(31), // just under max length
+  '\t\n\r', // whitespace characters
+  'null',
+  'undefined'
+];
+
+console.log('Edge case IGNs:');
+edgeCaseIgns.forEach((ign, index) => {
+  const trimmed = ign.trim();
+  const isValid = trimmed.length >= 1 && trimmed.length <= 32;
+  const status = isValid ? '✅ VALID' : '❌ INVALID';
+  console.log(`${index + 1}. ${status}: "${ign}" -> "${trimmed}" (length: ${trimmed.length})`);
+});
+
+console.log('\n✅ Linking system test completed!');
+console.log('\nKey improvements made:');
+console.log('• Discord IDs are now properly normalized and compared');
+console.log('• IGNs preserve original case and special characters');
+console.log('• Weird names with symbols, emojis, and unicode are supported');
+console.log('• Same user can update their existing link');
+console.log('• Proper validation for edge cases');

@@ -1,5 +1,6 @@
 const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
 const { errorEmbed, orangeEmbed, successEmbed } = require('../embeds/format');
+const { compareDiscordIds } = require('../utils/discordUtils');
 const { getServerByNickname, getServerById, getLinkedPlayer, updateBalance, recordTransaction } = require('../utils/economy');
 const pool = require('../db');
 const { sendRconCommand } = require('../rcon');
@@ -1017,8 +1018,8 @@ async function handleLinkConfirm(interaction) {
   // IGN is everything after the discord ID, joined back together
   const ign = parts.slice(4).join('_');
   
-  // ✅ NORMALIZE IGN: trim and lowercase
-  const normalizedIgn = ign.trim().toLowerCase();
+  // 🛡️ FUTURE-PROOF IGN HANDLING: Preserve original case, only trim spaces
+  const normalizedIgn = ign.trim(); // Only trim spaces, preserve case and special characters
   
   console.log('🔍 Link Confirm Debug:', { discordGuildId, discordId, ign, normalizedIgn });
   
@@ -1071,13 +1072,23 @@ async function handleLinkConfirm(interaction) {
     );
 
     if (activeIgnLinks.length > 0) {
-      const existingDiscordId = activeIgnLinks[0].discord_id;
-      const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
+      // Check if it's the same user trying to link the same IGN (should be allowed)
+      const sameUserLink = activeIgnLinks.find(link => compareDiscordIds(link.discord_id, discordId));
       
-      return interaction.editReply({
-        embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${normalizedIgn}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)],
-        components: []
-      });
+      if (sameUserLink) {
+        console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);
+        // Allow the user to update their existing link - continue to confirmation
+      } else {
+        // IGN is actively linked to someone else
+        const existingDiscordId = activeIgnLinks[0].discord_id;
+        const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
+        
+        console.log(`[LINK DEBUG] IGN ${normalizedIgn} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
+        return interaction.editReply({
+          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${normalizedIgn}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)],
+          components: []
+        });
+      }
     }
 
     // Confirm link for all servers

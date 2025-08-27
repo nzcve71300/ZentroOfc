@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
-const { normalizeDiscordId, compareDiscordIds } = require('../../utils/linking');
+const { compareDiscordIds } = require('../../utils/discordUtils');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,7 +9,7 @@ module.exports = {
     .setDescription('Link your Discord account with your in-game name (ONE TIME ONLY)')
     .addStringOption(opt =>
       opt.setName('in-game-name')
-        .setDescription('Your in-game name')
+        .setDescription('Your in-game name (supports all characters, symbols, and fonts)')
         .setRequired(true)
         .setMaxLength(32)
     ),
@@ -18,28 +18,22 @@ module.exports = {
 
     const discordGuildId = interaction.guildId;
     const discordId = interaction.user.id;
-    // ✅ NORMALIZE IGN: trim spaces and force lowercase
-    const ign = interaction.options.getString('in-game-name').trim().toLowerCase();
+    
+    // 🛡️ FUTURE-PROOF IGN HANDLING: Preserve original case, only trim spaces
+    const rawIgn = interaction.options.getString('in-game-name');
+    const ign = rawIgn.trim(); // Only trim spaces, preserve case and special characters
 
-    // Validate IGN
-    if (!ign || ign.length < 2) {
+    // Validate IGN - be very permissive for weird names
+    if (!ign || ign.length < 1) {
       return await interaction.editReply({
-        embeds: [errorEmbed('Invalid Name', 'Please provide a valid in-game name (at least 2 characters).')]
+        embeds: [errorEmbed('Invalid Name', 'Please provide a valid in-game name (at least 1 character).')]
       });
     }
 
+    // Log the linking attempt for debugging
+    console.log(`[LINK ATTEMPT] Guild: ${discordGuildId}, Discord ID: ${discordId}, IGN: "${ign}"`);
+
     try {
-      // 🛡️ BULLETPROOF CLEANUP: Clean up any edge cases before processing
-      await pool.query(
-        `UPDATE players 
-         SET is_active = false, unlinked_at = CURRENT_TIMESTAMP
-         WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(ign) = LOWER(?) 
-         AND is_active = true 
-         AND discord_id IS NULL`,
-        [discordGuildId, ign]
-      );
-      
       // Get all servers for this guild
       const [servers] = await pool.query(
         'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
@@ -52,7 +46,7 @@ module.exports = {
         });
       }
 
-      // ✅ CRITICAL CHECK 1: Check if this Discord ID has ANY active links
+      // 🔍 CRITICAL CHECK 1: Check if this Discord ID has ANY active links (case-insensitive)
       const [activeDiscordLinks] = await pool.query(
         `SELECT p.*, rs.nickname 
          FROM players p
@@ -74,7 +68,7 @@ module.exports = {
         });
       }
 
-      // ✅ CRITICAL CHECK 2: Check if this IGN is actively linked to ANYONE (case-insensitive) - BULLETPROOF VERSION
+      // 🔍 CRITICAL CHECK 2: Check if this IGN is actively linked to ANYONE (case-insensitive) - BULLETPROOF VERSION
       const [activeIgnLinks] = await pool.query(
         `SELECT p.*, rs.nickname 
          FROM players p
