@@ -5063,7 +5063,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     if (now - lastTeleport < cooldownMs) {
       const remainingMinutes = Math.ceil((cooldownMs - (now - lastTeleport)) / (60 * 1000));
       console.log(`[TELEPORT] Cooldown active: ${remainingMinutes} minutes remaining`);
-      // Silent failure - no message sent
+      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>teleport cooldown:</color> <color=#FFD700>${remainingMinutes} minutes</color> <color=white>remaining</color>`);
       return;
     }
 
