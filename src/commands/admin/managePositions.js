@@ -24,19 +24,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('coordinates')
         .setDescription('Enter coordinates (format: X,Y,Z)')
-        .setRequired(false))
-    .addBooleanOption(option =>
-      option.setName('enabled')
-        .setDescription('Enable/disable position teleport')
-        .setRequired(false))
-    .addIntegerOption(option =>
-      option.setName('delay')
-        .setDescription('Teleport delay in seconds (0 for instant)')
-        .setRequired(false))
-    .addIntegerOption(option =>
-      option.setName('cooldown')
-        .setDescription('Cooldown in minutes')
-        .setRequired(false))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('test_player')
         .setDescription('Test teleport for a player (optional)')
@@ -80,9 +68,6 @@ module.exports = {
     const serverId = interaction.options.getString('server');
     const positionType = interaction.options.getString('position');
     const coordinates = interaction.options.getString('coordinates');
-    const enabled = interaction.options.getBoolean('enabled');
-    const delay = interaction.options.getInteger('delay');
-    const cooldown = interaction.options.getInteger('cooldown');
     const testPlayer = interaction.options.getString('test_player');
     const guildId = interaction.guildId;
 
@@ -187,47 +172,7 @@ module.exports = {
         }
       }
 
-      // Handle config updates
-      if (enabled !== null || delay !== null || cooldown !== null) {
-        // Check if position config exists
-        const [configResult] = await pool.query(
-          'SELECT * FROM position_configs WHERE server_id = ? AND position_type = ?',
-          [serverId, positionType]
-        );
 
-        if (configResult.length > 0) {
-          // Update existing config
-          const updates = [];
-          const values = [];
-          
-          if (enabled !== null) {
-            updates.push('enabled = ?');
-            values.push(enabled);
-          }
-          if (delay !== null) {
-            updates.push('delay_seconds = ?');
-            values.push(delay);
-          }
-          if (cooldown !== null) {
-            updates.push('cooldown_minutes = ?');
-            values.push(cooldown);
-          }
-          
-          if (updates.length > 0) {
-            values.push(serverId, positionType);
-            await pool.query(
-              `UPDATE position_configs SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?`,
-              values
-            );
-          }
-        } else {
-          // Create new config
-          await pool.query(
-            'INSERT INTO position_configs (server_id, position_type, enabled, delay_seconds, cooldown_minutes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-            [serverId, positionType, enabled !== null ? enabled : true, delay !== null ? delay : 0, cooldown !== null ? cooldown : 5]
-          );
-        }
-      }
 
       // Handle test teleport
       if (testPlayer && server.ip && server.port && server.password) {
@@ -269,45 +214,26 @@ module.exports = {
         }
       }
 
-      // Get current config for display
-      const [currentConfig] = await pool.query(
-        'SELECT enabled, delay_seconds, cooldown_minutes FROM position_configs WHERE server_id = ? AND position_type = ?',
-        [serverId, positionType]
-      );
-
+      // Get current coordinates for display
       const [currentCoords] = await pool.query(
         'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
         [serverId, positionType]
       );
 
       const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
-      const config = currentConfig.length > 0 ? currentConfig[0] : { enabled: true, delay_seconds: 0, cooldown_minutes: 5 };
       const coords = currentCoords.length > 0 ? currentCoords[0] : null;
 
       // Show confirmation message
       const embed = new EmbedBuilder()
         .setColor(0xFF8C00)
-        .setTitle(`Position Settings Updated`)
-        .setDescription(`**${positionDisplayName}** configuration for **${serverName}**`)
+        .setTitle(`Position Coordinates Updated`)
+        .setDescription(`**${positionDisplayName}** coordinates for **${serverName}**`)
         .addFields(
-          { name: 'Status', value: config.enabled ? '🟢 Enabled' : '🔴 Disabled', inline: true },
-          { name: 'Delay', value: `${config.delay_seconds} seconds`, inline: true },
-          { name: 'Cooldown', value: `${config.cooldown_minutes} minutes`, inline: true }
-        );
-
-      if (coords) {
-        embed.addFields(
           { name: 'Coordinates', value: `X: ${coords.x_pos} | Y: ${coords.y_pos} | Z: ${coords.z_pos}`, inline: false }
+        )
+        .addFields(
+          { name: 'Usage', value: 'Use `/set` command to configure enable/delay/cooldown settings for this position.', inline: false }
         );
-      } else {
-        embed.addFields(
-          { name: 'Coordinates', value: '❌ Not set', inline: false }
-        );
-      }
-
-      embed.addFields(
-        { name: 'Usage', value: 'Players can use emotes to teleport to this position when enabled.', inline: false }
-      );
 
       await interaction.editReply({ embeds: [embed] });
 

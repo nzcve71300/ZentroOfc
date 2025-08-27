@@ -62,6 +62,14 @@ module.exports = {
           { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
         ];
         
+        // Generate Position configuration options
+        const positions = ['OUTPOST', 'BANDIT'];
+        const positionConfigTypes = [
+          { name: 'ENABLE (On/Off)', value: 'ENABLE' },
+          { name: 'DELAY (Value in seconds)', value: 'DELAY' },
+          { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
+        ];
+        
         const allOptions = [];
         
         // Add Economy configuration options FIRST (most important)
@@ -120,6 +128,16 @@ module.exports = {
           });
         });
         
+        // Add Position options FOURTH
+        positions.forEach(position => {
+          positionConfigTypes.forEach(configType => {
+            allOptions.push({
+              name: `${position}-${configType.value}`,
+              value: `${position}-${configType.value}`
+            });
+          });
+        });
+        
         // Add teleport options LAST (least important for economy configs)
         teleports.forEach(teleport => {
           configTypes.forEach(configType => {
@@ -170,6 +188,11 @@ module.exports = {
       // Extract Killfeed config from config (e.g., "KILLFEEDGAME" -> "killfeed")
       const killfeedMatch = config.match(/^(KILLFEEDGAME|KILLFEED-SETUP|KILLFEED-RANDOMIZER)$/);
       const isKillfeedConfig = killfeedMatch !== null;
+      
+      // Extract Position config from config (e.g., "OUTPOST-ENABLE" -> "outpost")
+      const positionMatch = config.match(/^(OUTPOST|BANDIT)-/);
+      const positionType = positionMatch ? positionMatch[1].toLowerCase() : null;
+      const isPositionConfig = positionMatch !== null;
       
       const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
 
@@ -239,6 +262,22 @@ module.exports = {
           await connection.execute(`
             INSERT INTO rider_config (server_id, enabled, cooldown) VALUES (?, 1, 300)
           `, [server.id.toString()]);
+        }
+      }
+      
+      // Handle Position configurations
+      if (isPositionConfig) {
+        // Check if position config exists, create if not
+        const [existingPositionConfig] = await connection.execute(
+          'SELECT * FROM position_configs WHERE server_id = ? AND position_type = ?',
+          [server.id.toString(), positionType]
+        );
+
+        if (existingPositionConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO position_configs (server_id, position_type, enabled, delay_seconds, cooldown_minutes, created_at, updated_at) 
+            VALUES (?, ?, true, 0, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `, [server.id.toString(), positionType]);
         }
       }
 
@@ -497,6 +536,7 @@ module.exports = {
         case 'USE-DELAY':
         case 'USE-KIT':
         case 'SCOUT':
+        case 'ENABLE':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
             return await interaction.reply({
@@ -518,6 +558,17 @@ module.exports = {
             });
           }
           validatedOption = timeValue;
+          break;
+        case 'DELAY':
+          const delayValue = parseInt(option);
+          if (isNaN(delayValue) || delayValue < 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for DELAY. Use a positive number (seconds)`,
+              ephemeral: true
+            });
+          }
+          validatedOption = delayValue;
           break;
         case 'NAME':
         case 'KITNAME':
@@ -564,6 +615,12 @@ module.exports = {
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
           }
           break;
+        case 'ENABLE':
+          if (isPositionConfig) {
+            updateQuery = 'UPDATE position_configs SET enabled = ? WHERE server_id = ? AND position_type = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), positionType];
+          }
+          break;
         case 'TIME':
           updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [validatedOption, server.id.toString(), teleport];
@@ -571,6 +628,12 @@ module.exports = {
         case 'DELAYTIME':
           updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [validatedOption, server.id.toString(), teleport];
+          break;
+        case 'DELAY':
+          if (isPositionConfig) {
+            updateQuery = 'UPDATE position_configs SET delay_seconds = ? WHERE server_id = ? AND position_type = ?';
+            updateParams = [validatedOption, server.id.toString(), positionType];
+          }
           break;
         case 'NAME':
           updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = ?';
@@ -596,6 +659,9 @@ module.exports = {
           if (isBarConfig) {
             updateQuery = 'UPDATE rider_config SET cooldown = ? WHERE server_id = ?';
             updateParams = [validatedOption, server.id.toString()];
+          } else if (isPositionConfig) {
+            updateQuery = 'UPDATE position_configs SET cooldown_minutes = ? WHERE server_id = ? AND position_type = ?';
+            updateParams = [validatedOption, server.id.toString(), positionType];
           }
           break;
         case 'COORDINATES':
@@ -653,6 +719,15 @@ module.exports = {
         verifyIdField = 'server_id';
         
         if (configType === 'COOLDOWN') verifyField = 'cooldown';
+      } else if (isPositionConfig) {
+        // Position configuration verification
+        verifyTable = 'position_configs';
+        verifyId = positionType;
+        verifyIdField = 'position_type';
+        
+        if (configType === 'ENABLE') verifyField = 'enabled';
+        else if (configType === 'DELAY') verifyField = 'delay_seconds';
+        else if (configType === 'COOLDOWN') verifyField = 'cooldown_minutes';
       }
       
       const [verifyResult] = await connection.execute(
@@ -673,6 +748,8 @@ module.exports = {
       } else if (eventMatch) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       } else if (isBarConfig) {
+        successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
+      } else if (isPositionConfig) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       }
 
