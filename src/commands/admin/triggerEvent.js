@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const mysql = require('mysql2/promise');
-const { getServerByNickname } = require('../../utils/serverUtils');
+const { getServerByNickname, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -29,8 +29,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      const { getServersByGuild } = require('../../utils/serverUtils');
-      const servers = await getServersByGuild(guildId);
+      const servers = await getServersForGuild(guildId);
       
       const filtered = servers.filter(server => 
         server.nickname.toLowerCase().includes(focusedValue.toLowerCase())
