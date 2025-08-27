@@ -710,6 +710,9 @@ module.exports = {
           if (isPositionConfig) {
             updateQuery = 'UPDATE position_configs SET enabled = ? WHERE server_id = ? AND position_type = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), positionType];
+          } else if (isCrateConfig) {
+            updateQuery = 'UPDATE crate_event_configs SET enabled = ? WHERE server_id = ? AND crate_type = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), crateType];
           }
           break;
         case 'OUTPOST':
@@ -720,7 +723,6 @@ module.exports = {
           }
           break;
         case 'ON':
-        case '':
           if (isCrateConfig) {
             updateQuery = 'UPDATE crate_event_configs SET enabled = ? WHERE server_id = ? AND crate_type = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), crateType];
