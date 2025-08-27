@@ -1,6 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const mysql = require('mysql2/promise');
 const { getServerByNickname, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
+const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -57,7 +58,7 @@ module.exports = {
       const server = await getServerByNickname(guildId, serverOption);
       if (!server) {
         return await interaction.reply({
-          content: `❌ Server not found: ${serverOption}`,
+          embeds: [errorEmbed('Server Not Found', `Server not found: ${serverOption}`)],
           ephemeral: true
         });
       }
@@ -79,7 +80,7 @@ module.exports = {
       if (crateConfigs.length === 0) {
         await connection.end();
         return await interaction.reply({
-          content: `❌ No configuration found for ${eventType} on ${server.nickname}. Please configure it first using /set.`,
+          embeds: [errorEmbed('Configuration Not Found', `No configuration found for ${eventType} on ${server.nickname}. Please configure it first using /set.`)],
           ephemeral: true
         });
       }
@@ -89,7 +90,7 @@ module.exports = {
       if (!crateConfig.enabled) {
         await connection.end();
         return await interaction.reply({
-          content: `❌ ${eventType} is disabled on ${server.nickname}. Enable it first using \`/set ${eventType} on ${server.nickname}\`.`,
+          embeds: [errorEmbed('Event Disabled', `${eventType} is disabled on ${server.nickname}. Enable it first using \`/set ${eventType} on ${server.nickname}\`.`)],
           ephemeral: true
         });
       }
@@ -106,7 +107,7 @@ module.exports = {
       if (positions.length === 0) {
         await connection.end();
         return await interaction.reply({
-          content: `❌ No position set for ${eventType} on ${server.nickname}. Set the position first using \`/manage-positions ${server.nickname} ${eventType} <coordinates>\`.`,
+          embeds: [errorEmbed('Position Not Set', `No position set for ${eventType} on ${server.nickname}. Set the position first using \`/manage-positions ${server.nickname} ${eventType} <coordinates>\`.`)],
           ephemeral: true
         });
       }
@@ -123,7 +124,7 @@ module.exports = {
       if (serverInfo.length === 0) {
         await connection.end();
         return await interaction.reply({
-          content: `❌ Server RCON information not found for ${server.nickname}.`,
+          embeds: [errorEmbed('RCON Information Missing', `Server RCON information not found for ${server.nickname}.`)],
           ephemeral: true
         });
       }
@@ -163,22 +164,30 @@ module.exports = {
 
       await connection.end();
 
-      // Send success response
-      const successMessage = `✅ **${eventType}** triggered on **${server.nickname}**!\n\n` +
-        `📦 **Spawned:** ${spawnSuccess}/${spawnAmount} crates\n` +
-        `📍 **Location:** ${coordinates}\n` +
-        `⏰ **Timer Reset:** Next spawn in ${crateConfig.spawn_interval_minutes} minutes\n` +
-        (crateConfig.spawn_message ? `💬 **Message:** ${crateConfig.spawn_message}` : '');
+      // Create success embed
+      const successEmbed = new EmbedBuilder()
+        .setColor(0xFF8C00)
+        .setTitle(`${eventType} Event Triggered`)
+        .setDescription(`Successfully triggered ${eventType} on **${server.nickname}**`)
+        .addFields(
+          { name: 'Crates Spawned', value: `${spawnSuccess}/${spawnAmount}`, inline: true },
+          { name: 'Location', value: coordinates, inline: true },
+          { name: 'Timer Reset', value: `Next spawn in ${crateConfig.spawn_interval_minutes} minutes`, inline: true }
+        );
+
+      if (crateConfig.spawn_message && crateConfig.spawn_message.trim()) {
+        successEmbed.addFields({ name: 'Spawn Message', value: crateConfig.spawn_message, inline: false });
+      }
 
       return await interaction.reply({
-        content: successMessage,
+        embeds: [successEmbed],
         ephemeral: false
       });
 
     } catch (error) {
       console.error('Error in trigger-event command:', error);
       return await interaction.reply({
-        content: `❌ Error triggering event: ${error.message}`,
+        embeds: [errorEmbed('Command Error', `Error triggering event: ${error.message}`)],
         ephemeral: true
       });
     }
