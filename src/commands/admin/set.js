@@ -43,7 +43,7 @@ module.exports = {
           { name: 'NAME (Display Name)', value: 'NAME' },
           { name: 'USELIST (Use List)', value: 'USELIST' },
           { name: 'USE-DELAY (Use Delay)', value: 'USE-DELAY' },
-          { name: 'USE-KIT (Use Kit)', value: 'USE-KIT' },
+          { name: 'USE-KIT (ON/OFF)', value: 'USE-KIT' },
           { name: 'KITNAME (Kit Name)', value: 'KITNAME' },
           { name: 'COORDINATES (Teleport Location)', value: 'COORDINATES' }
         ];
