@@ -96,7 +96,7 @@ module.exports = {
 
       // Get crate position from manage-positions
       const [positions] = await connection.execute(
-        'SELECT * FROM positions WHERE server_id = ? AND position_name = ?',
+        'SELECT * FROM position_coordinates WHERE server_id = ? AND position_type = ?',
         [server.id.toString(), eventType.toLowerCase()]
       );
 
@@ -109,7 +109,7 @@ module.exports = {
       }
 
       const position = positions[0];
-      const coordinates = `${position.position_x},${position.position_y},${position.position_z}`;
+      const coordinates = `${position.x_pos},${position.y_pos},${position.z_pos}`;
 
       // Get server RCON info
       const [serverInfo] = await connection.execute(
