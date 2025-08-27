@@ -70,6 +70,15 @@ module.exports = {
           { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
         ];
         
+        // Generate Crate Event configuration options
+        const crateEvents = ['CRATE-1', 'CRATE-2', 'CRATE-3', 'CRATE-4'];
+        const crateConfigTypes = [
+          { name: 'ON/OFF (Enable/Disable)', value: 'ON' },
+          { name: 'TIME (Spawn interval in minutes)', value: 'TIME' },
+          { name: 'AMOUNT (Number of crates to spawn, max 2)', value: 'AMOUNT' },
+          { name: 'MSG (Custom spawn message)', value: 'MSG' }
+        ];
+        
         const allOptions = [];
         
         // Add Economy configuration options FIRST (most important)
@@ -138,6 +147,16 @@ module.exports = {
           });
         });
         
+        // Add Crate Event options FIFTH
+        crateEvents.forEach(crate => {
+          crateConfigTypes.forEach(configType => {
+            allOptions.push({
+              name: `${crate}-${configType.value}`,
+              value: `${crate}-${configType.value}`
+            });
+          });
+        });
+        
         // Add teleport options LAST (least important for economy configs)
         teleports.forEach(teleport => {
           configTypes.forEach(configType => {
@@ -193,6 +212,11 @@ module.exports = {
       const positionMatch = config.match(/^(OUTPOST|BANDIT)-/);
       const positionType = positionMatch ? positionMatch[1].toLowerCase() : null;
       const isPositionConfig = positionMatch !== null;
+      
+      // Extract Crate Event config from config (e.g., "CRATE-1-ON" -> "crate-1")
+      const crateMatch = config.match(/^(CRATE-[1-4])-/);
+      const crateType = crateMatch ? crateMatch[1].toLowerCase() : null;
+      const isCrateConfig = crateMatch !== null;
       
       const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
 
@@ -278,6 +302,22 @@ module.exports = {
             INSERT INTO position_configs (server_id, position_type, enabled, delay_seconds, cooldown_minutes, created_at, updated_at) 
             VALUES (?, ?, true, 0, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [server.id.toString(), positionType]);
+        }
+      }
+      
+      // Handle Crate Event configurations
+      if (isCrateConfig) {
+        // Check if crate event config exists, create if not
+        const [existingCrateConfig] = await connection.execute(
+          'SELECT * FROM crate_event_configs WHERE server_id = ? AND crate_type = ?',
+          [server.id.toString(), crateType]
+        );
+
+        if (existingCrateConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO crate_event_configs (server_id, crate_type, enabled, spawn_interval_minutes, spawn_amount, spawn_message, created_at, updated_at) 
+            VALUES (?, ?, false, 60, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `, [server.id.toString(), crateType, `<b><size=45><color=#00FF00>CRATE EVENT SPAWNED</color></size></b>`]);
         }
       }
 
@@ -537,6 +577,7 @@ module.exports = {
         case 'USE-KIT':
         case 'SCOUT':
         case 'ENABLE':
+        case 'ON':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
             return await interaction.reply({
@@ -559,6 +600,17 @@ module.exports = {
           }
           validatedOption = timeValue;
           break;
+        case 'AMOUNT':
+          const amountValue = parseInt(option);
+          if (isNaN(amountValue) || amountValue < 1 || amountValue > 2) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for AMOUNT. Use a number between 1 and 2`,
+              ephemeral: true
+            });
+          }
+          validatedOption = amountValue;
+          break;
         case 'DELAY':
           const delayValue = parseInt(option);
           if (isNaN(delayValue) || delayValue < 0) {
@@ -574,6 +626,7 @@ module.exports = {
         case 'KITNAME':
         case 'KILLMSG':
         case 'RESPAWNMSG':
+        case 'MSG':
           if (option.trim().length === 0) {
             await connection.end();
             return await interaction.reply({
@@ -621,9 +674,20 @@ module.exports = {
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), positionType];
           }
           break;
+        case 'ON':
+          if (isCrateConfig) {
+            updateQuery = 'UPDATE crate_event_configs SET enabled = ? WHERE server_id = ? AND crate_type = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), crateType];
+          }
+          break;
         case 'TIME':
-          updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
-          updateParams = [validatedOption, server.id.toString(), teleport];
+          if (isCrateConfig) {
+            updateQuery = 'UPDATE crate_event_configs SET spawn_interval_minutes = ? WHERE server_id = ? AND crate_type = ?';
+            updateParams = [validatedOption, server.id.toString(), crateType];
+          } else {
+            updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+            updateParams = [validatedOption, server.id.toString(), teleport];
+          }
           break;
         case 'DELAYTIME':
           updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = ?';
@@ -633,6 +697,18 @@ module.exports = {
           if (isPositionConfig) {
             updateQuery = 'UPDATE position_configs SET delay_seconds = ? WHERE server_id = ? AND position_type = ?';
             updateParams = [validatedOption, server.id.toString(), positionType];
+          }
+          break;
+        case 'AMOUNT':
+          if (isCrateConfig) {
+            updateQuery = 'UPDATE crate_event_configs SET spawn_amount = ? WHERE server_id = ? AND crate_type = ?';
+            updateParams = [validatedOption, server.id.toString(), crateType];
+          }
+          break;
+        case 'MSG':
+          if (isCrateConfig) {
+            updateQuery = 'UPDATE crate_event_configs SET spawn_message = ? WHERE server_id = ? AND crate_type = ?';
+            updateParams = [validatedOption, server.id.toString(), crateType];
           }
           break;
         case 'NAME':
@@ -728,6 +804,16 @@ module.exports = {
         if (configType === 'ENABLE') verifyField = 'enabled';
         else if (configType === 'DELAY') verifyField = 'delay_seconds';
         else if (configType === 'COOLDOWN') verifyField = 'cooldown_minutes';
+      } else if (isCrateConfig) {
+        // Crate Event configuration verification
+        verifyTable = 'crate_event_configs';
+        verifyId = crateType;
+        verifyIdField = 'crate_type';
+        
+        if (configType === 'ON') verifyField = 'enabled';
+        else if (configType === 'TIME') verifyField = 'spawn_interval_minutes';
+        else if (configType === 'AMOUNT') verifyField = 'spawn_amount';
+        else if (configType === 'MSG') verifyField = 'spawn_message';
       }
       
       const [verifyResult] = await connection.execute(
@@ -750,6 +836,8 @@ module.exports = {
       } else if (isBarConfig) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       } else if (isPositionConfig) {
+        successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
+      } else if (isCrateConfig) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       }
 
