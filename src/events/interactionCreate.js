@@ -817,13 +817,13 @@ async function handleConfirmPurchase(interaction) {
        
        console.log(`[KIT QUEUE] Added to queue with ID: ${insertResult.insertId}`);
        
-       // Send initial message to player in-game
-       const queueMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>purchased</color> <color=#FFD700>${finalQuantity}x ${itemData.display_name}</color> <color=#00FF00>- Use the Here take this emote to claim each kit!</color>`;
+       // Send confirmation message to player in-game (same as items)
+       const confirmMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>Successfully delivered</color>`;
        try {
-         sendRconCommand(itemData.ip, itemData.port, itemData.password, queueMessage);
-         console.log(`Queue message sent to ${itemData.nickname}: ${queueMessage}`);
+         sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
+         console.log(`Confirmation message sent to ${itemData.nickname}: ${confirmMessage}`);
        } catch (error) {
-         console.error(`Failed to send queue message to ${itemData.nickname}:`, error);
+         console.error(`Failed to send confirmation message to ${itemData.nickname}:`, error);
        }
        
        // Send to admin feed
