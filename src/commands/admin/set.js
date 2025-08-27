@@ -237,7 +237,22 @@ module.exports = {
       const crateType = crateMatch ? crateMatch[1].toLowerCase() : null;
       const isCrateConfig = crateMatch !== null;
       
-      const configType = config.split('-')[1] || ''; // e.g., "USE", "TIME", "SCOUT", or empty for CRATE-X
+      // Extract config type, handling crate events properly
+      let configType = '';
+      if (isCrateConfig) {
+        // For crate events, check if there's a suffix after the crate number
+        const crateParts = config.split('-');
+        if (crateParts.length >= 3) {
+          // e.g., "CRATE-1-TIME" -> "TIME"
+          configType = crateParts[2];
+        } else {
+          // e.g., "CRATE-1" -> "" (empty for enable/disable)
+          configType = '';
+        }
+      } else {
+        // For other configs, use the original logic
+        configType = config.split('-')[1] || '';
+      }
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
