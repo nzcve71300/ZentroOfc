@@ -6,7 +6,7 @@ class TeleportSystem {
     this.activeTeleports = new Map(); // Track active teleport requests
   }
 
-  async handleTeleportRequest(playerName, serverId, serverIp, serverPort, serverPassword) {
+  async handleTeleportRequest(playerName, serverId, serverIp, serverPort, serverPassword, teleportName = 'default') {
     try {
       console.log(`[TELEPORT SYSTEM] Starting teleport request for ${playerName} on server ${serverId}`);
       
@@ -19,11 +19,11 @@ class TeleportSystem {
       });
 
       // Get teleport configuration
-      console.log(`[TELEPORT SYSTEM] Querying config for server ${serverId}`);
+      console.log(`[TELEPORT SYSTEM] Querying config for server ${serverId}, teleport: ${teleportName}`);
       const [configs] = await connection.execute(`
         SELECT * FROM teleport_configs 
-        WHERE server_id = ? AND teleport_name = 'default'
-      `, [serverId.toString()]);
+        WHERE server_id = ? AND teleport_name = ?
+      `, [serverId.toString(), teleportName]);
       
       console.log(`[TELEPORT SYSTEM] Found ${configs.length} configs`);
 
@@ -61,9 +61,9 @@ class TeleportSystem {
       if (config.use_list) {
         const [banned] = await connection.execute(`
           SELECT * FROM teleport_banned_users 
-          WHERE server_id = ? AND teleport_name = 'default' 
+          WHERE server_id = ? AND teleport_name = ? 
           AND (discord_id = ? OR ign = ?)
-        `, [serverId.toString(), discordId, playerName]);
+        `, [serverId.toString(), teleportName, discordId, playerName]);
 
         if (banned.length > 0) {
           await connection.end();
@@ -73,9 +73,9 @@ class TeleportSystem {
         // Check if player is allowed
         const [allowed] = await connection.execute(`
           SELECT * FROM teleport_allowed_users 
-          WHERE server_id = ? AND teleport_name = 'default' 
+          WHERE server_id = ? AND teleport_name = ? 
           AND (discord_id = ? OR ign = ?)
-        `, [serverId.toString(), discordId, playerName]);
+        `, [serverId.toString(), teleportName, discordId, playerName]);
 
         if (allowed.length === 0) {
           await connection.end();
@@ -86,9 +86,9 @@ class TeleportSystem {
       // Check cooldown
       const [lastUsage] = await connection.execute(`
         SELECT used_at FROM teleport_usage 
-        WHERE server_id = ? AND teleport_name = 'default' AND discord_id = ?
+        WHERE server_id = ? AND teleport_name = ? AND discord_id = ?
         ORDER BY used_at DESC LIMIT 1
-      `, [serverId.toString(), discordId]);
+      `, [serverId.toString(), teleportName, discordId]);
 
       if (lastUsage.length > 0) {
         const lastUsed = new Date(lastUsage[0].used_at);
@@ -108,8 +108,8 @@ class TeleportSystem {
       // Record usage
       await connection.execute(`
         INSERT INTO teleport_usage (server_id, teleport_name, discord_id, ign)
-        VALUES (?, 'default', ?, ?)
-      `, [serverId.toString(), discordId, playerName]);
+        VALUES (?, ?, ?, ?)
+      `, [serverId.toString(), teleportName, discordId, playerName]);
 
       await connection.end();
 
