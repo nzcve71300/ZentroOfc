@@ -65,7 +65,7 @@ module.exports = {
         // Generate Position configuration options
         const positions = ['OUTPOST', 'BANDIT'];
         const positionConfigTypes = [
-          { name: 'ENABLE (On/Off)', value: 'ENABLE' },
+          { name: 'ENABLE (On/Off)', value: '' },
           { name: 'DELAY (Value in seconds)', value: 'DELAY' },
           { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
         ];
@@ -73,7 +73,7 @@ module.exports = {
         // Generate Crate Event configuration options
         const crateEvents = ['CRATE-1', 'CRATE-2', 'CRATE-3', 'CRATE-4'];
         const crateConfigTypes = [
-          { name: 'ON/OFF (Enable/Disable)', value: 'ON' },
+          { name: 'ON/OFF (Enable/Disable)', value: '' },
           { name: 'TIME (Spawn interval in minutes)', value: 'TIME' },
           { name: 'AMOUNT (Number of crates to spawn, max 2)', value: 'AMOUNT' },
           { name: 'MSG (Custom spawn message)', value: 'MSG' }
@@ -140,20 +140,36 @@ module.exports = {
         // Add Position options FOURTH
         positions.forEach(position => {
           positionConfigTypes.forEach(configType => {
-            allOptions.push({
-              name: `${position}-${configType.value}`,
-              value: `${position}-${configType.value}`
-            });
+            if (configType.value === '') {
+              // For enable/disable, just use the position name
+              allOptions.push({
+                name: `${position} (Enable/Disable)`,
+                value: `${position}`
+              });
+            } else {
+              allOptions.push({
+                name: `${position}-${configType.value}`,
+                value: `${position}-${configType.value}`
+              });
+            }
           });
         });
         
         // Add Crate Event options FIFTH
         crateEvents.forEach(crate => {
           crateConfigTypes.forEach(configType => {
-            allOptions.push({
-              name: `${crate}-${configType.value}`,
-              value: `${crate}-${configType.value}`
-            });
+            if (configType.value === '') {
+              // For enable/disable, just use the crate name
+              allOptions.push({
+                name: `${crate} (Enable/Disable)`,
+                value: `${crate}`
+              });
+            } else {
+              allOptions.push({
+                name: `${crate}-${configType.value}`,
+                value: `${crate}-${configType.value}`
+              });
+            }
           });
         });
         
@@ -208,17 +224,20 @@ module.exports = {
       const killfeedMatch = config.match(/^(KILLFEEDGAME|KILLFEED-SETUP|KILLFEED-RANDOMIZER)$/);
       const isKillfeedConfig = killfeedMatch !== null;
       
-      // Extract Position config from config (e.g., "OUTPOST-ENABLE" -> "outpost")
-      const positionMatch = config.match(/^(OUTPOST|BANDIT)-/);
+      // Extract Position config from config (e.g., "OUTPOST" -> "outpost" or "OUTPOST-DELAY" -> "outpost")
+      const positionMatch = config.match(/^(OUTPOST|BANDIT)(?:-|$)/);
       const positionType = positionMatch ? positionMatch[1].toLowerCase() : null;
       const isPositionConfig = positionMatch !== null;
       
-      // Extract Crate Event config from config (e.g., "CRATE-1-ON" -> "crate-1")
-      const crateMatch = config.match(/^(CRATE-[1-4])-/);
+      // Check if this is a position enable/disable command (no suffix)
+      const isPositionEnableConfig = isPositionConfig && !config.includes('-');
+      
+      // Extract Crate Event config from config (e.g., "CRATE-1" -> "crate-1" or "CRATE-1-TIME" -> "crate-1")
+      const crateMatch = config.match(/^(CRATE-[1-4])(?:-|$)/);
       const crateType = crateMatch ? crateMatch[1].toLowerCase() : null;
       const isCrateConfig = crateMatch !== null;
       
-      const configType = config.split('-')[1]; // e.g., "USE", "TIME", "SCOUT"
+      const configType = config.split('-')[1] || ''; // e.g., "USE", "TIME", "SCOUT", or empty for CRATE-X
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -578,10 +597,13 @@ module.exports = {
         case 'SCOUT':
         case 'ENABLE':
         case 'ON':
+        case 'OUTPOST':
+        case 'BANDIT':
+        case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
             return await interaction.reply({
-              content: `❌ Invalid value for ${configType}. Use: on/off or true/false`,
+              content: `❌ Invalid value for ${configType || 'enable/disable'}. Use: on/off or true/false`,
               ephemeral: true
             });
           }
@@ -669,12 +691,21 @@ module.exports = {
           }
           break;
         case 'ENABLE':
+        case '':
           if (isPositionConfig) {
             updateQuery = 'UPDATE position_configs SET enabled = ? WHERE server_id = ? AND position_type = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), positionType];
           }
           break;
+        case 'OUTPOST':
+        case 'BANDIT':
+          if (isPositionEnableConfig) {
+            updateQuery = 'UPDATE position_configs SET enabled = ? WHERE server_id = ? AND position_type = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), positionType];
+          }
+          break;
         case 'ON':
+        case '':
           if (isCrateConfig) {
             updateQuery = 'UPDATE crate_event_configs SET enabled = ? WHERE server_id = ? AND crate_type = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), crateType];
@@ -801,7 +832,7 @@ module.exports = {
         verifyId = positionType;
         verifyIdField = 'position_type';
         
-        if (configType === 'ENABLE') verifyField = 'enabled';
+        if (configType === 'ENABLE' || configType === '' || configType === 'OUTPOST' || configType === 'BANDIT') verifyField = 'enabled';
         else if (configType === 'DELAY') verifyField = 'delay_seconds';
         else if (configType === 'COOLDOWN') verifyField = 'cooldown_minutes';
       } else if (isCrateConfig) {
@@ -810,7 +841,7 @@ module.exports = {
         verifyId = crateType;
         verifyIdField = 'crate_type';
         
-        if (configType === 'ON') verifyField = 'enabled';
+        if (configType === 'ON' || configType === '') verifyField = 'enabled';
         else if (configType === 'TIME') verifyField = 'spawn_interval_minutes';
         else if (configType === 'AMOUNT') verifyField = 'spawn_amount';
         else if (configType === 'MSG') verifyField = 'spawn_message';
