@@ -858,26 +858,25 @@ async function handleConfirmPurchase(interaction) {
      const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
      let purchaseEmbed;
      
-     if (type === 'kit' && finalQuantity > 1) {
-       // Kit queue confirmation
+     if (type === 'kit') {
+       // Kit delivery confirmation - ALL kits use the queue system now
        purchaseEmbed = new EmbedBuilder()
          .setColor(0xFFD700)
-         .setTitle('📦 Kit Delivery Queue')
-         .setDescription('✅ **Purchase Confirmed - Added to Delivery Queue**\n\n**How to claim your kits:**\nUse the **Here take this emote** in game to claim your kits!')
+         .setTitle('🛒 Zentro Express')
+         .setDescription('✅ **Delivery Confirmed**\n\n**Use the here take this emote in game to claim your kit**')
          .addFields(
-           { name: '**Kit**', value: itemData.display_name, inline: false },
-           { name: '**Quantity**', value: `${finalQuantity} kits`, inline: true },
-           { name: '**Remaining**', value: `${finalQuantity} kits`, inline: true },
-           { name: '**Total Paid**', value: `${totalPrice} ${currencyName}`, inline: false }
+           { name: '**Item**', value: itemData.display_name, inline: false },
+           { name: '**Quantity**', value: finalQuantity.toString(), inline: false },
+           { name: '**Total Cost**', value: `${totalPrice} ${currencyName}`, inline: false }
          )
          .setAuthor({
            name: playerIgn,
            iconURL: interaction.user.displayAvatarURL({ dynamic: true })
          })
          .setTimestamp()
-         .setFooter({ text: 'Use Here take this emote in-game to claim each kit • Zentro Express' });
+         .setFooter({ text: 'Fast & Reliable Delivery • Zentro Express' });
      } else {
-       // Immediate delivery confirmation
+       // Immediate delivery confirmation for items
        purchaseEmbed = new EmbedBuilder()
          .setColor(0x00FF00)
          .setTitle('🛒 Zentro Express')
@@ -917,7 +916,7 @@ async function handleConfirmPurchase(interaction) {
          console.log('[SHOP DELIVERY] Message sent with image successfully');
          
          // Update the queue record with message ID for tracking (no reactions needed)
-         if (type === 'kit' && finalQuantity > 1) {
+         if (type === 'kit') {
            await pool.query(
              'UPDATE kit_delivery_queue SET message_id = ?, channel_id = ? WHERE player_id = ? AND kit_id = ? AND remaining_quantity = ?',
              [message.id, message.channelId, playerId, itemId, finalQuantity]
@@ -933,7 +932,7 @@ async function handleConfirmPurchase(interaction) {
          console.log('[SHOP DELIVERY] Message sent without image');
          
          // Update the queue record with message ID for tracking (no reactions needed)
-         if (type === 'kit' && finalQuantity > 1) {
+         if (type === 'kit') {
            await pool.query(
              'UPDATE kit_delivery_queue SET message_id = ?, channel_id = ? WHERE player_id = ? AND kit_id = ? AND remaining_quantity = ?',
              [message.id, message.channelId, playerId, itemId, finalQuantity]
@@ -950,7 +949,7 @@ async function handleConfirmPurchase(interaction) {
        });
        
        // Add reaction for kit queue messages
-       if (type === 'kit' && finalQuantity > 1) {
+       if (type === 'kit') {
          await message.react('📦');
          // Update the queue record with message ID
          await pool.query(
