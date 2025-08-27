@@ -143,7 +143,7 @@ module.exports = {
             if (configType.value === '') {
               // For enable/disable, just use the position name
               allOptions.push({
-                name: `${position} (Enable/Disable)`,
+                name: `${position} (ON/OFF)`,
                 value: `${position}`
               });
             } else {
@@ -161,7 +161,7 @@ module.exports = {
             if (configType.value === '') {
               // For enable/disable, just use the crate name
               allOptions.push({
-                name: `${crate} (Enable/Disable)`,
+                name: `${crate} (ON/OFF)`,
                 value: `${crate}`
               });
             } else {
