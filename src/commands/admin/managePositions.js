@@ -28,8 +28,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('coordinates')
         .setDescription('Enter coordinates (format: X,Y,Z)')
-        .setRequired(true))
-
+        .setRequired(true)),
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
