@@ -19,16 +19,17 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Outpost', value: 'outpost' },
-          { name: 'BanditCamp', value: 'banditcamp' }
+          { name: 'BanditCamp', value: 'banditcamp' },
+          { name: 'Crate-event-1', value: 'crate-event-1' },
+          { name: 'Crate-event-2', value: 'crate-event-2' },
+          { name: 'Crate-event-3', value: 'crate-event-3' },
+          { name: 'Crate-event-4', value: 'crate-event-4' }
         ))
     .addStringOption(option =>
       option.setName('coordinates')
         .setDescription('Enter coordinates (format: X,Y,Z)')
         .setRequired(true))
-    .addStringOption(option =>
-      option.setName('test_player')
-        .setDescription('Test teleport for a player (optional)')
-        .setRequired(false)),
+
 
   async autocomplete(interaction) {
     const focusedValue = interaction.options.getFocused();
@@ -68,7 +69,6 @@ module.exports = {
     const serverId = interaction.options.getString('server');
     const positionType = interaction.options.getString('position');
     const coordinates = interaction.options.getString('coordinates');
-    const testPlayer = interaction.options.getString('test_player');
     const guildId = interaction.guildId;
 
     try {
@@ -174,45 +174,7 @@ module.exports = {
 
 
 
-      // Handle test teleport
-      if (testPlayer && server.ip && server.port && server.password) {
-        try {
-          // Get coordinates
-          const [coordResult] = await pool.query(
-            'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
-            [serverId, positionType]
-          );
 
-          if (coordResult.length === 0) {
-            return interaction.editReply({
-              embeds: [errorEmbed('No Coordinates', 'No coordinates set for this position. Please set coordinates first.')]
-            });
-          }
-
-          const coords = coordResult[0];
-          const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
-
-          // Execute teleport
-          const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${testPlayer}" "1"`;
-          await sendRconCommand(server.ip, server.port, server.password, teleportCommand);
-          
-          // Send success message
-          await sendRconCommand(server.ip, server.port, server.password, `say <color=#FF69B4>${testPlayer}</color> <color=white>teleported to</color> <color=#800080>${positionDisplayName}</color> <color=white>successfully</color>`);
-          
-          return interaction.editReply({
-            embeds: [successEmbed(
-              'Test Teleport Successful',
-              `**${testPlayer}** has been teleported to **${positionDisplayName}** on **${serverName}**!\n\n**Coordinates:** X: ${coords.x_pos} | Y: ${coords.y_pos} | Z: ${coords.z_pos}`
-            )]
-          });
-
-        } catch (error) {
-          console.error('Error during test teleport:', error);
-          return interaction.editReply({
-            embeds: [errorEmbed('Teleport Error', 'Failed to execute test teleport. Please check server connection and try again.')]
-          });
-        }
-      }
 
       // Get current coordinates for display
       const [currentCoords] = await pool.query(
@@ -220,7 +182,12 @@ module.exports = {
         [serverId, positionType]
       );
 
-      const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
+      const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 
+                                 positionType === 'banditcamp' ? 'Bandit Camp' :
+                                 positionType === 'crate-event-1' ? 'Crate Event 1' :
+                                 positionType === 'crate-event-2' ? 'Crate Event 2' :
+                                 positionType === 'crate-event-3' ? 'Crate Event 3' :
+                                 positionType === 'crate-event-4' ? 'Crate Event 4' : positionType;
       const coords = currentCoords.length > 0 ? currentCoords[0] : null;
 
       // Show confirmation message
@@ -232,7 +199,7 @@ module.exports = {
           { name: 'Coordinates', value: `X: ${coords.x_pos} | Y: ${coords.y_pos} | Z: ${coords.z_pos}`, inline: false }
         )
         .addFields(
-          { name: 'Usage', value: 'Use `/set` command to configure enable/delay/cooldown settings for this position.', inline: false }
+          { name: 'Usage', value: 'Use `/set` command to configure settings for this position. For crate events, use Crate-1, Crate-2, Crate-3, or Crate-4 options.', inline: false }
         );
 
       await interaction.editReply({ embeds: [embed] });
