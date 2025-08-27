@@ -662,17 +662,9 @@ async function handleConfirmPurchase(interaction) {
       // If user adjusted quantity, use it as multiplier; otherwise use base quantity
       finalQuantity = quantityToUse ? (itemData.quantity * quantityToUse) : itemData.quantity;
       
-      // For kits, we need to give the kit multiple times if quantity > 1
-      if (finalQuantity > 1) {
-        // Create multiple kit commands
-        const kitCommands = [];
-        for (let i = 0; i < finalQuantity; i++) {
-          kitCommands.push(`kit givetoplayer ${itemData.kit_name} ${playerIgn}`);
-        }
-        command = kitCommands.join('; ');
-      } else {
-        command = `kit givetoplayer ${itemData.kit_name} ${playerIgn}`;
-      }
+      // For kits, we'll add them to the delivery queue instead of giving directly
+      // The command will be set to null since we're using the queue system
+      command = null;
     }
 
     if (!itemData) {
@@ -806,8 +798,8 @@ async function handleConfirmPurchase(interaction) {
      const { sendFeedEmbed } = require('../rcon');
      const playerName = interaction.user.username;
      
-     if (type === 'kit' && finalQuantity > 1) {
-       // For kits with quantity > 1, add to delivery queue instead of giving all at once
+     if (type === 'kit') {
+       // For ALL kits, add to delivery queue instead of giving directly
        console.log(`[KIT QUEUE] Adding ${finalQuantity} kits to delivery queue for player ${playerId}`);
        
        // Insert into kit delivery queue
@@ -838,7 +830,7 @@ async function handleConfirmPurchase(interaction) {
        await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Kit Purchase:** ${playerName} purchased ${itemData.display_name} x${finalQuantity} for ${totalPrice} ${currencyName} (Added to delivery queue)`);
        
      } else {
-       // For items or single kits, deliver immediately as before
+       // For items only, deliver immediately as before
        try {
          sendRconCommand(itemData.ip, itemData.port, itemData.password, command);
          console.log(`RCON Command sent to ${itemData.nickname}: ${command}`);
