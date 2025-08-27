@@ -94,10 +94,13 @@ module.exports = {
         });
       }
 
+      // Convert event type to position type format (CRATE-1 -> crate-event-1)
+      const positionType = eventType.toLowerCase().replace('crate-', 'crate-event-');
+      
       // Get crate position from manage-positions
       const [positions] = await connection.execute(
         'SELECT * FROM position_coordinates WHERE server_id = ? AND position_type = ?',
-        [server.id.toString(), eventType.toLowerCase()]
+        [server.id.toString(), positionType]
       );
 
       if (positions.length === 0) {
