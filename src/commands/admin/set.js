@@ -667,6 +667,17 @@ module.exports = {
           }
           validatedOption = delayValue;
           break;
+        case 'FUEL-AMOUNT':
+          const fuelAmountValue = parseInt(option);
+          if (isNaN(fuelAmountValue) || fuelAmountValue < 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for FUEL-AMOUNT. Use a positive number`,
+              ephemeral: true
+            });
+          }
+          validatedOption = fuelAmountValue;
+          break;
         case 'NAME':
         case 'KITNAME':
         case 'KILLMSG':
@@ -816,16 +827,8 @@ module.exports = {
           break;
         case 'FUEL-AMOUNT':
           if (isBarConfig) {
-            const fuelAmount = parseInt(option);
-            if (isNaN(fuelAmount) || fuelAmount < 0) {
-              await connection.end();
-              return await interaction.reply({
-                content: `❌ Invalid fuel amount. Must be a positive number.`,
-                ephemeral: true
-              });
-            }
             updateQuery = 'UPDATE rider_config SET fuel_amount = ? WHERE server_id = ?';
-            updateParams = [fuelAmount, server.id.toString()];
+            updateParams = [validatedOption, server.id.toString()];
           }
           break;
         case 'COORDINATES':
