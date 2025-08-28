@@ -60,6 +60,8 @@ module.exports = {
         const barConfigTypes = [
           { name: 'USE (On/Off)', value: 'USE' },
           { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' },
+          { name: 'HORSE (On/Off)', value: 'HORSE' },
+          { name: 'RHIB (On/Off)', value: 'RHIB' },
           { name: 'MINI (On/Off)', value: 'MINI' },
           { name: 'CAR (On/Off)', value: 'CAR' },
           { name: 'FUEL-AMOUNT (Value)', value: 'FUEL-AMOUNT' }
@@ -328,8 +330,8 @@ module.exports = {
 
         if (existingBarConfig.length === 0) {
           await connection.execute(`
-            INSERT INTO rider_config (server_id, enabled, cooldown, mini_enabled, car_enabled, fuel_amount) 
-            VALUES (?, 1, 300, 0, 0, 100)
+            INSERT INTO rider_config (server_id, enabled, cooldown, horse_enabled, rhib_enabled, mini_enabled, car_enabled, fuel_amount) 
+            VALUES (?, 1, 300, 1, 1, 0, 0, 100)
           `, [server.id.toString()]);
         }
       }
@@ -636,6 +638,8 @@ module.exports = {
         case 'ON':
         case 'OUTPOST':
         case 'BANDIT':
+        case 'HORSE':
+        case 'RHIB':
         case 'MINI':
         case 'CAR':
         case '':
@@ -810,6 +814,18 @@ module.exports = {
           } else if (isPositionConfig) {
             updateQuery = 'UPDATE position_configs SET cooldown_minutes = ? WHERE server_id = ? AND position_type = ?';
             updateParams = [validatedOption, server.id.toString(), positionType];
+          }
+          break;
+        case 'HORSE':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET horse_enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          }
+          break;
+        case 'RHIB':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET rhib_enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           }
           break;
         case 'MINI':
