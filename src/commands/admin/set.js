@@ -62,7 +62,6 @@ module.exports = {
           { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' },
           { name: 'MINI (On/Off)', value: 'MINI' },
           { name: 'CAR (On/Off)', value: 'CAR' },
-          { name: 'FUEL (On/Off)', value: 'FUEL' },
           { name: 'FUEL-AMOUNT (Value)', value: 'FUEL-AMOUNT' }
         ];
         
@@ -632,7 +631,6 @@ module.exports = {
         case 'BANDIT':
         case 'MINI':
         case 'CAR':
-        case 'FUEL':
         case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
@@ -819,12 +817,7 @@ module.exports = {
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           }
           break;
-        case 'FUEL':
-          if (isBarConfig) {
-            updateQuery = 'UPDATE rider_config SET fuel_enabled = ? WHERE server_id = ?';
-            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
-          }
-          break;
+
         case 'FUEL-AMOUNT':
           if (isBarConfig) {
             updateQuery = 'UPDATE rider_config SET fuel_amount = ? WHERE server_id = ?';
