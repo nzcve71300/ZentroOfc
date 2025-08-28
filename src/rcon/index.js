@@ -1521,6 +1521,14 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           setTimeout(() => {
             sendRconCommand(ip, port, password, `entity.spawn 2module_car_spawned ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ff4500>Car</color> <color=white>has been delivered!</color>`);
+            
+            // Give fuel if amount is greater than 0
+            if (playerState.fuelAmount > 0) {
+              setTimeout(() => {
+                sendRconCommand(ip, port, password, `inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
+                sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>you also received</color> <color=#ffa500>${playerState.fuelAmount} fuel</color> <color=white>!</color>`);
+              }, 500);
+            }
           }, 1000);
         }
 
