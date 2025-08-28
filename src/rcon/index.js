@@ -1494,31 +1494,38 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         
         if (chosenRide === 'horse') {
           // Clear nearby entities and spawn horse
+          console.log(`[BOOK-A-RIDE DEBUG] Spawning horse for ${player} at position: ${playerState.position}`);
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby testridablehorse ${x} ${y} ${z} 15`);
           setTimeout(() => {
+            console.log(`[BOOK-A-RIDE DEBUG] Executing horse spawn command: entity.spawn testridablehorse ${playerState.position}`);
             sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#8b4513>Horse</color> <color=white>has been delivered!</color>`);
           }, 1000);
         } else if (chosenRide === 'rhib') {
           // Clear nearby entities and spawn rhib  
+          console.log(`[BOOK-A-RIDE DEBUG] Spawning RHIB for ${player} at position: ${playerState.position}`);
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby rhib ${x} ${y} ${z} 15`);
           setTimeout(() => {
+            console.log(`[BOOK-A-RIDE DEBUG] Executing RHIB spawn command: entity.spawn rhib ${playerState.position}`);
             sendRconCommand(ip, port, password, `entity.spawn rhib ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
           }, 1000);
         } else if (chosenRide === 'mini') {
           // Clear nearby entities and spawn minicopter
+          console.log(`[BOOK-A-RIDE DEBUG] Spawning minicopter for ${player} at position: ${playerState.position}`);
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby minicopter.entity ${x} ${y} ${z} 15`);
           setTimeout(() => {
+            console.log(`[BOOK-A-RIDE DEBUG] Executing minicopter spawn command: entity.spawn minicopter.entity ${playerState.position}`);
             sendRconCommand(ip, port, password, `entity.spawn minicopter.entity ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ffd700>Minicopter</color> <color=white>has been delivered!</color>`);
             
             // Give fuel if amount is greater than 0
             if (playerState.fuelAmount > 0) {
               setTimeout(() => {
+                console.log(`[BOOK-A-RIDE DEBUG] Giving fuel to ${player}: inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
                 sendRconCommand(ip, port, password, `inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
                 sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>you also received</color> <color=#ffa500>${playerState.fuelAmount} fuel</color> <color=white>!</color>`);
               }, 500);
@@ -1526,15 +1533,18 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           }, 1000);
         } else if (chosenRide === 'car') {
           // Clear nearby entities and spawn car
+          console.log(`[BOOK-A-RIDE DEBUG] Spawning car for ${player} at position: ${playerState.position}`);
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby 2module_car_spawned ${x} ${y} ${z} 15`);
           setTimeout(() => {
+            console.log(`[BOOK-A-RIDE DEBUG] Executing car spawn command: entity.spawn 2module_car_spawned ${playerState.position}`);
             sendRconCommand(ip, port, password, `entity.spawn 2module_car_spawned ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ff4500>Car</color> <color=white>has been delivered!</color>`);
             
             // Give fuel if amount is greater than 0
             if (playerState.fuelAmount > 0) {
               setTimeout(() => {
+                console.log(`[BOOK-A-RIDE DEBUG] Giving fuel to ${player}: inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
                 sendRconCommand(ip, port, password, `inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
                 sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>you also received</color> <color=#ffa500>${playerState.fuelAmount} fuel</color> <color=white>!</color>`);
               }, 500);
@@ -1651,7 +1661,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
     const playerState = foundPlayerState;
 
     if (playerState && playerState.step === 'waiting_for_position') {
-      // Debug logging removed for production
+      console.log(`[BOOK-A-RIDE DEBUG] Position received for ${playerName}: ${positionStr}`);
+      console.log(`[BOOK-A-RIDE DEBUG] Updating state from 'waiting_for_position' to 'waiting_for_choice'`);
 
       // Store the position and update state
       playerState.position = positionStr;
