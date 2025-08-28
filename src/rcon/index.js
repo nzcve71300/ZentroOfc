@@ -283,7 +283,10 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       const msg = parsed.Message;
       if (!msg) return;
 
-      Logger.quiet('[RCON MSG]', msg);
+      // Only log RCON messages in DEBUG mode to reduce log spam
+      if (process.env.LOG_LEVEL === 'DEBUG') {
+        Logger.quiet('[RCON MSG]', msg);
+      }
       
 
 

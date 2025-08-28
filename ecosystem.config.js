@@ -6,11 +6,16 @@ module.exports = {
       cwd: __dirname,
       env: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: 3000,
+        LOG_LEVEL: 'WARN'
       },
       log_file: './logs/combined.log',
       out_file: './logs/bot-out.log',
       error_file: './logs/bot-error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      max_size: '10M',
+      max_files: '5',
       time: true,
       instances: 1,
       autorestart: true,
@@ -26,11 +31,16 @@ module.exports = {
       cwd: __dirname,
       env: {
         NODE_ENV: 'production',
-        API_PORT: 8081
+        API_PORT: 8081,
+        LOG_LEVEL: 'WARN'
       },
       log_file: './logs/api-combined.log',
       out_file: './logs/api-out.log',
       error_file: './logs/api-error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      max_size: '10M',
+      max_files: '5',
       time: true,
       instances: 1,
       autorestart: true,
