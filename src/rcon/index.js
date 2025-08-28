@@ -1363,7 +1363,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
     // Get server ID and check if Book-a-Ride is enabled
     const [serverResult] = await pool.query(
-      'SELECT rs.id, rc.enabled, rc.cooldown, rc.mini_enabled, rc.car_enabled, rc.fuel_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
+      'SELECT rs.id, rc.enabled, rc.cooldown, rc.mini_enabled, rc.car_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
       [guildId, serverName]
     );
 
@@ -1374,7 +1374,6 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
     const cooldown = serverResult[0].cooldown || 300; // Default 5 minutes
     const miniEnabled = serverResult[0].mini_enabled !== 0; // Default to disabled
     const carEnabled = serverResult[0].car_enabled !== 0; // Default to disabled
-    const fuelEnabled = serverResult[0].fuel_enabled !== 0; // Default to disabled
     const fuelAmount = serverResult[0].fuel_amount || 100; // Default 100 fuel
 
     if (!isEnabled) return;
@@ -1428,7 +1427,6 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         rhibAvailable: rhibAvailable,
         miniAvailable: miniAvailable,
         carAvailable: carAvailable,
-        fuelEnabled: fuelEnabled,
         fuelAmount: fuelAmount
       });
 
@@ -1506,8 +1504,8 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
             sendRconCommand(ip, port, password, `entity.spawn minicopter.entity ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ffd700>Minicopter</color> <color=white>has been delivered!</color>`);
             
-            // Give fuel if enabled
-            if (playerState.fuelEnabled && playerState.fuelAmount > 0) {
+            // Give fuel if amount is greater than 0
+            if (playerState.fuelAmount > 0) {
               setTimeout(() => {
                 sendRconCommand(ip, port, password, `inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
                 sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>you also received</color> <color=#ffa500>${playerState.fuelAmount} fuel</color> <color=white>!</color>`);
