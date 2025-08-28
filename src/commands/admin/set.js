@@ -610,6 +610,17 @@ module.exports = {
       let coords = null; // Declare coords variable outside switch
       
       switch (configType) {
+        case 'FUEL-AMOUNT':
+          const fuelAmountValue = parseInt(option);
+          if (isNaN(fuelAmountValue) || fuelAmountValue < 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for FUEL-AMOUNT. Use a positive number`,
+              ephemeral: true
+            });
+          }
+          validatedOption = fuelAmountValue;
+          break;
         case 'USE':
         case 'USELIST':
         case 'USE-DELAY':
@@ -666,17 +677,6 @@ module.exports = {
             });
           }
           validatedOption = delayValue;
-          break;
-        case 'FUEL-AMOUNT':
-          const fuelAmountValue = parseInt(option);
-          if (isNaN(fuelAmountValue) || fuelAmountValue < 0) {
-            await connection.end();
-            return await interaction.reply({
-              content: `❌ Invalid value for FUEL-AMOUNT. Use a positive number`,
-              ephemeral: true
-            });
-          }
-          validatedOption = fuelAmountValue;
           break;
         case 'NAME':
         case 'KITNAME':
