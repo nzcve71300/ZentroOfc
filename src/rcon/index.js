@@ -292,7 +292,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle player joins/leaves with respawn spam prevention
       if (msg.match(/has entered the game/)) {
-        console.log(`[RESPAWN DEBUG] Detected respawn/join message: ${msg}`);
+        // Debug logging removed for production
         
         // Extract player name from LOG format: "08/25/2025 14:35:21:LOG: nzcve7130 [SCARLETT] has entered the game"
         let player;
@@ -300,15 +300,15 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           // Format: "08/25/2025 14:35:21:LOG: nzcve7130 [SCARLETT] has entered the game"
           const match = msg.match(/LOG:\s+([^\s\[]+)/);
           player = match ? match[1] : null;
-          console.log(`[RESPAWN DEBUG] LOG format detected, extracted player: ${player}`);
+          // Debug logging removed for production
         } else {
           // Fallback to original method for non-LOG format
           player = msg.split(' ')[0];
-          console.log(`[RESPAWN DEBUG] Non-LOG format, extracted player: ${player}`);
+          // Debug logging removed for production
         }
         
         if (!player) {
-          console.log(`[RESPAWN DEBUG] Could not extract player name from message`);
+          // Debug logging removed for production
           return;
         }
         
@@ -435,7 +435,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         if (msg.includes(teleportEmote.emote)) {
           const player = extractPlayerName(msg);
           console.log(`[TELEPORT] ${teleportEmote.name.toUpperCase()} emote detected for player: ${player}`);
-          console.log(`[TELEPORT DEBUG] Teleport name being passed: '${teleportEmote.name}'`);
+          // Debug logging removed for production
           if (player) {
             // Get server ID
             const [serverResult] = await pool.query(
@@ -1112,7 +1112,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
     );
     
     if (serverResult.length === 0) {
-      console.log('[KIT CLAIM DEBUG] Server not found:', serverName);
+              // Debug logging removed for production
       return;
     }
     
@@ -1145,7 +1145,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
         
         if (now - lastClaimTime < cooldownSeconds) {
           const remaining = Math.ceil((cooldownSeconds - (now - lastClaimTime)) / 60);
-          console.log('[KIT CLAIM DEBUG] Cooldown active for:', kitKey, 'player:', player, 'remaining:', remaining, 'minutes');
+          // Debug logging removed for production
           sendRconCommand(ip, port, password, `say [AUTOKITS] <color=#FF69B4>${player}</color> please wait <color=white>before claiming again</color> <color=#800080>${remaining}m</color>`);
           return;
         }
@@ -1154,7 +1154,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
 
     // Check if player is in the kit list for VIP and ELITE kits
     if (kitKey === 'VIPkit' || kitKey.startsWith('ELITEkit')) {
-      console.log('[KIT CLAIM DEBUG] Checking kit list authorization for:', kitKey, 'player:', player);
+              // Debug logging removed for production
       
       // Get the kitlist name
       let kitlistName;
@@ -1177,10 +1177,10 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
         [serverId, kitKey, player, player, kitlistName]
       );
       
-      console.log('[KIT CLAIM DEBUG] Kit list check for', kitlistName, ':', authResult.length > 0 ? 'AUTHORIZED' : 'NOT AUTHORIZED');
+              // Debug logging removed for production
       
       if (authResult.length === 0) {
-        console.log('[KIT CLAIM DEBUG] Player not in kit list:', player, 'for kit:', kitKey);
+                  // Debug logging removed for production
         // Don't send any message - just silently ignore
         return;
       }
@@ -1191,7 +1191,7 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
       'INSERT INTO kit_cooldowns (server_id, kit_name, player_name) VALUES (?, ?, ?)',
       [serverId, kitKey, player]
     );
-    console.log('[KIT CLAIM DEBUG] Giving kit:', kitName, 'to player:', player);
+            // Debug logging removed for production
     sendRconCommand(ip, port, password, `kit givetoplayer ${kitName} ${player}`);
     sendRconCommand(ip, port, password, `say [AUTOKITS] <color=#FF69B4>${player}</color> <color=white>claimed</color> <color=#800080>${kitName}</color>`);
 
@@ -1210,7 +1210,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
 
     // Debug: Log all messages to see what emotes are being sent
     if (msg.includes('d11_quick_chat_combat_slot')) {
-      Logger.debug('Teleport emote detected:', msg);
+      // Debug logging removed for production
     }
 
     // Get server ID
@@ -1225,12 +1225,12 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     }
     
     const serverId = serverResult[0].id;
-            Logger.debug(`Server ID: ${serverId} for ${serverName}`);
+            // Debug logging removed for production
 
     // Check for Outpost emote
     if (msg.includes('d11_quick_chat_combat_slot_2')) {
       const player = extractPlayerName(msg);
-              Logger.debug(`Outpost emote detected for player: ${player}`);
+              // Debug logging removed for production
       if (player) {
         await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'outpost', player);
       }
@@ -1239,7 +1239,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
     // Check for Bandit Camp emote
     if (msg.includes('d11_quick_chat_combat_slot_0')) {
       const player = extractPlayerName(msg);
-              Logger.debug(`Bandit Camp emote detected for player: ${player}`);
+              // Debug logging removed for production
       if (player) {
         await handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, 'banditcamp', player);
       }
@@ -1252,7 +1252,7 @@ async function handleTeleportEmotes(client, guildId, serverName, parsed, ip, por
 
 async function handlePositionTeleport(client, guildId, serverName, serverId, ip, port, password, positionType, player) {
   try {
-          Logger.debug(`Processing teleport for ${player} to ${positionType}`);
+          // Debug logging removed for production
     
     // Get position configuration
     const configResult = await pool.query(
@@ -1262,13 +1262,13 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
 
     if (configResult[0].length > 0) {
       const config = configResult[0][0];
-      Logger.debug(`Teleport config: enabled=${config.enabled}, delay=${config.delay_seconds}s, cooldown=${config.cooldown_minutes}m`);
+      // Debug logging removed for production
       
       // Check if enabled (MySQL returns 1 for true, 0 for false)
       if (config.enabled === 1) {
-        Logger.debug(`Teleport is ENABLED for ${positionType}`);
+        // Debug logging removed for production
       } else {
-        Logger.debug(`Teleport is DISABLED for ${positionType}`);
+        // Debug logging removed for production
         return; // Position teleport is disabled
       }
     } else {
@@ -1302,7 +1302,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       return;
     }
 
-    Logger.debug(`Proceeding with teleport for ${player} to ${positionType}`);
+          // Debug logging removed for production
 
     const coords = coordResult[0][0];
     const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 'Bandit Camp';
@@ -1337,7 +1337,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
     } else {
       // Execute teleport immediately
       const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
-      Logger.debug(`Executing teleport command for ${player}`);
+      // Debug logging removed for production
       sendRconCommand(ip, port, password, teleportCommand);
       
       // Send success message
@@ -1539,24 +1539,19 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
 async function handlePositionResponse(client, guildId, serverName, msg, ip, port, password) {
   try {
-          Logger.debug('Position response received');
+          // Debug logging removed for production
     
-    // Only debug position-like messages to reduce spam
-    if (msg.includes('(') && msg.includes(')')) {
-      Logger.debug('Checking for position data');
-    }
+    // Position data checking (debug removed for production)
     
     // Check if this is a position response (format: "(x, y, z)")
     const positionMatch = msg.match(/^\(([^)]+)\)$/);
     if (!positionMatch) {
-      if (msg.includes('(') && msg.includes(')')) {
-        Logger.debug('Position-like message but regex failed');
-      }
+      // Position-like message but regex failed (debug removed for production)
       return;
     }
 
     const positionStr = positionMatch[1];
-          Logger.debug('Position data extracted');
+          // Debug logging removed for production
 
     // Find any pending Book-a-Ride requests for this server
     const serverStateKey = `${guildId}:${serverName}:`;
@@ -1573,7 +1568,7 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 
     if (!foundPlayerState) {
       // Check for home teleport position requests
-      console.log(`[HOME TELEPORT DEBUG] Checking for home teleport state, current states:`, Array.from(homeTeleportState.entries()));
+      // Debug logging removed for production
       const foundHomeState = Array.from(homeTeleportState.entries()).find(([key, state]) => {
         return state.step === 'waiting_for_position';
       });
@@ -1603,18 +1598,18 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         const serverId = serverResult[0].id;
 
         // Save home location to database
-        console.log(`[HOME TELEPORT DEBUG] Saving home location to database: guildId=${guildId}, serverId=${serverId}, player=${playerName}, coords=(${coords[0]}, ${coords[1]}, ${coords[2]})`);
+        // Debug logging removed for production
         await pool.query(
           `INSERT INTO player_homes (guild_id, server_id, player_name, x_pos, y_pos, z_pos, set_at, updated_at) 
            VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
            ON DUPLICATE KEY UPDATE x_pos = VALUES(x_pos), y_pos = VALUES(y_pos), z_pos = VALUES(z_pos), updated_at = CURRENT_TIMESTAMP`,
           [guildId, serverId, playerName, coords[0], coords[1], coords[2]]
         );
-        console.log(`[HOME TELEPORT DEBUG] Database insert completed`);
+        // Debug logging removed for production
 
         // Clear state
         homeTeleportState.delete(homeStateKey);
-        console.log(`[HOME TELEPORT DEBUG] Home location saved and state cleared for ${playerName}`);
+        // Debug logging removed for production
 
         // Send success message
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${playerName}</color> <color=white>home location saved successfully!</color>`);
@@ -1626,19 +1621,19 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         return;
       }
 
-      Logger.debug('No pending position request found');
+      // Debug logging removed for production
       return;
     }
 
     const playerName = foundPlayerState.player;
-          Logger.debug(`Position matched to player: ${playerName}`);
+          // Debug logging removed for production
 
     // Use the found player state
     const stateKey = foundStateKey;
     const playerState = foundPlayerState;
 
     if (playerState && playerState.step === 'waiting_for_position') {
-      Logger.debug(`Found pending request for ${playerName}`);
+      // Debug logging removed for production
 
       // Store the position and update state
       playerState.position = positionStr;
@@ -2049,7 +2044,7 @@ async function flushKillFeedBuffers(client) {
 
 async function checkAllEvents(client) {
   try {
-    console.log('[EVENT] Starting periodic event check...');
+    // Debug logging removed for production
     
     // Get all active servers with event configurations in a single query
     const [result] = await pool.query(`
@@ -2064,11 +2059,11 @@ async function checkAllEvents(client) {
     `);
 
     if (result.length === 0) {
-      console.log('[EVENT] No servers with enabled events found');
+      // Debug logging removed for production
       return;
     }
 
-    console.log(`[EVENT] Found ${result.length} event configurations to check`);
+    // Debug logging removed for production
 
     // Group by server to avoid duplicate queries
     const servers = new Map();
@@ -2092,12 +2087,12 @@ async function checkAllEvents(client) {
       });
     }
 
-    console.log(`[EVENT] Checking events for ${servers.size} servers`);
+          // Debug logging removed for production
 
     // Process each server
     for (const [key, server] of servers) {
       try {
-        console.log(`[EVENT] Processing server: ${server.nickname}`);
+        // Debug logging removed for production
         
         if (!eventFlags.has(key)) {
           eventFlags.set(key, new Set());
@@ -2122,7 +2117,7 @@ async function checkAllEvents(client) {
       }
     }
     
-    console.log('[EVENT] Periodic event check completed');
+    // Debug logging removed for production
   } catch (error) {
     console.error('[EVENT] Error checking all events:', error);
   }
@@ -2147,7 +2142,7 @@ async function checkBradleyEvent(client, guildId, serverName, ip, port, password
     // Update cooldown
     eventDetectionCooldowns.set(serverKey, now);
     
-    console.log(`[EVENT] Checking Bradley event on ${serverName}...`);
+    // Debug logging removed for production
     
     // Try multiple detection methods for better reliability
     const bradley = await sendRconCommand(ip, port, password, "find_entity servergibs_bradley");
@@ -2155,7 +2150,7 @@ async function checkBradleyEvent(client, guildId, serverName, ip, port, password
     // Clean the response to remove invisible characters
     const cleanResponse = bradley ? bradley.replace(/[\x00-\x1F\x7F]/g, '').trim() : '';
     
-    console.log(`[EVENT] Bradley response for ${serverName}:`, cleanResponse);
+    // Debug logging removed for production
     
     if (cleanResponse && cleanResponse.includes("servergibs_bradley") && !serverFlags.has("BRADLEY")) {
       serverFlags.add("BRADLEY");
@@ -2202,7 +2197,7 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
     // Update cooldown
     eventDetectionCooldowns.set(serverKey, now);
     
-    console.log(`[EVENT] Checking Helicopter event on ${serverName}...`);
+    // Debug logging removed for production
     
     // Try multiple detection methods for better reliability
     const helicopter = await sendRconCommand(ip, port, password, "find_entity servergibs_patrolhelicopter");
@@ -2210,7 +2205,7 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
     // Clean the response to remove invisible characters
     const cleanResponse = helicopter ? helicopter.replace(/[\x00-\x1F\x7F]/g, '').trim() : '';
     
-    console.log(`[EVENT] Helicopter response for ${serverName}:`, cleanResponse);
+    // Debug logging removed for production
     
     if (cleanResponse && cleanResponse.includes("servergibs_patrolhelicopter") && !serverFlags.has("HELICOPTER")) {
       serverFlags.add("HELICOPTER");
