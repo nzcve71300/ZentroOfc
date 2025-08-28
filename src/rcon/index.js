@@ -1662,10 +1662,17 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 
     if (playerState && playerState.step === 'waiting_for_position') {
       console.log(`[BOOK-A-RIDE DEBUG] Position received for ${playerName}: ${positionStr}`);
+      console.log(`[BOOK-A-RIDE DEBUG] Position bytes: ${Buffer.from(positionStr).toString('hex')}`);
+      console.log(`[BOOK-A-RIDE DEBUG] Position length: ${positionStr.length}`);
+      
+      // Clean the position string by removing invisible characters
+      const cleanPosition = positionStr.replace(/[\x00-\x1F\x7F]/g, '').trim();
+      console.log(`[BOOK-A-RIDE DEBUG] Cleaned position: ${cleanPosition}`);
+      console.log(`[BOOK-A-RIDE DEBUG] Cleaned position bytes: ${Buffer.from(cleanPosition).toString('hex')}`);
       console.log(`[BOOK-A-RIDE DEBUG] Updating state from 'waiting_for_position' to 'waiting_for_choice'`);
 
-      // Store the position and update state
-      playerState.position = positionStr;
+      // Store the cleaned position and update state
+      playerState.position = cleanPosition;
       playerState.step = 'waiting_for_choice';
 
       // Show ride selection message with availability (using <br> to avoid rate limiting)
