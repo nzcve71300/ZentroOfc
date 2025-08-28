@@ -1520,7 +1520,12 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby minicopter.entity ${x} ${y} ${z} 15`);
           setTimeout(() => {
-            const spawnPosition = `(${playerState.position.replace(/, /g, ',')})`;
+            // Add offset to spawn minicopter slightly away from player (5 units forward)
+            const coords = playerState.position.split(', ').map(coord => parseFloat(coord));
+            const offsetX = coords[0] + 5; // 5 units forward
+            const offsetY = coords[1];
+            const offsetZ = coords[2] + 2; // 2 units up to avoid ground collision
+            const spawnPosition = `(${offsetX},${offsetY},${offsetZ})`;
             console.log(`[BOOK-A-RIDE DEBUG] Executing minicopter spawn command: entity.spawn minicopter.entity ${spawnPosition}`);
             sendRconCommand(ip, port, password, `entity.spawn minicopter.entity ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ffd700>Minicopter</color> <color=white>has been delivered!</color>`);
@@ -1540,7 +1545,12 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby 2module_car_spawned ${x} ${y} ${z} 15`);
           setTimeout(() => {
-            const spawnPosition = `(${playerState.position.replace(/, /g, ',')})`;
+            // Add offset to spawn car slightly away from player (3 units forward)
+            const coords = playerState.position.split(', ').map(coord => parseFloat(coord));
+            const offsetX = coords[0] + 3; // 3 units forward
+            const offsetY = coords[1];
+            const offsetZ = coords[2]; // Keep same height for car
+            const spawnPosition = `(${offsetX},${offsetY},${offsetZ})`;
             console.log(`[BOOK-A-RIDE DEBUG] Executing car spawn command: entity.spawn 2module_car_spawned ${spawnPosition}`);
             sendRconCommand(ip, port, password, `entity.spawn 2module_car_spawned ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ff4500>Car</color> <color=white>has been delivered!</color>`);
