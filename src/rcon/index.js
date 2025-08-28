@@ -83,6 +83,8 @@ const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
 const BOOKARIDE_CHOICES = {
   horse: 'd11_quick_chat_responses_slot_0',
   rhib: 'd11_quick_chat_responses_slot_1',
+  mini: 'd11_quick_chat_responses_slot_2',
+  car: 'd11_quick_chat_responses_slot_3',
 };
 
 // Home Teleport constants
@@ -1358,7 +1360,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
     // Get server ID and check if Book-a-Ride is enabled
     const [serverResult] = await pool.query(
-      'SELECT rs.id, rc.enabled, rc.cooldown FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
+      'SELECT rs.id, rc.enabled, rc.cooldown, rc.mini_enabled, rc.car_enabled, rc.fuel_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
       [guildId, serverName]
     );
 
@@ -1367,6 +1369,10 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
     const serverId = serverResult[0].id;
     const isEnabled = serverResult[0].enabled !== 0; // Default to enabled if no config
     const cooldown = serverResult[0].cooldown || 300; // Default 5 minutes
+    const miniEnabled = serverResult[0].mini_enabled !== 0; // Default to disabled
+    const carEnabled = serverResult[0].car_enabled !== 0; // Default to disabled
+    const fuelEnabled = serverResult[0].fuel_enabled !== 0; // Default to disabled
+    const fuelAmount = serverResult[0].fuel_amount || 100; // Default 100 fuel
 
     if (!isEnabled) return;
 
@@ -1377,21 +1383,29 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
       Logger.info(`Ride requested: ${player} on ${serverName}`);
 
-      // Check cooldowns for both vehicle types
+      // Check cooldowns for all vehicle types
       const now = Date.now();
       const horseKey = `${serverId}:${player}:horse`;
       const rhibKey = `${serverId}:${player}:rhib`;
+      const miniKey = `${serverId}:${player}:mini`;
+      const carKey = `${serverId}:${player}:car`;
       
       const horseLastUsed = bookARideCooldowns.get(horseKey) || 0;
       const rhibLastUsed = bookARideCooldowns.get(rhibKey) || 0;
+      const miniLastUsed = bookARideCooldowns.get(miniKey) || 0;
+      const carLastUsed = bookARideCooldowns.get(carKey) || 0;
       
       const horseAvailable = (now - horseLastUsed) >= cooldown * 1000;
       const rhibAvailable = (now - rhibLastUsed) >= cooldown * 1000;
+      const miniAvailable = miniEnabled && (now - miniLastUsed) >= cooldown * 1000;
+      const carAvailable = carEnabled && (now - carLastUsed) >= cooldown * 1000;
       
-      if (!horseAvailable && !rhibAvailable) {
+      if (!horseAvailable && !rhibAvailable && !miniAvailable && !carAvailable) {
         const horseRemaining = Math.ceil((cooldown * 1000 - (now - horseLastUsed)) / 1000);
         const rhibRemaining = Math.ceil((cooldown * 1000 - (now - rhibLastUsed)) / 1000);
-        const shortestWait = Math.min(horseRemaining, rhibRemaining);
+        const miniRemaining = miniEnabled ? Math.ceil((cooldown * 1000 - (now - miniLastUsed)) / 1000) : 0;
+        const carRemaining = carEnabled ? Math.ceil((cooldown * 1000 - (now - carLastUsed)) / 1000) : 0;
+        const shortestWait = Math.min(horseRemaining, rhibRemaining, miniRemaining || Infinity, carRemaining || Infinity);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>you must wait</color> <color=#ffa500>${shortestWait}</color> <color=white>seconds before booking another ride</color>`);
         
         return;
@@ -1408,7 +1422,11 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         timestamp: now,
         step: 'waiting_for_position',
         horseAvailable: horseAvailable,
-        rhibAvailable: rhibAvailable
+        rhibAvailable: rhibAvailable,
+        miniAvailable: miniAvailable,
+        carAvailable: carAvailable,
+        fuelEnabled: fuelEnabled,
+        fuelAmount: fuelAmount
       });
 
       // Set timeout to clean up state
@@ -1433,6 +1451,10 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         chosenRide = 'horse';
       } else if (msg.includes(BOOKARIDE_CHOICES.rhib)) {
         chosenRide = 'rhib';
+      } else if (msg.includes(BOOKARIDE_CHOICES.mini)) {
+        chosenRide = 'mini';
+      } else if (msg.includes(BOOKARIDE_CHOICES.car)) {
+        chosenRide = 'car';
       }
 
       if (chosenRide && playerState.position) {
@@ -1440,7 +1462,9 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
         // Check if the chosen vehicle is available (double-check)
         const isAvailable = (chosenRide === 'horse' && playerState.horseAvailable) || 
-                           (chosenRide === 'rhib' && playerState.rhibAvailable);
+                           (chosenRide === 'rhib' && playerState.rhibAvailable) ||
+                           (chosenRide === 'mini' && playerState.miniAvailable) ||
+                           (chosenRide === 'car' && playerState.carAvailable);
         
         if (!isAvailable) {
           sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>that vehicle is on cooldown</color>`);
@@ -1470,6 +1494,30 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           setTimeout(() => {
             sendRconCommand(ip, port, password, `entity.spawn rhib ${playerState.position}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
+          }, 1000);
+        } else if (chosenRide === 'mini') {
+          // Clear nearby entities and spawn minicopter
+          sendRconCommand(ip, port, password, `entcount`);
+          sendRconCommand(ip, port, password, `entity.deleteby minicopter.entity ${x} ${y} ${z} 15`);
+          setTimeout(() => {
+            sendRconCommand(ip, port, password, `entity.spawn minicopter.entity ${playerState.position}`);
+            sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ffd700>Minicopter</color> <color=white>has been delivered!</color>`);
+            
+            // Give fuel if enabled
+            if (playerState.fuelEnabled && playerState.fuelAmount > 0) {
+              setTimeout(() => {
+                sendRconCommand(ip, port, password, `inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
+                sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>you also received</color> <color=#ffa500>${playerState.fuelAmount} fuel</color> <color=white>!</color>`);
+              }, 500);
+            }
+          }, 1000);
+        } else if (chosenRide === 'car') {
+          // Clear nearby entities and spawn car
+          sendRconCommand(ip, port, password, `entcount`);
+          sendRconCommand(ip, port, password, `entity.deleteby 2module_car_spawned ${x} ${y} ${z} 15`);
+          setTimeout(() => {
+            sendRconCommand(ip, port, password, `entity.spawn 2module_car_spawned ${playerState.position}`);
+            sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ff4500>Car</color> <color=white>has been delivered!</color>`);
           }, 1000);
         }
 
@@ -1596,6 +1644,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
       // Show ride selection message with availability (using <br> to avoid rate limiting)
       let horseOption = '';
       let rhibOption = '';
+      let miniOption = '';
+      let carOption = '';
       
       if (playerState.horseAvailable) {
         horseOption = `<color=#00ff00>Horse</color> <color=white>- Use Yes emote</color>`;
@@ -1627,8 +1677,38 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         rhibOption = `<color=#ff6b6b>Rhib</color> <color=white>- Cooldown:</color> <color=#ffa500>${rhibRemaining}s</color>`;
       }
       
+      if (playerState.miniAvailable) {
+        miniOption = `<color=#00ff00>Ok-Minicopter</color> <color=white>- Use Ok emote</color>`;
+      } else {
+        // Calculate remaining cooldown for mini
+        const [serverResult3] = await pool.query(
+          'SELECT cooldown FROM rider_config WHERE server_id = ?',
+          [playerState.serverId]
+        );
+        const cooldown = serverResult3.length > 0 ? serverResult3[0].cooldown : 300;
+        const miniKey = `${playerState.serverId}:${playerName}:mini`;
+        const miniLastUsed = bookARideCooldowns.get(miniKey) || 0;
+        const miniRemaining = Math.ceil((cooldown * 1000 - (Date.now() - miniLastUsed)) / 1000);
+        miniOption = `<color=#ff6b6b>Ok-Minicopter</color> <color=white>- Cooldown:</color> <color=#ffa500>${miniRemaining}s</color>`;
+      }
+      
+      if (playerState.carAvailable) {
+        carOption = `<color=#00ff00>thank you-Car</color> <color=white>- Use thank you emote</color>`;
+      } else {
+        // Calculate remaining cooldown for car
+        const [serverResult4] = await pool.query(
+          'SELECT cooldown FROM rider_config WHERE server_id = ?',
+          [playerState.serverId]
+        );
+        const cooldown = serverResult4.length > 0 ? serverResult4[0].cooldown : 300;
+        const carKey = `${playerState.serverId}:${playerName}:car`;
+        const carLastUsed = bookARideCooldowns.get(carKey) || 0;
+        const carRemaining = Math.ceil((cooldown * 1000 - (Date.now() - carLastUsed)) / 1000);
+        carOption = `<color=#ff6b6b>thank you-Car</color> <color=white>- Cooldown:</color> <color=#ffa500>${carRemaining}s</color>`;
+      }
+      
       // Send all options in a single message using <br> for line breaks
-      sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${playerName}</color> <color=white>which ride would you like to book?</color><br>${horseOption}<br>${rhibOption}`);
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${playerName}</color> <color=white>which ride would you like to book?</color><br>${horseOption}<br>${rhibOption}<br>${miniOption}<br>${carOption}`);
 
       // Update timeout for choice selection
       setTimeout(() => {
