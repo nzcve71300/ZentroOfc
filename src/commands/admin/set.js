@@ -321,8 +321,8 @@ module.exports = {
 
         if (existingBarConfig.length === 0) {
           await connection.execute(`
-            INSERT INTO rider_config (server_id, enabled, cooldown, mini_enabled, car_enabled, fuel_enabled, fuel_amount) 
-            VALUES (?, 1, 300, 0, 0, 0, 100)
+            INSERT INTO rider_config (server_id, enabled, cooldown, mini_enabled, car_enabled, fuel_amount) 
+            VALUES (?, 1, 300, 0, 0, 100)
           `, [server.id.toString()]);
         }
       }
