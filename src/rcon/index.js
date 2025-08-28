@@ -1513,6 +1513,15 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
             console.log(`[BOOK-A-RIDE DEBUG] Executing RHIB spawn command: entity.spawn rhib ${spawnPosition}`);
             sendRconCommand(ip, port, password, `entity.spawn rhib ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
+            
+            // Give fuel if amount is greater than 0
+            if (playerState.fuelAmount > 0) {
+              setTimeout(() => {
+                console.log(`[BOOK-A-RIDE DEBUG] Giving fuel to ${player}: inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
+                sendRconCommand(ip, port, password, `inventory.giveto "${player}" "lowgradefuel" "${playerState.fuelAmount}"`);
+                sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>you also received</color> <color=#ffa500>${playerState.fuelAmount} fuel</color> <color=white>!</color>`);
+              }, 500);
+            }
           }, 1000);
         } else if (chosenRide === 'mini') {
           // Clear nearby entities and spawn minicopter
