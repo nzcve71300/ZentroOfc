@@ -254,7 +254,14 @@ module.exports = {
         }
       } else {
         // For other configs, use the original logic
-        configType = config.split('-')[1] || '';
+        const parts = config.split('-');
+        if (parts.length >= 3) {
+          // e.g., "BAR-FUEL-AMOUNT" -> "FUEL-AMOUNT"
+          configType = parts.slice(1).join('-');
+        } else {
+          // e.g., "BAR-USE" -> "USE"
+          configType = parts[1] || '';
+        }
       }
 
       // Get server using shared helper
