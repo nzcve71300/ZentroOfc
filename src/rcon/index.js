@@ -1498,8 +1498,9 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby testridablehorse ${x} ${y} ${z} 15`);
           setTimeout(() => {
-            console.log(`[BOOK-A-RIDE DEBUG] Executing horse spawn command: entity.spawn testridablehorse ${playerState.position}`);
-            sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${playerState.position}`);
+            const spawnPosition = `(${playerState.position.replace(/, /g, ',')})`;
+            console.log(`[BOOK-A-RIDE DEBUG] Executing horse spawn command: entity.spawn testridablehorse ${spawnPosition}`);
+            sendRconCommand(ip, port, password, `entity.spawn testridablehorse ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#8b4513>Horse</color> <color=white>has been delivered!</color>`);
           }, 1000);
         } else if (chosenRide === 'rhib') {
@@ -1508,8 +1509,9 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby rhib ${x} ${y} ${z} 15`);
           setTimeout(() => {
-            console.log(`[BOOK-A-RIDE DEBUG] Executing RHIB spawn command: entity.spawn rhib ${playerState.position}`);
-            sendRconCommand(ip, port, password, `entity.spawn rhib ${playerState.position}`);
+            const spawnPosition = `(${playerState.position.replace(/, /g, ',')})`;
+            console.log(`[BOOK-A-RIDE DEBUG] Executing RHIB spawn command: entity.spawn rhib ${spawnPosition}`);
+            sendRconCommand(ip, port, password, `entity.spawn rhib ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#4169e1>Rhib</color> <color=white>has been delivered!</color>`);
           }, 1000);
         } else if (chosenRide === 'mini') {
@@ -1518,8 +1520,9 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby minicopter.entity ${x} ${y} ${z} 15`);
           setTimeout(() => {
-            console.log(`[BOOK-A-RIDE DEBUG] Executing minicopter spawn command: entity.spawn minicopter.entity ${playerState.position}`);
-            sendRconCommand(ip, port, password, `entity.spawn minicopter.entity ${playerState.position}`);
+            const spawnPosition = `(${playerState.position.replace(/, /g, ',')})`;
+            console.log(`[BOOK-A-RIDE DEBUG] Executing minicopter spawn command: entity.spawn minicopter.entity ${spawnPosition}`);
+            sendRconCommand(ip, port, password, `entity.spawn minicopter.entity ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ffd700>Minicopter</color> <color=white>has been delivered!</color>`);
             
             // Give fuel if amount is greater than 0
@@ -1537,8 +1540,9 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
           sendRconCommand(ip, port, password, `entcount`);
           sendRconCommand(ip, port, password, `entity.deleteby 2module_car_spawned ${x} ${y} ${z} 15`);
           setTimeout(() => {
-            console.log(`[BOOK-A-RIDE DEBUG] Executing car spawn command: entity.spawn 2module_car_spawned ${playerState.position}`);
-            sendRconCommand(ip, port, password, `entity.spawn 2module_car_spawned ${playerState.position}`);
+            const spawnPosition = `(${playerState.position.replace(/, /g, ',')})`;
+            console.log(`[BOOK-A-RIDE DEBUG] Executing car spawn command: entity.spawn 2module_car_spawned ${spawnPosition}`);
+            sendRconCommand(ip, port, password, `entity.spawn 2module_car_spawned ${spawnPosition}`);
             sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#00ff00>${player}</color> <color=white>your</color> <color=#ff4500>Car</color> <color=white>has been delivered!</color>`);
             
             // Give fuel if amount is greater than 0
