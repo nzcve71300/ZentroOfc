@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS rider_config (
   server_id VARCHAR(255) NOT NULL,
   enabled TINYINT(1) NOT NULL DEFAULT 1,
   cooldown INT NOT NULL DEFAULT 300,
+  horse_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  rhib_enabled TINYINT(1) NOT NULL DEFAULT 1,
   mini_enabled TINYINT(1) NOT NULL DEFAULT 0,
   car_enabled TINYINT(1) NOT NULL DEFAULT 0,
   fuel_amount INT NOT NULL DEFAULT 100,

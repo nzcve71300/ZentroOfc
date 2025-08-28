@@ -1363,7 +1363,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
     // Get server ID and check if Book-a-Ride is enabled
     const [serverResult] = await pool.query(
-      'SELECT rs.id, rc.enabled, rc.cooldown, rc.mini_enabled, rc.car_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
+      'SELECT rs.id, rc.enabled, rc.cooldown, rc.horse_enabled, rc.rhib_enabled, rc.mini_enabled, rc.car_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
       [guildId, serverName]
     );
 
@@ -1372,6 +1372,8 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
     const serverId = serverResult[0].id;
     const isEnabled = serverResult[0].enabled !== 0; // Default to enabled if no config
     const cooldown = serverResult[0].cooldown || 300; // Default 5 minutes
+    const horseEnabled = serverResult[0].horse_enabled !== 0; // Default to enabled
+    const rhibEnabled = serverResult[0].rhib_enabled !== 0; // Default to enabled
     const miniEnabled = serverResult[0].mini_enabled !== 0; // Default to disabled
     const carEnabled = serverResult[0].car_enabled !== 0; // Default to disabled
     const fuelAmount = serverResult[0].fuel_amount || 100; // Default 100 fuel
@@ -1397,14 +1399,14 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
       const miniLastUsed = bookARideCooldowns.get(miniKey) || 0;
       const carLastUsed = bookARideCooldowns.get(carKey) || 0;
       
-      const horseAvailable = (now - horseLastUsed) >= cooldown * 1000;
-      const rhibAvailable = (now - rhibLastUsed) >= cooldown * 1000;
+      const horseAvailable = horseEnabled && (now - horseLastUsed) >= cooldown * 1000;
+      const rhibAvailable = rhibEnabled && (now - rhibLastUsed) >= cooldown * 1000;
       const miniAvailable = miniEnabled && (now - miniLastUsed) >= cooldown * 1000;
       const carAvailable = carEnabled && (now - carLastUsed) >= cooldown * 1000;
       
       if (!horseAvailable && !rhibAvailable && !miniAvailable && !carAvailable) {
-        const horseRemaining = Math.ceil((cooldown * 1000 - (now - horseLastUsed)) / 1000);
-        const rhibRemaining = Math.ceil((cooldown * 1000 - (now - rhibLastUsed)) / 1000);
+        const horseRemaining = horseEnabled ? Math.ceil((cooldown * 1000 - (now - horseLastUsed)) / 1000) : 0;
+        const rhibRemaining = rhibEnabled ? Math.ceil((cooldown * 1000 - (now - rhibLastUsed)) / 1000) : 0;
         const miniRemaining = miniEnabled ? Math.ceil((cooldown * 1000 - (now - miniLastUsed)) / 1000) : 0;
         const carRemaining = carEnabled ? Math.ceil((cooldown * 1000 - (now - carLastUsed)) / 1000) : 0;
         const shortestWait = Math.min(horseRemaining, rhibRemaining, miniRemaining || Infinity, carRemaining || Infinity);
