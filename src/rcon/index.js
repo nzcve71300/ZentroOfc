@@ -1361,6 +1361,10 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
     const msg = parsed.Message;
     if (!msg) return;
 
+    // Debug logging for Book-a-Ride
+    console.log(`[BOOK-A-RIDE DEBUG] Processing message: ${msg}`);
+    console.log(`[BOOK-A-RIDE DEBUG] Server: ${serverName}, Guild: ${guildId}`);
+
     // Get server ID and check if Book-a-Ride is enabled
     const [serverResult] = await pool.query(
       'SELECT rs.id, rc.enabled, rc.cooldown, rc.horse_enabled, rc.rhib_enabled, rc.mini_enabled, rc.car_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
@@ -1382,7 +1386,9 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
     // Check for Book-a-Ride request emote
     if (msg.includes(BOOKARIDE_EMOTE)) {
+      console.log(`[BOOK-A-RIDE DEBUG] Request emote detected!`);
       const player = extractPlayerName(msg);
+      console.log(`[BOOK-A-RIDE DEBUG] Extracted player: ${player}`);
       if (!player) return;
 
       Logger.info(`Ride requested: ${player} on ${serverName}`);
@@ -1446,6 +1452,10 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
     const stateKey = `${guildId}:${serverName}:${player}`;
     const playerState = bookARideState.get(stateKey);
+    
+    console.log(`[BOOK-A-RIDE DEBUG] Checking ride choice for player: ${player}`);
+    console.log(`[BOOK-A-RIDE DEBUG] State key: ${stateKey}`);
+    console.log(`[BOOK-A-RIDE DEBUG] Player state exists: ${playerState ? 'YES' : 'NO'}`);
 
     if (playerState && playerState.step === 'waiting_for_choice') {
       let chosenRide = null;
