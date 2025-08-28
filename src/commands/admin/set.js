@@ -59,7 +59,11 @@ module.exports = {
         // Generate BAR (Book-a-Ride) configuration options
         const barConfigTypes = [
           { name: 'USE (On/Off)', value: 'USE' },
-          { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
+          { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' },
+          { name: 'MINI (On/Off)', value: 'MINI' },
+          { name: 'CAR (On/Off)', value: 'CAR' },
+          { name: 'FUEL (On/Off)', value: 'FUEL' },
+          { name: 'FUEL-AMOUNT (Value)', value: 'FUEL-AMOUNT' }
         ];
         
         // Generate Position configuration options
@@ -318,7 +322,8 @@ module.exports = {
 
         if (existingBarConfig.length === 0) {
           await connection.execute(`
-            INSERT INTO rider_config (server_id, enabled, cooldown) VALUES (?, 1, 300)
+            INSERT INTO rider_config (server_id, enabled, cooldown, mini_enabled, car_enabled, fuel_enabled, fuel_amount) 
+            VALUES (?, 1, 300, 0, 0, 0, 100)
           `, [server.id.toString()]);
         }
       }
@@ -614,6 +619,9 @@ module.exports = {
         case 'ON':
         case 'OUTPOST':
         case 'BANDIT':
+        case 'MINI':
+        case 'CAR':
+        case 'FUEL':
         case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
@@ -786,6 +794,38 @@ module.exports = {
           } else if (isPositionConfig) {
             updateQuery = 'UPDATE position_configs SET cooldown_minutes = ? WHERE server_id = ? AND position_type = ?';
             updateParams = [validatedOption, server.id.toString(), positionType];
+          }
+          break;
+        case 'MINI':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET mini_enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          }
+          break;
+        case 'CAR':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET car_enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          }
+          break;
+        case 'FUEL':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET fuel_enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          }
+          break;
+        case 'FUEL-AMOUNT':
+          if (isBarConfig) {
+            const fuelAmount = parseInt(option);
+            if (isNaN(fuelAmount) || fuelAmount < 0) {
+              await connection.end();
+              return await interaction.reply({
+                content: `❌ Invalid fuel amount. Must be a positive number.`,
+                ephemeral: true
+              });
+            }
+            updateQuery = 'UPDATE rider_config SET fuel_amount = ? WHERE server_id = ?';
+            updateParams = [fuelAmount, server.id.toString()];
           }
           break;
         case 'COORDINATES':
