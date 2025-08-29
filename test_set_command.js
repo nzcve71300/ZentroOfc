@@ -1,3 +1,5 @@
+const { execSync } = require('child_process');
+
 console.log('🔧 Testing /set command loading...');
 
 try {
@@ -17,15 +19,19 @@ try {
 
 console.log('\n🔧 Testing database connection...');
 
-try {
-  const pool = require('./src/db');
-  console.log('✅ Database connection successful');
-  
-  // Test a simple query
-  const [result] = await pool.execute('SELECT 1 as test');
-  console.log('✅ Database query test successful:', result);
-  
-  await pool.end();
-} catch (error) {
-  console.error('❌ Database connection error:', error.message);
+async function testDatabase() {
+  try {
+    const pool = require('./src/db');
+    console.log('✅ Database connection successful');
+    
+    // Test a simple query
+    const [result] = await pool.execute('SELECT 1 as test');
+    console.log('✅ Database query test successful:', result);
+    
+    await pool.end();
+  } catch (error) {
+    console.error('❌ Database connection error:', error.message);
+  }
 }
+
+testDatabase();
