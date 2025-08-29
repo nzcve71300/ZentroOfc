@@ -302,6 +302,16 @@ module.exports = {
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
       console.log(`[SET COMMAND DEBUG] Server lookup result:`, server);
+      console.log(`[SET COMMAND DEBUG] Config analysis:`, {
+        config,
+        configType,
+        isCrateConfig,
+        teleportMatch: !!teleportMatch,
+        eventMatch: !!eventMatch,
+        isBarConfig,
+        isPositionConfig,
+        isEconomyConfig
+      });
       
       if (!server) {
         return await interaction.reply({
@@ -804,6 +814,8 @@ module.exports = {
       let updateQuery = '';
       let updateParams = [];
 
+      console.log(`[SET COMMAND DEBUG] About to switch on configType: "${configType}"`);
+      
       switch (configType) {
         case 'USE':
           if (isBarConfig) {
