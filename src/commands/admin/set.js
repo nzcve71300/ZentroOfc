@@ -275,6 +275,14 @@ module.exports = {
       const crateType = crateMatch ? crateMatch[1].toLowerCase() : null;
       const isCrateConfig = crateMatch !== null;
       
+      // Extract ZORP config from config (e.g., "ZORP-USELIST" -> "zorp")
+      const zorpMatch = config.match(/^ZORP-/);
+      const isZorpConfig = zorpMatch !== null;
+      
+      // Extract Recycler config from config (e.g., "RECYCLER-USE" -> "recycler")
+      const recyclerMatch = config.match(/^RECYCLER-/);
+      const isRecyclerConfig = recyclerMatch !== null;
+      
       // Extract config type, handling crate events properly
       let configType = '';
       if (isCrateConfig) {
@@ -310,7 +318,9 @@ module.exports = {
         eventMatch: !!eventMatch,
         isBarConfig,
         isPositionConfig,
-        isEconomyConfig
+        isEconomyConfig,
+        isZorpConfig,
+        isRecyclerConfig
       });
       
       if (!server) {
@@ -414,7 +424,7 @@ module.exports = {
       }
       
       // Handle Recycler configurations
-      if (config.startsWith('RECYCLER-')) {
+      if (isRecyclerConfig) {
         // Check if recycler config exists, create if not
         const [existingRecyclerConfig] = await connection.execute(
           'SELECT * FROM recycler_configs WHERE server_id = ?',
@@ -427,10 +437,10 @@ module.exports = {
             VALUES (?, false, false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [server.id.toString()]);
         }
-            }
+      }
       
       // Handle ZORP configurations
-      if (config.startsWith('ZORP-')) {
+      if (isZorpConfig) {
         // Check if ZORP config exists, create if not
         const [existingZorpConfig] = await connection.execute(
           'SELECT * FROM zorp_configs WHERE server_id = ?',
