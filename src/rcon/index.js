@@ -56,6 +56,9 @@ const TELEPORT_EMOTES = {
 // Kit delivery emote
 const KIT_DELIVERY_EMOTE = 'd11_quick_chat_orders_slot_6';
 
+// Recycler emote
+const RECYCLER_EMOTE = 'd11_quick_chat_orders_slot_2';
+
 // In-memory state tracking
 const recentKitClaims = new Map();
 const recentTeleports = new Map();
@@ -418,6 +421,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle Kit Delivery emote
       await handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, port, password);
+
+      // Handle Recycler emote
+      await handleRecyclerEmote(client, guildId, serverName, parsed, ip, port, password);
 
       // Handle Teleport System emotes
       const teleportEmotes = [
@@ -3005,6 +3011,161 @@ async function handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, p
     }
   } catch (error) {
     console.error('Error handling kit delivery emote:', error);
+  }
+}
+
+// Recycler System Functions
+async function handleRecyclerEmote(client, guildId, serverName, parsed, ip, port, password) {
+  try {
+    const msg = parsed.Message;
+    if (!msg) return;
+
+    // Check for Recycler emote in all chat types: [CHAT LOCAL/TEAM/SERVER] player : d11_quick_chat_orders_slot_2
+    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes(RECYCLER_EMOTE)) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        // Determine chat type for logging
+        let chatType = 'LOCAL';
+        if (msg.includes('[CHAT TEAM]')) chatType = 'TEAM';
+        else if (msg.includes('[CHAT SERVER]')) chatType = 'SERVER';
+        
+        console.log(`[RECYCLER] Emote detected for player: ${player} on server: ${serverName} (${chatType} chat)`);
+        await processRecyclerSpawn(client, guildId, serverName, ip, port, password, player);
+      } else {
+        console.log(`[RECYCLER] Emote detected but could not extract player name from: ${msg}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling recycler emote:', error);
+  }
+}
+
+async function processRecyclerSpawn(client, guildId, serverName, ip, port, password, player) {
+  try {
+    console.log(`[RECYCLER] Processing recycler spawn for ${player} on ${serverName}`);
+    
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) {
+      console.log(`[RECYCLER] Server not found: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult[0].id;
+    
+    // Get recycler configuration
+    const [configResult] = await pool.query(
+      'SELECT enabled, use_list, cooldown_minutes FROM recycler_configs WHERE server_id = ?',
+      [serverId]
+    );
+    
+    if (configResult.length === 0) {
+      console.log(`[RECYCLER] No recycler configuration found for server: ${serverName}`);
+      return;
+    }
+    
+    const config = configResult[0];
+    
+    // Check if recycler system is enabled
+    if (!config.enabled) {
+      console.log(`[RECYCLER] Recycler system is disabled for server: ${serverName}`);
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>recycler spawning is disabled</color>`);
+      return;
+    }
+    
+    // Check if player is in allowed list (if use_list is enabled)
+    if (config.use_list) {
+      const [allowedResult] = await pool.query(
+        'SELECT * FROM recycler_allowed_users WHERE server_id = ? AND (ign = ? OR discord_id = ?)',
+        [serverId, player, player]
+      );
+      
+      if (allowedResult.length === 0) {
+        console.log(`[RECYCLER] Player ${player} not in allowed list for server: ${serverName}`);
+        await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>you are not allowed to spawn recyclers</color>`);
+        return;
+      }
+    }
+    
+    // Check cooldown
+    const [cooldownResult] = await pool.query(
+      'SELECT last_used FROM recycler_cooldowns WHERE server_id = ? AND player_name = ?',
+      [serverId, player]
+    );
+    
+    if (cooldownResult.length > 0) {
+      const lastUsed = new Date(cooldownResult[0].last_used);
+      const now = new Date();
+      const cooldownMs = config.cooldown_minutes * 60 * 1000;
+      const timeSinceLastUse = now - lastUsed;
+      
+      if (timeSinceLastUse < cooldownMs) {
+        const remainingMinutes = Math.ceil((cooldownMs - timeSinceLastUse) / (60 * 1000));
+        console.log(`[RECYCLER] Player ${player} is on cooldown for ${remainingMinutes} minutes`);
+        await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>please wait ${remainingMinutes} minutes before spawning another recycler</color>`);
+        return;
+      }
+    }
+    
+    // Get player position (similar to Book-a-Ride)
+    console.log(`[RECYCLER] Getting position for ${player}`);
+    const positionResponse = await sendRconCommand(ip, port, password, `oxide.call "BookARide" "GetPlayerPosition" "${player}"`);
+    
+    if (!positionResponse || positionResponse.includes('Player not found') || positionResponse.includes('error')) {
+      console.log(`[RECYCLER] Could not get position for ${player}`);
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>could not get your position</color>`);
+      return;
+    }
+    
+    // Parse position response (format: "x,y,z")
+    const positionMatch = positionResponse.match(/(-?\d+\.?\d*),(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (!positionMatch) {
+      console.log(`[RECYCLER] Invalid position response: ${positionResponse}`);
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>invalid position data</color>`);
+      return;
+    }
+    
+    const x = parseFloat(positionMatch[1]);
+    const y = parseFloat(positionMatch[2]);
+    const z = parseFloat(positionMatch[3]);
+    
+    // Spawn recycler slightly in front of the player (not to the side or behind)
+    const spawnX = x + 2; // 2 units in front
+    const spawnY = y;
+    const spawnZ = z;
+    
+    console.log(`[RECYCLER] Spawning recycler at position: ${spawnX}, ${spawnY}, ${spawnZ} for ${player}`);
+    
+    // Spawn the recycler
+    const spawnCommand = `entity.spawn recycler_static ${spawnX} ${spawnY} ${spawnZ}`;
+    const spawnResult = await sendRconCommand(ip, port, password, spawnCommand);
+    
+    if (spawnResult && !spawnResult.includes('error')) {
+      // Update cooldown
+      await pool.query(
+        'INSERT INTO recycler_cooldowns (server_id, player_name, last_used) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE last_used = NOW()',
+        [serverId, player]
+      );
+      
+      // Send success message
+      await sendRconCommand(ip, port, password, `say <color=#00FF00>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#00FF00>spawned a recycler</color>`);
+      
+      // Send to admin feed
+      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `♻️ **Recycler Spawned:** ${player} spawned a recycler`);
+      
+      console.log(`[RECYCLER] Successfully spawned recycler for ${player} on ${serverName}`);
+    } else {
+      console.log(`[RECYCLER] Failed to spawn recycler for ${player}: ${spawnResult}`);
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>failed to spawn recycler</color>`);
+    }
+    
+  } catch (error) {
+    console.error('Error processing recycler spawn:', error);
+    await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>error spawning recycler</color>`);
   }
 }
 

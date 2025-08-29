@@ -51,6 +51,12 @@ module.exports = {
           });
         });
         
+        // Add recycler list option
+        allOptions.push({
+          name: 'RECYCLERLIST (Recycler Allowed Users)',
+          value: 'RECYCLERLIST'
+        });
+        
         // Filter based on user input
         const filtered = allOptions.filter(option => 
           option.name.toLowerCase().includes(focusedValue.toLowerCase())
@@ -75,6 +81,9 @@ module.exports = {
       // Extract teleport name from list name (e.g., "TPNE-LIST" -> "tpne")
       const teleportMatch = listName.match(/^(TPN|TPNE|TPE|TPSE|TPS|TPSW|TPW|TPNW)-/);
       const teleport = teleportMatch ? teleportMatch[1].toLowerCase() : 'default';
+      
+      // Check if it's a recycler list
+      const isRecyclerList = listName === 'RECYCLERLIST';
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -129,7 +138,21 @@ module.exports = {
       }
 
       // Add to appropriate list
-      if (listName.endsWith('-LIST')) {
+      if (isRecyclerList) {
+        await connection.execute(`
+          INSERT INTO recycler_allowed_users (server_id, discord_id, ign, added_by)
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+          discord_id = VALUES(discord_id),
+          ign = VALUES(ign),
+          added_by = VALUES(added_by)
+        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** added to **RECYCLERLIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (listName.endsWith('-LIST')) {
         await connection.execute(`
           INSERT INTO teleport_allowed_users (server_id, teleport_name, discord_id, ign, added_by)
           VALUES (?, ?, ?, ?, ?)

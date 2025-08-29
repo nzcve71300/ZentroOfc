@@ -178,6 +178,20 @@ module.exports = {
           });
         });
         
+        // Add Recycler configuration options SIXTH
+        const recyclerConfigTypes = [
+          { name: 'RECYCLER-USE (ON/OFF)', value: 'RECYCLER-USE' },
+          { name: 'RECYCLER-USELIST (ON/OFF)', value: 'RECYCLER-USELIST' },
+          { name: 'RECYCLER-TIME (Minutes)', value: 'RECYCLER-TIME' }
+        ];
+        
+        recyclerConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: configType.name,
+            value: configType.value
+          });
+        });
+        
         // Add teleport options LAST (least important for economy configs)
         teleports.forEach(teleport => {
           configTypes.forEach(configType => {
@@ -365,6 +379,22 @@ module.exports = {
             INSERT INTO crate_event_configs (server_id, crate_type, enabled, spawn_interval_minutes, spawn_amount, spawn_message, created_at, updated_at) 
             VALUES (?, ?, false, 60, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [server.id.toString(), crateType, `<b><size=45><color=#00FF00>CRATE EVENT SPAWNED</color></size></b>`]);
+        }
+      }
+      
+      // Handle Recycler configurations
+      if (config.startsWith('RECYCLER-')) {
+        // Check if recycler config exists, create if not
+        const [existingRecyclerConfig] = await connection.execute(
+          'SELECT * FROM recycler_configs WHERE server_id = ?',
+          [server.id.toString()]
+        );
+
+        if (existingRecyclerConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO recycler_configs (server_id, enabled, use_list, cooldown_minutes, created_at, updated_at) 
+            VALUES (?, false, false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `, [server.id.toString()]);
         }
       }
 
@@ -629,6 +659,17 @@ module.exports = {
           }
           validatedOption = fuelAmountValue;
           break;
+        case 'RECYCLER-TIME':
+          const recyclerTimeValue = parseInt(option);
+          if (isNaN(recyclerTimeValue) || recyclerTimeValue < 0) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for RECYCLER-TIME. Use a positive number (minutes)`,
+              ephemeral: true
+            });
+          }
+          validatedOption = recyclerTimeValue;
+          break;
         case 'USE':
         case 'USELIST':
         case 'USE-DELAY':
@@ -642,6 +683,8 @@ module.exports = {
         case 'RHIB':
         case 'MINI':
         case 'CAR':
+        case 'RECYCLER-USE':
+        case 'RECYCLER-USELIST':
         case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
@@ -864,6 +907,20 @@ module.exports = {
         case 'RESPAWNMSG':
           updateQuery = 'UPDATE event_configs SET respawn_message = ? WHERE server_id = ? AND event_type = ?';
           updateParams = [validatedOption, server.id.toString(), eventType];
+          break;
+          
+        // Recycler configurations
+        case 'RECYCLER-USE':
+          updateQuery = 'UPDATE recycler_configs SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          break;
+        case 'RECYCLER-USELIST':
+          updateQuery = 'UPDATE recycler_configs SET use_list = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          break;
+        case 'RECYCLER-TIME':
+          updateQuery = 'UPDATE recycler_configs SET cooldown_minutes = ? WHERE server_id = ?';
+          updateParams = [validatedOption, server.id.toString()];
           break;
       }
 
