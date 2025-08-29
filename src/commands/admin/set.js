@@ -192,6 +192,18 @@ module.exports = {
           });
         });
         
+        // Add ZORP configuration options SEVENTH
+        const zorpConfigTypes = [
+          { name: 'ZORP-USELIST (ON/OFF)', value: 'ZORP-USELIST' }
+        ];
+        
+        zorpConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: configType.name,
+            value: configType.value
+          });
+        });
+        
         // Add teleport options LAST (least important for economy configs)
         teleports.forEach(teleport => {
           configTypes.forEach(configType => {
@@ -685,6 +697,7 @@ module.exports = {
         case 'CAR':
         case 'RECYCLER-USE':
         case 'RECYCLER-USELIST':
+        case 'ZORP-USELIST':
         case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
@@ -921,6 +934,12 @@ module.exports = {
         case 'RECYCLER-TIME':
           updateQuery = 'UPDATE recycler_configs SET cooldown_minutes = ? WHERE server_id = ?';
           updateParams = [validatedOption, server.id.toString()];
+          break;
+          
+        // ZORP configurations
+        case 'ZORP-USELIST':
+          updateQuery = 'UPDATE zorp_configs SET use_list = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           break;
       }
 

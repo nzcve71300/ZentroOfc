@@ -3602,6 +3602,36 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       return;
     }
 
+    // Check ZORP list restrictions
+    const [zorpConfig] = await pool.query(
+      'SELECT use_list FROM zorp_configs WHERE server_id = ?',
+      [serverId]
+    );
+
+    // Check if player is banned from ZORP (regardless of use_list setting)
+    const [bannedResult] = await pool.query(
+      'SELECT * FROM zorp_banned_users WHERE server_id = ? AND (discord_id = ? OR ign = ?)',
+      [serverId, playerName, playerName]
+    );
+
+    if (bannedResult.length > 0) {
+      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are banned from using ZORP zones.</color>`);
+      return;
+    }
+
+    // If use_list is enabled, check if player is in allowed list
+    if (zorpConfig.length > 0 && zorpConfig[0].use_list) {
+      const [allowedResult] = await pool.query(
+        'SELECT * FROM zorp_allowed_users WHERE server_id = ? AND (discord_id = ? OR ign = ?)',
+        [serverId, playerName, playerName]
+      );
+
+      if (allowedResult.length === 0) {
+        await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are not allowed to use ZORP zones. Contact an administrator.</color>`);
+        return;
+      }
+    }
+
     // Check if player already has a zone
     const [existingZone] = await pool.query(
       'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',

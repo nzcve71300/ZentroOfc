@@ -5,8 +5,8 @@ require('dotenv').config();
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('add-to-list')
-    .setDescription('Add players to teleport lists')
+    .setName('remove-from-list')
+    .setDescription('Remove players from teleport lists')
     .addStringOption(option =>
       option.setName('list-name')
         .setDescription('Select the list type (type to search)')
@@ -18,7 +18,7 @@ module.exports = {
         .setRequired(true))
     .addStringOption(option =>
       option.setName('server')
-        .setDescription('Server to add to')
+        .setDescription('Server to remove from')
         .setRequired(true)
         .setAutocomplete(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -151,75 +151,125 @@ module.exports = {
         discordId = players[0].discord_id;
       }
 
-      // Add to appropriate list
+      // Remove from appropriate list
       if (isRecyclerList) {
+        // Check if player is in recycler list
+        const [existing] = await connection.execute(`
+          SELECT * FROM recycler_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **RECYCLERLIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
         await connection.execute(`
-          INSERT INTO recycler_allowed_users (server_id, discord_id, ign, added_by)
-          VALUES (?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-          discord_id = VALUES(discord_id),
-          ign = VALUES(ign),
-          added_by = VALUES(added_by)
-        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+          DELETE FROM recycler_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **RECYCLERLIST** on **${server.nickname}**`,
+          content: `✅ **${playerName}** removed from **RECYCLERLIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (isZorpList) {
+        // Check if player is in ZORP allowed list
+        const [existing] = await connection.execute(`
+          SELECT * FROM zorp_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **ZORP-LIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
         await connection.execute(`
-          INSERT INTO zorp_allowed_users (server_id, discord_id, ign, added_by)
-          VALUES (?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-          discord_id = VALUES(discord_id),
-          ign = VALUES(ign),
-          added_by = VALUES(added_by)
-        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+          DELETE FROM zorp_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **ZORP-LIST** on **${server.nickname}**`,
+          content: `✅ **${playerName}** removed from **ZORP-LIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (isZorpBanList) {
+        // Check if player is in ZORP banned list
+        const [existing] = await connection.execute(`
+          SELECT * FROM zorp_banned_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **ZORP-BANLIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
         await connection.execute(`
-          INSERT INTO zorp_banned_users (server_id, discord_id, ign, banned_by)
-          VALUES (?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-          discord_id = VALUES(discord_id),
-          ign = VALUES(ign),
-          banned_by = VALUES(banned_by)
-        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+          DELETE FROM zorp_banned_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **ZORP-BANLIST** on **${server.nickname}**`,
+          content: `✅ **${playerName}** removed from **ZORP-BANLIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-LIST')) {
+        // Check if player is in teleport allowed list
+        const [existing] = await connection.execute(`
+          SELECT * FROM teleport_allowed_users 
+          WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), teleport, discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **${listName}** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
         await connection.execute(`
-          INSERT INTO teleport_allowed_users (server_id, teleport_name, discord_id, ign, added_by)
-          VALUES (?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-          discord_id = VALUES(discord_id),
-          ign = VALUES(ign),
-          added_by = VALUES(added_by)
-        `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
+          DELETE FROM teleport_allowed_users 
+          WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), teleport, discordId, ign]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **${listName}** on **${server.nickname}**`,
+          content: `✅ **${playerName}** removed from **${listName}** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-BANLIST')) {
+        // Check if player is in teleport banned list
+        const [existing] = await connection.execute(`
+          SELECT * FROM teleport_banned_users 
+          WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), teleport, discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **${listName}** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
         await connection.execute(`
-          INSERT INTO teleport_banned_users (server_id, teleport_name, discord_id, ign, banned_by)
-          VALUES (?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-          discord_id = VALUES(discord_id),
-          ign = VALUES(ign),
-          banned_by = VALUES(banned_by)
-        `, [server.id.toString(), teleport, discordId, ign, interaction.user.id]);
+          DELETE FROM teleport_banned_users 
+          WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), teleport, discordId, ign]);
 
         await interaction.reply({
-          content: `✅ **${playerName}** added to **${listName}** on **${server.nickname}**`,
+          content: `✅ **${playerName}** removed from **${listName}** on **${server.nickname}**`,
           ephemeral: true
         });
       }
@@ -227,11 +277,12 @@ module.exports = {
       await connection.end();
 
     } catch (error) {
-      console.error('Error in add-to-list command:', error);
+      console.error('Error in remove-from-list command:', error);
       await interaction.reply({
-        content: `❌ An error occurred while adding to list: ${error.message}`,
+        content: `❌ An error occurred while removing from list: ${error.message}`,
         ephemeral: true
       });
     }
   }
+};
 };
