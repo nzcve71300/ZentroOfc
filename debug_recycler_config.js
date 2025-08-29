@@ -31,7 +31,7 @@ async function debugRecyclerConfig() {
         // 3. Find Emperor 3x in servers table
         console.log('📋 Step 3: Finding Emperor 3x in servers table...');
         const [servers] = await pool.execute(`
-            SELECT * FROM servers WHERE name = 'Emperor 3x' OR server_name = 'Emperor 3x' OR display_name = 'Emperor 3x'
+            SELECT * FROM servers WHERE name = 'Emperor 3x'
         `);
 
         if (servers.length === 0) {
@@ -45,8 +45,8 @@ async function debugRecyclerConfig() {
         } else {
             const server = servers[0];
             console.log('✅ Found Emperor 3x:');
-            console.log(`   - Guild ID: ${server.guild_id || server.id}`);
-            console.log(`   - Name: ${server.name || server.server_name || server.display_name}`);
+            console.log(`   - Guild ID: ${server.guild_id}`);
+            console.log(`   - Name: ${server.name}`);
             console.log(`   - Full record: ${JSON.stringify(server)}`);
         }
         console.log('');
@@ -73,18 +73,18 @@ async function debugRecyclerConfig() {
         // 5. Find the correct guild ID for Emperor 3x
         console.log('📋 Step 5: Finding correct guild ID for Emperor 3x...');
         const [emperorServer] = await pool.execute(`
-            SELECT guild_id, name, server_name, display_name FROM servers 
-            WHERE name LIKE '%Emperor%' OR server_name LIKE '%Emperor%' OR display_name LIKE '%Emperor%'
+            SELECT guild_id, name FROM servers 
+            WHERE name LIKE '%Emperor%'
         `);
 
         if (emperorServer.length === 0) {
             console.log('❌ Could not find Emperor server in database!');
         } else {
             const server = emperorServer[0];
-            const guildId = server.guild_id || server.id;
+            const guildId = server.guild_id;
             console.log(`✅ Found Emperor server: ${guildId}`);
             console.log(`   - Guild ID: ${guildId}`);
-            console.log(`   - Name: ${server.name || server.server_name || server.display_name}`);
+            console.log(`   - Name: ${server.name}`);
             console.log('');
 
             // 6. Check if this guild ID has a recycler config
