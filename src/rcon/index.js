@@ -1715,8 +1715,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 
         console.log(`[RECYCLER] Spawning recycler at position: ${spawnX}, ${spawnY}, ${spawnZ} for ${playerName}`);
 
-        // Spawn the recycler
-        sendRconCommand(ip, port, password, `entity.spawn recycler_static ${spawnX} ${spawnY} ${spawnZ}`);
+        // Spawn the recycler (no spaces in coordinates)
+        sendRconCommand(ip, port, password, `entity.spawn recycler_static ${spawnX},${spawnY},${spawnZ}`);
 
         // Update cooldown
         await pool.query(
