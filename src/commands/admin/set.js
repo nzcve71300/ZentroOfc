@@ -947,8 +947,15 @@ module.exports = {
 
       console.log(`[SET COMMAND DEBUG] Executing query: ${updateQuery}`);
       console.log(`[SET COMMAND DEBUG] Parameters:`, updateParams);
+      console.log(`[SET COMMAND DEBUG] Server ID: ${server.id}, Server Name: ${server.nickname}`);
       
-      await connection.execute(updateQuery, updateParams);
+      try {
+        await connection.execute(updateQuery, updateParams);
+        console.log(`[SET COMMAND DEBUG] Query executed successfully`);
+      } catch (error) {
+        console.error(`[SET COMMAND DEBUG] Query failed:`, error.message);
+        throw error;
+      }
       
       // Verify the update worked
       let verifyField = 'enabled';
