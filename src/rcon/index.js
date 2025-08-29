@@ -1375,7 +1375,8 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
     
     const serverId = serverResult[0].id;
     const isEnabled = serverResult[0].enabled !== 0; // Default to enabled if no config
-    const cooldown = serverResult[0].cooldown || 300; // Default 5 minutes
+    const cooldownMinutes = serverResult[0].cooldown || 5; // Default 5 minutes
+    const cooldown = cooldownMinutes * 60; // Convert minutes to seconds
     const horseEnabled = serverResult[0].horse_enabled !== 0; // Default to enabled
     const rhibEnabled = serverResult[0].rhib_enabled !== 0; // Default to enabled
     const miniEnabled = serverResult[0].mini_enabled !== 0; // Default to disabled
@@ -1416,7 +1417,8 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
         const miniRemaining = miniEnabled ? Math.ceil((cooldown * 1000 - (now - miniLastUsed)) / 1000) : 0;
         const carRemaining = carEnabled ? Math.ceil((cooldown * 1000 - (now - carLastUsed)) / 1000) : 0;
         const shortestWait = Math.min(horseRemaining, rhibRemaining, miniRemaining || Infinity, carRemaining || Infinity);
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>you must wait</color> <color=#ffa500>${shortestWait}</color> <color=white>seconds before booking another ride</color>`);
+        const shortestWaitMinutes = Math.ceil(shortestWait / 60);
+        sendRconCommand(ip, port, password, `say <color=#FF69B4>[RIDER]</color> <color=#ff6b6b>${player}</color> <color=white>you must wait</color> <color=#ffa500>${shortestWaitMinutes}</color> <color=white>minutes before booking another ride</color>`);
         
         return;
       }
@@ -2176,6 +2178,9 @@ async function checkAllEvents(client) {
       }
     }
     
+    // Check for crate events on all servers
+    await checkCrateEvents(client);
+    
     // Debug logging removed for production
   } catch (error) {
     console.error('[EVENT] Error checking all events:', error);
@@ -2294,6 +2299,116 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
     }
   } catch (error) {
     console.error(`[EVENT] Error checking Helicopter event on ${serverName}:`, error.message);
+  }
+}
+
+async function checkCrateEvents(client) {
+  try {
+    // Get all enabled crate events from all servers
+    const [crateConfigs] = await pool.query(`
+      SELECT 
+        rs.id, rs.nickname, rs.ip, rs.port, rs.password, 
+        g.discord_id as guild_id,
+        cec.crate_type, cec.spawn_interval_minutes, cec.spawn_amount, cec.spawn_message, cec.last_spawn
+      FROM rust_servers rs 
+      JOIN guilds g ON rs.guild_id = g.id 
+      JOIN crate_event_configs cec ON rs.id = cec.server_id 
+      WHERE cec.enabled = TRUE
+    `);
+
+    if (crateConfigs.length === 0) {
+      return; // No enabled crate events
+    }
+
+    const now = new Date();
+
+    for (const config of crateConfigs) {
+      try {
+        // Check if it's time to spawn a crate
+        if (!config.last_spawn) {
+          // First time spawning - set initial spawn time
+          await pool.query(
+            'UPDATE crate_event_configs SET last_spawn = CURRENT_TIMESTAMP WHERE server_id = ? AND crate_type = ?',
+            [config.id, config.crate_type]
+          );
+          console.log(`[CRATE] Initial spawn time set for ${config.crate_type} on ${config.nickname}`);
+          continue;
+        }
+
+        const lastSpawn = new Date(config.last_spawn);
+        const timeSinceLastSpawn = (now - lastSpawn) / (1000 * 60); // Convert to minutes
+        const intervalMinutes = config.spawn_interval_minutes || 60; // Default to 60 minutes
+
+        if (timeSinceLastSpawn >= intervalMinutes) {
+          console.log(`[CRATE] Time to spawn ${config.crate_type} on ${config.nickname} (${timeSinceLastSpawn.toFixed(1)} minutes since last spawn)`);
+          
+          // Get the position coordinates for this crate event
+          const positionType = config.crate_type.toLowerCase().replace('crate-', 'crate-event-');
+          const [positions] = await pool.query(
+            'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
+            [config.id, positionType]
+          );
+
+          if (positions.length === 0) {
+            console.log(`[CRATE] No position set for ${config.crate_type} on ${config.nickname}, skipping spawn`);
+            continue;
+          }
+
+          const position = positions[0];
+          const coordinates = `${position.x_pos},${position.y_pos},${position.z_pos}`;
+
+          // Send spawn message if configured
+          if (config.spawn_message && config.spawn_message.trim()) {
+            try {
+              await sendRconCommand(config.ip, config.port, config.password, `say "${config.spawn_message}"`);
+              console.log(`[CRATE] Sent spawn message for ${config.crate_type} on ${config.nickname}: ${config.spawn_message}`);
+            } catch (error) {
+              console.error(`[CRATE] Failed to send spawn message for ${config.crate_type} on ${config.nickname}:`, error);
+            }
+          }
+
+          // Spawn crates according to configured amount
+          const spawnAmount = Math.min(Math.max(config.spawn_amount || 1, 1), 2);
+          let spawnSuccess = 0;
+
+          for (let i = 0; i < spawnAmount; i++) {
+            try {
+              await sendRconCommand(config.ip, config.port, config.password, `entity.spawn codelockedhackablecrate ${coordinates}`);
+              spawnSuccess++;
+              console.log(`[CRATE] Spawned crate ${i + 1}/${spawnAmount} for ${config.crate_type} on ${config.nickname} at ${coordinates}`);
+            } catch (error) {
+              console.error(`[CRATE] Failed to spawn crate ${i + 1}/${spawnAmount} for ${config.crate_type} on ${config.nickname}:`, error);
+            }
+          }
+
+          // Update the last_spawn timestamp
+          await pool.query(
+            'UPDATE crate_event_configs SET last_spawn = CURRENT_TIMESTAMP WHERE server_id = ? AND crate_type = ?',
+            [config.id, config.crate_type]
+          );
+
+          console.log(`[CRATE] Successfully spawned ${spawnSuccess}/${spawnAmount} crates for ${config.crate_type} on ${config.nickname}`);
+
+          // Send to Discord feed if configured
+          try {
+            await sendFeedEmbed(client, config.guild_id, config.nickname, 'eventfeed', 
+              `📦 **${config.crate_type.toUpperCase()} Event Spawned!**\n${config.spawn_message || 'Crate event has spawned!'}\nNext spawn in ${intervalMinutes} minutes`);
+          } catch (error) {
+            console.error(`[CRATE] Failed to send Discord feed for ${config.crate_type} on ${config.nickname}:`, error);
+          }
+
+        } else {
+          const remainingTime = intervalMinutes - timeSinceLastSpawn;
+          console.log(`[CRATE] ${config.crate_type} on ${config.nickname} - ${remainingTime.toFixed(1)} minutes until next spawn`);
+        }
+
+      } catch (error) {
+        console.error(`[CRATE] Error checking crate event ${config.crate_type} on ${config.nickname}:`, error);
+      }
+    }
+
+  } catch (error) {
+    console.error('[CRATE] Error checking crate events:', error);
   }
 }
 
