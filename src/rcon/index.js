@@ -2988,11 +2988,16 @@ async function handleKitDeliveryEmote(client, guildId, serverName, parsed, ip, p
     const msg = parsed.Message;
     if (!msg) return;
 
-    // Check for Kit Delivery emote in the correct format: [CHAT LOCAL] player : d11_quick_chat_orders_slot_6
-    if (msg.includes('[CHAT LOCAL]') && msg.includes(KIT_DELIVERY_EMOTE)) {
+    // Check for Kit Delivery emote in all chat types: [CHAT LOCAL/TEAM/SERVER] player : d11_quick_chat_orders_slot_6
+    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes(KIT_DELIVERY_EMOTE)) {
       const player = extractPlayerName(msg);
       if (player) {
-        console.log(`[KIT DELIVERY] Emote detected for player: ${player} on server: ${serverName}`);
+        // Determine chat type for logging
+        let chatType = 'LOCAL';
+        if (msg.includes('[CHAT TEAM]')) chatType = 'TEAM';
+        else if (msg.includes('[CHAT SERVER]')) chatType = 'SERVER';
+        
+        console.log(`[KIT DELIVERY] Emote detected for player: ${player} on server: ${serverName} (${chatType} chat)`);
         await processKitDelivery(client, guildId, serverName, ip, port, password, player);
       } else {
         console.log(`[KIT DELIVERY] Emote detected but could not extract player name from: ${msg}`);
