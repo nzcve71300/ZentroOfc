@@ -4028,7 +4028,19 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
       if (!currentOnline.has(player)) {
         // Only trigger offline if player was actually online before
         console.log(`[ZORP] Player ${player} went offline on ${serverName} (via polling)`);
-        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
+        
+        // Check if this player has a Zorp zone before processing offline
+        const [zoneResult] = await pool.query(
+          'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          [player]
+        );
+        
+        if (zoneResult.length > 0) {
+          // Only handle offline if player has a Zorp zone
+          await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
+        } else {
+          console.log(`[ZORP] Player ${player} went offline but has no Zorp zone - skipping Zorp processing`);
+        }
       }
     }
     
@@ -4037,7 +4049,35 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
       if (!previousOnline.has(player)) {
         // Only trigger online if player wasn't online before
         console.log(`[ZORP] Player ${player} came online on ${serverName} (via polling)`);
-        await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+        
+        // Check if this player has a Zorp zone or is part of a team with a Zorp zone
+        const [zoneResult] = await pool.query(
+          'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          [player]
+        );
+        
+        if (zoneResult.length > 0) {
+          // Player has their own Zorp zone
+          await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+        } else {
+          // Check if player is part of a team that has a Zorp zone
+          const teamInfo = await getPlayerTeam(ip, port, password, player);
+          if (teamInfo && teamInfo.owner) {
+            const [teamZoneResult] = await pool.query(
+              'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+              [teamInfo.owner]
+            );
+            
+            if (teamZoneResult.length > 0) {
+              // Team member came online, handle team owner's zone
+              await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+            } else {
+              console.log(`[ZORP] Player ${player} came online but has no Zorp zone and team has no Zorp - skipping Zorp processing`);
+            }
+          } else {
+            console.log(`[ZORP] Player ${player} came online but has no Zorp zone and is not in a team - skipping Zorp processing`);
+          }
+        }
       }
     }
     
@@ -4079,27 +4119,40 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${cleanPlayerName}`);
     
     if (zoneResult.length > 0) {
-      // Check if ALL team members are offline (not just the owner)
-      const allTeamOffline = await checkIfAllTeamMembersOffline(ip, port, password, cleanPlayerName);
+      // Get current zone state to prevent unnecessary transitions
+      const [zoneStateResult] = await pool.query(
+        'SELECT current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+        [cleanPlayerName]
+      );
       
-      if (allTeamOffline) {
-        // Set zone to yellow first (which will start timer for red transition)
-        await setZoneToYellow(ip, port, password, cleanPlayerName);
+      const currentState = zoneStateResult.length > 0 ? zoneStateResult[0].current_state : 'green';
+      
+      // Only process offline if zone is currently green (online state)
+      if (currentState === 'green') {
+        // Check if ALL team members are offline (not just the owner)
+        const allTeamOffline = await checkIfAllTeamMembersOffline(ip, port, password, cleanPlayerName);
         
-        // Get zone delay for feed message
-        const [zoneInfo] = await pool.query(
-          'SELECT delay FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
-          [cleanPlayerName]
-        );
-        const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
-        
-        // Send offline message to zorp feed
-        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=yellow (All team offline, ${delayMinutes} min delay)`);
-        
-        console.log(`[ZORP] Player ${cleanPlayerName} went offline, ALL team members offline, zone set to yellow (${delayMinutes} min delay to red)`);
+        if (allTeamOffline) {
+          // Set zone to yellow first (which will start timer for red transition)
+          await setZoneToYellow(ip, port, password, cleanPlayerName);
+          
+          // Get zone delay for feed message
+          const [zoneInfo] = await pool.query(
+            'SELECT delay FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+            [cleanPlayerName]
+          );
+          const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
+          
+          // Send offline message to zorp feed
+          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=yellow (All team offline, ${delayMinutes} min delay)`);
+          
+          console.log(`[ZORP] Player ${cleanPlayerName} went offline, ALL team members offline, zone set to yellow (${delayMinutes} min delay to red)`);
+        } else {
+          // At least one team member is still online, keep zone green
+          console.log(`[ZORP] Player ${cleanPlayerName} went offline, but other team members are still online, keeping zone green`);
+        }
       } else {
-        // At least one team member is still online, keep zone green
-        console.log(`[ZORP] Player ${cleanPlayerName} went offline, but other team members are still online, keeping zone green`);
+        console.log(`[ZORP] Player ${cleanPlayerName} went offline but zone is already in ${currentState} state - no transition needed`);
       }
     } else {
       console.log(`[ZORP] Player ${cleanPlayerName} went offline but has no Zorp zone`);
@@ -4140,13 +4193,26 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for ${cleanPlayerName}`);
     
     if (zoneResult.length > 0) {
-      // Set zone to green when ANY team member comes online
-      await setZoneToGreen(ip, port, password, cleanPlayerName);
+      // Get current zone state to prevent unnecessary transitions
+      const [zoneStateResult] = await pool.query(
+        'SELECT current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+        [cleanPlayerName]
+      );
       
-      // Send online message to zorp feed
-      await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green (Team member online)`);
+      const currentState = zoneStateResult.length > 0 ? zoneStateResult[0].current_state : 'green';
       
-      console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green`);
+      // Only process online if zone is not already green
+      if (currentState !== 'green') {
+        // Set zone to green when ANY team member comes online
+        await setZoneToGreen(ip, port, password, cleanPlayerName);
+        
+        // Send online message to zorp feed
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green (Team member online)`);
+        
+        console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green (was ${currentState})`);
+      } else {
+        console.log(`[ZORP] Player ${cleanPlayerName} came online but zone is already green - no transition needed`);
+      }
     } else {
       // Check if this player is part of a team that has a zorp zone
       const teamInfo = await getPlayerTeam(ip, port, password, cleanPlayerName);
@@ -4158,13 +4224,26 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
         );
         
         if (teamZoneResult.length > 0) {
-          // Set team owner's zone to green since a team member came online
-          await setZoneToGreen(ip, port, password, teamInfo.owner);
+          // Get current zone state to prevent unnecessary transitions
+          const [teamZoneStateResult] = await pool.query(
+            'SELECT current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+            [teamInfo.owner]
+          );
           
-          // Send online message to zorp feed
-          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} Zorp=green (Team member ${cleanPlayerName} online)`);
+          const teamCurrentState = teamZoneStateResult.length > 0 ? teamZoneStateResult[0].current_state : 'green';
           
-          console.log(`[ZORP] Team member ${cleanPlayerName} came online, set team owner ${teamInfo.owner}'s zone to green`);
+          // Only process online if zone is not already green
+          if (teamCurrentState !== 'green') {
+            // Set team owner's zone to green since a team member came online
+            await setZoneToGreen(ip, port, password, teamInfo.owner);
+            
+            // Send online message to zorp feed
+            await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} Zorp=green (Team member ${cleanPlayerName} online)`);
+            
+            console.log(`[ZORP] Team member ${cleanPlayerName} came online, set team owner ${teamInfo.owner}'s zone to green (was ${teamCurrentState})`);
+          } else {
+            console.log(`[ZORP] Team member ${cleanPlayerName} came online but team owner ${teamInfo.owner}'s zone is already green - no transition needed`);
+          }
         }
       } else {
         console.log(`[ZORP] Player ${cleanPlayerName} came online but has no Zorp zone and is not in a team with a zorp`);
