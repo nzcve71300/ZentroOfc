@@ -831,6 +831,10 @@ module.exports = {
           if (isBarConfig) {
             updateQuery = 'UPDATE rider_config SET enabled = ? WHERE server_id = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          } else if (isRecyclerConfig) {
+            updateQuery = 'UPDATE recycler_configs SET enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+            console.log(`[SET COMMAND DEBUG] RECYCLER-USE: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
           } else {
             updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
@@ -863,6 +867,10 @@ module.exports = {
           if (isCrateConfig) {
             updateQuery = 'UPDATE crate_event_configs SET spawn_interval_minutes = ? WHERE server_id = ? AND crate_type = ?';
             updateParams = [validatedOption, server.id.toString(), crateType];
+          } else if (isRecyclerConfig) {
+            updateQuery = 'UPDATE recycler_configs SET cooldown_minutes = ? WHERE server_id = ?';
+            updateParams = [validatedOption, server.id.toString()];
+            console.log(`[SET COMMAND DEBUG] RECYCLER-TIME: validatedOption=${validatedOption}`);
           } else {
             updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
             updateParams = [validatedOption, server.id.toString(), teleport];
@@ -895,8 +903,18 @@ module.exports = {
           updateParams = [validatedOption, server.id.toString(), teleport];
           break;
         case 'USELIST':
-          updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = ?';
-          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          if (isZorpConfig) {
+            updateQuery = 'UPDATE zorp_configs SET use_list = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+            console.log(`[SET COMMAND DEBUG] ZORP-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
+          } else if (isRecyclerConfig) {
+            updateQuery = 'UPDATE recycler_configs SET use_list = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+            console.log(`[SET COMMAND DEBUG] RECYCLER-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
+          } else {
+            updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          }
           break;
         case 'USE-DELAY':
           updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = ?';
