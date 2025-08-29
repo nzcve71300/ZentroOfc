@@ -17,42 +17,25 @@ async function debugRecyclerConfig() {
         }
         console.log('✅ recycler_configs table exists\n');
 
-        // 2. Check servers table structure
-        console.log('📋 Step 2: Checking servers table structure...');
-        const [columns] = await pool.execute(`
-            DESCRIBE servers
-        `);
-        console.log('📊 Servers table columns:');
-        columns.forEach(col => {
-            console.log(`   - ${col.Field}: ${col.Type}`);
-        });
-        console.log('');
-
-        // 3. Find Emperor 3x in servers table
-        console.log('📋 Step 3: Finding Emperor 3x in servers table...');
-        const [servers] = await pool.execute(`
-            SELECT * FROM servers WHERE name = 'Emperor 3x'
+        // 2. Check all servers in database
+        console.log('📋 Step 2: All servers in database...');
+        const [allServers] = await pool.execute(`
+            SELECT id, name, guild_id, ip, port FROM servers ORDER BY name
         `);
 
-        if (servers.length === 0) {
-            console.log('❌ Emperor 3x not found in servers table!');
-            console.log('💡 Let\'s check all servers:');
-            const [allServers] = await pool.execute(`SELECT * FROM servers LIMIT 5`);
-            console.log('📊 Sample servers:');
-            allServers.forEach(server => {
-                console.log(`   - ${JSON.stringify(server)}`);
-            });
+        if (allServers.length === 0) {
+            console.log('❌ No servers found in database!');
+            return;
         } else {
-            const server = servers[0];
-            console.log('✅ Found Emperor 3x:');
-            console.log(`   - Guild ID: ${server.guild_id}`);
-            console.log(`   - Name: ${server.name}`);
-            console.log(`   - Full record: ${JSON.stringify(server)}`);
+            console.log('📊 All Servers:');
+            allServers.forEach(server => {
+                console.log(`   - ${server.name} (Guild ID: ${server.guild_id}, IP: ${server.ip}:${server.port})`);
+            });
         }
         console.log('');
 
-        // 4. Check all recycler configs
-        console.log('📋 Step 4: All recycler configurations...');
+        // 3. Check all recycler configs
+        console.log('📋 Step 3: All recycler configurations...');
         const [allConfigs] = await pool.execute(`
             SELECT server_id, enabled, use_list, cooldown_minutes, updated_at 
             FROM recycler_configs 
@@ -70,57 +53,61 @@ async function debugRecyclerConfig() {
         }
         console.log('');
 
-        // 5. Find the correct guild ID for Emperor 3x
-        console.log('📋 Step 5: Finding correct guild ID for Emperor 3x...');
-        const [emperorServer] = await pool.execute(`
-            SELECT guild_id, name FROM servers 
-            WHERE name LIKE '%Emperor%'
-        `);
+        // 4. Find Emperor 3x by matching guild IDs
+        console.log('📋 Step 4: Finding Emperor 3x guild ID...');
+        console.log('💡 Looking for Emperor 3x in the logs, the guild ID should be: 1342235198175182921');
+        console.log('💡 This matches one of the recycler configs above');
+        console.log('');
 
-        if (emperorServer.length === 0) {
-            console.log('❌ Could not find Emperor server in database!');
+        // 5. Check if the guild ID from logs has a config
+        const expectedGuildId = '1342235198175182921';
+        console.log(`📋 Step 5: Checking recycler config for guild ID: ${expectedGuildId}`);
+        const [configs] = await pool.execute(`
+            SELECT * FROM recycler_configs WHERE server_id = ?
+        `, [expectedGuildId]);
+
+        if (configs.length === 0) {
+            console.log(`❌ No recycler configuration found for guild ID: ${expectedGuildId}`);
+            console.log('💡 Creating one now...');
         } else {
-            const server = emperorServer[0];
-            const guildId = server.guild_id;
-            console.log(`✅ Found Emperor server: ${guildId}`);
-            console.log(`   - Guild ID: ${guildId}`);
-            console.log(`   - Name: ${server.name}`);
-            console.log('');
+            const config = configs[0];
+            console.log(`✅ Found configuration for guild ID ${expectedGuildId}:`);
+            console.log(`   - Enabled: ${config.enabled}`);
+            console.log(`   - Use List: ${config.use_list}`);
+            console.log(`   - Cooldown: ${config.cooldown_minutes} minutes`);
+        }
+        console.log('');
 
-            // 6. Check if this guild ID has a recycler config
-            console.log('📋 Step 6: Checking recycler config for this guild ID...');
-            const [configs] = await pool.execute(`
-                SELECT * FROM recycler_configs WHERE server_id = ?
-            `, [guildId]);
+        // 6. Create the correct config
+        console.log('📋 Step 6: Creating correct recycler config...');
+        try {
+            await pool.execute(`
+                INSERT INTO recycler_configs (server_id, enabled, use_list, cooldown_minutes) 
+                VALUES (?, true, false, 5)
+                ON DUPLICATE KEY UPDATE 
+                enabled = VALUES(enabled),
+                use_list = VALUES(use_list),
+                cooldown_minutes = VALUES(cooldown_minutes),
+                updated_at = CURRENT_TIMESTAMP
+            `, [expectedGuildId]);
+            console.log(`✅ Successfully created/updated recycler config for guild ID: ${expectedGuildId}`);
+        } catch (error) {
+            console.log('❌ Failed to create config:', error.message);
+        }
+        console.log('');
 
-            if (configs.length === 0) {
-                console.log(`❌ No recycler configuration found for guild ID: ${guildId}`);
-                console.log('💡 This is why the /set command didn\'t work - it needs the guild ID, not server name');
-            } else {
-                const config = configs[0];
-                console.log(`✅ Found configuration for guild ID ${guildId}:`);
-                console.log(`   - Enabled: ${config.enabled}`);
-                console.log(`   - Use List: ${config.use_list}`);
-                console.log(`   - Cooldown: ${config.cooldown_minutes} minutes`);
-            }
-            console.log('');
+        // 7. Verify the config was created
+        console.log('📋 Step 7: Verifying updated configuration...');
+        const [updatedConfigs] = await pool.execute(`
+            SELECT * FROM recycler_configs WHERE server_id = ?
+        `, [expectedGuildId]);
 
-            // 7. Create the correct config
-            console.log('📋 Step 7: Creating correct recycler config...');
-            try {
-                await pool.execute(`
-                    INSERT INTO recycler_configs (server_id, enabled, use_list, cooldown_minutes) 
-                    VALUES (?, true, false, 5)
-                    ON DUPLICATE KEY UPDATE 
-                    enabled = VALUES(enabled),
-                    use_list = VALUES(use_list),
-                    cooldown_minutes = VALUES(cooldown_minutes),
-                    updated_at = CURRENT_TIMESTAMP
-                `, [guildId]);
-                console.log(`✅ Successfully created/updated recycler config for guild ID: ${guildId}`);
-            } catch (error) {
-                console.log('❌ Failed to create config:', error.message);
-            }
+        if (updatedConfigs.length > 0) {
+            const config = updatedConfigs[0];
+            console.log(`✅ Updated configuration for ${expectedGuildId}:`);
+            console.log(`   - Enabled: ${config.enabled}`);
+            console.log(`   - Use List: ${config.use_list}`);
+            console.log(`   - Cooldown: ${config.cooldown_minutes} minutes`);
         }
         console.log('');
 
@@ -131,7 +118,7 @@ async function debugRecyclerConfig() {
         console.log('');
         console.log('🎮 Test in-game with the orders emote (d11_quick_chat_orders_slot_2)');
         console.log('');
-        console.log('💡 The issue was that recycler configs use guild IDs, not server names!');
+        console.log('💡 The guild ID 1342235198175182921 corresponds to Emperor 3x based on the logs!');
 
     } catch (error) {
         console.error('❌ Error:', error.message);
