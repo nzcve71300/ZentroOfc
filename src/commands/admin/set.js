@@ -930,6 +930,7 @@ module.exports = {
         case 'RECYCLER-USELIST':
           updateQuery = 'UPDATE recycler_configs SET use_list = ? WHERE server_id = ?';
           updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] RECYCLER-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
           break;
         case 'RECYCLER-TIME':
           updateQuery = 'UPDATE recycler_configs SET cooldown_minutes = ? WHERE server_id = ?';
@@ -940,6 +941,7 @@ module.exports = {
         case 'ZORP-USELIST':
           updateQuery = 'UPDATE zorp_configs SET use_list = ? WHERE server_id = ?';
           updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] ZORP-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
           break;
       }
 
@@ -997,6 +999,21 @@ module.exports = {
         else if (configType === 'TIME') verifyField = 'spawn_interval_minutes';
         else if (configType === 'AMOUNT') verifyField = 'spawn_amount';
         else if (configType === 'MSG') verifyField = 'spawn_message';
+      } else if (configType === 'RECYCLER-USE' || configType === 'RECYCLER-USELIST' || configType === 'RECYCLER-TIME') {
+        // Recycler configuration verification
+        verifyTable = 'recycler_configs';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        
+        if (configType === 'RECYCLER-USE') verifyField = 'enabled';
+        else if (configType === 'RECYCLER-USELIST') verifyField = 'use_list';
+        else if (configType === 'RECYCLER-TIME') verifyField = 'cooldown_minutes';
+      } else if (configType === 'ZORP-USELIST') {
+        // ZORP configuration verification
+        verifyTable = 'zorp_configs';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        verifyField = 'use_list';
       }
       
       const [verifyResult] = await connection.execute(
