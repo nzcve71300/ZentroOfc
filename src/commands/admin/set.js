@@ -408,8 +408,24 @@ module.exports = {
             VALUES (?, false, false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [server.id.toString()]);
         }
-      }
+            }
+      
+      // Handle ZORP configurations
+      if (config.startsWith('ZORP-')) {
+        // Check if ZORP config exists, create if not
+        const [existingZorpConfig] = await connection.execute(
+          'SELECT * FROM zorp_configs WHERE server_id = ?',
+          [server.id.toString()]
+        );
 
+        if (existingZorpConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO zorp_configs (server_id, use_list) 
+            VALUES (?, false)
+          `, [server.id.toString()]);
+        }
+      }
+      
       // Handle Economy configurations
       if (isEconomyConfig) {
         // Get currency name for this server
