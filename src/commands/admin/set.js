@@ -230,6 +230,13 @@ module.exports = {
 
   async execute(interaction) {
     try {
+      console.log(`[SET COMMAND DEBUG] Command executed with options:`, {
+        config: interaction.options.getString('config'),
+        option: interaction.options.getString('option'),
+        server: interaction.options.getString('server'),
+        guildId: interaction.guildId
+      });
+      
       const config = interaction.options.getString('config');
       const option = interaction.options.getString('option');
       const serverOption = interaction.options.getString('server');
@@ -294,6 +301,8 @@ module.exports = {
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
+      console.log(`[SET COMMAND DEBUG] Server lookup result:`, server);
+      
       if (!server) {
         return await interaction.reply({
           content: `❌ Server not found: ${serverOption}`,
