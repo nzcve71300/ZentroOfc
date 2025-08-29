@@ -1709,7 +1709,10 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 
         // Spawn recycler slightly in front of the player
         const [x, y, z] = coords;
-        const spawnX = x + 2; // 2 units in front
+        
+        // Use a simple offset - spawn 3 units in front (positive X direction)
+        // This should work better than the previous 2-unit offset
+        const spawnX = x + 3;
         const spawnY = y;
         const spawnZ = z;
 
