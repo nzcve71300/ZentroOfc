@@ -81,6 +81,9 @@ const homeTeleportCooldowns = new Map(); // Track cooldowns per player
 // Teleport System state tracking
 const teleportCooldowns = new Map(); // Track teleport cooldowns per player
 
+// Recycler state tracking
+const recyclerState = new Map(); // Track recycler spawn state
+
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
 const BOOKARIDE_CHOICES = {
@@ -1626,6 +1629,114 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
     }
 
     if (!foundPlayerState) {
+      // Check for recycler position requests
+      const foundRecyclerState = Array.from(recyclerState.entries()).find(([key, state]) => {
+        return state.step === 'waiting_for_position';
+      });
+
+      if (foundRecyclerState) {
+        const [recyclerStateKey, recyclerStateData] = foundRecyclerState;
+        const playerName = recyclerStateData.player;
+
+        // Parse position coordinates
+        const coords = positionStr.split(', ').map(coord => parseFloat(coord.trim()));
+        if (coords.length !== 3 || coords.some(isNaN)) {
+          Logger.warn(`Invalid position format for recycler: ${positionStr}`);
+          return;
+        }
+
+        // Get server ID
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+
+        if (serverResult.length === 0) {
+          Logger.warn(`No server found for ${serverName} in guild ${guildId}`);
+          return;
+        }
+
+        const serverId = serverResult[0].id;
+
+        // Get recycler configuration
+        const [configResult] = await pool.query(
+          'SELECT enabled, use_list, cooldown_minutes FROM recycler_configs WHERE server_id = ?',
+          [serverId]
+        );
+
+        if (configResult.length === 0 || !configResult[0].enabled) {
+          console.log(`[RECYCLER] Recycler system is disabled for server: ${serverName}`);
+          recyclerState.delete(recyclerStateKey);
+          return;
+        }
+
+        const config = configResult[0];
+
+        // Check if player is in allowed list (if use_list is enabled)
+        if (config.use_list) {
+          const [allowedResult] = await pool.query(
+            'SELECT * FROM recycler_allowed_users WHERE server_id = ? AND (ign = ? OR discord_id = ?)',
+            [serverId, playerName, playerName]
+          );
+          
+          if (allowedResult.length === 0) {
+            console.log(`[RECYCLER] Player ${playerName} not in allowed list for server: ${serverName}`);
+            recyclerState.delete(recyclerStateKey);
+            return;
+          }
+        }
+
+        // Check cooldown
+        const [cooldownResult] = await pool.query(
+          'SELECT last_used FROM recycler_cooldowns WHERE server_id = ? AND player_name = ?',
+          [serverId, playerName]
+        );
+
+        if (cooldownResult.length > 0) {
+          const lastUsed = new Date(cooldownResult[0].last_used);
+          const now = new Date();
+          const cooldownMs = config.cooldown_minutes * 60 * 1000;
+          const timeSinceLastUse = now - lastUsed;
+          
+          if (timeSinceLastUse < cooldownMs) {
+            const remainingMinutes = Math.ceil((cooldownMs - timeSinceLastUse) / (60 * 1000));
+            console.log(`[RECYCLER] Player ${playerName} is on cooldown for ${remainingMinutes} minutes`);
+            await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${playerName}</color> <color=#FF6B35>please wait ${remainingMinutes} minutes before spawning another recycler</color>`);
+            recyclerState.delete(recyclerStateKey);
+            return;
+          }
+        }
+
+        // Spawn recycler slightly in front of the player
+        const [x, y, z] = coords;
+        const spawnX = x + 2; // 2 units in front
+        const spawnY = y;
+        const spawnZ = z;
+
+        console.log(`[RECYCLER] Spawning recycler at position: ${spawnX}, ${spawnY}, ${spawnZ} for ${playerName}`);
+
+        // Spawn the recycler
+        sendRconCommand(ip, port, password, `entity.spawn recycler_static ${spawnX} ${spawnY} ${spawnZ}`);
+
+        // Update cooldown
+        await pool.query(
+          'INSERT INTO recycler_cooldowns (server_id, player_name, last_used) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE last_used = CURRENT_TIMESTAMP',
+          [serverId, playerName]
+        );
+
+        // Send success message
+        await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${playerName}</color> <color=#FF6B35>recycler spawned successfully!</color>`);
+
+        // Log to admin feed
+        await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `♻️ **Recycler Spawned:** ${playerName} spawned a recycler at (${spawnX}, ${spawnY}, ${spawnZ})`);
+
+        console.log(`[RECYCLER] Successfully spawned recycler for ${playerName} on ${serverName}`);
+
+        // Clear state
+        recyclerState.delete(recyclerStateKey);
+        return;
+      }
+
       // Check for home teleport position requests
       // Debug logging removed for production
       const foundHomeState = Array.from(homeTeleportState.entries()).find(([key, state]) => {
@@ -3113,59 +3224,26 @@ async function processRecyclerSpawn(client, guildId, serverName, ip, port, passw
     
     // Get player position (similar to Book-a-Ride)
     console.log(`[RECYCLER] Getting position for ${player}`);
-    const positionResponse = await sendRconCommand(ip, port, password, `oxide.call "BookARide" "GetPlayerPosition" "${player}"`);
+    sendRconCommand(ip, port, password, `printpos "${player}"`);
     
-    if (!positionResponse || positionResponse.includes('Player not found') || positionResponse.includes('error')) {
-      console.log(`[RECYCLER] Could not get position for ${player}`);
-      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>could not get your position</color>`);
-      return;
-    }
-    
-    // Parse position response (format: "x,y,z")
-    const positionMatch = positionResponse.match(/(-?\d+\.?\d*),(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-    if (!positionMatch) {
-      console.log(`[RECYCLER] Invalid position response: ${positionResponse}`);
-      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>invalid position data</color>`);
-      return;
-    }
-    
-    const x = parseFloat(positionMatch[1]);
-    const y = parseFloat(positionMatch[2]);
-    const z = parseFloat(positionMatch[3]);
-    
-    // Spawn recycler slightly in front of the player (not to the side or behind)
-    const spawnX = x + 2; // 2 units in front
-    const spawnY = y;
-    const spawnZ = z;
-    
-    console.log(`[RECYCLER] Spawning recycler at position: ${spawnX}, ${spawnY}, ${spawnZ} for ${player}`);
-    
-    // Spawn the recycler
-    const spawnCommand = `entity.spawn recycler_static ${spawnX} ${spawnY} ${spawnZ}`;
-    const spawnResult = await sendRconCommand(ip, port, password, spawnCommand);
-    
-    if (spawnResult && !spawnResult.includes('error')) {
-      // Update cooldown
-      await pool.query(
-        'INSERT INTO recycler_cooldowns (server_id, player_name, last_used) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE last_used = NOW()',
-        [serverId, player]
-      );
-      
-      // Send success message
-      await sendRconCommand(ip, port, password, `say <color=#00FF00>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#00FF00>spawned a recycler</color>`);
-      
-      // Send to admin feed
-      await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `♻️ **Recycler Spawned:** ${player} spawned a recycler`);
-      
-      console.log(`[RECYCLER] Successfully spawned recycler for ${player} on ${serverName}`);
-    } else {
-      console.log(`[RECYCLER] Failed to spawn recycler for ${player}: ${spawnResult}`);
-      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>failed to spawn recycler</color>`);
-    }
-    
+    // Store the player's request state
+    const stateKey = `${guildId}:${serverName}:${player}`;
+    recyclerState.set(stateKey, {
+      player: player,
+      serverId: serverId,
+      timestamp: Date.now(),
+      step: 'waiting_for_position'
+    });
+
+    // Set timeout to clean up state
+    setTimeout(() => {
+      recyclerState.delete(stateKey);
+    }, 10000); // 10 second timeout
+
+    return;
+
   } catch (error) {
     console.error('Error processing recycler spawn:', error);
-    await sendRconCommand(ip, port, password, `say <color=#FF6B35>[RECYCLER]</color> <color=#FFD700>${player}</color> <color=#FF6B35>error spawning recycler</color>`);
   }
 }
 
