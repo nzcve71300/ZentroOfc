@@ -1,4 +1,3 @@
-
 const pool = require('./src/db');
 
 async function debugBookARide() {
