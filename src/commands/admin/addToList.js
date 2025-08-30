@@ -67,6 +67,16 @@ module.exports = {
           value: 'ZORP-BANLIST'
         });
         
+        // Add HOMETP list options
+        allOptions.push({
+          name: 'HOMETP-LIST (Home Teleport Allowed Users)',
+          value: 'HOMETP-LIST'
+        });
+        allOptions.push({
+          name: 'HOMETP-BANLIST (Home Teleport Banned Users)',
+          value: 'HOMETP-BANLIST'
+        });
+        
         // Filter based on user input
         const filtered = allOptions.filter(option => 
           option.name.toLowerCase().includes(focusedValue.toLowerCase())
@@ -98,6 +108,10 @@ module.exports = {
       // Check if it's a ZORP list
       const isZorpList = listName === 'ZORP-LIST';
       const isZorpBanList = listName === 'ZORP-BANLIST';
+      
+      // Check if it's a HOMETP list
+      const isHometpList = listName === 'HOMETP-LIST';
+      const isHometpBanList = listName === 'HOMETP-BANLIST';
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -192,6 +206,34 @@ module.exports = {
 
         await interaction.reply({
           content: `✅ **${playerName}** added to **ZORP-BANLIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isHometpList) {
+        await connection.execute(`
+          INSERT INTO home_teleport_allowed_users (server_id, discord_id, ign, added_by)
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+          discord_id = VALUES(discord_id),
+          ign = VALUES(ign),
+          added_by = VALUES(added_by)
+        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** added to **HOMETP-LIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isHometpBanList) {
+        await connection.execute(`
+          INSERT INTO home_teleport_banned_users (server_id, discord_id, ign, banned_by)
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+          discord_id = VALUES(discord_id),
+          ign = VALUES(ign),
+          banned_by = VALUES(banned_by)
+        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** added to **HOMETP-BANLIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-LIST')) {

@@ -5401,31 +5401,44 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
 
     // Check home teleport configuration
     const [configResult] = await pool.query(
-      'SELECT whitelist_enabled, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+      'SELECT use_list, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
       [serverId]
     );
 
     let config = {
-      whitelist_enabled: false,
+      use_list: false,
       cooldown_minutes: 5
     };
 
     if (configResult.length > 0) {
       config = {
-        whitelist_enabled: configResult[0].whitelist_enabled !== 0,
+        use_list: configResult[0].use_list !== 0,
         cooldown_minutes: configResult[0].cooldown_minutes || 5
       };
     }
 
-    // Check whitelist if enabled
-    if (config.whitelist_enabled) {
-      const [whitelistResult] = await pool.query(
-        'SELECT * FROM player_whitelists WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND player_name = ? AND whitelist_type = ?',
-        [guildId, serverId, player, 'home_teleport']
+    // Check if player is banned from home teleport
+    const [bannedResult] = await pool.query(
+      'SELECT * FROM home_teleport_banned_users WHERE server_id = ? AND (discord_id = (SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)) OR ign = ?)',
+      [serverId, player, serverId, guildId, player]
+    );
+
+    if (bannedResult.length > 0) {
+      // Player is banned - don't show any message, just return silently
+      console.log(`[HOME TELEPORT] Player ${player} is banned from home teleport on ${serverName}`);
+      return;
+    }
+
+    // Check allowed list if enabled
+    if (config.use_list) {
+      const [allowedResult] = await pool.query(
+        'SELECT * FROM home_teleport_allowed_users WHERE server_id = ? AND (discord_id = (SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)) OR ign = ?)',
+        [serverId, player, serverId, guildId, player]
       );
 
-      if (whitelistResult.length === 0) {
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not whitelisted for home teleport</color>`);
+      if (allowedResult.length === 0) {
+        // Player not in allowed list - don't show any message, just return silently
+        console.log(`[HOME TELEPORT] Player ${player} not in allowed list for home teleport on ${serverName}`);
         return;
       }
     }
@@ -5505,31 +5518,44 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
 
     // Check home teleport configuration
     const [configResult] = await pool.query(
-      'SELECT whitelist_enabled, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+      'SELECT use_list, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
       [serverId]
     );
 
     let config = {
-      whitelist_enabled: false,
+      use_list: false,
       cooldown_minutes: 5
     };
 
     if (configResult.length > 0) {
       config = {
-        whitelist_enabled: configResult[0].whitelist_enabled !== 0,
+        use_list: configResult[0].use_list !== 0,
         cooldown_minutes: configResult[0].cooldown_minutes || 5
       };
     }
 
-    // Check whitelist if enabled
-    if (config.whitelist_enabled) {
-      const [whitelistResult] = await pool.query(
-        'SELECT * FROM player_whitelists WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND player_name = ? AND whitelist_type = ?',
-        [guildId, serverId, player, 'home_teleport']
+    // Check if player is banned from home teleport
+    const [bannedResult] = await pool.query(
+      'SELECT * FROM home_teleport_banned_users WHERE server_id = ? AND (discord_id = (SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)) OR ign = ?)',
+      [serverId, player, serverId, guildId, player]
+    );
+
+    if (bannedResult.length > 0) {
+      // Player is banned - don't show any message, just return silently
+      console.log(`[HOME TELEPORT] Player ${player} is banned from home teleport on ${serverName}`);
+      return;
+    }
+
+    // Check allowed list if enabled
+    if (config.use_list) {
+      const [allowedResult] = await pool.query(
+        'SELECT * FROM home_teleport_allowed_users WHERE server_id = ? AND (discord_id = (SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND guild_id = (SELECT id FROM guilds WHERE discord_id = ?)) OR ign = ?)',
+        [serverId, player, serverId, guildId, player]
       );
 
-      if (whitelistResult.length === 0) {
-        sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you are not whitelisted for home teleport</color>`);
+      if (allowedResult.length === 0) {
+        // Player not in allowed list - don't show any message, just return silently
+        console.log(`[HOME TELEPORT] Player ${player} not in allowed list for home teleport on ${serverName}`);
         return;
       }
     }

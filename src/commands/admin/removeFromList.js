@@ -67,6 +67,16 @@ module.exports = {
           value: 'ZORP-BANLIST'
         });
         
+        // Add HOMETP list options
+        allOptions.push({
+          name: 'HOMETP-LIST (Home Teleport Allowed Users)',
+          value: 'HOMETP-LIST'
+        });
+        allOptions.push({
+          name: 'HOMETP-BANLIST (Home Teleport Banned Users)',
+          value: 'HOMETP-BANLIST'
+        });
+        
         // Filter based on user input
         const filtered = allOptions.filter(option => 
           option.name.toLowerCase().includes(focusedValue.toLowerCase())
@@ -98,6 +108,10 @@ module.exports = {
       // Check if it's a ZORP list
       const isZorpList = listName === 'ZORP-LIST';
       const isZorpBanList = listName === 'ZORP-BANLIST';
+      
+      // Check if it's a HOMETP list
+      const isHometpList = listName === 'HOMETP-LIST';
+      const isHometpBanList = listName === 'HOMETP-BANLIST';
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -222,6 +236,54 @@ module.exports = {
 
         await interaction.reply({
           content: `✅ **${playerName}** removed from **ZORP-BANLIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isHometpList) {
+        // Check if player is in HOMETP allowed list
+        const [existing] = await connection.execute(`
+          SELECT * FROM home_teleport_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **HOMETP-LIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
+        await connection.execute(`
+          DELETE FROM home_teleport_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** removed from **HOMETP-LIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isHometpBanList) {
+        // Check if player is in HOMETP banned list
+        const [existing] = await connection.execute(`
+          SELECT * FROM home_teleport_banned_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **HOMETP-BANLIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
+        await connection.execute(`
+          DELETE FROM home_teleport_banned_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** removed from **HOMETP-BANLIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-LIST')) {

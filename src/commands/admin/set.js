@@ -204,6 +204,18 @@ module.exports = {
           });
         });
         
+        // Add HOMETP configuration options EIGHTH
+        const hometpConfigTypes = [
+          { name: 'HOMETP-USELIST (ON/OFF)', value: 'HOMETP-USELIST' }
+        ];
+        
+        hometpConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: configType.name,
+            value: configType.value
+          });
+        });
+        
         // Add teleport options LAST (least important for economy configs)
         teleports.forEach(teleport => {
           configTypes.forEach(configType => {
@@ -743,6 +755,7 @@ module.exports = {
         case 'RECYCLER-USE':
         case 'RECYCLER-USELIST':
         case 'ZORP-USELIST':
+        case 'HOMETP-USELIST':
         case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
@@ -1008,6 +1021,13 @@ module.exports = {
           updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           console.log(`[SET COMMAND DEBUG] ZORP-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
           break;
+          
+        // HOMETP configurations
+        case 'HOMETP-USELIST':
+          updateQuery = 'UPDATE home_teleport_configs SET use_list = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] HOMETP-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
+          break;
       }
 
       console.log(`[SET COMMAND DEBUG] Executing query: ${updateQuery}`);
@@ -1083,6 +1103,12 @@ module.exports = {
       } else if (configType === 'ZORP-USELIST') {
         // ZORP configuration verification
         verifyTable = 'zorp_configs';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        verifyField = 'use_list';
+      } else if (configType === 'HOMETP-USELIST') {
+        // HOMETP configuration verification
+        verifyTable = 'home_teleport_configs';
         verifyId = server.id.toString();
         verifyIdField = 'server_id';
         verifyField = 'use_list';
