@@ -1686,10 +1686,16 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
     }
 
     if (!foundPlayerState) {
-      // Check for home teleport position requests
-      const foundHomeTeleportState = Array.from(homeTeleportState.entries()).find(([key, state]) => {
-        return state.step === 'waiting_for_position';
-      });
+      // Check for home teleport position requests (use same approach as Book-a-Ride)
+      const serverStateKey = `${guildId}:${serverName}:`;
+      let foundHomeTeleportState = null;
+      
+      for (const [stateKey, playerState] of homeTeleportState.entries()) {
+        if (stateKey.startsWith(serverStateKey) && playerState.step === 'waiting_for_position') {
+          foundHomeTeleportState = [stateKey, playerState];
+          break;
+        }
+      }
 
       if (foundHomeTeleportState) {
         const [homeStateKey, homeStateData] = foundHomeTeleportState;
@@ -5419,10 +5425,11 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
       return;
     }
 
-    // Set state to waiting for respawn
-    const stateKey = `${serverId}_${player}`;
+    // Set state to waiting for respawn (use same format as Book-a-Ride)
+    const stateKey = `${guildId}:${serverName}:${player}`;
     console.log(`[HOME TELEPORT] Setting state key: ${stateKey}`);
-    console.log(`[HOME TELEPORT] Server ID: ${serverId}, Player: ${player}`);
+    console.log(`[HOME TELEPORT] Guild ID: ${guildId}, Server Name: ${serverName}, Player: ${player}`);
+    console.log(`[HOME TELEPORT DEBUG] Server result:`, serverResult);
     
     homeTeleportState.set(stateKey, {
       player: player,
@@ -5610,11 +5617,12 @@ async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip
     }
 
     const serverId = serverResult[0].id;
-    const stateKey = `${serverId}_${player}`;
+    const stateKey = `${guildId}:${serverName}:${player}`;
     const playerState = homeTeleportState.get(stateKey);
 
-    console.log(`[HOME TELEPORT] Server ID: ${serverId}, State Key: ${stateKey}`);
+    console.log(`[HOME TELEPORT] Guild ID: ${guildId}, Server Name: ${serverName}, State Key: ${stateKey}`);
     console.log(`[HOME TELEPORT] Player State:`, playerState);
+    console.log(`[HOME TELEPORT DEBUG] All available states:`, Array.from(homeTeleportState.entries()));
 
     if (!playerState || playerState.step !== 'waiting_for_respawn') {
       console.log(`[HOME TELEPORT] No home teleport setup in progress for ${player}`);
