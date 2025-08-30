@@ -355,8 +355,21 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         
         // If player "joined" within the last 30 seconds, it's likely a respawn
         console.log(`[PLAYERFEED DEBUG] Checking respawn for ${player}: now=${now}, lastJoin=${lastJoin}, diff=${now - lastJoin}, JOIN_COOLDOWN=${JOIN_COOLDOWN}`);
-        if (now - lastJoin < JOIN_COOLDOWN) {
-          console.log(`[PLAYERFEED] Ignoring respawn for ${player} (last join was ${Math.round((now - lastJoin) / 1000)}s ago)`);
+        
+        // Check if this is a respawn (either by timing OR by checking home teleport state)
+        const serverStateKey = `${guildId}:${serverName}:`;
+        let isHomeTeleportRespawn = false;
+        
+        for (const [stateKey, playerState] of homeTeleportState.entries()) {
+          if (stateKey.startsWith(serverStateKey) && playerState.player === player && playerState.step === 'waiting_for_respawn') {
+            isHomeTeleportRespawn = true;
+            console.log(`[PLAYERFEED DEBUG] Found home teleport respawn state for ${player}`);
+            break;
+          }
+        }
+        
+        if (now - lastJoin < JOIN_COOLDOWN || isHomeTeleportRespawn) {
+          console.log(`[PLAYERFEED] Ignoring respawn for ${player} (last join was ${Math.round((now - lastJoin) / 1000)}s ago OR home teleport respawn detected)`);
           
           // Check if this respawn is for home teleport setup
           await handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password);
