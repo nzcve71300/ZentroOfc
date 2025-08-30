@@ -1744,8 +1744,10 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
 
         // Save home teleport location to database
         await pool.query(
-          'INSERT INTO home_teleports (server_id, player_name, x, y, z) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE x = VALUES(x), y = VALUES(y), z = VALUES(z)',
-          [serverId, playerName, coords[0], coords[1], coords[2]]
+          `INSERT INTO player_homes (guild_id, server_id, player_name, x_pos, y_pos, z_pos, set_at, updated_at) 
+           VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           ON DUPLICATE KEY UPDATE x_pos = VALUES(x_pos), y_pos = VALUES(y_pos), z_pos = VALUES(z_pos), updated_at = CURRENT_TIMESTAMP`,
+          [guildId, serverId, playerName, coords[0], coords[1], coords[2]]
         );
 
         // Clear the state
