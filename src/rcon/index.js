@@ -76,6 +76,9 @@ const zorpZoneStates = new Map(); // Track current zone states
 const zorpOfflineTimers = new Map(); // Track offline expiration timers
 const zorpOfflineStartTimes = new Map(); // Track when players went offline
 
+// Bot kill tracking for respawn detection
+const botKillTracking = new Map(); // Track players killed by bot for respawn detection
+
 // Home Teleport state tracking
 const homeTeleportState = new Map(); // Track home teleport state
 const homeTeleportCooldowns = new Map(); // Track cooldowns per player
@@ -354,12 +357,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         if (now - lastJoin < JOIN_COOLDOWN) {
           console.log(`[PLAYERFEED] Ignoring respawn for ${player} (last join was ${Math.round((now - lastJoin) / 1000)}s ago)`);
           
-          // Check if this respawn is for home teleport setup
-          await handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password);
-          
-
-          
-          return; // Skip this "join" - it's probably a respawn
+                  // Check if this respawn is for home teleport setup
+        await handleHomeTeleportRespawn(client, guildId, serverName, player, ip, port, password);
+        
+        // Check if this respawn is for a player killed by the bot
+        await handleBotKillRespawn(client, guildId, serverName, player, ip, port, password);
+        
+        return; // Skip this "join" - it's probably a respawn
         }
         
         // Record this join
@@ -618,6 +622,31 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
     const killData = await killfeedProcessor.processKill(msg, serverId);
     
     if (killData) {
+      // Check if the bot (SCARLETT) killed someone
+      if (killData.killer === 'SCARLETT' && killData.isPlayerKill) {
+        console.log(`[BOT KILL] Bot killed ${killData.victim}, tracking for respawn`);
+        
+        // Track this kill for respawn detection
+        const killKey = `${guildId}_${serverName}_${killData.victim}`;
+        botKillTracking.set(killKey, {
+          victim: killData.victim,
+          killTime: Date.now(),
+          serverName: serverName,
+          guildId: guildId,
+          ip: ip,
+          port: port,
+          password: password
+        });
+        
+        // Set timeout to remove tracking after 20 seconds
+        setTimeout(() => {
+          if (botKillTracking.has(killKey)) {
+            console.log(`[BOT KILL] 20 second timeout reached for ${killData.victim}, removing tracking`);
+            botKillTracking.delete(killKey);
+          }
+        }, 20000); // 20 seconds
+      }
+      
       // Use the custom formatted message from killfeed processor
       const gameMessage = killData.message;
       
@@ -5473,6 +5502,42 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
 
   } catch (error) {
     Logger.error('Error handling teleport home:', error);
+  }
+}
+
+async function handleBotKillRespawn(client, guildId, serverName, player, ip, port, password) {
+  try {
+    console.log(`[BOT KILL] Checking respawn for bot kill tracking: ${player}`);
+    
+    // Check if this player was killed by the bot within the last 20 seconds
+    const killKey = `${guildId}_${serverName}_${player}`;
+    const killData = botKillTracking.get(killKey);
+    
+    if (!killData) {
+      console.log(`[BOT KILL] No bot kill tracking found for ${player}`);
+      return;
+    }
+    
+    // Check if the respawn is within 20 seconds of the kill
+    const timeSinceKill = Date.now() - killData.killTime;
+    if (timeSinceKill > 20000) { // 20 seconds
+      console.log(`[BOT KILL] Respawn too late for ${player} (${Math.round(timeSinceKill / 1000)}s after kill)`);
+      botKillTracking.delete(killKey);
+      return;
+    }
+    
+    console.log(`[BOT KILL] Success! ${player} respawned within ${Math.round(timeSinceKill / 1000)}s of bot kill`);
+    
+    // Send success message in-game
+    await sendRconCommand(ip, port, password, `say <color=#00FF00><b>SUCCESS!</b></color> <color=white>${player} has respawned after being killed by SCARLETT!</color>`);
+    
+    // Remove tracking for this player
+    botKillTracking.delete(killKey);
+    
+    console.log(`[BOT KILL] Bot kill respawn tracking completed for ${player}`);
+    
+  } catch (error) {
+    console.error('[BOT KILL] Error handling bot kill respawn:', error);
   }
 }
 
