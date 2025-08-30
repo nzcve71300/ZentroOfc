@@ -75,9 +75,9 @@ const zorpTransitionTimers = new Map(); // Track zone transition timers
 const zorpZoneStates = new Map(); // Track current zone states
 const zorpOfflineTimers = new Map(); // Track offline expiration timers
 const zorpOfflineStartTimes = new Map(); // Track when players went offline
+const zorpOfflineExpireTimers = new Map(); // Track expire countdown timers (separate from offline timers)
 
-// Add offline protection duration constant (30 minutes)
-const OFFLINE_PROTECTION_DURATION = 30 * 60; // 30 minutes in seconds
+
 
 // Bot kill tracking for respawn detection
 const botKillTracking = new Map(); // Track players killed by bot for respawn detection
@@ -3539,6 +3539,9 @@ async function setZoneToGreen(ip, port, password, playerName) {
       // Clear offline expiration timer when zone goes green
       await clearOfflineExpirationTimer(zone.name);
       
+      // Clear expire countdown timer when player comes back online (pause the countdown)
+      await clearExpireCountdownTimer(zone.name);
+      
       // Set zone to green settings: allow building (1), allow building damage (1), allow PvP (1)
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
@@ -3626,8 +3629,8 @@ async function setZoneToRed(ip, port, password, playerName) {
         ['red', zone.id]
       );
       
-      // Start offline expiration timer
-      startOfflineExpirationTimer(ip, port, password, playerName, zone.name, OFFLINE_PROTECTION_DURATION);
+                    // Start expire countdown timer (this is the timer that counts down the expire time when offline)
+      startExpireCountdownTimer(ip, port, password, playerName, zone.name, zone.expire);
       
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'red');
@@ -3713,12 +3716,93 @@ async function handleOfflineExpiration(ip, port, password, playerName, zoneName)
   }
 }
 
+// Expire countdown timer functions (separate from offline timers)
+async function startExpireCountdownTimer(ip, port, password, playerName, zoneName, expireSeconds) {
+  try {
+    console.log(`[ZORP EXPIRE TIMER] Starting expire countdown timer for ${playerName} (${zoneName}) - ${expireSeconds} seconds`);
+    
+    // Clear any existing expire timer
+    clearExpireCountdownTimer(zoneName);
+    
+    // Start new expire countdown timer
+    const timerId = setTimeout(async () => {
+      await handleExpireCountdown(ip, port, password, playerName, zoneName);
+    }, expireSeconds * 1000);
+    
+    // Store timer reference
+    zorpOfflineExpireTimers.set(zoneName, timerId);
+    
+    console.log(`[ZORP EXPIRE TIMER] Expire countdown timer set for ${playerName} - will delete zone in ${expireSeconds} seconds`);
+  } catch (error) {
+    console.error('Error starting expire countdown timer:', error);
+  }
+}
+
+async function clearExpireCountdownTimer(zoneName) {
+  try {
+    const existingTimer = zorpOfflineExpireTimers.get(zoneName);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      zorpOfflineExpireTimers.delete(zoneName);
+      console.log(`[ZORP EXPIRE TIMER] Cleared expire countdown timer for ${zoneName}`);
+    }
+  } catch (error) {
+    console.error('Error clearing expire countdown timer:', error);
+  }
+}
+
+async function handleExpireCountdown(ip, port, password, playerName, zoneName) {
+  try {
+    console.log(`[ZORP EXPIRE TIMER] Expire countdown reached for ${playerName} (${zoneName}) - deleting Zorp`);
+    
+    // Get server info for feed message
+    const [serverResult] = await pool.query(`
+      SELECT rs.nickname, g.discord_id 
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.name = ?
+    `, [zoneName]);
+    
+    if (serverResult.length > 0) {
+      const server = serverResult[0];
+      
+      // Delete zone from game
+      await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
+      
+      // Delete zone from database
+      await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zoneName]);
+      
+      // Clean up timer references
+      zorpOfflineExpireTimers.delete(zoneName);
+      zorpOfflineTimers.delete(zoneName);
+      zorpOfflineStartTimes.delete(zoneName);
+      zorpZoneStates.delete(zoneName);
+      
+      // Send to zorp feed
+      await sendFeedEmbed(client, server.discord_id, server.nickname, 'zorpfeed', `[ZORP] ${playerName} Zorp deleted (expire countdown reached)`);
+      
+      console.log(`[ZORP EXPIRE TIMER] Successfully deleted expired Zorp for ${playerName}`);
+    }
+  } catch (error) {
+    console.error('Error handling expire countdown:', error);
+  }
+}
+
 async function getRemainingOfflineTime(zoneName) {
   const startTime = zorpOfflineStartTimes.get(zoneName);
   if (!startTime) return null;
   
+  const [zoneResult] = await pool.query(
+    'SELECT expire FROM zorp_zones WHERE name = ?',
+    [zoneName]
+  );
+  
+  if (zoneResult.length === 0) return null;
+  
+  const expireSeconds = zoneResult[0].expire;
   const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  const remaining = OFFLINE_PROTECTION_DURATION - elapsed;
+  const remaining = expireSeconds - elapsed;
   
   return Math.max(0, remaining);
 }
@@ -3743,9 +3827,9 @@ async function initializeOfflineTimers(client) {
         const allTeamOffline = await checkIfAllTeamMembersOffline(zone.ip, zone.port, zone.password, zone.owner);
         
         if (allTeamOffline) {
-          // Start offline timer for this zone
-          await startOfflineExpirationTimer(zone.ip, zone.port, zone.password, zone.owner, zone.name, OFFLINE_PROTECTION_DURATION);
-          console.log(`[ZORP OFFLINE TIMER] Initialized offline timer for ${zone.owner} (${zone.name})`);
+          // Start expire countdown timer for this zone (this is the timer that counts down the expire time)
+          await startExpireCountdownTimer(zone.ip, zone.port, zone.password, zone.owner, zone.name, zone.expire);
+          console.log(`[ZORP OFFLINE TIMER] Initialized expire countdown timer for ${zone.owner} (${zone.name}) - ${zone.expire} seconds`);
         } else {
           // Team members are online, set zone back to green
           await setZoneToGreen(zone.ip, zone.port, zone.password, zone.owner);
@@ -4809,6 +4893,7 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
         
         if (zoneNameResult.length > 0) {
           await clearOfflineExpirationTimer(zoneNameResult[0].name);
+          await clearExpireCountdownTimer(zoneNameResult[0].name);
         }
         
         // Send online message to zorp feed
