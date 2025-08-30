@@ -1,107 +1,136 @@
 const pool = require('./src/db');
+const { compareDiscordIds, normalizeDiscordId } = require('./src/utils/discordUtils');
 
 async function debugLinkingIssue() {
   try {
-    console.log('🔍 Debugging linking issue for BRNytro11...');
-    
-    // Check all records for BRNytro11
-    console.log('\n📋 Step 1: All BRNytro11 records...');
-    const [brnytro11Records] = await pool.query(`
-      SELECT p.*, s.nickname as server_name
-      FROM players p
-      JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.ign = 'BRNytro11'
-      ORDER BY s.nickname, p.linked_at DESC
-    `);
-    
-    console.log(`Found ${brnytro11Records.length} records for "BRNytro11":`);
-    brnytro11Records.forEach((record, index) => {
-      console.log(`\n${index + 1}. Record:`);
-      console.log(`   ID: ${record.id}`);
-      console.log(`   Server: ${record.server_name} (${record.server_id})`);
-      console.log(`   Discord ID: ${record.discord_id || 'NULL'}`);
-      console.log(`   Linked at: ${record.linked_at || 'NULL'}`);
-      console.log(`   Is Active: ${record.is_active}`);
+    console.log('🔍 Debugging Linking System Issues...\n');
+
+    // Test cases from the error messages
+    const testCases = [
+      { guildId: '1403300500719538227', discordId: '1241672654193426434', ign: 'Hamstercookie0' },
+      { guildId: '1403300500719538227', discordId: 'some_discord_id', ign: 'TTVjoshy3871' }
+    ];
+
+    console.log('1. Testing Discord ID normalization...');
+    const testDiscordIds = [
+      '1241672654193426434',
+      1241672654193426434,
+      '1241672654193426434n',
+      ' 1241672654193426434 ',
+      null,
+      undefined
+    ];
+
+    testDiscordIds.forEach(id => {
+      const normalized = normalizeDiscordId(id);
+      console.log(`   Input: "${id}" (${typeof id}) -> Normalized: "${normalized}"`);
     });
-    
-    // Check if there are any other players with the same Discord ID
-    console.log('\n📋 Step 2: Checking Discord ID conflicts...');
-    if (brnytro11Records.length > 0 && brnytro11Records[0].discord_id) {
-      const discordId = brnytro11Records[0].discord_id;
-      const [conflicts] = await pool.query(`
-        SELECT p.*, s.nickname as server_name
-        FROM players p
-        JOIN rust_servers s ON p.server_id = s.id
-        WHERE p.discord_id = ?
-        ORDER BY s.nickname, p.ign
-      `, [discordId]);
-      
-      console.log(`Found ${conflicts.length} records with Discord ID ${discordId}:`);
-      conflicts.forEach((record, index) => {
-        console.log(`   ${index + 1}. ${record.ign} on ${record.server_name} (ID: ${record.id})`);
-      });
-    }
-    
-    // Check the linking logic in the bot code
-    console.log('\n📋 Step 3: Simulating bot linking logic...');
-    
-    // Simulate what the bot does when checking for existing links
-    const [existingLinks] = await pool.query(`
-      SELECT p.*, s.nickname as server_name
-      FROM players p
-      JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.ign = 'BRNytro11'
-      AND p.discord_id IS NOT NULL
-      AND p.discord_id != ''
-      AND p.is_active = 1
-    `);
-    
-    console.log(`Active linked records for "BRNytro11": ${existingLinks.length}`);
-    existingLinks.forEach((record, index) => {
-      console.log(`   ${index + 1}. ${record.ign} on ${record.server_name} (Discord: ${record.discord_id})`);
+
+    console.log('\n2. Testing Discord ID comparison...');
+    const comparisonTests = [
+      ['1241672654193426434', '1241672654193426434'],
+      ['1241672654193426434', 1241672654193426434],
+      ['1241672654193426434', ' 1241672654193426434 '],
+      ['1241672654193426434', '1241672654193426435'],
+      [null, '1241672654193426434'],
+      [undefined, '1241672654193426434']
+    ];
+
+    comparisonTests.forEach(([id1, id2]) => {
+      const result = compareDiscordIds(id1, id2);
+      console.log(`   "${id1}" vs "${id2}" -> ${result}`);
     });
-    
-    // Check if there are any inactive records that might be causing issues
-    console.log('\n📋 Step 4: Checking inactive records...');
-    const [inactiveRecords] = await pool.query(`
-      SELECT p.*, s.nickname as server_name
-      FROM players p
-      JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.ign = 'BRNytro11'
-      AND (p.is_active = 0 OR p.is_active IS NULL)
+
+    console.log('\n3. Checking database Discord ID storage...');
+    const [discordIdSamples] = await pool.query(`
+      SELECT discord_id, typeof(discord_id) as type, LENGTH(discord_id) as length
+      FROM players 
+      WHERE discord_id IS NOT NULL 
+      LIMIT 10
     `);
-    
-    console.log(`Inactive records for "BRNytro11": ${inactiveRecords.length}`);
-    inactiveRecords.forEach((record, index) => {
-      console.log(`   ${index + 1}. ${record.ign} on ${record.server_name} (Active: ${record.is_active})`);
+
+    console.log(`Found ${discordIdSamples.length} Discord ID samples:`);
+    discordIdSamples.forEach(sample => {
+      console.log(`   Discord ID: "${sample.discord_id}" (Type: ${sample.type}, Length: ${sample.length})`);
     });
+
+    console.log('\n4. Testing the exact queries from link command...');
     
-    // Check the specific error scenario
-    console.log('\n📋 Step 5: Checking for cross-server duplicates...');
-    const [crossServerDuplicates] = await pool.query(`
-      SELECT 
-        p.ign,
-        COUNT(DISTINCT p.server_id) as server_count,
-        GROUP_CONCAT(DISTINCT s.nickname SEPARATOR ', ') as servers
-      FROM players p
-      JOIN rust_servers s ON p.server_id = s.id
-      WHERE p.ign = 'BRNytro11'
-      GROUP BY p.ign
-      HAVING COUNT(DISTINCT p.server_id) > 1
+    // Test the first error case
+    const guildId = '1403300500719538227';
+    const discordId = '1241672654193426434';
+    const ign = 'Hamstercookie0';
+
+    console.log(`Testing for Guild: ${guildId}, Discord ID: ${discordId}, IGN: ${ign}`);
+
+    // Test Discord ID check
+    const [activeDiscordLinks] = await pool.query(
+      `SELECT p.*, rs.nickname 
+       FROM players p
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       AND p.discord_id = ? 
+       AND p.is_active = true`,
+      [guildId, discordId]
+    );
+
+    console.log(`Discord ID check found ${activeDiscordLinks.length} active links`);
+    activeDiscordLinks.forEach(link => {
+      console.log(`   - IGN: "${link.ign}", Server: ${link.nickname}, Discord ID: "${link.discord_id}"`);
+    });
+
+    // Test IGN check
+    const [activeIgnLinks] = await pool.query(
+      `SELECT p.*, rs.nickname 
+       FROM players p
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       AND LOWER(p.ign) = LOWER(?) 
+       AND p.is_active = true`,
+      [guildId, ign]
+    );
+
+    console.log(`IGN check found ${activeIgnLinks.length} active links`);
+    activeIgnLinks.forEach(link => {
+      console.log(`   - IGN: "${link.ign}", Server: ${link.nickname}, Discord ID: "${link.discord_id}"`);
+      const isSameUser = compareDiscordIds(link.discord_id, discordId);
+      console.log(`     Same user check: ${isSameUser}`);
+    });
+
+    console.log('\n5. Checking for potential issues...');
+    
+    // Check if there are any Discord IDs stored as numbers instead of strings
+    const [numberDiscordIds] = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM players 
+      WHERE discord_id IS NOT NULL 
+      AND discord_id REGEXP '^[0-9]+$' 
+      AND LENGTH(discord_id) < 17
     `);
     
-    if (crossServerDuplicates.length > 0) {
-      console.log('Found cross-server duplicates:');
-      crossServerDuplicates.forEach(dup => {
-        console.log(`   ${dup.ign} appears on ${dup.server_count} servers: ${dup.servers}`);
-      });
-    } else {
-      console.log('No cross-server duplicates found');
-    }
-    
-    console.log('\n🎯 DIAGNOSIS COMPLETE!');
-    console.log('Check the bot logs for the exact error message when linking fails.');
-    
+    console.log(`Discord IDs that might be stored as numbers: ${numberDiscordIds[0].count}`);
+
+    // Check for case sensitivity issues
+    const [caseSensitiveTest] = await pool.query(`
+      SELECT ign, COUNT(*) as count
+      FROM players 
+      WHERE ign IS NOT NULL 
+      GROUP BY LOWER(ign)
+      HAVING COUNT(*) > 1
+      LIMIT 5
+    `);
+
+    console.log(`Potential case sensitivity issues: ${caseSensitiveTest.length} IGNs with different cases`);
+    caseSensitiveTest.forEach(test => {
+      console.log(`   - IGN pattern: "${test.ign}" (${test.count} variations)`);
+    });
+
+    console.log('\n6. Recommendations:');
+    console.log('   - Check if Discord IDs are stored consistently as strings');
+    console.log('   - Verify case sensitivity in IGN comparisons');
+    console.log('   - Ensure proper trimming of whitespace');
+    console.log('   - Add more detailed logging to track the exact failure point');
+
   } catch (error) {
     console.error('❌ Error debugging linking issue:', error);
   } finally {
