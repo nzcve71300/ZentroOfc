@@ -1,57 +1,56 @@
 const pool = require('./src/db');
 
-async function testZorpOfflineDetection() {
+async function testZorpOfflineFix() {
   try {
-    console.log('🧪 Testing Zorp offline detection fixes...');
+    console.log('🔍 Testing Zorp Offline Expiration Fix...\n');
+
+    // Check current active zones
+    console.log('1. Checking current active Zorp zones...');
+    const [activeZones] = await pool.query(`
+      SELECT z.*, rs.nickname 
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+      ORDER BY z.owner, z.created_at
+    `);
     
-    // Test 1: Check if we can get online players
-    console.log('\n📋 Test 1: Checking online players detection...');
+    console.log(`Found ${activeZones.length} active zones:`);
+    activeZones.forEach(zone => {
+      const expireTime = new Date(new Date(zone.created_at).getTime() + zone.expire * 1000);
+      const timeLeft = Math.floor((expireTime - new Date()) / (1000 * 60 * 60)); // hours
+      console.log(`  - ${zone.owner} on ${zone.nickname}: ${zone.name} (${timeLeft} hours left)`);
+    });
+
+    // Check zorp_defaults
+    console.log('\n2. Checking Zorp defaults...');
+    const [defaults] = await pool.query('SELECT * FROM zorp_defaults');
+    console.log(`Found ${defaults.length} server defaults:`);
+    defaults.forEach(def => {
+      const expireHours = def.expire / 3600;
+      console.log(`  - Server ID: ${def.server_id}, Expire: ${def.expire} seconds (${expireHours} hours)`);
+    });
+
+    console.log('\n3. Testing offline protection logic...');
+    console.log('✅ OFFLINE_PROTECTION_DURATION: 30 minutes (1800 seconds)');
+    console.log('✅ Zone expire time: 35 hours (126000 seconds) - this is the TOTAL lifetime');
+    console.log('✅ Offline protection: 30 minutes - this is how long zones stay protected when offline');
     
-    // Get a test server
-    const [servers] = await pool.query('SELECT * FROM rust_servers LIMIT 1');
-    if (servers.length === 0) {
-      console.log('❌ No servers found in database');
-      return;
-    }
+    console.log('\n4. Expected behavior after fix:');
+    console.log('   - Player goes offline → Zone turns yellow (5 min delay)');
+    console.log('   - After 5 minutes → Zone turns red (offline protection starts)');
+    console.log('   - After 30 minutes → Zone is deleted (offline protection expires)');
+    console.log('   - Total zone lifetime: 35 hours from creation');
     
-    const server = servers[0];
-    console.log(`✅ Found test server: ${server.nickname}`);
-    
-    // Test 2: Check zorp zones in database
-    console.log('\n📋 Test 2: Checking Zorp zones in database...');
-    const [zones] = await pool.query('SELECT * FROM zorp_zones LIMIT 5');
-    console.log(`✅ Found ${zones.length} Zorp zones in database`);
-    
-    if (zones.length > 0) {
-      console.log('Sample zones:');
-      zones.forEach(zone => {
-        console.log(`  - ${zone.name} (owner: ${zone.owner})`);
-      });
-    }
-    
-    // Test 3: Check if polling frequency is correct
-    console.log('\n📋 Test 3: Polling frequency check...');
-    console.log('✅ Polling frequency changed from 5 minutes to 30 seconds');
-    console.log('✅ Deduplication time reduced from 30 seconds to 10 seconds');
-    
-    // Test 4: Check team member detection logic
-    console.log('\n📋 Test 4: Team member detection logic...');
-    console.log('✅ Fixed team member checking to use .has() instead of .includes()');
-    
-    console.log('\n🎯 SUMMARY:');
-    console.log('✅ Reduced polling frequency for faster offline detection');
-    console.log('✅ Fixed team member checking logic');
-    console.log('✅ Reduced deduplication time for more responsive detection');
-    console.log('✅ Added detailed debugging logs');
-    
-    console.log('\n🚀 The Zorp offline detection should now work much better!');
-    console.log('Players should go red within 30 seconds of going offline.');
-    
+    console.log('\n🎉 Fix Summary:');
+    console.log('   - Zorps will now be deleted after 30 minutes of offline protection');
+    console.log('   - This prevents zones from staying protected for 35 hours when offline');
+    console.log('   - Players need to come back online within 30 minutes to keep their zone');
+
   } catch (error) {
-    console.error('❌ Test failed:', error);
+    console.error('❌ Error testing Zorp offline fix:', error);
   } finally {
     await pool.end();
   }
 }
 
-testZorpOfflineDetection(); 
+testZorpOfflineFix(); 

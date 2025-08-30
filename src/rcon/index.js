@@ -76,6 +76,9 @@ const zorpZoneStates = new Map(); // Track current zone states
 const zorpOfflineTimers = new Map(); // Track offline expiration timers
 const zorpOfflineStartTimes = new Map(); // Track when players went offline
 
+// Add offline protection duration constant (30 minutes)
+const OFFLINE_PROTECTION_DURATION = 30 * 60; // 30 minutes in seconds
+
 // Bot kill tracking for respawn detection
 const botKillTracking = new Map(); // Track players killed by bot for respawn detection
 
@@ -3624,7 +3627,7 @@ async function setZoneToRed(ip, port, password, playerName) {
       );
       
       // Start offline expiration timer
-      startOfflineExpirationTimer(ip, port, password, playerName, zone.name, zone.expire);
+      startOfflineExpirationTimer(ip, port, password, playerName, zone.name, OFFLINE_PROTECTION_DURATION);
       
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'red');
@@ -3714,16 +3717,8 @@ async function getRemainingOfflineTime(zoneName) {
   const startTime = zorpOfflineStartTimes.get(zoneName);
   if (!startTime) return null;
   
-  const [zoneResult] = await pool.query(
-    'SELECT expire FROM zorp_zones WHERE name = ?',
-    [zoneName]
-  );
-  
-  if (zoneResult.length === 0) return null;
-  
-  const expireSeconds = zoneResult[0].expire;
   const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  const remaining = expireSeconds - elapsed;
+  const remaining = OFFLINE_PROTECTION_DURATION - elapsed;
   
   return Math.max(0, remaining);
 }
@@ -3749,7 +3744,7 @@ async function initializeOfflineTimers(client) {
         
         if (allTeamOffline) {
           // Start offline timer for this zone
-          await startOfflineExpirationTimer(zone.ip, zone.port, zone.password, zone.owner, zone.name, zone.expire);
+          await startOfflineExpirationTimer(zone.ip, zone.port, zone.password, zone.owner, zone.name, OFFLINE_PROTECTION_DURATION);
           console.log(`[ZORP OFFLINE TIMER] Initialized offline timer for ${zone.owner} (${zone.name})`);
         } else {
           // Team members are online, set zone back to green
