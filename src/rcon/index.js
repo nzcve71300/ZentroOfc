@@ -1685,6 +1685,55 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
     }
 
     if (!foundPlayerState) {
+      // Check for home teleport position requests
+      const foundHomeTeleportState = Array.from(homeTeleportState.entries()).find(([key, state]) => {
+        return state.step === 'waiting_for_position';
+      });
+
+      if (foundHomeTeleportState) {
+        const [homeStateKey, homeStateData] = foundHomeTeleportState;
+        const playerName = homeStateData.player;
+
+        console.log(`[HOME TELEPORT] Position response received for ${playerName}: ${positionStr}`);
+
+        // Parse position coordinates (handle both "x, y, z" and "x,y,z" formats)
+        const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
+        if (coords.length !== 3 || coords.some(isNaN)) {
+          console.log(`[HOME TELEPORT] Invalid position format: ${positionStr}`);
+          homeTeleportState.delete(homeStateKey);
+          return;
+        }
+
+        // Get server ID
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+
+        if (serverResult.length === 0) {
+          console.log(`[HOME TELEPORT] No server found for ${serverName}`);
+          homeTeleportState.delete(homeStateKey);
+          return;
+        }
+
+        const serverId = serverResult[0].id;
+
+        // Save home teleport location to database
+        await pool.query(
+          'INSERT INTO home_teleports (server_id, player_name, x, y, z) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE x = VALUES(x), y = VALUES(y), z = VALUES(z)',
+          [serverId, playerName, coords[0], coords[1], coords[2]]
+        );
+
+        // Clear the state
+        homeTeleportState.delete(homeStateKey);
+
+        // Send success message
+        await sendRconCommand(ip, port, password, `say <color=#00FF00><b>SUCCESS!</b></color> <color=white>${playerName} home location saved successfully!</color>`);
+
+        console.log(`[HOME TELEPORT] Home teleport location saved for ${playerName} at coordinates: ${coords[0]}, ${coords[1]}, ${coords[2]}`);
+        return;
+      }
+
       // Check for recycler position requests
       const foundRecyclerState = Array.from(recyclerState.entries()).find(([key, state]) => {
         return state.step === 'waiting_for_position';
@@ -1694,8 +1743,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         const [recyclerStateKey, recyclerStateData] = foundRecyclerState;
         const playerName = recyclerStateData.player;
 
-        // Parse position coordinates
-        const coords = positionStr.split(', ').map(coord => parseFloat(coord.trim()));
+        // Parse position coordinates (handle both "x, y, z" and "x,y,z" formats)
+        const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
         if (coords.length !== 3 || coords.some(isNaN)) {
           Logger.warn(`Invalid position format for recycler: ${positionStr}`);
           return;
@@ -1805,8 +1854,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         const [homeStateKey, homeState] = foundHomeState;
         const playerName = homeState.player;
 
-        // Parse position coordinates
-        const coords = positionStr.split(', ').map(coord => parseFloat(coord.trim()));
+        // Parse position coordinates (handle both "x, y, z" and "x,y,z" formats)
+        const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
         if (coords.length !== 3 || coords.some(isNaN)) {
           Logger.warn(`Invalid position format for home teleport: ${positionStr}`);
           return;
