@@ -3111,6 +3111,9 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
         // Delete zone from game
         await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
 
+        // Clear offline expiration timer if it exists
+        await clearOfflineExpirationTimer(zoneName);
+        
         // Delete zone from database by zone name (more reliable than owner)
         await pool.query('DELETE FROM zorp_zones WHERE name = ? AND server_id = ?', [zoneName, serverId]);
 
@@ -6019,5 +6022,6 @@ module.exports = {
   updatePlayerCountChannel,
   enableTeamActionLogging,
   populateTeamIds,
-  checkEventGibs
+  checkEventGibs,
+  clearOfflineExpirationTimer
 }; 
