@@ -1,4 +1,4 @@
-const pool = require('./src/db');
+he const pool = require('./src/db');
 
 async function testZorpExpireCountdown() {
   try {
