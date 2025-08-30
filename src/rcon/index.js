@@ -508,6 +508,7 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
 
       // Handle position responses for Book-a-Ride
       try {
+        console.log(`[POSITION DEBUG] Processing message for position response: ${msg.substring(0, 50)}...`);
         await handlePositionResponse(client, guildId, serverName, msg, ip, port, password);
       } catch (error) {
         console.error('[BOOK-A-RIDE DEBUG] Error in handlePositionResponse:', error);
@@ -1695,6 +1696,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         const playerName = homeStateData.player;
 
         console.log(`[HOME TELEPORT] Position response received for ${playerName}: ${positionStr}`);
+        console.log(`[HOME TELEPORT DEBUG] Processing position for state key: ${homeStateKey}`);
+        console.log(`[HOME TELEPORT DEBUG] Current state data:`, homeStateData);
 
         // Parse position coordinates (handle both "x, y, z" and "x,y,z" formats)
         const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
@@ -5635,15 +5638,20 @@ async function handleHomeTeleportRespawn(client, guildId, serverName, player, ip
     homeTeleportState.set(stateKey, playerState);
 
     // Get player position after respawn
+    console.log(`[HOME TELEPORT DEBUG] Sending printpos command for ${player}`);
     sendRconCommand(ip, port, password, `printpos "${player}"`);
     
     // Set timeout to clean up position waiting state after 30 seconds
     setTimeout(() => {
       const currentState = homeTeleportState.get(stateKey);
+      console.log(`[HOME TELEPORT DEBUG] Timeout check for ${player}, current state:`, currentState);
       if (currentState && currentState.step === 'waiting_for_position') {
+        console.log(`[HOME TELEPORT DEBUG] Position timeout reached for ${player}, cleaning up state`);
         homeTeleportState.delete(stateKey);
         sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>home teleport setup timed out. Please try again.</color>`);
         Logger.info(`Home teleport position setup timed out for ${player}`);
+      } else {
+        console.log(`[HOME TELEPORT DEBUG] No timeout needed for ${player}, state already processed or cleared`);
       }
     }, 30000); // 30 seconds timeout
 
