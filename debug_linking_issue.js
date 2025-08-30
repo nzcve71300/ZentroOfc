@@ -43,16 +43,16 @@ async function debugLinkingIssue() {
 
     console.log('\n3. Checking database Discord ID storage...');
     const [discordIdSamples] = await pool.query(`
-      SELECT discord_id, typeof(discord_id) as type, LENGTH(discord_id) as length
+      SELECT discord_id, LENGTH(discord_id) as length
       FROM players 
       WHERE discord_id IS NOT NULL 
       LIMIT 10
     `);
 
-    console.log(`Found ${discordIdSamples.length} Discord ID samples:`);
-    discordIdSamples.forEach(sample => {
-      console.log(`   Discord ID: "${sample.discord_id}" (Type: ${sample.type}, Length: ${sample.length})`);
-    });
+         console.log(`Found ${discordIdSamples.length} Discord ID samples:`);
+     discordIdSamples.forEach(sample => {
+       console.log(`   Discord ID: "${sample.discord_id}" (Length: ${sample.length})`);
+     });
 
     console.log('\n4. Testing the exact queries from link command...');
     
