@@ -73,6 +73,8 @@ const nightSkipFailedAttempts = new Map(); // Track failed night skip attempts t
 // ZORP Enhanced state tracking
 const zorpTransitionTimers = new Map(); // Track zone transition timers
 const zorpZoneStates = new Map(); // Track current zone states
+const zorpOfflineTimers = new Map(); // Track offline expiration timers
+const zorpOfflineStartTimes = new Map(); // Track when players went offline
 
 // Home Teleport state tracking
 const homeTeleportState = new Map(); // Track home teleport state
@@ -157,6 +159,12 @@ function startRconListeners(client) {
     syncAllZonesToDatabase(client);
   }, 10000); // Wait 10 seconds after startup
   
+  // Initialize offline timers for zones that are already in red state
+  setTimeout(() => {
+    console.log('🚀 Initializing offline timers for existing red zones...');
+    initializeOfflineTimers(client);
+  }, 15000); // Wait 15 seconds after startup
+  
   setInterval(() => {
     refreshConnections(client);
     pollPlayerCounts(client);
@@ -183,6 +191,25 @@ function startRconListeners(client) {
       console.log(`[PLAYERFEED] Cleaned up ${cleanedCount} old join tracking entries`);
     }
   }, 60000); // Clean up every minute
+  
+  // Cleanup old offline timer references to prevent memory leaks
+  setInterval(() => {
+    const now = Date.now();
+    const cutoff = now - (24 * 60 * 60 * 1000); // 24 hours
+    
+    let cleanedCount = 0;
+    for (const [zoneName, startTime] of zorpOfflineStartTimes.entries()) {
+      if (startTime < cutoff) {
+        zorpOfflineStartTimes.delete(zoneName);
+        zorpOfflineTimers.delete(zoneName);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`[CLEANUP] Cleaned up ${cleanedCount} old offline timer references`);
+    }
+  }, 600000); // Every 10 minutes
   
   // Check for night skip voting every 2 minutes
   setInterval(() => {
@@ -3399,6 +3426,9 @@ async function setZoneToGreen(ip, port, password, playerName) {
       // Clear any existing transition timers
       clearZorpTransitionTimer(zone.name);
       
+      // Clear offline expiration timer when zone goes green
+      await clearOfflineExpirationTimer(zone.name);
+      
       // Set zone to green settings: allow building (1), allow building damage (1), allow PvP (1)
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
       await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
@@ -3486,11 +3516,147 @@ async function setZoneToRed(ip, port, password, playerName) {
         ['red', zone.id]
       );
       
+      // Start offline expiration timer
+      startOfflineExpirationTimer(ip, port, password, playerName, zone.name, zone.expire);
+      
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'red');
     }
   } catch (error) {
     console.error('Error setting zone to red:', error);
+  }
+}
+
+// Robust offline timer management functions
+async function startOfflineExpirationTimer(ip, port, password, playerName, zoneName, expireSeconds) {
+  try {
+    console.log(`[ZORP OFFLINE TIMER] Starting offline expiration timer for ${playerName} (${zoneName}) - ${expireSeconds} seconds`);
+    
+    // Record when player went offline
+    zorpOfflineStartTimes.set(zoneName, Date.now());
+    
+    // Clear any existing offline timer
+    clearOfflineExpirationTimer(zoneName);
+    
+    // Start new offline timer
+    const timerId = setTimeout(async () => {
+      await handleOfflineExpiration(ip, port, password, playerName, zoneName);
+    }, expireSeconds * 1000);
+    
+    // Store timer reference
+    zorpOfflineTimers.set(zoneName, timerId);
+    
+    console.log(`[ZORP OFFLINE TIMER] Timer set for ${playerName} - will expire in ${expireSeconds} seconds`);
+  } catch (error) {
+    console.error('Error starting offline expiration timer:', error);
+  }
+}
+
+async function clearOfflineExpirationTimer(zoneName) {
+  try {
+    const existingTimer = zorpOfflineTimers.get(zoneName);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      zorpOfflineTimers.delete(zoneName);
+      zorpOfflineStartTimes.delete(zoneName);
+      console.log(`[ZORP OFFLINE TIMER] Cleared offline timer for ${zoneName}`);
+    }
+  } catch (error) {
+    console.error('Error clearing offline expiration timer:', error);
+  }
+}
+
+async function handleOfflineExpiration(ip, port, password, playerName, zoneName) {
+  try {
+    console.log(`[ZORP OFFLINE TIMER] Offline expiration reached for ${playerName} (${zoneName}) - deleting Zorp`);
+    
+    // Get server info for feed message
+    const [serverResult] = await pool.query(`
+      SELECT rs.nickname, g.discord_id 
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.name = ?
+    `, [zoneName]);
+    
+    if (serverResult.length > 0) {
+      const server = serverResult[0];
+      
+      // Delete zone from game
+      await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
+      
+      // Delete zone from database
+      await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zoneName]);
+      
+      // Clean up timer references
+      zorpOfflineTimers.delete(zoneName);
+      zorpOfflineStartTimes.delete(zoneName);
+      zorpZoneStates.delete(zoneName);
+      
+      // Send to zorp feed
+      await sendFeedEmbed(client, server.discord_id, server.nickname, 'zorpfeed', `[ZORP] ${playerName} Zorp deleted (offline expiration)`);
+      
+      console.log(`[ZORP OFFLINE TIMER] Successfully deleted expired Zorp for ${playerName}`);
+    }
+  } catch (error) {
+    console.error('Error handling offline expiration:', error);
+  }
+}
+
+async function getRemainingOfflineTime(zoneName) {
+  const startTime = zorpOfflineStartTimes.get(zoneName);
+  if (!startTime) return null;
+  
+  const [zoneResult] = await pool.query(
+    'SELECT expire FROM zorp_zones WHERE name = ?',
+    [zoneName]
+  );
+  
+  if (zoneResult.length === 0) return null;
+  
+  const expireSeconds = zoneResult[0].expire;
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const remaining = expireSeconds - elapsed;
+  
+  return Math.max(0, remaining);
+}
+
+async function initializeOfflineTimers(client) {
+  try {
+    console.log('[ZORP OFFLINE TIMER] Initializing offline timers for existing red zones...');
+    
+    // Get all zones that are currently in red state
+    const [redZones] = await pool.query(`
+      SELECT z.*, rs.ip, rs.port, rs.password
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      WHERE z.current_state = 'red' AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+    `);
+    
+    console.log(`[ZORP OFFLINE TIMER] Found ${redZones.length} red zones to initialize timers for`);
+    
+    for (const zone of redZones) {
+      try {
+        // Check if all team members are offline
+        const allTeamOffline = await checkIfAllTeamMembersOffline(zone.ip, zone.port, zone.password, zone.owner);
+        
+        if (allTeamOffline) {
+          // Start offline timer for this zone
+          await startOfflineExpirationTimer(zone.ip, zone.port, zone.password, zone.owner, zone.name, zone.expire);
+          console.log(`[ZORP OFFLINE TIMER] Initialized offline timer for ${zone.owner} (${zone.name})`);
+        } else {
+          // Team members are online, set zone back to green
+          await setZoneToGreen(zone.ip, zone.port, zone.password, zone.owner);
+          console.log(`[ZORP OFFLINE TIMER] Team members online for ${zone.owner}, setting zone back to green`);
+        }
+      } catch (error) {
+        console.error(`[ZORP OFFLINE TIMER] Error initializing timer for ${zone.name}:`, error);
+      }
+    }
+    
+    console.log('[ZORP OFFLINE TIMER] Offline timer initialization complete');
+  } catch (error) {
+    console.error('[ZORP OFFLINE TIMER] Error initializing offline timers:', error);
   }
 }
 
@@ -4158,29 +4324,70 @@ async function restoreZonesOnStartup(client) {
 
 async function deleteExpiredZones(client) {
   try {
+    // Get all active zones that might need cleanup
     const [result] = await pool.query(`
       SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
       FROM zorp_zones z
       JOIN rust_servers rs ON z.server_id = rs.id
       JOIN guilds g ON rs.guild_id = g.id
-      WHERE z.created_at + INTERVAL z.expire SECOND < CURRENT_TIMESTAMP
+      WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
     `);
 
     for (const zone of result) {
       try {
-        // Delete from game
-        await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
+        // Check if this zone has an active offline timer
+        const offlineStartTime = zorpOfflineStartTimes.get(zone.name);
         
-        // Delete from database
-        await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
-        
-        console.log(`[ZORP] Deleted expired zone: ${zone.name}`);
-        
-        // Send to zorp feed
-        await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted`);
-        
+        if (offlineStartTime) {
+          // Zone has offline timer - check if it should be expired
+          const elapsed = Math.floor((Date.now() - offlineStartTime) / 1000);
+          
+          if (elapsed >= zone.expire) {
+            console.log(`[ZORP] Offline expiration reached for ${zone.name} (${elapsed}s elapsed, ${zone.expire}s limit)`);
+            
+            // Delete from game
+            await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
+            
+            // Delete from database
+            await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+            
+            // Clean up timer references
+            zorpOfflineTimers.delete(zone.name);
+            zorpOfflineStartTimes.delete(zone.name);
+            zorpZoneStates.delete(zone.name);
+            
+            // Send to zorp feed
+            await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted (offline expiration)`);
+            
+            console.log(`[ZORP] Deleted offline-expired zone: ${zone.name}`);
+          }
+        } else {
+          // Zone has no offline timer - check if it's been created too long ago (fallback cleanup)
+          const createdTime = new Date(zone.created_at).getTime();
+          const elapsed = Math.floor((Date.now() - createdTime) / 1000);
+          
+          if (elapsed >= zone.expire * 2) { // Double the expire time as fallback
+            console.log(`[ZORP] Fallback cleanup for old zone ${zone.name} (${elapsed}s elapsed)`);
+            
+            // Delete from game
+            await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
+            
+            // Delete from database
+            await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+            
+            // Clean up timer references
+            zorpOfflineTimers.delete(zone.name);
+            zorpOfflineStartTimes.delete(zone.name);
+            zorpZoneStates.delete(zone.name);
+            
+            // Send to zorp feed
+            await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted (fallback cleanup)`);
+            
+            console.log(`[ZORP] Deleted old zone (fallback): ${zone.name}`);
+          }
+        }
       } catch (error) {
-        console.error(`Error deleting expired zone ${zone.name}:`, error);
+        console.error(`Error processing zone ${zone.name}:`, error);
       }
     }
   } catch (error) {
@@ -4492,10 +4699,20 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
         // Set zone to green when ANY team member comes online
         await setZoneToGreen(ip, port, password, cleanPlayerName);
         
+        // Clear offline expiration timer when player comes back online
+        const [zoneNameResult] = await pool.query(
+          'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          [cleanPlayerName]
+        );
+        
+        if (zoneNameResult.length > 0) {
+          await clearOfflineExpirationTimer(zoneNameResult[0].name);
+        }
+        
         // Send online message to zorp feed
         await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green (Team member online)`);
         
-        console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green (was ${currentState})`);
+        console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green (was ${currentState}), offline timer cleared`);
       } else {
         console.log(`[ZORP] Player ${cleanPlayerName} came online but zone is already green - no transition needed`);
       }
