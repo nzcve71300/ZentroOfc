@@ -71,6 +71,15 @@ module.exports = {
         // Still proceed to DB deletion
       }
 
+      // Clear offline expiration timer if it exists
+      try {
+        const { clearOfflineExpirationTimer } = require('../../rcon');
+        await clearOfflineExpirationTimer(zoneName);
+      } catch (timerError) {
+        console.error('Error clearing offline timer:', timerError);
+        // Continue with deletion even if timer cleanup fails
+      }
+
       // Delete from database
       try {
         await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
