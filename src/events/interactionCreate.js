@@ -727,6 +727,44 @@ async function handleConfirmPurchase(interaction) {
       // Set finalQuantity for vehicles (always 1 since vehicles don't have quantity)
       finalQuantity = 1;
       
+      // Calculate total price for vehicle
+      const totalPrice = itemData.price;
+      
+      // Check if player has enough balance BEFORE storing request
+      const [balanceResult] = await pool.query(
+        'SELECT balance FROM economy WHERE player_id = ?',
+        [playerId]
+      );
+      
+      const currentBalance = balanceResult[0]?.balance || 0;
+      
+      if (currentBalance < totalPrice) {
+        // Get currency name for error message
+        const { getCurrencyName } = require('../utils/economy');
+        const currencyName = await getCurrencyName(itemData.server_id);
+        
+        const { EmbedBuilder } = require('discord.js');
+        const insufficientFundsEmbed = new EmbedBuilder()
+          .setColor(0xFF0000)
+          .setTitle('❌ Insufficient Funds')
+          .setDescription(`You don't have enough ${currencyName} to purchase this vehicle.`)
+          .addFields(
+            { name: '**Required**', value: `${totalPrice.toLocaleString()} ${currencyName}`, inline: true },
+            { name: '**Your Balance**', value: `${currentBalance.toLocaleString()} ${currencyName}`, inline: true },
+            { name: '**Short**', value: `${(totalPrice - currentBalance).toLocaleString()} ${currencyName}`, inline: true }
+          )
+          .setAuthor({
+            name: playerIgn,
+            iconURL: interaction.user.displayAvatarURL({ dynamic: true })
+          })
+          .setTimestamp();
+        
+        return interaction.followUp({
+          embeds: [insufficientFundsEmbed],
+          components: []
+        });
+      }
+      
       // Store vehicle purchase request for position tracking
       const vehiclePurchaseKey = `${itemData.server_id}:${playerIgn}:${itemData.short_name}`;
       global.vehiclePurchaseRequests = global.vehiclePurchaseRequests || new Map();
