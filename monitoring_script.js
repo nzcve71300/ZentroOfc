@@ -20,12 +20,12 @@ async function monitorPlayerLinkingSystem() {
         const [corruptedRecords] = await pool.query(`
             SELECT COUNT(*) as count
             FROM players 
-            WHERE discord_id IS NULL 
+            WHERE (discord_id IS NULL 
                OR discord_id = '' 
                OR discord_id = 'null' 
                OR discord_id = 'undefined'
-               OR NOT discord_id REGEXP '^[0-9]{17,19}$'
-               OR is_active = 1
+               OR NOT discord_id REGEXP '^[0-9]{17,19}$')
+               AND is_active = 1
         `);
         
         const corruptedCount = corruptedRecords[0].count;
@@ -39,12 +39,12 @@ async function monitorPlayerLinkingSystem() {
             const [corruptedDetails] = await pool.query(`
                 SELECT ign, discord_id, server_id, guild_id, linked_at
                 FROM players 
-                WHERE discord_id IS NULL 
+                WHERE (discord_id IS NULL 
                    OR discord_id = '' 
                    OR discord_id = 'null' 
                    OR discord_id = 'undefined'
-                   OR NOT discord_id REGEXP '^[0-9]{17,19}$'
-                   OR is_active = 1
+                   OR NOT discord_id REGEXP '^[0-9]{17,19}$')
+                   AND is_active = 1
                 LIMIT 10
             `);
             
