@@ -73,11 +73,12 @@ module.exports = {
     const guildId = interaction.guildId;
 
     try {
-      // Get the category details and count items/kits
+      // Get the category details and count items/kits/vehicles
       const [categoryResult] = await pool.query(
         `SELECT sc.id, sc.name, sc.type, rs.nickname as server_name,
          (SELECT COUNT(*) FROM shop_items WHERE category_id = sc.id) as item_count,
-         (SELECT COUNT(*) FROM shop_kits WHERE category_id = sc.id) as kit_count
+         (SELECT COUNT(*) FROM shop_kits WHERE category_id = sc.id) as kit_count,
+         (SELECT COUNT(*) FROM shop_vehicles WHERE category_id = sc.id) as vehicle_count
          FROM shop_categories sc 
          JOIN rust_servers rs ON sc.server_id = rs.id 
          JOIN guilds g ON rs.guild_id = g.id 
@@ -92,13 +93,13 @@ module.exports = {
       }
 
       const category = categoryResult[0];
-      const totalItems = parseInt(category.item_count) + parseInt(category.kit_count);
+      const totalItems = parseInt(category.item_count) + parseInt(category.kit_count) + parseInt(category.vehicle_count);
 
       if (totalItems > 0) {
         return interaction.editReply({
           embeds: [errorEmbed(
             'Category Not Empty',
-            `Cannot remove category **${category.name}** because it contains ${totalItems} items/kits.\n\nPlease remove all items and kits from this category first using \`/remove-shop-item\` and \`/remove-shop-kit\`.`
+            `Cannot remove category **${category.name}** because it contains ${totalItems} items/kits/vehicles.\n\nPlease remove all items, kits, and vehicles from this category first using \`/remove-shop-item\`, \`/remove-shop-kit\`, and \`/remove-shop-vehicle\`.`
           )]
         });
       }
@@ -112,7 +113,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Category Removed',
-          `**${category.name}** has been removed from the shop on **${category.server_name}**.\n\n**Category Details:**\n• **Type:** ${category.type}\n• **Items:** ${category.item_count}\n• **Kits:** ${category.kit_count}`
+          `**${category.name}** has been removed from the shop on **${category.server_name}**.\n\n**Category Details:**\n• **Type:** ${category.type}\n• **Items:** ${category.item_count}\n• **Kits:** ${category.kit_count}\n• **Vehicles:** ${category.vehicle_count}`
         )]
       });
 

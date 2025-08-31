@@ -293,9 +293,10 @@ async function handleShopCategorySelect(interaction) {
       });
     }
 
-    // Get items and kits
+    // Get items, kits, and vehicles
     let items = [];
     let kits = [];
+    let vehicles = [];
 
     if (type === 'items') {
       const itemsResult = await pool.query(
@@ -311,6 +312,14 @@ async function handleShopCategorySelect(interaction) {
         [categoryId]
       );
       kits = kitsResult[0];
+    }
+
+    if (type === 'vehicles') {
+      const vehiclesResult = await pool.query(
+        'SELECT id, display_name, short_name, price, timer FROM shop_vehicles WHERE category_id = ? ORDER BY display_name',
+        [categoryId]
+      );
+      vehicles = vehiclesResult[0];
     }
 
     // Get player balance for the specific server
@@ -334,7 +343,7 @@ async function handleShopCategorySelect(interaction) {
     // Create embed
     const embed = orangeEmbed(
       `🛒 ${name}`,
-      `**Server:** ${nickname}\n**Type:** ${type}\n**Your Balance:** ${balance} ${currencyName}\n\nSelect an item or kit to purchase:`
+      `**Server:** ${nickname}\n**Type:** ${type}\n**Your Balance:** ${balance} ${currencyName}\n\nSelect an item, kit, or vehicle to purchase:`
     );
 
     // Add items to embed
@@ -353,8 +362,16 @@ async function handleShopCategorySelect(interaction) {
       embed.addFields({ name: '🎒 Kits', value: kitsList, inline: false });
     }
 
-    if (items.length === 0 && kits.length === 0) {
-      embed.setDescription(`${embed.data.description}\n\nNo items or kits available in this category.`);
+    // Add vehicles to embed
+    if (vehicles.length > 0) {
+      const vehiclesList = vehicles.map(vehicle => 
+        `**${vehicle.display_name}** - ${vehicle.price} ${currencyName} (${vehicle.short_name})${vehicle.timer ? ` - ${vehicle.timer}m cooldown` : ''}`
+      ).join('\n');
+      embed.addFields({ name: '🚗 Vehicles', value: vehiclesList, inline: false });
+    }
+
+    if (items.length === 0 && kits.length === 0 && vehicles.length === 0) {
+      embed.setDescription(`${embed.data.description}\n\nNo items, kits, or vehicles available in this category.`);
     }
 
     // Create purchase options (Discord limit: 25 options max)
@@ -376,12 +393,20 @@ async function handleShopCategorySelect(interaction) {
       });
     });
 
-    console.log('[SHOP DEBUG] Total items:', items.length, 'Total kits:', kits.length);
+    vehicles.forEach(vehicle => {
+      allOptions.push({
+        label: `${vehicle.display_name} - ${vehicle.price} ${currencyName}`,
+        description: `Vehicle: ${vehicle.short_name}`,
+        value: `vehicle_${vehicle.id}`
+      });
+    });
+
+    console.log('[SHOP DEBUG] Total items:', items.length, 'Total kits:', kits.length, 'Total vehicles:', vehicles.length);
     console.log('[SHOP DEBUG] All options length:', allOptions.length);
 
     // Limit to 25 options (Discord's maximum)
     const limitedOptions = allOptions.slice(0, 25);
-    const totalItems = items.length + kits.length;
+    const totalItems = items.length + kits.length + vehicles.length;
     const hasMoreItems = totalItems > 25;
     
     console.log('[SHOP DEBUG] Limited options length:', limitedOptions.length);
@@ -389,7 +414,7 @@ async function handleShopCategorySelect(interaction) {
 
     // Check if we have any options to show
     if (limitedOptions.length === 0) {
-      embed.setDescription(`${embed.data.description}\n\n❌ **No items or kits available in this category.**`);
+      embed.setDescription(`${embed.data.description}\n\n❌ **No items, kits, or vehicles available in this category.**`);
       await interaction.editReply({
         embeds: [embed],
         components: []
@@ -401,7 +426,7 @@ async function handleShopCategorySelect(interaction) {
       .addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('shop_item_' + categoryId)
-          .setPlaceholder(`Select an item or kit to purchase${hasMoreItems ? ' (showing first 25)' : ''}`)
+          .setPlaceholder(`Select an item, kit, or vehicle to purchase${hasMoreItems ? ' (showing first 25)' : ''}`)
           .addOptions(limitedOptions)
       );
 
@@ -456,6 +481,14 @@ async function handleShopItemSelect(interaction) {
       console.log('Kit query result:', result);
       itemData = result[0];
       itemType = 'kit';
+    } else if (type === 'vehicle') {
+      const result = await pool.query(
+        'SELECT id, display_name, short_name, price, timer FROM shop_vehicles WHERE id = ?',
+        [itemId]
+      );
+      console.log('Vehicle query result:', result);
+      itemData = result[0];
+      itemType = 'vehicle';
     }
 
     if (!itemData || itemData.length === 0) {
@@ -670,6 +703,50 @@ async function handleConfirmPurchase(interaction) {
       // For kits, we'll add them to the delivery queue instead of giving directly
       // The command will be set to null since we're using the queue system
       command = null;
+    } else if (type === 'vehicle') {
+      console.log('Confirm purchase - querying vehicle with ID:', itemId);
+      const result = await pool.query(
+        'SELECT sv.display_name, sv.short_name, sv.price, sv.timer, rs.id as server_id, rs.ip, rs.port, rs.password, rs.nickname FROM shop_vehicles sv JOIN shop_categories sc ON sv.category_id = sc.id JOIN rust_servers rs ON sc.server_id = rs.id WHERE sv.id = ?',
+        [itemId]
+      );
+      console.log('Confirm purchase - vehicle query result:', result);
+      itemData = result[0] && result[0][0] ? result[0][0] : null;
+      timer = itemData ? itemData.timer : null;
+      
+      // Get player's IGN for the command
+      const playerResult = await pool.query(
+        'SELECT ign FROM players WHERE id = ?',
+        [playerId]
+      );
+      const playerIgn = playerResult[0] && playerResult[0][0] ? playerResult[0][0].ign : interaction.user.username;
+      
+      // For vehicles, we need to get the player's position first
+      // The command will be set to null initially, and we'll handle position tracking
+      command = null;
+      
+      // Store vehicle purchase request for position tracking
+      const vehiclePurchaseKey = `${itemData.server_id}:${playerIgn}:${itemData.short_name}`;
+      global.vehiclePurchaseRequests = global.vehiclePurchaseRequests || new Map();
+      global.vehiclePurchaseRequests.set(vehiclePurchaseKey, {
+        playerIgn,
+        shortName: itemData.short_name,
+        displayName: itemData.display_name,
+        serverId: itemData.server_id,
+        ip: itemData.ip,
+        port: itemData.port,
+        password: itemData.password,
+        nickname: itemData.nickname,
+        playerId,
+        userId,
+        price: itemData.price,
+        vehicleId: itemId,
+        timer: itemData.timer,
+        interaction
+      });
+      
+      // Request player position
+      const { sendRconCommand } = require('../rcon/index');
+      sendRconCommand(itemData.ip, itemData.port, itemData.password, `printpos "${playerIgn}"`);
     }
 
     if (!itemData) {
