@@ -776,6 +776,7 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
 
     if (existingPlayer.length === 0) {
       // Create new player record
+      console.log(`[DEBUG] Creating player record: guild_id=${guildId_db}, server_id=${serverId}, discord_id=null, ign=${playerName}`);
       const [newPlayer] = await pool.query(
         'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?)',
         [guildId_db, serverId, null, playerName]
