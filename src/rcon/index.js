@@ -3706,6 +3706,7 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
 async function setZoneToGreen(ip, port, password, playerName) {
   try {
     console.log(`[ZORP DEBUG] setZoneToGreen called for player: ${playerName}`);
+    console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
     // Get zone name from database
     const [zoneResult] = await pool.query(
       'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
@@ -3713,6 +3714,9 @@ async function setZoneToGreen(ip, port, password, playerName) {
     );
     
     console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for player ${playerName}`);
+    if (zoneResult.length > 0) {
+      console.log(`[ZORP DEBUG] Zone details: name=${zoneResult[0].name}, current_state=${zoneResult[0].current_state}, color_online=${zoneResult[0].color_online}`);
+    }
     
     if (zoneResult.length > 0) {
       const zone = zoneResult[0];
@@ -3727,10 +3731,15 @@ async function setZoneToGreen(ip, port, password, playerName) {
       await clearExpireCountdownTimer(zone.name);
       
       // Set zone to green settings: allow building (1), allow building damage (1), allow PvP (1)
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+      console.log(`[ZORP DEBUG] Setting zone ${zone.name} to green - sending RCON commands...`);
+      const result1 = await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuilding 1`);
+      console.log(`[ZORP DEBUG] allowbuilding result: ${result1}`);
+      const result2 = await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowbuildingdamage 1`);
+      console.log(`[ZORP DEBUG] allowbuildingdamage result: ${result2}`);
+      const result3 = await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" allowpvpdamage 1`);
+      console.log(`[ZORP DEBUG] allowpvpdamage result: ${result3}`);
+      const result4 = await sendRconCommand(ip, port, password, `zones.editcustomzone "${zone.name}" color (${zone.color_online})`);
+      console.log(`[ZORP DEBUG] color result: ${result4}`);
       
       // Update database state
       await pool.query(
@@ -4345,8 +4354,15 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const delayMs = delayMinutes * 60 * 1000;
     
     console.log(`[ZORP DEBUG] Starting ${delayMinutes}-minute timer for zone ${zoneName} to transition from white to green`);
+    console.log(`[ZORP DEBUG] Timer will fire at: ${new Date(Date.now() + delayMs).toISOString()}`);
+    
+    // TEMPORARY: Force immediate testing (5 seconds instead of delay)
+    const testDelayMs = 5000; // 5 seconds for testing
+    console.log(`[ZORP DEBUG] TESTING: Using 5-second delay instead of ${delayMinutes} minutes`);
+    
     const timerId = setTimeout(async () => {
       console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
+      console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
       // Get zone owner from database instead of parsing zone name
       const [ownerResult] = await pool.query(
         'SELECT owner FROM zorp_zones WHERE name = ?',
@@ -4360,7 +4376,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       } else {
         console.log(`[ZORP DEBUG] No owner found for zone ${zoneName} in database`);
       }
-    }, delayMs);
+    }, testDelayMs);
     
     // Store timer reference
     zorpTransitionTimers.set(zoneName, timerId);
