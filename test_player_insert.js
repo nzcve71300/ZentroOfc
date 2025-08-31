@@ -2,10 +2,10 @@ const pool = require('./src/db');
 
 async function testPlayerInsert() {
   try {
-    console.log('🔍 Testing player insert...');
+    console.log('🔍 Testing player insert with explicit NULL...');
     
     // Test the exact values from the error
-    const testValues = [609, '1756598716651_wmh0kflng', null, 'coldseasurfer'];
+    const testValues = [609, '1756598716651_wmh0kflng', 'coldseasurfer'];
     console.log('Test values:', testValues);
     
     // Check if the server_id exists
@@ -22,7 +22,7 @@ async function testPlayerInsert() {
     );
     console.log('Guild check result:', guildCheck);
     
-    // Try the insert with explicit NULL
+    // Try the insert with explicit NULL in SQL
     const [result] = await pool.query(
       'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, NULL, ?)',
       [609, '1756598716651_wmh0kflng', 'coldseasurfer']
