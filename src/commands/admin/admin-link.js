@@ -135,15 +135,15 @@ module.exports = {
         try {
           console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
 
-          // Delete any existing records that would conflict
+          // Delete any existing records that would conflict (guild-wide, not just server-specific)
           await pool.query(
-            'DELETE FROM players WHERE guild_id = ? AND server_id = ? AND discord_id = ?',
-            [guildRecord.id, server.id, discordId]
+            'DELETE FROM players WHERE guild_id = ? AND discord_id = ? AND is_active = true',
+            [guildRecord.id, discordId]
           );
 
           await pool.query(
-            'DELETE FROM players WHERE guild_id = ? AND server_id = ? AND LOWER(ign) = LOWER(?)',
-            [guildRecord.id, server.id, playerName]
+            'DELETE FROM players WHERE guild_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
+            [guildRecord.id, playerName]
           );
 
           // Insert new player
