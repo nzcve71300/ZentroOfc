@@ -224,17 +224,40 @@ class KillfeedProcessor {
       }
       
       // Get killer player record
-      const [killerResult] = await pool.query(
+      let [killerResult] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
         [serverId, sanitizedKiller]
       );
 
+      let killerPlayerId;
       if (killerResult.length === 0) {
-        console.log('Killer not found in database:', killerName);
-        console.log('Searching for killer in server:', serverId);
-        return;
+        console.log('Killer not found in database, creating player record:', killerName);
+        
+        // Get guild ID for this server
+        const [guildResult] = await pool.query(
+          'SELECT guild_id FROM rust_servers WHERE id = ?',
+          [serverId]
+        );
+        
+        if (guildResult.length === 0) {
+          console.log('Server not found:', serverId);
+          return;
+        }
+        
+        const guildId = guildResult[0].guild_id;
+        
+        // Create player record for unlinked player
+        const [insertResult] = await pool.query(
+          'INSERT INTO players (guild_id, server_id, ign, is_active) VALUES (?, ?, ?, 1)',
+          [guildId, serverId, sanitizedKiller]
+        );
+        
+        killerPlayerId = insertResult.insertId;
+        console.log('Created player record for killer:', killerName, 'ID:', killerPlayerId);
+      } else {
+        killerPlayerId = killerResult[0].id;
       }
 
       const killerPlayerId = killerResult[0].id;
@@ -272,18 +295,42 @@ class KillfeedProcessor {
   async processVictimDeath(victimName, serverId) {
     try {
       // Get victim player record
-      const [victimResult] = await pool.query(
+      let [victimResult] = await pool.query(
         `SELECT p.id FROM players p 
          JOIN rust_servers rs ON p.server_id = rs.id 
          WHERE rs.id = ? AND LOWER(p.ign) = LOWER(?)`,
         [serverId, victimName]
       );
 
+      let victimPlayerId;
       if (victimResult.length === 0) {
-        return; // Not a linked player
+        console.log('Victim not found in database, creating player record:', victimName);
+        
+        // Get guild ID for this server
+        const [guildResult] = await pool.query(
+          'SELECT guild_id FROM rust_servers WHERE id = ?',
+          [serverId]
+        );
+        
+        if (guildResult.length === 0) {
+          console.log('Server not found:', serverId);
+          return;
+        }
+        
+        const guildId = guildResult[0].guild_id;
+        
+        // Create player record for unlinked victim
+        const [insertResult] = await pool.query(
+          'INSERT INTO players (guild_id, server_id, ign, is_active) VALUES (?, ?, ?, 1)',
+          [guildId, serverId, victimName]
+        );
+        
+        victimPlayerId = insertResult.insertId;
+        console.log('Created player record for victim:', victimName, 'ID:', victimPlayerId);
+      } else {
+        victimPlayerId = victimResult[0].id;
       }
 
-      const victimPlayerId = victimResult[0].id;
       const victimStats = await this.getOrCreatePlayerStats(victimPlayerId);
 
       // Update victim stats (all deaths count)
