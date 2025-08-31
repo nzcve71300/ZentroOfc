@@ -52,11 +52,11 @@ module.exports = {
 
       console.log(`🔗 ADMIN-LINK: Validated inputs - Discord ID: ${discordId}, IGN: "${playerName}", Guild: ${guildId}`);
 
-      // Get all servers for this guild
+      // Get all servers for this guild using the same pattern as /link command
       const [servers] = await pool.query(`
         SELECT id, nickname, guild_id 
         FROM rust_servers 
-        WHERE guild_id = ?
+        WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
       `, [guildId]);
 
       if (servers.length === 0) {
