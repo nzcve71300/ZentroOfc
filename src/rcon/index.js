@@ -4079,38 +4079,7 @@ async function handleTeamChanges(client, guildId, serverName, msg, ip, port, pas
     
     if (teamCreatedMatch || teamJoinedMatch || teamLeftMatch || teamKickedMatch || teamDisbandedMatch) {
       // Debug logging removed for production
-      
-      // Get all active ZORPs for this server
-      const [serverResult] = await pool.query(
-        'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
-        [guildId, serverName]
-      );
-      
-      if (serverResult.length === 0) return;
-      
-      const serverId = serverResult[0].id;
-      const [zones] = await pool.query(
-        'SELECT * FROM zorp_zones WHERE server_id = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
-        [serverId]
-      );
-      
-      for (const zone of zones) {
-        try {
-          // Delete zone from game
-          await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zone.name}"`);
-          
-          // Delete from database
-          await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
-          
-          console.log(`[ZORP] Deleted zone ${zone.name} due to team change`);
-          
-          // Send to zorp feed
-          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted - Team changed`);
-          
-        } catch (error) {
-          console.error(`Error deleting zone ${zone.name}:`, error);
-        }
-      }
+      console.log(`[ZORP DEBUG] Team change detected but NOT deleting zones - zones are individual player zones, not team zones`);
     }
   } catch (error) {
     console.error('Error handling team changes:', error);
