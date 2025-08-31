@@ -176,7 +176,7 @@ function startRconListeners(client) {
     pollPlayerCounts(client);
   }, 60000);
   setInterval(() => flushJoinLeaveBuffers(client), 60000);
-  setInterval(() => flushKillFeedBuffers(client), 60000);
+  setInterval(() => flushKillFeedBuffers(client), 10000); // Flush every 10 seconds for high-volume servers
   setInterval(() => checkAllEvents(client), EVENT_POLLING_INTERVAL); // Check for events every 30 seconds for better detection
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
   
@@ -2491,7 +2491,9 @@ async function flushKillFeedBuffers(client) {
     const messages = killFeedBuffer[key];
     if (!messages.length) continue;
     
-    const desc = messages.join('\n');
+    // Limit to last 20 messages to prevent huge embeds
+    const recentMessages = messages.slice(-20);
+    const desc = recentMessages.join('<br>');
     await sendFeedEmbed(client, guildId, serverName, 'killfeed', desc);
     killFeedBuffer[key] = [];
   }
