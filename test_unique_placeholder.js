@@ -12,10 +12,16 @@ async function testUniquePlaceholder() {
     
     // Generate unique placeholders
     const hash1 = crypto.createHash('md5').update(playerName1 + serverId).digest('hex');
-    const uniquePlaceholder1 = hash1.substring(0, 18).padStart(18, '0');
+    const numericHash1 = hash1.substring(0, 18).replace(/[a-f]/g, (match) => {
+      return String(match.charCodeAt(0) - 97 + 1); // a->1, b->2, c->3, d->4, e->5, f->6
+    });
+    const uniquePlaceholder1 = numericHash1.padStart(18, '0');
     
     const hash2 = crypto.createHash('md5').update(playerName2 + serverId).digest('hex');
-    const uniquePlaceholder2 = hash2.substring(0, 18).padStart(18, '0');
+    const numericHash2 = hash2.substring(0, 18).replace(/[a-f]/g, (match) => {
+      return String(match.charCodeAt(0) - 97 + 1); // a->1, b->2, c->3, d->4, e->5, f->6
+    });
+    const uniquePlaceholder2 = numericHash2.padStart(18, '0');
     
     console.log(`Player 1: ${playerName1} -> ${uniquePlaceholder1}`);
     console.log(`Player 2: ${playerName2} -> ${uniquePlaceholder2}`);
