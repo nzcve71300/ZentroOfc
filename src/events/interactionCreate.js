@@ -569,18 +569,23 @@ async function handleShopItemSelect(interaction) {
           ])
       );
 
-    // Create button for adjusting quantity
-    const quantityRow = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(`adjust_quantity_${type}_${itemId}_${player_id}`)
-          .setLabel('Adjust Quantity')
-          .setStyle(ButtonStyle.Secondary)
-      );
+    // Create button for adjusting quantity (only for items, not kits)
+    let components = [buttonRow, removeRow];
+    
+    if (type === 'item') {
+      const quantityRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(`adjust_quantity_${type}_${itemId}_${player_id}`)
+            .setLabel('Adjust Quantity')
+            .setStyle(ButtonStyle.Secondary)
+        );
+      components.push(quantityRow);
+    }
 
     await interaction.editReply({
       embeds: [embed],
-      components: [buttonRow, removeRow, quantityRow]
+      components: components
     });
 
   } catch (error) {
@@ -1819,6 +1824,15 @@ async function handleAdjustQuantity(interaction) {
     const [, , type, itemId, playerId] = parts;
     console.log('[BUTTON] Parsed parts:', { type, itemId, playerId });
 
+    // Prevent quantity adjustment for kits
+    if (type === 'kit') {
+      await interaction.reply({
+        content: '❌ Quantity adjustment is not available for kits. Kits are delivered one at a time.',
+        ephemeral: true
+      });
+      return;
+    }
+
     // Create buttons for different quantities
     const quantityRow1 = new ActionRowBuilder()
       .addComponents(
@@ -2235,6 +2249,15 @@ async function handleRemoveShopItem(interaction) {
             const numQuantity = parseInt(quantity);
 
             console.log('[SET_QUANTITY] Setting quantity multiplier:', { type, itemId, playerId, quantity: numQuantity });
+
+            // Prevent quantity adjustment for kits
+            if (type === 'kit') {
+              await interaction.update({
+                content: '❌ Quantity adjustment is not available for kits. Kits are delivered one at a time.',
+                components: []
+              });
+              return;
+            }
 
             // Get the original item details (don't update the shop database)
             let itemData;
