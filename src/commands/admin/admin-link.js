@@ -112,11 +112,28 @@ module.exports = {
         try {
           console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
           
-          // Ensure guild exists
-          await pool.query(
-            'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
-            [guildId, interaction.guild?.name || 'Unknown Guild']
-          );
+          // Ensure guild exists - get the guild ID from the guilds table or create it
+          let guildRecord;
+          try {
+            const [guildResult] = await pool.query(
+              'SELECT id FROM guilds WHERE discord_id = ?',
+              [guildId]
+            );
+            
+            if (guildResult.length === 0) {
+              // Create the guild record
+              const [insertResult] = await pool.query(
+                'INSERT INTO guilds (discord_id, name) VALUES (?, ?)',
+                [guildId, interaction.guild?.name || 'Unknown Guild']
+              );
+              guildRecord = { id: insertResult.insertId };
+            } else {
+              guildRecord = guildResult[0];
+            }
+          } catch (error) {
+            console.error(`❌ ADMIN-LINK: Failed to ensure guild exists:`, error);
+            throw new Error(`Failed to create guild record: ${error.message}`);
+          }
 
           // Delete any existing records that would conflict
           await pool.query(
@@ -132,14 +149,14 @@ module.exports = {
           // Insert new player
           const [playerResult] = await pool.query(
             'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [guildId, server.id, discordId, playerName]
+            [guildRecord.id, server.id, discordId, playerName]
           );
           console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
           
           // Create economy record
           await pool.query(
             'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE balance = balance',
-            [playerResult.insertId, guildId]
+            [playerResult.insertId, guildRecord.id]
           );
           console.log(`🔗 ADMIN-LINK: Created economy record for player ${playerResult.insertId} on server ${server.nickname}`);
           
