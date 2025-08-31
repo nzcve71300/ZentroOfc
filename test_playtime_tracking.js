@@ -4,7 +4,7 @@ async function testPlaytimeTracking() {
   console.log('🧪 Testing playtime tracking functions...');
   
   try {
-    const guildId = '609'; // Dead-ops guild ID
+    const guildId = '1387187628469653555'; // Dead-ops guild ID
     const serverName = 'Dead-ops';
     const testPlayer = 'Standing M2';
     
