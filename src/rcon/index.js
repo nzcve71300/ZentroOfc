@@ -4312,9 +4312,12 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     // Create zone in-game using server defaults
     // Green zone settings: allow building (1), allow building damage (1), allow PvP (1)
     const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${defaults.size} 1 0 0 1 1`;
-    await sendRconCommand(ip, port, password, zoneCommand);
+    console.log(`[ZORP DEBUG] Creating zone with command: ${zoneCommand}`);
+    const createResult = await sendRconCommand(ip, port, password, zoneCommand);
+    console.log(`[ZORP DEBUG] Zone creation result: ${createResult}`);
 
     // Set zone to white initially (2-minute transition to green)
+    console.log(`[ZORP DEBUG] Setting zone ${zoneName} to white state`);
     await setZoneToWhite(ip, port, password, zoneName);
 
     // Set zone enter/leave messages
@@ -4342,6 +4345,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       last_online_at: new Date()
     };
 
+    console.log(`[ZORP DEBUG] Inserting zone into database: ${zoneName} for player ${playerName}`);
     await pool.query(`
       INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, last_online_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -4350,6 +4354,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline, zoneData.color_yellow,
       zoneData.radiation, zoneData.delay, zoneData.expire, zoneData.min_team, zoneData.max_team, zoneData.current_state, zoneData.last_online_at
     ]);
+    console.log(`[ZORP DEBUG] Successfully inserted zone ${zoneName} into database`);
 
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
