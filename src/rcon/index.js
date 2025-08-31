@@ -3811,6 +3811,7 @@ async function setZoneToRed(ip, port, password, playerName) {
       );
       
                     // Start expire countdown timer (this is the timer that counts down the expire time when offline)
+      console.log(`[ZORP DEBUG] Starting expire countdown timer for ${playerName} (${zone.name}) with expire time: ${zone.expire} seconds`);
       startExpireCountdownTimer(ip, port, password, playerName, zone.name, zone.expire);
       
       // Update in-memory state
@@ -3906,7 +3907,9 @@ async function startExpireCountdownTimer(ip, port, password, playerName, zoneNam
     clearExpireCountdownTimer(zoneName);
     
     // Start new expire countdown timer
+    console.log(`[ZORP DEBUG] Setting timeout for ${expireSeconds} seconds (${expireSeconds * 1000} ms) for zone ${zoneName}`);
     const timerId = setTimeout(async () => {
+      console.log(`[ZORP DEBUG] Expire countdown timer fired for zone ${zoneName} - calling handleExpireCountdown`);
       await handleExpireCountdown(ip, port, password, playerName, zoneName);
     }, expireSeconds * 1000);
     
@@ -4361,6 +4364,11 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Log to zorp feed
     await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp created`);
+
+    // Verify zone was created by checking if it exists in the game
+    console.log(`[ZORP DEBUG] Verifying zone ${zoneName} was created successfully...`);
+    const verifyResult = await sendRconCommand(ip, port, password, `zones.list`);
+    console.log(`[ZORP DEBUG] Zones list result: ${verifyResult}`);
 
     // Debug logging removed for production
 
