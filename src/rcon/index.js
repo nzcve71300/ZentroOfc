@@ -4762,6 +4762,9 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
         // Only trigger offline if player was actually online before
         console.log(`[ZORP] Player ${player} went offline on ${serverName} (via polling)`);
         
+        // Always handle playtime tracking for offline players
+        await handlePlaytimeOffline(guildId, serverName, player);
+        
         // Check if this player has a Zorp zone before processing offline
         const [zoneResult] = await pool.query(
           'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
@@ -4782,6 +4785,9 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
       if (!previousOnline.has(player)) {
         // Only trigger online if player wasn't online before
         console.log(`[ZORP] Player ${player} came online on ${serverName} (via polling)`);
+        
+        // Always handle playtime tracking for online players
+        await handlePlaytimeOnline(guildId, serverName, player);
         
         // Check if this player has a Zorp zone or is part of a team with a Zorp zone
         const [zoneResult] = await pool.query(
@@ -4837,9 +4843,6 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     }
     
     lastOfflineCall.set(playerKey, now);
-    
-    // Handle playtime tracking when player goes offline
-    await handlePlaytimeOffline(guildId, serverName, cleanPlayerName);
     
     console.log(`[ZORP DEBUG] Processing offline for ${cleanPlayerName} on ${serverName}`);
     
@@ -4911,9 +4914,6 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     }
     
     lastOfflineCall.set(playerKey, now);
-    
-    // Handle playtime tracking when player comes online
-    await handlePlaytimeOnline(guildId, serverName, cleanPlayerName);
     
     console.log(`[ZORP DEBUG] Processing online for ${cleanPlayerName} on ${serverName}`);
     
