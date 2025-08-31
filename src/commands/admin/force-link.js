@@ -63,7 +63,6 @@ module.exports = {
 
       console.log(`🔗 FORCE-LINK COMMAND: Validated inputs - Discord ID: ${discordId}, IGN: "${playerName}", Guild: ${guildId}`);
 
-    try {
       // Get all servers for this guild
       const [servers] = await pool.query(`
         SELECT id, nickname, guild_id 
