@@ -1,126 +1,162 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
-const { compareDiscordIds } = require('../../utils/discordUtils');
+const { validateDiscordIdForDatabase, compareDiscordIds } = require('../../utils/discordUtils');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('link')
-    .setDescription('Link your Discord account with your in-game name (ONE TIME ONLY)')
-    .addStringOption(opt =>
-      opt.setName('in-game-name')
-        .setDescription('Your in-game name (supports all characters, symbols, and fonts)')
+    .setDescription('Link your Discord account to your in-game name')
+    .addStringOption(option =>
+      option.setName('ign')
+        .setDescription('Your in-game name')
         .setRequired(true)
-        .setMaxLength(32)
-    ),
+        .setMaxLength(32)),
+
   async execute(interaction) {
-    await interaction.deferReply();
-
-    const discordGuildId = interaction.guildId;
-    const discordId = interaction.user.id;
+    console.log(`🔗 LINK COMMAND: User ${interaction.user.id} attempting to link IGN: "${interaction.options.getString('ign')}"`);
     
-    // 🛡️ FUTURE-PROOF IGN HANDLING: Preserve original case, only trim spaces
-    const rawIgn = interaction.options.getString('in-game-name');
-    const ign = rawIgn.trim(); // Only trim spaces, preserve case and special characters
-
-    // Validate IGN - be very permissive for weird names
-    if (!ign || ign.length < 1) {
-      return await interaction.editReply({
-        embeds: [errorEmbed('Invalid Name', 'Please provide a valid in-game name (at least 1 character).')]
-      });
-    }
-
-    // Log the linking attempt for debugging
-    console.log(`[LINK ATTEMPT] Guild: ${discordGuildId}, Discord ID: ${discordId}, IGN: "${ign}"`);
-
     try {
+      const discordId = interaction.user.id;
+      const ign = interaction.options.getString('ign').trim();
+      const guildId = interaction.guildId;
+
+      // CRITICAL VALIDATION 1: Validate Discord ID before any processing
+      if (!validateDiscordIdForDatabase(discordId, 'link command')) {
+        console.error(`🚨 LINK COMMAND: Invalid Discord ID detected: ${discordId}`);
+        await interaction.reply({
+          content: '❌ **Error:** Invalid Discord ID detected. Please contact an administrator.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // CRITICAL VALIDATION 2: Validate IGN
+      if (!ign || ign.length < 2 || ign.length > 32) {
+        console.error(`🚨 LINK COMMAND: Invalid IGN detected: "${ign}"`);
+        await interaction.reply({
+          content: '❌ **Error:** Invalid in-game name. Must be 2-32 characters.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // CRITICAL VALIDATION 3: Validate guild ID
+      if (!guildId) {
+        console.error(`🚨 LINK COMMAND: No guild ID found for user ${discordId}`);
+        await interaction.reply({
+          content: '❌ **Error:** Guild ID not found. Please try again.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      console.log(`🔗 LINK COMMAND: Validated inputs - Discord ID: ${discordId}, IGN: "${ign}", Guild: ${guildId}`);
+
       // Get all servers for this guild
-      const [servers] = await pool.query(
-        'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
-        [discordGuildId]
-      );
+      const [servers] = await pool.query(`
+        SELECT id, nickname, guild_id 
+        FROM rust_servers 
+        WHERE guild_id = ?
+      `, [guildId]);
 
       if (servers.length === 0) {
-        return await interaction.editReply({
-          embeds: [orangeEmbed('No Server Found', 'No Rust server found for this Discord. Contact an admin.')]
+        console.log(`❌ LINK COMMAND: No servers found for guild ${guildId}`);
+        await interaction.reply({
+          content: '❌ **Error:** No Rust servers found for this Discord server.',
+          ephemeral: true
         });
+        return;
       }
 
-      // 🔍 CRITICAL CHECK 1: Check if this Discord ID has ANY active links (case-insensitive)
-      const [activeDiscordLinks] = await pool.query(
-        `SELECT p.*, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND p.discord_id = ? 
-         AND p.is_active = true`,
-        [discordGuildId, discordId]
-      );
+      console.log(`🔗 LINK COMMAND: Found ${servers.length} servers for guild ${guildId}`);
 
-      console.log(`[LINK DEBUG] Found ${activeDiscordLinks.length} active links for Discord ID ${discordId}`);
+      // CRITICAL CHECK 1: Check if this Discord user has active links in this guild
+      console.log(`🔍 LINK COMMAND: Checking if Discord user ${discordId} has active links in guild ${guildId}...`);
+      const [activeDiscordLinks] = await pool.query(`
+        SELECT ign, server_id, linked_at
+        FROM players 
+        WHERE discord_id = ? AND guild_id = ? AND is_active = 1
+      `, [discordId, guildId]);
+
+      console.log(`🔍 LINK COMMAND: Found ${activeDiscordLinks.length} active links for Discord user ${discordId} in guild ${guildId}`);
 
       if (activeDiscordLinks.length > 0) {
-        const currentIgn = activeDiscordLinks[0].ign;
-        const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
+        const existingLink = activeDiscordLinks[0];
+        console.log(`❌ LINK COMMAND: User ${discordId} already linked to "${existingLink.ign}" on server ${existingLink.server_id}`);
         
-        return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)]
+        await interaction.reply({
+          content: `❌ **Already Linked**\nYou are already linked to **${existingLink.ign}** on: **${existingLink.server_id}**\n\n⚠️ **ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`,
+          ephemeral: true
         });
+        return;
       }
 
-      // 🔍 CRITICAL CHECK 2: Check if this IGN is actively linked to ANYONE (case-insensitive) - BULLETPROOF VERSION
-      const [activeIgnLinks] = await pool.query(
-        `SELECT p.*, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(p.ign) = LOWER(?) 
-         AND p.is_active = true`,
-        [discordGuildId, ign]
-      );
+      // CRITICAL CHECK 2: Check if this IGN has active links in this guild
+      console.log(`🔍 LINK COMMAND: Checking if IGN "${ign}" has active links in guild ${guildId}...`);
+      const [activeIgnLinks] = await pool.query(`
+        SELECT discord_id, server_id, linked_at
+        FROM players 
+        WHERE ign = ? AND guild_id = ? AND is_active = 1
+      `, [ign, guildId]);
+
+      console.log(`🔍 LINK COMMAND: Found ${activeIgnLinks.length} active links for IGN "${ign}" in guild ${guildId}`);
 
       if (activeIgnLinks.length > 0) {
-        console.log(`[LINK DEBUG] Found ${activeIgnLinks.length} active records for IGN ${ign}`);
+        const existingLink = activeIgnLinks[0];
+        console.log(`❌ LINK COMMAND: IGN "${ign}" already linked to Discord ID ${existingLink.discord_id} on server ${existingLink.server_id}`);
         
-        // Check if it's the same user trying to link the same IGN (should be allowed)
-        const sameUserLink = activeIgnLinks.find(link => compareDiscordIds(link.discord_id, discordId));
-        
-        if (sameUserLink) {
-          console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);
-          // Allow the user to update their existing link - continue to confirmation
-        } else {
-          // IGN is actively linked to someone else
-          const existingDiscordId = activeIgnLinks[0].discord_id;
-          const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
-          
-          console.log(`[LINK DEBUG] IGN ${ign} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
-          return await interaction.editReply({
-            embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
-          });
-        }
+        await interaction.reply({
+          content: `❌ **IGN Already Linked**\nThe in-game name **${ign}** is already linked to another Discord account on: **${existingLink.server_id}**\n\nPlease use a different in-game name or contact an admin.`,
+          ephemeral: true
+        });
+        return;
       }
 
-      // ✅ All checks passed - show confirmation
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`link_confirm_${discordGuildId}_${discordId}_${ign}`)
-          .setLabel('Confirm Link')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('link_cancel')
-          .setLabel('Cancel')
-          .setStyle(ButtonStyle.Danger)
-      );
+      console.log(`✅ LINK COMMAND: All checks passed - proceeding with link creation`);
 
-      const confirmEmbed = orangeEmbed(
-        'Confirm Link', 
-        `Are you sure you want to link your Discord account to **${ign}**?\n\nThis will link your account across **${servers.length} server(s)**:\n${servers.map(s => `• ${s.nickname}`).join('\n')}\n\n**⚠️ CRITICAL:** This is a **ONE-TIME LINK**. You cannot change your linked name later without admin help!\n\n**Make sure this is the correct in-game name!**`
-      );
+      // Create confirmation embed
+      const embed = new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle('🔗 Link Confirmation')
+        .setDescription(`Are you sure you want to link your Discord account to **${ign}**?`)
+        .addFields(
+          { name: 'Discord User', value: `<@${discordId}>`, inline: true },
+          { name: 'In-Game Name', value: ign, inline: true },
+          { name: 'Servers', value: servers.map(s => s.nickname).join(', '), inline: false }
+        )
+        .setFooter({ text: 'This link will apply to all servers in this Discord server' })
+        .setTimestamp();
+
+      const confirmButton = new ButtonBuilder()
+        .setCustomId(`link_confirm_${guildId}_${discordId}_${ign}`)
+        .setLabel('Confirm Link')
+        .setStyle(ButtonStyle.Success);
+
+      const cancelButton = new ButtonBuilder()
+        .setCustomId('link_cancel')
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary);
+
+      const row = new ActionRowBuilder()
+        .addComponents(confirmButton, cancelButton);
+
+      console.log(`🔗 LINK COMMAND: Sending confirmation embed for user ${discordId}, IGN "${ign}"`);
       
-      await interaction.editReply({ embeds: [confirmEmbed], components: [row] });
+      await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true
+      });
+
     } catch (error) {
-      console.error('Error in /link:', error);
-      await interaction.editReply({ embeds: [errorEmbed('Error', 'Failed to process link request. Please try again.')] });
+      console.error(`🚨 LINK COMMAND ERROR:`, error);
+      console.error(`🚨 Context: Discord ID: ${interaction.user.id}, IGN: "${interaction.options.getString('ign')}", Guild: ${interaction.guildId}`);
+      
+      await interaction.reply({
+        content: '❌ **Error:** An unexpected error occurred while processing your link request. Please try again or contact an administrator.',
+        ephemeral: true
+      });
     }
   }
 };

@@ -1,6 +1,6 @@
 const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
 const { errorEmbed, orangeEmbed, successEmbed } = require('../embeds/format');
-const { compareDiscordIds } = require('../utils/discordUtils');
+const { compareDiscordIds, validateDiscordIdForDatabase } = require('../utils/discordUtils');
 const { getServerByNickname, getServerById, getLinkedPlayer, updateBalance, recordTransaction } = require('../utils/economy');
 const pool = require('../db');
 const { sendRconCommand } = require('../rcon');
@@ -999,231 +999,172 @@ async function handleCancelPurchase(interaction) {
 }
 
 async function handleLinkConfirm(interaction) {
-  await interaction.deferUpdate();
-  
-  // Parse custom ID: link_confirm_${discordGuildId}_${discordId}_${ign}
-  // IGN might contain underscores, so we need to handle this carefully
-  const parts = interaction.customId.split('_');
-  const discordGuildId = parts[2];
-  const discordId = parts[3];
-  // IGN is everything after the discord ID, joined back together
-  const ign = parts.slice(4).join('_');
-  
-  // 🛡️ FUTURE-PROOF IGN HANDLING: Preserve original case, only trim spaces
-  const normalizedIgn = ign.trim(); // Only trim spaces, preserve case and special characters
-  
-  console.log('🔍 Link Confirm Debug:', { discordGuildId, discordId, ign, normalizedIgn });
-  
-  try {
-    const pool = require('../db');
+    console.log(`🔗 LINK CONFIRM: User ${interaction.user.id} clicked confirm button`);
     
-    // Get all servers for this guild
-    const [servers] = await pool.query(
-      'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
-      [discordGuildId]
-    );
-    
-    if (servers.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('No Servers', 'No servers found in this guild.')],
-        components: []
-      });
-    }
-
-    // ✅ CRITICAL CHECK: Verify no active links exist before proceeding
-    const [activeDiscordLinks] = await pool.query(
-      `SELECT p.*, rs.nickname 
-       FROM players p
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-       AND p.discord_id = ? 
-       AND p.is_active = true`,
-      [discordGuildId, discordId]
-    );
-
-    if (activeDiscordLinks.length > 0) {
-      const currentIgn = activeDiscordLinks[0].ign;
-      const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
-      
-      return interaction.editReply({
-        embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)],
-        components: []
-      });
-    }
-
-    // ✅ CRITICAL CHECK: Verify IGN is not actively linked to anyone else
-    const [activeIgnLinks] = await pool.query(
-      `SELECT p.*, rs.nickname 
-       FROM players p
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-       AND LOWER(p.ign) = LOWER(?) 
-       AND p.is_active = true`,
-      [discordGuildId, normalizedIgn]
-    );
-
-    if (activeIgnLinks.length > 0) {
-      // Check if it's the same user trying to link the same IGN (should be allowed)
-      const sameUserLink = activeIgnLinks.find(link => compareDiscordIds(link.discord_id, discordId));
-      
-      if (sameUserLink) {
-        console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);
-        // Allow the user to update their existing link - continue to confirmation
-      } else {
-        // IGN is actively linked to someone else
-        const existingDiscordId = activeIgnLinks[0].discord_id;
-        const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
-        
-        console.log(`[LINK DEBUG] IGN ${normalizedIgn} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
-        return interaction.editReply({
-          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${normalizedIgn}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)],
-          components: []
-        });
-      }
-    }
-
-    // Confirm link for all servers
-    const linkedServers = [];
-    let errorMessage = null;
-    
-    for (const server of servers) {
-      try {
-        // Ensure guild exists
-        await pool.query(
-          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
-          [discordGuildId, interaction.guild?.name || 'Unknown Guild']
-        );
-
-        // ✅ BULLETPROOF INSERT: Check for existing record first, then insert or update
-        const [existingPlayer] = await pool.query(
-          'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ?',
-          [discordGuildId, server.id, discordId]
-        );
-        
-        let playerResult;
-        if (existingPlayer.length > 0) {
-          // Update existing record
-          const [updateResult] = await pool.query(
-            'UPDATE players SET ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-            [normalizedIgn, existingPlayer[0].id]
-          );
-          playerResult = { insertId: existingPlayer[0].id };
-        } else {
-          // Insert new record
-          const [insertResult] = await pool.query(
-            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [discordGuildId, server.id, discordId, normalizedIgn]
-          );
-          playerResult = insertResult;
-        }
-        
-        // Create economy record with starting balance
-        // Get starting balance from eco_games_config
-        const [configResult] = await pool.query(
-          'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
-          [server.id, 'starting_balance']
-        );
-        
-        let startingBalance = 0; // Default starting balance
-        if (configResult.length > 0) {
-          startingBalance = parseInt(configResult[0].setting_value) || 0;
-        }
-        
-        console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
-        
-        await pool.query(
-          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
-          [playerResult.insertId, playerResult.insertId, startingBalance]
-        );
-        
-        linkedServers.push(server.nickname);
-      } catch (error) {
-        console.error(`Failed to link to server ${server.nickname}:`, error);
-        
-        // Check for specific database constraint violations
-        if (error.message.includes('Duplicate entry') || error.message.includes('UNIQUE constraint failed')) {
-          errorMessage = `❌ This IGN is already linked to another Discord account on ${server.nickname}. Contact an admin to unlink.`;
-          break;
-        }
-        
-        errorMessage = `❌ Failed to link to ${server.nickname}: ${error.message}`;
-        break;
-      }
-    }
-
-    if (errorMessage) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Link Failed', errorMessage)],
-        components: []
-      });
-    }
-
-    if (linkedServers.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Link Failed', 'Failed to link account to any servers. Please try again.')],
-        components: []
-      });
-    }
-
-    const serverList = linkedServers.join(', ');
-    
-    // Create ZentroLinked role if it doesn't exist and assign it to the user
     try {
-      const guild = interaction.guild;
-      let zentroLinkedRole = guild.roles.cache.find(role => role.name === 'ZentroLinked');
-      
-      if (!zentroLinkedRole) {
-        console.log(`[ROLE] Creating ZentroLinked role for guild: ${guild.name}`);
-        zentroLinkedRole = await guild.roles.create({
-          name: 'ZentroLinked',
-          color: '#00ff00', // Green color
-          reason: 'Auto-created role for linked players'
+        // Parse the custom ID to get the data
+        const customId = interaction.customId;
+        const parts = customId.split('_');
+        
+        if (parts.length < 5) {
+            console.error(`🚨 LINK CONFIRM: Invalid custom ID format: ${customId}`);
+            await interaction.reply({
+                content: '❌ **Error:** Invalid link confirmation. Please try the /link command again.',
+                ephemeral: true
+            });
+            return;
+        }
+        
+        const discordGuildId = parts[2];
+        const discordId = parts[3];
+        const ign = parts.slice(4).join('_'); // Rejoin in case IGN contains underscores
+        
+        console.log(`🔗 LINK CONFIRM: Parsed data - Guild: ${discordGuildId}, Discord ID: ${discordId}, IGN: "${ign}"`);
+
+        // CRITICAL VALIDATION 1: Validate Discord ID before any processing
+        if (!validateDiscordIdForDatabase(discordId, 'link confirm button')) {
+            console.error(`🚨 LINK CONFIRM: Invalid Discord ID detected: ${discordId}`);
+            await interaction.reply({
+                content: '❌ **Error:** Invalid Discord ID detected. Please contact an administrator.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        // CRITICAL VALIDATION 2: Validate IGN
+        if (!ign || ign.length < 2 || ign.length > 32) {
+            console.error(`🚨 LINK CONFIRM: Invalid IGN detected: "${ign}"`);
+            await interaction.reply({
+                content: '❌ **Error:** Invalid in-game name. Must be 2-32 characters.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        // CRITICAL VALIDATION 3: Validate guild ID
+        if (!discordGuildId || isNaN(discordGuildId)) {
+            console.error(`🚨 LINK CONFIRM: Invalid guild ID detected: ${discordGuildId}`);
+            await interaction.reply({
+                content: '❌ **Error:** Invalid guild ID. Please try again.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        // CRITICAL VALIDATION 4: Verify the user clicking is the same user who initiated the link
+        if (interaction.user.id !== discordId) {
+            console.error(`🚨 LINK CONFIRM: User mismatch - Clicker: ${interaction.user.id}, Expected: ${discordId}`);
+            await interaction.reply({
+                content: '❌ **Error:** Only the user who initiated the link can confirm it.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        console.log(`🔗 LINK CONFIRM: All validations passed - proceeding with link creation`);
+
+        // Get all servers for this guild
+        const [servers] = await pool.query(`
+            SELECT id, nickname, guild_id 
+            FROM rust_servers 
+            WHERE guild_id = ?
+        `, [discordGuildId]);
+
+        if (servers.length === 0) {
+            console.error(`🚨 LINK CONFIRM: No servers found for guild ${discordGuildId}`);
+            await interaction.reply({
+                content: '❌ **Error:** No Rust servers found for this Discord server.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        console.log(`🔗 LINK CONFIRM: Found ${servers.length} servers for guild ${discordGuildId}`);
+
+        // CRITICAL CHECK 1: Check if this Discord user has active links in this guild
+        console.log(`🔍 LINK CONFIRM: Checking if Discord user ${discordId} has active links in guild ${discordGuildId}...`);
+        const [activeDiscordLinks] = await pool.query(`
+            SELECT ign, server_id, linked_at
+            FROM players 
+            WHERE discord_id = ? AND guild_id = ? AND is_active = 1
+        `, [discordId, discordGuildId]);
+
+        console.log(`🔍 LINK CONFIRM: Found ${activeDiscordLinks.length} active links for Discord user ${discordId} in guild ${discordGuildId}`);
+
+        if (activeDiscordLinks.length > 0) {
+            const existingLink = activeDiscordLinks[0];
+            console.log(`❌ LINK CONFIRM: User ${discordId} already linked to "${existingLink.ign}" on server ${existingLink.server_id}`);
+            
+            await interaction.reply({
+                content: `❌ **Already Linked**\nYou are already linked to **${existingLink.ign}** on: **${existingLink.server_id}**\n\n⚠️ **ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`,
+                ephemeral: true
+            });
+            return;
+        }
+
+        // CRITICAL CHECK 2: Check if this IGN has active links in this guild
+        console.log(`🔍 LINK CONFIRM: Checking if IGN "${ign}" has active links in guild ${discordGuildId}...`);
+        const [activeIgnLinks] = await pool.query(`
+            SELECT discord_id, server_id, linked_at
+            FROM players 
+            WHERE ign = ? AND guild_id = ? AND is_active = 1
+        `, [ign, discordGuildId]);
+
+        console.log(`🔍 LINK CONFIRM: Found ${activeIgnLinks.length} active links for IGN "${ign}" in guild ${discordGuildId}`);
+
+        if (activeIgnLinks.length > 0) {
+            const existingLink = activeIgnLinks[0];
+            console.log(`❌ LINK CONFIRM: IGN "${ign}" already linked to Discord ID ${existingLink.discord_id} on server ${existingLink.server_id}`);
+            
+            await interaction.reply({
+                content: `❌ **IGN Already Linked**\nThe in-game name **${ign}** is already linked to another Discord account on: **${existingLink.server_id}**\n\nPlease use a different in-game name or contact an admin.`,
+                ephemeral: true
+            });
+            return;
+        }
+
+        console.log(`✅ LINK CONFIRM: All checks passed - creating links for ${servers.length} servers`);
+
+        // Create links for all servers in this guild
+        const linkPromises = servers.map(server => {
+            console.log(`🔗 LINK CONFIRM: Creating link for server ${server.id} (${server.nickname})`);
+            return pool.query(`
+                INSERT INTO players (discord_id, ign, server_id, guild_id, is_active, linked_at)
+                VALUES (?, ?, ?, ?, 1, NOW())
+            `, [discordId, ign, server.id, discordGuildId]);
         });
-        console.log(`[ROLE] Successfully created ZentroLinked role with ID: ${zentroLinkedRole.id}`);
-      }
-      
-      // Assign the role to the user
-      const member = interaction.member;
-      if (member && !member.roles.cache.has(zentroLinkedRole.id)) {
-        await member.roles.add(zentroLinkedRole);
-        console.log(`[ROLE] Assigned ZentroLinked role to user: ${member.user.username}`);
-      }
-    } catch (roleError) {
-      console.log('Could not create/assign ZentroLinked role:', roleError.message);
+
+        await Promise.all(linkPromises);
+
+        console.log(`✅ LINK CONFIRM: Successfully created ${servers.length} links for user ${discordId}, IGN "${ign}"`);
+
+        // Send success message
+        const successEmbed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('✅ Link Successful!')
+            .setDescription(`Your Discord account has been successfully linked to **${ign}**`)
+            .addFields(
+                { name: 'Discord User', value: `<@${discordId}>`, inline: true },
+                { name: 'In-Game Name', value: ign, inline: true },
+                { name: 'Servers', value: servers.map(s => s.nickname).join(', '), inline: false }
+            )
+            .setFooter({ text: 'You can now use all bot features with your linked account' })
+            .setTimestamp();
+
+        await interaction.reply({
+            embeds: [successEmbed],
+            ephemeral: true
+        });
+
+    } catch (error) {
+        console.error(`🚨 LINK CONFIRM ERROR:`, error);
+        console.error(`🚨 Context: User: ${interaction.user.id}, Custom ID: ${interaction.customId}`);
+        
+        await interaction.reply({
+            content: '❌ **Error:** An unexpected error occurred while creating your link. Please try again or contact an administrator.',
+            ephemeral: true
+        });
     }
-    
-    // Set Discord nickname after successful linking
-    try {
-      const member = interaction.member;
-      if (member && member.manageable && interaction.guild.ownerId !== interaction.user.id) {
-        // Add a small delay to ensure Discord processes the role assignment first
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await member.setNickname(normalizedIgn);
-        console.log(`[NICKNAME] Set nickname for ${member.user.username} to "${normalizedIgn}"`);
-      }
-    } catch (nicknameError) {
-      console.log('Could not set nickname:', nicknameError.message);
-    }
-
-    const embed = successEmbed(
-      '✅ Account Linked Successfully!',
-      `Your Discord account has been linked to **${normalizedIgn}** on: **${serverList}**\n\nYou can now use:\n• \`/balance\` - Check your balance\n• \`/daily\` - Claim daily rewards\n• \`/shop\` - Buy items and kits\n• \`/blackjack\` - Play blackjack\n\n**⚠️ Remember:** This is a one-time link. Contact an admin if you need to change your linked name.`
-    );
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: []
-    });
-
-    console.log(`[LINK] Successfully linked ${discordId} to ${normalizedIgn} on ${serverList}`);
-
-  } catch (error) {
-    console.error('Error in handleLinkConfirm:', error);
-    await interaction.editReply({
-      embeds: [errorEmbed('Link Failed', 'An unexpected error occurred. Please try again or contact an admin.')],
-      components: []
-    });
-  }
 }
 
 async function handleLinkCancel(interaction) {
