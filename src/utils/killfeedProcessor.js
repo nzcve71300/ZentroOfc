@@ -256,11 +256,9 @@ class KillfeedProcessor {
         
         killerPlayerId = insertResult.insertId;
         console.log('Created player record for killer:', killerName, 'ID:', killerPlayerId);
-      } else {
-        killerPlayerId = killerResult[0].id;
-      }
-
-      const killerPlayerId = killerResult[0].id;
+             } else {
+         killerPlayerId = killerResult[0].id;
+       }
       const isPlayerKill = await this.isPlayerKill(sanitizedVictim, serverId);
       const isNPCorAnimal = this.isNPCorAnimal(sanitizedVictim);
 
