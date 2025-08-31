@@ -6251,16 +6251,17 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
         const stateKey = `${serverId}_bradley`;
         const currentState = serverEventStates.get(stateKey);
         
+        // Only send message if this is the FIRST time we detect debris (no active state)
         if (!currentState || !currentState.hasGibs) {
           serverEventStates.set(stateKey, { hasGibs: true, timestamp: Date.now() });
           
-          // Send kill message
+          // Send kill message ONLY ONCE when debris is first detected
           if (bradleyConfig[0].kill_message) {
             console.log(`[EVENT] Bradley event detected on ${serverName}, sending message: ${bradleyConfig[0].kill_message}`);
             await sendRconCommand(ip, port, password, `say ${bradleyConfig[0].kill_message}`);
           }
           
-          // Send to Discord feed
+          // Send to Discord feed ONLY ONCE
           await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🎯 **Bradley APC Event Started!**\n${bradleyConfig[0].kill_message}`);
           
           // Set timeout to clear state after 15 minutes
@@ -6278,6 +6279,7 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
             }
           }, 900000); // 15 minutes
         }
+        // If debris exists but we already have an active state, do nothing (prevents spam)
       } else if (bradleyResult && !bradleyResult.includes('servergibs_bradley')) {
         // Bradley debris is gone, clear the state
         const stateKey = `${serverId}_bradley`;
@@ -6298,16 +6300,17 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
         const stateKey = `${serverId}_helicopter`;
         const currentState = serverEventStates.get(stateKey);
         
+        // Only send message if this is the FIRST time we detect debris (no active state)
         if (!currentState || !currentState.hasGibs) {
           serverEventStates.set(stateKey, { hasGibs: true, timestamp: Date.now() });
           
-          // Send kill message
+          // Send kill message ONLY ONCE when debris is first detected
           if (helicopterConfig[0].kill_message) {
             console.log(`[EVENT] Helicopter event detected on ${serverName}, sending message: ${helicopterConfig[0].kill_message}`);
             await sendRconCommand(ip, port, password, `say ${helicopterConfig[0].kill_message}`);
           }
           
-          // Send to Discord feed
+          // Send to Discord feed ONLY ONCE
           await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🚁 **Patrol Helicopter Event Started!**\n${helicopterConfig[0].kill_message}`);
           
           // Set timeout to clear state after 15 minutes
@@ -6325,6 +6328,7 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
             }
           }, 900000); // 15 minutes
         }
+        // If debris exists but we already have an active state, do nothing (prevents spam)
       } else if (helicopterResult && !helicopterResult.includes('servergibs_patrolhelicopter')) {
         // Helicopter debris is gone, clear the state
         const stateKey = `${serverId}_helicopter`;
