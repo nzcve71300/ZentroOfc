@@ -73,38 +73,26 @@ module.exports = {
       const errors = [];
       const warnings = [];
 
-      // Get guild record first for consistent ID usage
-      let guildRecord;
+      // Ensure guild exists first
       try {
-        const [guildResult] = await pool.query(
-          'SELECT id FROM guilds WHERE discord_id = ?',
-          [guildId]
+        await pool.query(
+          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+          [guildId, interaction.guild?.name || 'Unknown Guild']
         );
-        
-        if (guildResult.length === 0) {
-          // Create the guild record
-          const [insertResult] = await pool.query(
-            'INSERT INTO guilds (discord_id, name) VALUES (?, ?)',
-            [guildId, interaction.guild?.name || 'Unknown Guild']
-          );
-          guildRecord = { id: insertResult.insertId };
-        } else {
-          guildRecord = guildResult[0];
-        }
       } catch (error) {
         console.error(`❌ ADMIN-LINK: Failed to ensure guild exists:`, error);
         throw new Error(`Failed to create guild record: ${error.message}`);
       }
 
-      // Check for existing links
+      // Check for existing links using the same pattern as /link command
       const [existingDiscordLinks] = await pool.query(`
         SELECT p.*, rs.nickname 
         FROM players p
         JOIN rust_servers rs ON p.server_id = rs.id
-        WHERE p.guild_id = ? 
+        WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
         AND p.discord_id = ? 
         AND p.is_active = true
-      `, [guildRecord.id, discordId]);
+      `, [guildId, discordId]);
 
       if (existingDiscordLinks.length > 0) {
         const currentIgn = existingDiscordLinks[0].ign;
@@ -117,10 +105,10 @@ module.exports = {
         SELECT p.*, rs.nickname 
         FROM players p
         JOIN rust_servers rs ON p.server_id = rs.id
-        WHERE p.guild_id = ? 
+        WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
         AND LOWER(p.ign) = LOWER(?) 
         AND p.is_active = true
-      `, [guildRecord.id, playerName]);
+      `, [guildId, playerName]);
 
       if (existingIgnLinks.length > 0) {
         const existingDiscordId = existingIgnLinks[0].discord_id;
@@ -137,26 +125,26 @@ module.exports = {
 
           // Delete any existing records that would conflict (guild-wide, not just server-specific)
           await pool.query(
-            'DELETE FROM players WHERE guild_id = ? AND discord_id = ? AND is_active = true',
-            [guildRecord.id, discordId]
+            'DELETE FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND discord_id = ? AND is_active = true',
+            [guildId, discordId]
           );
 
           await pool.query(
-            'DELETE FROM players WHERE guild_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
-            [guildRecord.id, playerName]
+            'DELETE FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND LOWER(ign) = LOWER(?) AND is_active = true',
+            [guildId, playerName]
           );
 
-          // Insert new player
+          // Insert new player using the same pattern as /link command
           const [playerResult] = await pool.query(
-            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [guildRecord.id, server.id, discordId, playerName]
+            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
+            [guildId, server.id, discordId, playerName]
           );
           console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
           
-          // Create economy record
+          // Create economy record using the same pattern as /link command
           await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE balance = balance',
-            [playerResult.insertId, guildRecord.id]
+            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
+            [playerResult.insertId, playerResult.insertId]
           );
           console.log(`🔗 ADMIN-LINK: Created economy record for player ${playerResult.insertId} on server ${server.nickname}`);
           
