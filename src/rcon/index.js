@@ -6137,8 +6137,8 @@ async function completeVehiclePurchase(vehicleRequest) {
 
     // Record the transaction
     await pool.query(
-      'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
-      [playerId, -price, 'vehicle_purchase']
+      'INSERT INTO transactions (player_id, amount, type, guild_id) VALUES (?, ?, ?, (SELECT guild_id FROM players WHERE id = ?))',
+      [playerId, -price, 'vehicle_purchase', playerId]
     );
 
     console.log(`[VEHICLE PURCHASE] Transaction recorded`);
