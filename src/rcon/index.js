@@ -676,7 +676,7 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
       sendRconCommand(ip, port, password, `say ${gameMessage}`);
       
       // Add to Discord killfeed buffer with clean format
-      addToKillFeedBuffer(guildId, serverName, discordMessage);
+      addToKillFeedBuffer(client, guildId, serverName, discordMessage);
       
       // Handle coin rewards for kills (both player kills and scientist kills)
       if (killData.isPlayerKill) {
@@ -2479,7 +2479,7 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
   }
 }
 
-function addToKillFeedBuffer(guildId, serverName, message) {
+function addToKillFeedBuffer(client, guildId, serverName, message) {
   const key = `${guildId}_${serverName}`;
   if (!killFeedBuffer[key]) {
     killFeedBuffer[key] = {
@@ -4367,8 +4367,12 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Verify zone was created by checking if it exists in the game
     console.log(`[ZORP DEBUG] Verifying zone ${zoneName} was created successfully...`);
-    const verifyResult = await sendRconCommand(ip, port, password, `zones.list`);
-    console.log(`[ZORP DEBUG] Zones list result: ${verifyResult}`);
+    try {
+      const verifyResult = await sendRconCommand(ip, port, password, `zones.list`);
+      console.log(`[ZORP DEBUG] Zones list result: ${verifyResult}`);
+    } catch (verifyError) {
+      console.log(`[ZORP DEBUG] Zone verification failed (non-critical): ${verifyError.message}`);
+    }
 
     // Debug logging removed for production
 
