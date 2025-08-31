@@ -1808,6 +1808,20 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
       if (global.vehiclePurchaseRequests && global.vehiclePurchaseRequests.size > 0) {
         console.log(`[VEHICLE PURCHASE] Checking ${global.vehiclePurchaseRequests.size} pending vehicle requests`);
         
+        // Get server ID first
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+
+        if (serverResult.length === 0) {
+          console.log(`[VEHICLE PURCHASE] No server found for ${serverName} in guild ${guildId}`);
+          return;
+        }
+
+        const serverId = serverResult[0].id;
+        console.log(`[VEHICLE PURCHASE] Server ID: ${serverId}`);
+        
         // Find the most recent vehicle purchase request for this server
         let foundVehicleRequest = null;
         let foundKey = null;
