@@ -53,6 +53,23 @@ module.exports = {
 
           const createdTime = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
           const expireTime = createdTime + (zone.expire || 126000); // Default to 35 hours (126000 seconds) if not set
+          
+          // Calculate time remaining in a more user-friendly format
+          const now = Math.floor(Date.now() / 1000);
+          const timeRemaining = expireTime - now;
+          let timeDisplay = '';
+          
+          if (timeRemaining > 0) {
+            const hours = Math.floor(timeRemaining / 3600);
+            const minutes = Math.floor((timeRemaining % 3600) / 60);
+            if (hours > 0) {
+              timeDisplay = `${hours}h ${minutes}m remaining`;
+            } else {
+              timeDisplay = `${minutes}m remaining`;
+            }
+          } else {
+            timeDisplay = 'Expired';
+          }
           const owner = zone.owner || 'Unknown';
           const size = zone.size || 75;
           const maxTeam = zone.max_team || 8;
@@ -60,7 +77,7 @@ module.exports = {
           const colorOffline = zone.color_offline || '255,0,0';
 
           serverZones += `• **${zone.name}** — Owner: ${owner} (Team: ${teamSize}/${maxTeam})\n`;
-          serverZones += `  Created: <t:${createdTime}:R> | Expires: <t:${expireTime}:R>\n`;
+          serverZones += `  Created: <t:${createdTime}:R> | ${timeDisplay}\n`;
           serverZones += `  Size: ${size} | Colors: Online(${colorOnline}) / Offline(${colorOffline})\n\n`;
         }
 
