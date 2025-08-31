@@ -5162,7 +5162,7 @@ async function trackTeamChanges(msg) {
       const playerName = cleanPlayerName(joinMatch[1]);
       const teamId = joinMatch[3];
       playerTeamIds.set(playerName, teamId);
-      console.log(`[ZORP] Player ${playerName} joined team ${teamId}`);
+      console.log(`[ZORP] Player ${playerName} joined team ${teamId} - updating team tracking for Zorp state management`);
       return;
     }
 
@@ -5175,8 +5175,8 @@ async function trackTeamChanges(msg) {
       console.log(`[ZORP] Player ${playerName} left team ${teamId}`);
       
       // Zorp zones are individual player zones, not team zones
-      // Do NOT delete zones when players leave teams
-      console.log(`[ZORP] Player ${playerName} left team ${teamId} - keeping their Zorp zone intact`);
+      // Do NOT delete zones when players leave teams, but update team tracking for state management
+      console.log(`[ZORP] Player ${playerName} left team ${teamId} - keeping their Zorp zone intact, updating team tracking`);
       return;
     }
 
@@ -5199,8 +5199,8 @@ async function trackTeamChanges(msg) {
       console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId}`);
       
       // Zorp zones are individual player zones, not team zones
-      // Do NOT delete zones when players are kicked from teams
-      console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId} - keeping their Zorp zone intact`);
+      // Do NOT delete zones when players are kicked from teams, but update team tracking for state management
+      console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId} - keeping their Zorp zone intact, updating team tracking`);
       return;
     }
 
@@ -5215,8 +5215,8 @@ async function trackTeamChanges(msg) {
           console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId}`);
           
           // Zorp zones are individual player zones, not team zones
-          // Do NOT delete zones when teams are disbanded
-          console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId} - keeping their Zorp zone intact`);
+          // Do NOT delete zones when teams are disbanded, but update team tracking for state management
+          console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId} - keeping their Zorp zone intact, updating team tracking`);
         }
       }
       return;
