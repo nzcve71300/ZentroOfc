@@ -2,14 +2,14 @@ const pool = require('./src/db');
 
 async function testPlayerInsert() {
   try {
-    console.log('🔍 Testing player insert with placeholder Discord ID...');
+    console.log('🔍 Testing player insert with 18-zero placeholder Discord ID...');
     
-    // Test with placeholder Discord ID '0'
+    // Test with 18 zeros as placeholder Discord ID
     const [result] = await pool.query(
       'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?)',
-      [609, '1756598716651_wmh0kflng', '0', 'testplayer_placeholder']
+      [609, '1756598716651_wmh0kflng', '000000000000000000', 'testplayer_placeholder']
     );
-    console.log('✅ Insert with placeholder Discord ID successful:', result);
+    console.log('✅ Insert with 18-zero placeholder Discord ID successful:', result);
     
     // Clean up
     await pool.query(
@@ -18,7 +18,7 @@ async function testPlayerInsert() {
     );
     console.log('🧹 Test record cleaned up');
     
-    console.log('✅ Placeholder approach works!');
+    console.log('✅ 18-zero placeholder approach works!');
     
   } catch (error) {
     console.error('❌ Test failed:', error);
