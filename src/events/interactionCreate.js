@@ -1030,7 +1030,7 @@ async function handleLinkConfirm(interaction) {
       });
     }
 
-    // ✅ CRITICAL CHECK: Verify no active links exist before proceeding
+    // ✅ CRITICAL CHECK: Verify THIS SPECIFIC Discord user has no active links in THIS guild
     const [activeDiscordLinks] = await pool.query(
       `SELECT p.*, rs.nickname 
        FROM players p
@@ -1046,7 +1046,7 @@ async function handleLinkConfirm(interaction) {
       const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
       
       return interaction.editReply({
-        embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)],
+        embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`)],
         components: []
       });
     }

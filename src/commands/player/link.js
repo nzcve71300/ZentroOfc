@@ -46,7 +46,7 @@ module.exports = {
         });
       }
 
-      // 🔍 CRITICAL CHECK 1: Check if this Discord ID has ANY active links (case-insensitive)
+      // 🔍 CRITICAL CHECK 1: Check if THIS SPECIFIC Discord user has active links in THIS guild
       const [activeDiscordLinks] = await pool.query(
         `SELECT p.*, rs.nickname 
          FROM players p
@@ -57,14 +57,14 @@ module.exports = {
         [discordGuildId, discordId]
       );
 
-      console.log(`[LINK DEBUG] Found ${activeDiscordLinks.length} active links for Discord ID ${discordId}`);
+      console.log(`[LINK DEBUG] Found ${activeDiscordLinks.length} active links for Discord ID ${discordId} in this guild`);
 
       if (activeDiscordLinks.length > 0) {
         const currentIgn = activeDiscordLinks[0].ign;
         const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
         
         return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once. Contact an admin to unlink you if you need to change your name.`)]
+          embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`)]
         });
       }
 
