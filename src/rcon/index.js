@@ -775,10 +775,15 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
     );
 
     if (existingPlayer.length === 0) {
-      // Create new player record with placeholder Discord ID since NULL is not allowed
+      // Create new player record with unique placeholder Discord ID since NULL is not allowed
+      // Use a hash of the player name to create a unique placeholder Discord ID
+      const crypto = require('crypto');
+      const hash = crypto.createHash('md5').update(playerName + serverId).digest('hex');
+      const uniquePlaceholder = hash.substring(0, 18).padStart(18, '0'); // Ensure 18 digits
+      
       const [newPlayer] = await pool.query(
         'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?)',
-        [guildId_db, serverId, '000000000000000000', playerName] // Use 18 zeros as placeholder for unlinked players
+        [guildId_db, serverId, uniquePlaceholder, playerName] // Use unique placeholder for unlinked players
       );
 
       // Create player stats record
