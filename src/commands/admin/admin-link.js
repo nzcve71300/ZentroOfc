@@ -73,6 +73,29 @@ module.exports = {
       const errors = [];
       const warnings = [];
 
+      // Get guild record first for consistent ID usage
+      let guildRecord;
+      try {
+        const [guildResult] = await pool.query(
+          'SELECT id FROM guilds WHERE discord_id = ?',
+          [guildId]
+        );
+        
+        if (guildResult.length === 0) {
+          // Create the guild record
+          const [insertResult] = await pool.query(
+            'INSERT INTO guilds (discord_id, name) VALUES (?, ?)',
+            [guildId, interaction.guild?.name || 'Unknown Guild']
+          );
+          guildRecord = { id: insertResult.insertId };
+        } else {
+          guildRecord = guildResult[0];
+        }
+      } catch (error) {
+        console.error(`❌ ADMIN-LINK: Failed to ensure guild exists:`, error);
+        throw new Error(`Failed to create guild record: ${error.message}`);
+      }
+
       // Check for existing links
       const [existingDiscordLinks] = await pool.query(`
         SELECT p.*, rs.nickname 
@@ -81,7 +104,7 @@ module.exports = {
         WHERE p.guild_id = ? 
         AND p.discord_id = ? 
         AND p.is_active = true
-      `, [guildId, discordId]);
+      `, [guildRecord.id, discordId]);
 
       if (existingDiscordLinks.length > 0) {
         const currentIgn = existingDiscordLinks[0].ign;
@@ -97,7 +120,7 @@ module.exports = {
         WHERE p.guild_id = ? 
         AND LOWER(p.ign) = LOWER(?) 
         AND p.is_active = true
-      `, [guildId, playerName]);
+      `, [guildRecord.id, playerName]);
 
       if (existingIgnLinks.length > 0) {
         const existingDiscordId = existingIgnLinks[0].discord_id;
@@ -111,39 +134,16 @@ module.exports = {
       for (const server of servers) {
         try {
           console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
-          
-          // Ensure guild exists - get the guild ID from the guilds table or create it
-          let guildRecord;
-          try {
-            const [guildResult] = await pool.query(
-              'SELECT id FROM guilds WHERE discord_id = ?',
-              [guildId]
-            );
-            
-            if (guildResult.length === 0) {
-              // Create the guild record
-              const [insertResult] = await pool.query(
-                'INSERT INTO guilds (discord_id, name) VALUES (?, ?)',
-                [guildId, interaction.guild?.name || 'Unknown Guild']
-              );
-              guildRecord = { id: insertResult.insertId };
-            } else {
-              guildRecord = guildResult[0];
-            }
-          } catch (error) {
-            console.error(`❌ ADMIN-LINK: Failed to ensure guild exists:`, error);
-            throw new Error(`Failed to create guild record: ${error.message}`);
-          }
 
           // Delete any existing records that would conflict
           await pool.query(
             'DELETE FROM players WHERE guild_id = ? AND server_id = ? AND discord_id = ?',
-            [guildId, server.id, discordId]
+            [guildRecord.id, server.id, discordId]
           );
 
           await pool.query(
             'DELETE FROM players WHERE guild_id = ? AND server_id = ? AND LOWER(ign) = LOWER(?)',
-            [guildId, server.id, playerName]
+            [guildRecord.id, server.id, playerName]
           );
 
           // Insert new player
