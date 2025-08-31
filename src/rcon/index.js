@@ -2467,17 +2467,19 @@ async function checkAllEvents(client) {
 
         // Check for Bradley events
         const bradleyConfig = server.configs.find(c => c.event_type === 'bradley');
-        if (bradleyConfig) {
-          console.log(`[EVENT] Bradley config found for ${server.nickname}:`, bradleyConfig.kill_message);
-          await checkBradleyEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, bradleyConfig, serverFlags);
-        }
+        // Bradley and Helicopter events are now handled by checkEventGibs function
+        // This prevents duplicate event detection and spam messages
+        // if (bradleyConfig) {
+        //   console.log(`[EVENT] Bradley config found for ${server.nickname}:`, bradleyConfig.kill_message);
+        //   await checkBradleyEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, bradleyConfig, serverFlags);
+        // }
 
         // Check for Helicopter events
-        const helicopterConfig = server.configs.find(c => c.event_type === 'helicopter');
-        if (helicopterConfig) {
-          console.log(`[EVENT] Helicopter config found for ${server.nickname}:`, helicopterConfig.kill_message);
-          await checkHelicopterEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, helicopterConfig, serverFlags);
-        }
+        // const helicopterConfig = server.configs.find(c => c.event_type === 'helicopter');
+        // if (helicopterConfig) {
+        //   console.log(`[EVENT] Helicopter config found for ${server.nickname}:`, helicopterConfig.kill_message);
+        //   await checkHelicopterEvent(client, server.guild_id, server.nickname, server.ip, server.port, server.password, helicopterConfig, serverFlags);
+        // }
       } catch (serverError) {
         console.error(`[EVENT] Error checking events for server ${server.nickname}:`, serverError);
       }
@@ -2532,14 +2534,14 @@ async function checkBradleyEvent(client, guildId, serverName, ip, port, password
       // Send to Discord feed
       await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🎯 **Bradley APC Event Started!**\n${config.kill_message}`);
       
-      // Clear flag after 10 minutes
+      // Clear flag after 15 minutes
       setTimeout(() => {
         const flags = eventFlags.get(serverKey);
         if (flags) {
           flags.delete("BRADLEY");
           console.log(`[EVENT] Bradley flag cleared for ${serverName}`);
         }
-      }, 60_000 * 10);
+      }, 60_000 * 15);
       
       console.log(`[EVENT] Bradley event started on ${serverName}`);
     } else if (cleanResponse && !cleanResponse.includes("servergibs_bradley") && serverFlags.has("BRADLEY")) {
@@ -2587,14 +2589,14 @@ async function checkHelicopterEvent(client, guildId, serverName, ip, port, passw
       // Send to Discord feed
       await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🚁 **Patrol Helicopter Event Started!**\n${config.kill_message}`);
       
-      // Clear flag after 10 minutes
+      // Clear flag after 15 minutes
       setTimeout(() => {
         const flags = eventFlags.get(serverKey);
         if (flags) {
           flags.delete("HELICOPTER");
           console.log(`[EVENT] Helicopter flag cleared for ${serverName}`);
         }
-      }, 60_000 * 10);
+      }, 60_000 * 15);
       
       console.log(`[EVENT] Helicopter event started on ${serverName}`);
     } else if (cleanResponse && !cleanResponse.includes("servergibs_patrolhelicopter") && serverFlags.has("HELICOPTER")) {
@@ -6258,7 +6260,10 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
             await sendRconCommand(ip, port, password, `say ${bradleyConfig[0].kill_message}`);
           }
           
-          // Set timeout to clear state after 10 minutes
+          // Send to Discord feed
+          await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🎯 **Bradley APC Event Started!**\n${bradleyConfig[0].kill_message}`);
+          
+          // Set timeout to clear state after 15 minutes
           setTimeout(() => {
             const currentState = serverEventStates.get(stateKey);
             if (currentState && currentState.hasGibs) {
@@ -6271,7 +6276,16 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
                 sendRconCommand(ip, port, password, `say ${bradleyConfig[0].respawn_message}`);
               }
             }
-          }, 600000); // 10 minutes
+          }, 900000); // 15 minutes
+        }
+      } else if (bradleyResult && !bradleyResult.includes('servergibs_bradley')) {
+        // Bradley debris is gone, clear the state
+        const stateKey = `${serverId}_bradley`;
+        const currentState = serverEventStates.get(stateKey);
+        if (currentState && currentState.hasGibs) {
+          currentState.hasGibs = false;
+          serverEventStates.set(stateKey, currentState);
+          console.log(`[EVENT] Bradley debris cleared for ${serverName}`);
         }
       }
     }
@@ -6293,7 +6307,10 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
             await sendRconCommand(ip, port, password, `say ${helicopterConfig[0].kill_message}`);
           }
           
-          // Set timeout to clear state after 10 minutes
+          // Send to Discord feed
+          await sendFeedEmbed(client, guildId, serverName, 'eventfeed', `🚁 **Patrol Helicopter Event Started!**\n${helicopterConfig[0].kill_message}`);
+          
+          // Set timeout to clear state after 15 minutes
           setTimeout(() => {
             const currentState = serverEventStates.get(stateKey);
             if (currentState && currentState.hasGibs) {
@@ -6306,7 +6323,16 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
                 sendRconCommand(ip, port, password, `say ${helicopterConfig[0].respawn_message}`);
               }
             }
-          }, 600000); // 10 minutes
+          }, 900000); // 15 minutes
+        }
+      } else if (helicopterResult && !helicopterResult.includes('servergibs_patrolhelicopter')) {
+        // Helicopter debris is gone, clear the state
+        const stateKey = `${serverId}_helicopter`;
+        const currentState = serverEventStates.get(stateKey);
+        if (currentState && currentState.hasGibs) {
+          currentState.hasGibs = false;
+          serverEventStates.set(stateKey, currentState);
+          console.log(`[EVENT] Helicopter debris cleared for ${serverName}`);
         }
       }
     }
