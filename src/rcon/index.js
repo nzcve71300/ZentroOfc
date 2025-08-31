@@ -1804,6 +1804,45 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         return;
       }
 
+      // Check for vehicle purchase position requests
+      if (global.vehiclePurchaseRequests) {
+        const vehiclePurchaseKey = Array.from(global.vehiclePurchaseRequests.keys()).find(key => {
+          const [serverId, playerIgn, shortName] = key.split(':');
+          return playerIgn && positionStr.includes(playerIgn);
+        });
+
+        if (vehiclePurchaseKey) {
+          const vehicleRequest = global.vehiclePurchaseRequests.get(vehiclePurchaseKey);
+          const playerName = vehicleRequest.playerIgn;
+
+          console.log(`[VEHICLE PURCHASE] Position response received for ${playerName}: ${positionStr}`);
+
+          // Parse position coordinates (handle both "x, y, z" and "x,y,z" formats)
+          const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
+          if (coords.length !== 3 || coords.some(isNaN)) {
+            console.log(`[VEHICLE PURCHASE] Invalid position format: ${positionStr}`);
+            global.vehiclePurchaseRequests.delete(vehiclePurchaseKey);
+            return;
+          }
+
+          // Execute vehicle spawn command
+          const vehicleCommand = `entity.spawn ${vehicleRequest.shortName} ${coords[0]} ${coords[1]} ${coords[2]}`;
+          await sendRconCommand(ip, port, password, vehicleCommand);
+
+          // Send success message
+          await sendRconCommand(ip, port, password, `say <color=#00FF00><b>SUCCESS!</b></color> <color=white>${playerName} purchased ${vehicleRequest.displayName}!</color>`);
+
+          // Complete the purchase transaction
+          await completeVehiclePurchase(vehicleRequest);
+
+          // Clear the request
+          global.vehiclePurchaseRequests.delete(vehiclePurchaseKey);
+
+          console.log(`[VEHICLE PURCHASE] Vehicle ${vehicleRequest.displayName} spawned for ${playerName} at coordinates: ${coords[0]}, ${coords[1]}, ${coords[2]}`);
+          return;
+        }
+      }
+
       // Check for recycler position requests
       const foundRecyclerState = Array.from(recyclerState.entries()).find(([key, state]) => {
         return state.step === 'waiting_for_position';
@@ -6037,6 +6076,62 @@ setInterval(async () => {
     console.error('Error in periodic playtime rewards:', error);
   }
 }, 5 * 60 * 1000); // Check every 5 minutes
+
+// Complete vehicle purchase transaction
+async function completeVehiclePurchase(vehicleRequest) {
+  try {
+    const { playerId, userId, price, interaction } = vehicleRequest;
+
+    // Deduct balance from player's account
+    await pool.query(
+      'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
+      [price, playerId]
+    );
+
+    // Record the transaction
+    await pool.query(
+      'INSERT INTO transactions (player_id, amount, type) VALUES (?, ?, ?)',
+      [playerId, -price, 'vehicle_purchase']
+    );
+
+    // Record cooldown if timer exists
+    if (vehicleRequest.timer && vehicleRequest.timer > 0) {
+      await pool.query(
+        'INSERT INTO shop_vehicle_cooldowns (player_id, vehicle_id, purchased_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+        [playerId, vehicleRequest.vehicleId]
+      );
+    }
+
+    // Send success message to Discord
+    const { successEmbed } = require('../embeds/format');
+    const embed = successEmbed(
+      '🚗 Vehicle Purchased!',
+      `**Vehicle:** ${vehicleRequest.displayName}\n**Price:** ${price} coins\n**Server:** ${vehicleRequest.nickname}\n\nYour vehicle has been spawned at your location!`
+    );
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: []
+    });
+
+    console.log(`[VEHICLE PURCHASE] Transaction completed for ${vehicleRequest.playerIgn}: ${vehicleRequest.displayName}`);
+
+  } catch (error) {
+    console.error('Error completing vehicle purchase:', error);
+    
+    // Send error message to Discord
+    const { errorEmbed } = require('../embeds/format');
+    const embed = errorEmbed(
+      'Purchase Error',
+      'There was an error processing your vehicle purchase. Please contact an administrator.'
+    );
+
+    await vehicleRequest.interaction.editReply({
+      embeds: [embed],
+      components: []
+    });
+  }
+}
 
 // Teleport System Handler
 async function handleTeleportSystem(client, guildId, serverName, serverId, ip, port, password, player, teleportName = 'default') {

@@ -22,7 +22,8 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Items', value: 'items' },
-          { name: 'Kits', value: 'kits' }
+          { name: 'Kits', value: 'kits' },
+          { name: 'Vehicles', value: 'vehicles' }
         ))
     .addRoleOption(option =>
       option.setName('role')
