@@ -1859,8 +1859,8 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
           await sendRconCommand(ip, port, password, `entity.deleteby ${foundVehicleRequest.shortName} ${coords[0]} ${coords[1]} ${coords[2]} 15`);
           
           setTimeout(async () => {
-            // Add offset to spawn vehicle slightly away from player (3 units forward) like BAR
-            const offsetX = coords[0] + 3; // 3 units forward
+            // Add offset to spawn vehicle slightly away from player (1 unit forward) like BAR
+            const offsetX = coords[0] + 1; // 1 unit forward (reduced from 3)
             const offsetY = coords[1];
             const offsetZ = coords[2]; // Keep same height
             const spawnPosition = `(${offsetX},${offsetY},${offsetZ})`;
