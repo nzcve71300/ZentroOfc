@@ -2481,21 +2481,55 @@ async function updatePlayerCountChannel(client, guildId, serverName, online, que
 
 function addToKillFeedBuffer(guildId, serverName, message) {
   const key = `${guildId}_${serverName}`;
-  if (!killFeedBuffer[key]) killFeedBuffer[key] = [];
-  killFeedBuffer[key].push(message);
+  if (!killFeedBuffer[key]) {
+    killFeedBuffer[key] = {
+      messages: [],
+      lastKillTime: Date.now(),
+      isHighVolume: false
+    };
+  }
+  
+  const buffer = killFeedBuffer[key];
+  const now = Date.now();
+  const timeSinceLastKill = now - buffer.lastKillTime;
+  
+  // If we get kills very quickly (less than 2 seconds apart), mark as high volume
+  if (timeSinceLastKill < 2000) {
+    buffer.isHighVolume = true;
+  }
+  
+  buffer.messages.push(message);
+  buffer.lastKillTime = now;
+  
+  // If low volume, send immediately
+  if (!buffer.isHighVolume && buffer.messages.length === 1) {
+    // Send this single kill immediately
+    setTimeout(() => {
+      if (killFeedBuffer[key] && killFeedBuffer[key].messages.length === 1) {
+        const singleMessage = killFeedBuffer[key].messages[0];
+        sendFeedEmbed(client, guildId, serverName, 'killfeed', singleMessage);
+        killFeedBuffer[key] = { messages: [], lastKillTime: Date.now(), isHighVolume: false };
+      }
+    }, 100); // Small delay to allow for potential additional kills
+  }
 }
 
 async function flushKillFeedBuffers(client) {
   for (const key in killFeedBuffer) {
     const [guildId, serverName] = key.split('_');
-    const messages = killFeedBuffer[key];
-    if (!messages.length) continue;
+    const buffer = killFeedBuffer[key];
+    if (!buffer.messages.length) continue;
     
-    // Limit to last 20 messages to prevent huge embeds
-    const recentMessages = messages.slice(-20);
-    const desc = recentMessages.join('<br>');
-    await sendFeedEmbed(client, guildId, serverName, 'killfeed', desc);
-    killFeedBuffer[key] = [];
+    // Only flush if we have multiple messages (high volume scenario)
+    if (buffer.messages.length > 1) {
+      // Limit to last 20 messages to prevent huge embeds
+      const recentMessages = buffer.messages.slice(-20);
+      const desc = recentMessages.join('<br>');
+      await sendFeedEmbed(client, guildId, serverName, 'killfeed', desc);
+    }
+    
+    // Reset buffer
+    killFeedBuffer[key] = { messages: [], lastKillTime: Date.now(), isHighVolume: false };
   }
 }
 
