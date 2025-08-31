@@ -724,6 +724,9 @@ async function handleConfirmPurchase(interaction) {
       // The command will be set to null initially, and we'll handle position tracking
       command = null;
       
+      // Set finalQuantity for vehicles (always 1 since vehicles don't have quantity)
+      finalQuantity = 1;
+      
       // Store vehicle purchase request for position tracking
       const vehiclePurchaseKey = `${itemData.server_id}:${playerIgn}:${itemData.short_name}`;
       global.vehiclePurchaseRequests = global.vehiclePurchaseRequests || new Map();
