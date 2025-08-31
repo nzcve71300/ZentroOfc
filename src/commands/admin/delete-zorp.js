@@ -18,30 +18,50 @@ module.exports = {
 
     try {
       const playerName = interaction.options.getString('player_name');
+      
+      // Debug logging
+      console.log(`[DELETE-ZORP] Received player name: "${playerName}"`);
+      console.log(`[DELETE-ZORP] Type: ${typeof playerName}`);
+      console.log(`[DELETE-ZORP] Length: ${playerName ? playerName.length : 'null'}`);
+      console.log(`[DELETE-ZORP] Trimmed: "${playerName ? playerName.trim() : 'null'}"`);
 
       // Validate playerName
       if (!playerName || typeof playerName !== 'string' || playerName.trim() === '') {
+        console.log(`[DELETE-ZORP] Validation failed: playerName is invalid`);
         return interaction.editReply({
           embeds: [errorEmbed('Error', 'Please provide a valid player name.')]
         });
       }
 
-      if (playerName.length > 32) {
+      // Trim the player name
+      const trimmedPlayerName = playerName.trim();
+      
+      if (trimmedPlayerName.length > 32) {
+        console.log(`[DELETE-ZORP] Validation failed: player name too long (${trimmedPlayerName.length} chars)`);
         return interaction.editReply({
           embeds: [errorEmbed('Error', 'Player name is too long (max 32 characters).')]
         });
       }
+      
+      console.log(`[DELETE-ZORP] Using trimmed player name: "${trimmedPlayerName}"`);
 
       // Get zone by player name
       let zoneResult;
       try {
+        console.log(`[DELETE-ZORP] Searching for zone with guild_id: ${interaction.guildId}, owner: "${trimmedPlayerName}"`);
+        
         [zoneResult] = await pool.query(`
           SELECT z.*, rs.ip, rs.port, rs.password, rs.nickname
           FROM zorp_zones z
           JOIN rust_servers rs ON z.server_id = rs.id
           JOIN guilds g ON rs.guild_id = g.id
-          WHERE g.discord_id = ? AND z.owner = ?
-        `, [interaction.guildId, playerName]);
+          WHERE g.discord_id = ? AND LOWER(z.owner) = LOWER(?)
+        `, [interaction.guildId, trimmedPlayerName]);
+        
+        console.log(`[DELETE-ZORP] Database query returned ${zoneResult.length} results`);
+        if (zoneResult.length > 0) {
+          console.log(`[DELETE-ZORP] Found zone: ${zoneResult[0].name} owned by ${zoneResult[0].owner}`);
+        }
       } catch (dbError) {
         console.error('Database error fetching zone:', dbError);
         return interaction.editReply({
@@ -50,8 +70,9 @@ module.exports = {
       }
 
       if (!zoneResult || zoneResult.length === 0) {
+        console.log(`[DELETE-ZORP] No zone found for player: "${trimmedPlayerName}"`);
         return interaction.editReply({
-          embeds: [errorEmbed('Error', `No Zorp found for player "${playerName}".`)]
+          embeds: [errorEmbed('Error', `No Zorp found for player "${trimmedPlayerName}".`)]
         });
       }
 
@@ -95,7 +116,7 @@ module.exports = {
       const createdAt = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
       const serverName = zone.nickname || 'Unknown Server';
 
-      const embed = successEmbed('Success', `Zorp for **${playerName}** has been deleted.`);
+      const embed = successEmbed('Success', `Zorp for **${trimmedPlayerName}** has been deleted.`);
       embed.addFields({
         name: 'Zone Details',
         value: `**Owner:** ${owner}\n**Server:** ${serverName}\n**Created:** <t:${createdAt}:R>`,
