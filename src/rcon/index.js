@@ -4575,10 +4575,18 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     
     console.log(`[ZORP] Set zone ${zoneName} to white (initial creation)`);
     
-    // Start 1-minute timer to transition to green
-    console.log(`[ZORP DEBUG] Starting 1-minute timer for zone ${zoneName} to transition from white to green`);
+    // Get the delay setting from the database for this zone
+    const [delayResult] = await pool.query(
+      'SELECT delay FROM zorp_zones WHERE name = ?',
+      [zoneName]
+    );
+    
+    const delayMinutes = delayResult.length > 0 ? (delayResult[0].delay || 1) : 1;
+    const delayMs = delayMinutes * 60 * 1000;
+    
+    console.log(`[ZORP DEBUG] Starting ${delayMinutes}-minute timer for zone ${zoneName} to transition from white to green`);
     const timerId = setTimeout(async () => {
-      console.log(`[ZORP DEBUG] 1-minute timer fired for zone ${zoneName} - transitioning to green`);
+      console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
       // Get zone owner from database instead of parsing zone name
       const [ownerResult] = await pool.query(
         'SELECT owner FROM zorp_zones WHERE name = ?',
@@ -4592,12 +4600,12 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
       } else {
         console.log(`[ZORP DEBUG] No owner found for zone ${zoneName} in database`);
       }
-    }, 1 * 60 * 1000); // 1 minute
+    }, delayMs);
     
     // Store timer reference
     zorpTransitionTimers.set(zoneName, timerId);
     
-    console.log(`[ZORP] Started 1-minute timer for zone ${zoneName} to go green`);
+    console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
   } catch (error) {
     console.error(`Error setting zone to white:`, error);
   }
