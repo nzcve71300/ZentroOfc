@@ -4964,7 +4964,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
-    if (now - lastCall < 15000) { // Increased to 15 seconds for better stability
+    if (now - lastCall < 30000) { // Increased to 30 seconds for better stability on high-population servers
       console.log(`[ZORP] Skipping duplicate offline call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
@@ -5072,7 +5072,7 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
-    if (now - lastCall < 15000) { // Increased to 15 seconds for better stability
+    if (now - lastCall < 30000) { // Increased to 30 seconds for better stability on high-population servers
       console.log(`[ZORP] Skipping duplicate online call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
@@ -5174,16 +5174,9 @@ async function trackTeamChanges(msg) {
       playerTeamIds.delete(playerName);
       console.log(`[ZORP] Player ${playerName} left team ${teamId}`);
       
-      // Delete Zorp zone when player leaves team
-      try {
-        await deleteZorpZoneOnTeamLeave(playerName);
-        
-        // Also check if this player was the team owner and had a zone
-        // If so, we need to delete the zone from all servers
-        await deleteAllZorpZonesForPlayer(playerName);
-      } catch (error) {
-        console.error(`[ZORP] Error deleting zone for ${playerName} after leaving team:`, error);
-      }
+      // Zorp zones are individual player zones, not team zones
+      // Do NOT delete zones when players leave teams
+      console.log(`[ZORP] Player ${playerName} left team ${teamId} - keeping their Zorp zone intact`);
       return;
     }
 
@@ -5205,15 +5198,9 @@ async function trackTeamChanges(msg) {
       playerTeamIds.delete(kickedPlayer);
       console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId}`);
       
-      // Delete Zorp zone when player is kicked
-      try {
-        await deleteZorpZoneOnTeamLeave(kickedPlayer);
-        
-        // Also check if this player was the team owner and had a zone
-        await deleteAllZorpZonesForPlayer(kickedPlayer);
-      } catch (error) {
-        console.error(`[ZORP] Error deleting zone for ${kickedPlayer} after being kicked:`, error);
-      }
+      // Zorp zones are individual player zones, not team zones
+      // Do NOT delete zones when players are kicked from teams
+      console.log(`[ZORP] Player ${kickedPlayer} was kicked from team ${teamId} - keeping their Zorp zone intact`);
       return;
     }
 
@@ -5227,13 +5214,9 @@ async function trackTeamChanges(msg) {
           playerTeamIds.delete(player);
           console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId}`);
           
-          // Delete Zorp zone when team is disbanded
-          try {
-            await deleteZorpZoneOnTeamLeave(player);
-            await deleteAllZorpZonesForPlayer(player);
-          } catch (error) {
-            console.error(`[ZORP] Error deleting zone for ${player} after team disband:`, error);
-          }
+          // Zorp zones are individual player zones, not team zones
+          // Do NOT delete zones when teams are disbanded
+          console.log(`[ZORP] Player ${player} removed from disbanded team ${teamId} - keeping their Zorp zone intact`);
         }
       }
       return;
@@ -5446,11 +5429,33 @@ async function checkIfAllTeamMembersOffline(ip, port, password, playerName) {
     
     console.log(`[ZORP DEBUG] Team info for ${playerName}:`, teamInfo);
     
-    // Get online players
-    const onlinePlayers = await getOnlinePlayers(ip, port, password);
+    // Get online players with retry mechanism for high-population servers
+    let onlinePlayers = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (!onlinePlayers && retryCount < maxRetries) {
+      try {
+        onlinePlayers = await getOnlinePlayers(ip, port, password);
+        if (!onlinePlayers) {
+          console.log(`[ZORP DEBUG] Attempt ${retryCount + 1}: Could not get online players list, retrying...`);
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          }
+        }
+      } catch (error) {
+        console.log(`[ZORP DEBUG] Attempt ${retryCount + 1}: Error getting online players, retrying...`);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      }
+    }
+    
     if (!onlinePlayers) {
-      console.log(`[ZORP DEBUG] Could not get online players list`);
-      return false; // Assume someone is online if we can't check
+      console.log(`[ZORP DEBUG] Could not get online players list after ${maxRetries} attempts`);
+      return false; // Assume someone is online if we can't check after retries
     }
     
     console.log(`[ZORP DEBUG] Online players:`, onlinePlayers);
