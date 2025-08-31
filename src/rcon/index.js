@@ -4577,6 +4577,7 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     zorpZoneStates.set(zoneName, 'white');
     
     console.log(`[ZORP] Set zone ${zoneName} to white (initial creation)`);
+    console.log(`[ZORP DEBUG] About to query delay for zone ${zoneName}`);
     
     // Get the delay setting from the database for this zone
     console.log(`[ZORP DEBUG] Querying delay for zone: ${zoneName}`);
@@ -4612,8 +4613,10 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     
     console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
     console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
+    console.log(`[ZORP DEBUG] setZoneToWhite function completed successfully for zone ${zoneName}`);
   } catch (error) {
     console.error(`Error setting zone to white:`, error);
+    console.error(`[ZORP DEBUG] setZoneToWhite function failed for zone ${zoneName}:`, error.message);
   }
 }
 
