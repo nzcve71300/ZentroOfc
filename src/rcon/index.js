@@ -4359,8 +4359,10 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     // TEMPORARY: Force immediate testing (5 seconds instead of delay)
     const testDelayMs = 5000; // 5 seconds for testing
     console.log(`[ZORP DEBUG] TESTING: Using 5-second delay instead of ${delayMinutes} minutes`);
+    console.log(`[ZORP DEBUG] About to create setTimeout with ${testDelayMs}ms delay`);
     
     const timerId = setTimeout(async () => {
+      console.log(`[ZORP DEBUG] TIMER FIRED! Zone: ${zoneName}`);
       console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
       console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
       // Get zone owner from database instead of parsing zone name
@@ -4383,6 +4385,12 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     
     console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
     console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
+    
+    // Test if setTimeout works at all
+    console.log(`[ZORP DEBUG] Creating test timer to verify setTimeout works...`);
+    setTimeout(() => {
+      console.log(`[ZORP DEBUG] TEST TIMER FIRED - setTimeout is working!`);
+    }, 3000); // 3 seconds
 
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
