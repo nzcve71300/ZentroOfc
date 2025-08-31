@@ -222,6 +222,19 @@ class KillfeedProcessor {
         console.log('Invalid names after sanitization:', { killerName, victimName });
         return;
       }
+
+      // Skip processing for non-player entities (scientists, helicopters, etc.)
+      if (this.isNPCorAnimal(sanitizedKiller) || this.isNPCorAnimal(sanitizedVictim)) {
+        console.log('Skipping kill stats for NPC/Animal entities:', { killer: sanitizedKiller, victim: sanitizedVictim });
+        return;
+      }
+
+      // Skip processing for entity names (like "minicopter.entity (entity)")
+      if (sanitizedKiller.includes('.entity') || sanitizedVictim.includes('.entity') ||
+          sanitizedKiller.includes('(entity)') || sanitizedVictim.includes('(entity)')) {
+        console.log('Skipping kill stats for entity objects:', { killer: sanitizedKiller, victim: sanitizedVictim });
+        return;
+      }
       
       // Get killer player record
       let [killerResult] = await pool.query(
@@ -292,6 +305,18 @@ class KillfeedProcessor {
 
   async processVictimDeath(victimName, serverId) {
     try {
+      // Skip processing for non-player entities (scientists, helicopters, etc.)
+      if (this.isNPCorAnimal(victimName)) {
+        console.log('Skipping victim death for NPC/Animal entity:', victimName);
+        return;
+      }
+
+      // Skip processing for entity names (like "minicopter.entity (entity)")
+      if (victimName.includes('.entity') || victimName.includes('(entity)')) {
+        console.log('Skipping victim death for entity object:', victimName);
+        return;
+      }
+
       // Get victim player record
       let [victimResult] = await pool.query(
         `SELECT p.id FROM players p 
