@@ -8,7 +8,24 @@ async function deployVehicleShop() {
     // Step 1: Create the vehicle shop tables
     console.log('1. Creating vehicle shop tables...');
     const createTableSQL = fs.readFileSync('./add_vehicle_shop_system.sql', 'utf8');
-    await pool.query(createTableSQL);
+    
+    // Split the SQL into individual statements to handle index creation errors
+    const statements = createTableSQL.split(';').filter(stmt => stmt.trim());
+    
+    for (const statement of statements) {
+      if (statement.trim()) {
+        try {
+          await pool.query(statement);
+        } catch (error) {
+          // Ignore "Duplicate key name" errors for indexes
+          if (error.code === 'ER_DUP_KEYNAME' || error.code === 'ER_DUP_FIELDNAME') {
+            console.log('⚠️ Index already exists, skipping...');
+          } else {
+            throw error;
+          }
+        }
+      }
+    }
     console.log('✅ Vehicle shop tables created successfully!\n');
     
     // Step 2: Test database connection and verify table structure
