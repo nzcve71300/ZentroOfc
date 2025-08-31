@@ -4356,13 +4356,9 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     console.log(`[ZORP DEBUG] Starting ${delayMinutes}-minute timer for zone ${zoneName} to transition from white to green`);
     console.log(`[ZORP DEBUG] Timer will fire at: ${new Date(Date.now() + delayMs).toISOString()}`);
     
-    // TEMPORARY: Force immediate testing (5 seconds instead of delay)
-    const testDelayMs = 5000; // 5 seconds for testing
-    console.log(`[ZORP DEBUG] TESTING: Using 5-second delay instead of ${delayMinutes} minutes`);
-    console.log(`[ZORP DEBUG] About to create setTimeout with ${testDelayMs}ms delay`);
+    console.log(`[ZORP DEBUG] About to create setTimeout with ${delayMs}ms delay`);
     
     const timerId = setTimeout(async () => {
-      console.log(`[ZORP DEBUG] TIMER FIRED! Zone: ${zoneName}`);
       console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
       console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
       // Get zone owner from database instead of parsing zone name
@@ -4378,7 +4374,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       } else {
         console.log(`[ZORP DEBUG] No owner found for zone ${zoneName} in database`);
       }
-    }, testDelayMs);
+    }, delayMs);
     
     // Store timer reference
     zorpTransitionTimers.set(zoneName, timerId);
@@ -4386,11 +4382,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
     console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
     
-    // Test if setTimeout works at all
-    console.log(`[ZORP DEBUG] Creating test timer to verify setTimeout works...`);
-    setTimeout(() => {
-      console.log(`[ZORP DEBUG] TEST TIMER FIRED - setTimeout is working!`);
-    }, 3000); // 3 seconds
+
 
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
@@ -4653,9 +4645,52 @@ async function updateZoneColor(zoneName, color, ip, port, password) {
   }
 }
 
+async function processStuckWhiteZones() {
+  try {
+    console.log('🔍 Checking for stuck white zones...');
+    
+    // Find zones that are stuck in white state and should have turned green
+    const [stuckZones] = await pool.query(`
+      SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.current_state = 'white' 
+      AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+      AND z.created_at + INTERVAL (z.delay * 60) SECOND < CURRENT_TIMESTAMP
+    `);
+
+    console.log(`[ZORP DEBUG] Found ${stuckZones.length} stuck white zones that should be green`);
+
+    for (const zone of stuckZones) {
+      try {
+        console.log(`[ZORP DEBUG] Processing stuck white zone: ${zone.name} (${zone.owner}) - should have turned green ${zone.delay} minutes ago`);
+        
+        // Set zone to green immediately
+        await setZoneToGreen(zone.ip, zone.port, zone.password, zone.owner);
+        
+        console.log(`[ZORP DEBUG] Successfully processed stuck white zone: ${zone.name}`);
+        
+      } catch (error) {
+        console.error(`[ZORP DEBUG] Error processing stuck white zone ${zone.name}:`, error);
+      }
+    }
+    
+    if (stuckZones.length > 0) {
+      console.log(`[ZORP] Processed ${stuckZones.length} stuck white zones`);
+    }
+    
+  } catch (error) {
+    console.error('Error processing stuck white zones:', error);
+  }
+}
+
 async function restoreZonesOnStartup(client) {
   try {
     console.log('🔄 Restoring zones on bot startup...');
+    
+    // First, process any stuck white zones
+    await processStuckWhiteZones();
     
     const [result] = await pool.query(`
       SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
@@ -6621,6 +6656,7 @@ module.exports = {
   getServerInfo,
   activeConnections,
   restoreZonesOnStartup,
+  processStuckWhiteZones,
   sendFeedEmbed,
   updatePlayerCountChannel,
   enableTeamActionLogging,
