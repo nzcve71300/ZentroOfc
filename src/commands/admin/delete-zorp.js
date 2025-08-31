@@ -6,10 +6,10 @@ const { sendRconCommand } = require('../../rcon');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('delete-zorp')
-    .setDescription('Delete a ZORP zone')
+    .setDescription('Delete a ZORP zone by player name')
     .addStringOption(option =>
-      option.setName('zone_name')
-        .setDescription('Name of the zone to delete')
+      option.setName('player_name')
+        .setDescription('Name of the player whose Zorp to delete')
         .setRequired(true)
     ),
 
@@ -17,22 +17,22 @@ module.exports = {
     await interaction.deferReply({ flags: 64 });
 
     try {
-      const zoneName = interaction.options.getString('zone_name');
+      const playerName = interaction.options.getString('player_name');
 
-      // Validate zoneName
-      if (!zoneName || typeof zoneName !== 'string' || zoneName.trim() === '') {
+      // Validate playerName
+      if (!playerName || typeof playerName !== 'string' || playerName.trim() === '') {
         return interaction.editReply({
-          embeds: [errorEmbed('Error', 'Please provide a valid zone name.')]
+          embeds: [errorEmbed('Error', 'Please provide a valid player name.')]
         });
       }
 
-      if (zoneName.length > 50) {
+      if (playerName.length > 32) {
         return interaction.editReply({
-          embeds: [errorEmbed('Error', 'Zone name is too long (max 50 characters).')]
+          embeds: [errorEmbed('Error', 'Player name is too long (max 32 characters).')]
         });
       }
 
-      // Get zone
+      // Get zone by player name
       let zoneResult;
       try {
         [zoneResult] = await pool.query(`
@@ -40,8 +40,8 @@ module.exports = {
           FROM zorp_zones z
           JOIN rust_servers rs ON z.server_id = rs.id
           JOIN guilds g ON rs.guild_id = g.id
-          WHERE g.discord_id = ? AND z.name = ?
-        `, [interaction.guildId, zoneName]);
+          WHERE g.discord_id = ? AND z.owner = ?
+        `, [interaction.guildId, playerName]);
       } catch (dbError) {
         console.error('Database error fetching zone:', dbError);
         return interaction.editReply({
@@ -51,7 +51,7 @@ module.exports = {
 
       if (!zoneResult || zoneResult.length === 0) {
         return interaction.editReply({
-          embeds: [errorEmbed('Error', `Zone "${zoneName}" was not found.`)]
+          embeds: [errorEmbed('Error', `No Zorp found for player "${playerName}".`)]
         });
       }
 
@@ -61,10 +61,10 @@ module.exports = {
       let rconSuccess = false;
       try {
         if (zone.ip && zone.port && zone.password) {
-          await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zoneName}"`);
+          await sendRconCommand(zone.ip, zone.port, zone.password, `zones.deletecustomzone "${zone.name}"`);
           rconSuccess = true;
         } else {
-          console.warn('Missing RCON credentials for zone deletion:', zoneName);
+          console.warn('Missing RCON credentials for zone deletion:', zone.name);
         }
       } catch (rconError) {
         console.error('RCON error deleting zone:', rconError);
@@ -74,7 +74,7 @@ module.exports = {
       // Clear offline expiration timer if it exists
       try {
         const { clearOfflineExpirationTimer } = require('../../rcon');
-        await clearOfflineExpirationTimer(zoneName);
+        await clearOfflineExpirationTimer(zone.name);
       } catch (timerError) {
         console.error('Error clearing offline timer:', timerError);
         // Continue with deletion even if timer cleanup fails
@@ -95,7 +95,7 @@ module.exports = {
       const createdAt = zone.created_at ? Math.floor(new Date(zone.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000);
       const serverName = zone.nickname || 'Unknown Server';
 
-      const embed = successEmbed('Success', `Zone **${zoneName}** has been deleted.`);
+      const embed = successEmbed('Success', `Zorp for **${playerName}** has been deleted.`);
       embed.addFields({
         name: 'Zone Details',
         value: `**Owner:** ${owner}\n**Server:** ${serverName}\n**Created:** <t:${createdAt}:R>`,
