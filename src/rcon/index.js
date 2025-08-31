@@ -1270,11 +1270,22 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
           // Send getauthlevel command to check in-game VIP role
           const authLevelResponse = await sendRconCommandWithResponse(ip, port, password, `getauthlevel ${player}`);
           
-          if (authLevelResponse && authLevelResponse.includes(' - VIP')) {
+          console.log(`[VIP KIT] Auth level response for ${player}: "${authLevelResponse}"`);
+          
+          // Enhanced VIP detection - check multiple possible formats
+          const hasVipRole = authLevelResponse && (
+            authLevelResponse.includes(' - VIP') ||
+            authLevelResponse.includes(' - VIP ') ||
+            authLevelResponse.includes(' VIP') ||
+            authLevelResponse.includes('VIP') ||
+            authLevelResponse.toLowerCase().includes('vip')
+          );
+          
+          if (hasVipRole) {
             console.log(`[VIP KIT] Player ${player} has in-game VIP role, allowing kit claim`);
           } else {
-            console.log(`[VIP KIT] Player ${player} not in VIP list and no in-game VIP role`);
-            sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you need VIP access to claim</color> <color=#800080>VIP kits</color>`);
+            console.log(`[VIP KIT] Player ${player} not in VIP list and no in-game VIP role - silently ignoring`);
+            // Don't send any message - just silently ignore
             return;
           }
         } else {
