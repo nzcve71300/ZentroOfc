@@ -776,7 +776,6 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
 
     if (existingPlayer.length === 0) {
       // Create new player record with placeholder Discord ID since NULL is not allowed
-      console.log(`[DEBUG] Creating player record: guild_id=${guildId_db}, server_id=${serverId}, discord_id=placeholder, ign=${playerName}`);
       const [newPlayer] = await pool.query(
         'INSERT INTO players (guild_id, server_id, discord_id, ign) VALUES (?, ?, ?, ?)',
         [guildId_db, serverId, '000000000000000000', playerName] // Use 18 zeros as placeholder for unlinked players
