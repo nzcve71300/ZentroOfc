@@ -61,7 +61,7 @@ module.exports = {
 
       const server = serverResult[0];
 
-      // Get top 20 players with kills (Discord embed limit is 25 fields, so we limit to 20 to be safe)
+      // Get top 20 players with kills (including unlinked players)
       const [topPlayers] = await pool.query(
         `SELECT p.ign, p.discord_id, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak, p.linked_at,
                 COALESCE(ppt.total_minutes, 0) as total_minutes
@@ -70,7 +70,6 @@ module.exports = {
          LEFT JOIN player_playtime ppt ON p.id = ppt.player_id
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
          AND p.server_id = ?
-         AND p.is_active = true
          AND ps.kills > 0
          ORDER BY ps.kills DESC, ps.deaths ASC
          LIMIT 20`,
@@ -81,7 +80,7 @@ module.exports = {
         return interaction.editReply({
           embeds: [orangeEmbed(
             'No Players Found',
-            `No players with kill statistics found on **${serverName}**.\n\nPlayers need to link their accounts and have kills to appear on the leaderboard.`
+            `No players with kill statistics found on **${serverName}**.\n\nPlayers need to have kills to appear on the leaderboard.`
           )]
         });
       }
@@ -106,14 +105,17 @@ module.exports = {
         const minutes = player.total_minutes % 60;
         const playtimeText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
         
+        // Show link status
+        const linkStatus = player.discord_id ? '🔗 Linked' : '🔓 Unlinked';
+        
         embed.addFields({
-          name: `${medal} ${player.ign}`,
+          name: `${medal} ${player.ign} ${linkStatus}`,
           value: `**Kills:** ${player.kills.toLocaleString()} | **Deaths:** ${player.deaths.toLocaleString()} | **K/D:** ${kdRatio} | **Playtime:** ${playtimeText}\n**Current Streak:** ${player.kill_streak} | **Best Streak:** ${player.highest_streak}`,
           inline: false
         });
       }
 
-      // Add total players count and statistics
+      // Add total players count and statistics (including unlinked players)
       const [totalStats] = await pool.query(
         `SELECT COUNT(*) as total_players,
                 SUM(ps.kills) as total_kills,
@@ -122,7 +124,7 @@ module.exports = {
          JOIN player_stats ps ON p.id = ps.player_id
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
          AND p.server_id = ?
-         AND p.is_active = true`,
+         AND ps.kills > 0`,
         [guildId, server.id]
       );
 
@@ -136,7 +138,7 @@ module.exports = {
       });
 
       embed.setFooter({ 
-        text: `Showing top ${topPlayers.length} players with kills • Total players: ${stats.total_players} • Last updated: ${new Date().toLocaleString()}` 
+        text: `Showing top ${topPlayers.length} players with kills (including unlinked) • Total players: ${stats.total_players} • Last updated: ${new Date().toLocaleString()}` 
       });
 
       await interaction.editReply({ embeds: [embed] });
