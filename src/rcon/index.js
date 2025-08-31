@@ -4333,6 +4333,41 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     ]);
     console.log(`[ZORP DEBUG] Successfully inserted zone ${zoneName} into database`);
 
+    // Now that the zone is in the database, create the timer with the correct delay
+    console.log(`[ZORP DEBUG] About to query delay for zone ${zoneName} (after database insertion)`);
+    const [delayResult] = await pool.query(
+      'SELECT delay FROM zorp_zones WHERE name = ?',
+      [zoneName]
+    );
+    
+    console.log(`[ZORP DEBUG] Delay query result: ${delayResult.length} rows, delay value: ${delayResult.length > 0 ? delayResult[0].delay : 'N/A'}`);
+    const delayMinutes = delayResult.length > 0 ? (delayResult[0].delay || 1) : 1;
+    const delayMs = delayMinutes * 60 * 1000;
+    
+    console.log(`[ZORP DEBUG] Starting ${delayMinutes}-minute timer for zone ${zoneName} to transition from white to green`);
+    const timerId = setTimeout(async () => {
+      console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
+      // Get zone owner from database instead of parsing zone name
+      const [ownerResult] = await pool.query(
+        'SELECT owner FROM zorp_zones WHERE name = ?',
+        [zoneName]
+      );
+      
+      if (ownerResult.length > 0) {
+        const playerName = ownerResult[0].owner;
+        console.log(`[ZORP DEBUG] Found owner ${playerName} for zone ${zoneName}, calling setZoneToGreen`);
+        await setZoneToGreen(ip, port, password, playerName);
+      } else {
+        console.log(`[ZORP DEBUG] No owner found for zone ${zoneName} in database`);
+      }
+    }, delayMs);
+    
+    // Store timer reference
+    zorpTransitionTimers.set(zoneName, timerId);
+    
+    console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
+    console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
+
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
 
@@ -4577,42 +4612,6 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     zorpZoneStates.set(zoneName, 'white');
     
     console.log(`[ZORP] Set zone ${zoneName} to white (initial creation)`);
-    console.log(`[ZORP DEBUG] About to query delay for zone ${zoneName}`);
-    
-    // Get the delay setting from the database for this zone
-    console.log(`[ZORP DEBUG] Querying delay for zone: ${zoneName}`);
-    const [delayResult] = await pool.query(
-      'SELECT delay FROM zorp_zones WHERE name = ?',
-      [zoneName]
-    );
-    
-    console.log(`[ZORP DEBUG] Delay query result: ${delayResult.length} rows, delay value: ${delayResult.length > 0 ? delayResult[0].delay : 'N/A'}`);
-    const delayMinutes = delayResult.length > 0 ? (delayResult[0].delay || 1) : 1;
-    const delayMs = delayMinutes * 60 * 1000;
-    
-    console.log(`[ZORP DEBUG] Starting ${delayMinutes}-minute timer for zone ${zoneName} to transition from white to green`);
-    const timerId = setTimeout(async () => {
-      console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
-      // Get zone owner from database instead of parsing zone name
-      const [ownerResult] = await pool.query(
-        'SELECT owner FROM zorp_zones WHERE name = ?',
-        [zoneName]
-      );
-      
-      if (ownerResult.length > 0) {
-        const playerName = ownerResult[0].owner;
-        console.log(`[ZORP DEBUG] Found owner ${playerName} for zone ${zoneName}, calling setZoneToGreen`);
-        await setZoneToGreen(ip, port, password, playerName);
-      } else {
-        console.log(`[ZORP DEBUG] No owner found for zone ${zoneName} in database`);
-      }
-    }, delayMs);
-    
-    // Store timer reference
-    zorpTransitionTimers.set(zoneName, timerId);
-    
-    console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
-    console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
     console.log(`[ZORP DEBUG] setZoneToWhite function completed successfully for zone ${zoneName}`);
   } catch (error) {
     console.error(`Error setting zone to white:`, error);
