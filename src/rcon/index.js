@@ -3705,11 +3705,14 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
 
 async function setZoneToGreen(ip, port, password, playerName) {
   try {
+    console.log(`[ZORP DEBUG] setZoneToGreen called for player: ${playerName}`);
     // Get zone name from database
     const [zoneResult] = await pool.query(
       'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
+    
+    console.log(`[ZORP DEBUG] Found ${zoneResult.length} zones for player ${playerName}`);
     
     if (zoneResult.length > 0) {
       const zone = zoneResult[0];
@@ -3737,6 +3740,7 @@ async function setZoneToGreen(ip, port, password, playerName) {
       
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'green');
+      console.log(`[ZORP DEBUG] Successfully set zone ${zone.name} to green for player ${playerName}`);
     }
   } catch (error) {
     console.error('Error setting zone to green:', error);
@@ -4603,7 +4607,9 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     console.log(`[ZORP] Set zone ${zoneName} to white (initial creation)`);
     
     // Start 1-minute timer to transition to green
+    console.log(`[ZORP DEBUG] Starting 1-minute timer for zone ${zoneName} to transition from white to green`);
     const timerId = setTimeout(async () => {
+      console.log(`[ZORP DEBUG] 1-minute timer fired for zone ${zoneName} - transitioning to green`);
       // Get zone owner from database instead of parsing zone name
       const [ownerResult] = await pool.query(
         'SELECT owner FROM zorp_zones WHERE name = ?',
@@ -4612,7 +4618,10 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
       
       if (ownerResult.length > 0) {
         const playerName = ownerResult[0].owner;
+        console.log(`[ZORP DEBUG] Found owner ${playerName} for zone ${zoneName}, calling setZoneToGreen`);
         await setZoneToGreen(ip, port, password, playerName);
+      } else {
+        console.log(`[ZORP DEBUG] No owner found for zone ${zoneName} in database`);
       }
     }, 1 * 60 * 1000); // 1 minute
     
@@ -4989,6 +4998,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     lastOfflineCall.set(playerKey, now);
     
     console.log(`[ZORP DEBUG] Processing offline for ${cleanPlayerName} on ${serverName}`);
+    console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
     
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
