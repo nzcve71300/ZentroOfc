@@ -167,7 +167,7 @@ client.on('interactionCreate', async interaction => {
       command.data.name.startsWith('autokits-') || command.data.name.startsWith('killfeed') ||
       command.data.name.startsWith('view-') || command.data.name.startsWith('list-') ||
       command.data.name.startsWith('open-') || command.data.name.startsWith('allow-') ||
-      command.data.name.startsWith('unlink') || command.data.name === 'force-link') {
+              command.data.name.startsWith('unlink')) {
     
     const isAuthorized = await isAuthorizedGuild(interaction.guild);
     if (!isAuthorized) {

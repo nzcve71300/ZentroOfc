@@ -63,7 +63,7 @@ Multi-tenant Rust Console Discord Bot with MySQL database support.
 ### **Admin Commands**
 - ✅ `/allow-link` - Unblock player names from linking
 - ✅ `/unlink` - Unlink player accounts
-- ✅ `/force-link` - Force link player accounts
+
 
 ### **Database Schema**
 - ✅ `guilds` - Guild information

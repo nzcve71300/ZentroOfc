@@ -343,13 +343,7 @@ Zentro Bot is a comprehensive Discord bot designed specifically for Rust server 
 
 ### 👥 **Player Management**
 
-#### `/force-link`
-**Purpose:** Force link player accounts
-**Usage:** Admin-assisted account linking
-**Features:**
-- Manual account association
-- Discord-to-game linking
-- Link verification
+
 
 #### `/unlink`
 **Purpose:** Unlink player accounts
