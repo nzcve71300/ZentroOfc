@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS shop_vehicles (
     FOREIGN KEY (category_id) REFERENCES shop_categories(id) ON DELETE CASCADE
 );
 
--- Add indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_shop_vehicles_category ON shop_vehicles(category_id);
-CREATE INDEX IF NOT EXISTS idx_shop_vehicles_short_name ON shop_vehicles(short_name);
+-- Add indexes for better performance (MariaDB compatible)
+CREATE INDEX idx_shop_vehicles_category ON shop_vehicles(category_id);
+CREATE INDEX idx_shop_vehicles_short_name ON shop_vehicles(short_name);
 
 -- Create shop_vehicle_cooldowns table for tracking purchase timers
 CREATE TABLE IF NOT EXISTS shop_vehicle_cooldowns (
