@@ -70,9 +70,29 @@ module.exports = {
       }
 
       if (!zoneResult || zoneResult.length === 0) {
-        console.log(`[DELETE-ZORP] No zone found for player: "${trimmedPlayerName}"`);
+        console.log(`[DELETE-ZORP] No zone found for player: "${trimmedPlayerName}" in guild: ${interaction.guildId}`);
+        
+        // Get all active Zorps in this guild to show what's available
+        const [availableZorps] = await pool.query(`
+          SELECT z.owner, rs.nickname
+          FROM zorp_zones z
+          JOIN rust_servers rs ON z.server_id = rs.id
+          JOIN guilds g ON rs.guild_id = g.id
+          WHERE g.discord_id = ? AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+          ORDER BY z.owner
+        `, [interaction.guildId]);
+        
+        let errorMessage = `No Zorp found for player "${trimmedPlayerName}".`;
+        
+        if (availableZorps.length > 0) {
+          const zorpList = availableZorps.map(z => `• ${z.owner} (${z.nickname})`).join('\n');
+          errorMessage += `\n\n**Available Zorps in this server:**\n${zorpList}`;
+        } else {
+          errorMessage += '\n\n**No active Zorps found in this server.**';
+        }
+        
         return interaction.editReply({
-          embeds: [errorEmbed('Error', `No Zorp found for player "${trimmedPlayerName}".`)]
+          embeds: [errorEmbed('Error', errorMessage)]
         });
       }
 
