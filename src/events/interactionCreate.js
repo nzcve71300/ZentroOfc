@@ -765,6 +765,45 @@ async function handleConfirmPurchase(interaction) {
         });
       }
       
+      // Check timer/cooldown for vehicles BEFORE storing request
+      if (itemData.timer && itemData.timer > 0) {
+        console.log(`[VEHICLE TIMER] Checking cooldown for vehicle ${itemId}, timer: ${itemData.timer} minutes`);
+        
+        // Check if player has purchased this vehicle recently
+        const cooldownResult = await pool.query(
+          'SELECT purchased_at FROM shop_cooldowns WHERE player_id = ? AND item_type = ? AND item_id = ? ORDER BY purchased_at DESC LIMIT 1',
+          [playerId, 'vehicle', itemId]
+        );
+        
+        if (cooldownResult[0] && cooldownResult[0].length > 0) {
+          const lastPurchase = new Date(cooldownResult[0][0].purchased_at);
+          const now = new Date();
+          const timeDiff = (now - lastPurchase) / (1000 * 60); // Convert to minutes
+          
+          console.log(`[VEHICLE TIMER] Last purchase: ${lastPurchase}, Time diff: ${timeDiff} minutes, Timer: ${itemData.timer} minutes`);
+          
+          if (timeDiff < itemData.timer) {
+            const remaining = Math.ceil(itemData.timer - timeDiff);
+            
+            const { EmbedBuilder } = require('discord.js');
+            const cooldownEmbed = new EmbedBuilder()
+              .setColor(0xFF6B35)
+              .setTitle('⏰ Cooldown Active')
+              .setDescription(`You must wait **${remaining} more minutes** before purchasing this vehicle again.`)
+              .setAuthor({
+                name: playerIgn,
+                iconURL: interaction.user.displayAvatarURL({ dynamic: true })
+              })
+              .setTimestamp();
+            
+            return interaction.followUp({
+              embeds: [cooldownEmbed],
+              components: []
+            });
+          }
+        }
+      }
+      
       // Store vehicle purchase request for position tracking
       const vehiclePurchaseKey = `${itemData.server_id}:${playerIgn}:${itemData.short_name}`;
       global.vehiclePurchaseRequests = global.vehiclePurchaseRequests || new Map();
