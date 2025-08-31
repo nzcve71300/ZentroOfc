@@ -741,8 +741,34 @@ async function handleConfirmPurchase(interaction) {
         price: itemData.price,
         vehicleId: itemId,
         timer: itemData.timer,
-        interaction
+        interaction,
+        timestamp: Date.now()
       });
+
+      console.log(`[VEHICLE PURCHASE] Stored request for ${playerIgn}: ${itemData.short_name} on server ${itemData.server_id}`);
+      
+      // Set a timeout to clean up the request if no position response is received
+      setTimeout(() => {
+        if (global.vehiclePurchaseRequests && global.vehiclePurchaseRequests.has(vehiclePurchaseKey)) {
+          console.log(`[VEHICLE PURCHASE] Timeout reached for ${playerIgn} - ${itemData.short_name}, cleaning up request`);
+          global.vehiclePurchaseRequests.delete(vehiclePurchaseKey);
+          
+          // Send timeout message to Discord
+          try {
+            const { errorEmbed } = require('../../embeds/format');
+            const embed = errorEmbed(
+              'Purchase Timeout',
+              `Vehicle purchase timed out. Please try again or contact an administrator if the issue persists.`
+            );
+            interaction.editReply({
+              embeds: [embed],
+              components: []
+            });
+          } catch (discordError) {
+            console.error('[VEHICLE PURCHASE] Error sending timeout message to Discord:', discordError);
+          }
+        }
+      }, 30000); // 30 second timeout
       
       // Request player position
       const { sendRconCommand } = require('../rcon/index');
