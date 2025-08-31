@@ -225,9 +225,8 @@ async function monitorPlayerLinkingSystem() {
                 recommendations_json,
                 total_alerts,
                 total_recommendations
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (NOW(), ?, ?, ?, ?, ?)
         `, [
-            report.timestamp,
             JSON.stringify(report.checks),
             JSON.stringify(report.alerts),
             JSON.stringify(report.recommendations),
