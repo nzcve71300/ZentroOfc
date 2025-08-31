@@ -1250,23 +1250,53 @@ async function handleKitClaim(client, guildId, serverName, ip, port, password, k
         kitlistName = `Elite${eliteNumber}`;
       }
       
-      // Check if player is in the kit list (support both old and new schema)
-      const [authResult] = await pool.query(
-        `SELECT ka.* FROM kit_auth ka 
-         LEFT JOIN players p ON ka.discord_id = p.discord_id 
-         WHERE ka.server_id = ? AND (
-           (ka.kit_name = ? AND LOWER(ka.player_name) = LOWER(?)) OR
-           (p.ign = ? AND ka.kitlist = ?)
-         )`,
-        [serverId, kitKey, player, player, kitlistName]
-      );
-      
-              // Debug logging removed for production
-      
-      if (authResult.length === 0) {
-                  // Debug logging removed for production
-        // Don't send any message - just silently ignore
-        return;
+      // For VIP kits, check both database list AND in-game VIP role
+      if (kitKey === 'VIPkit') {
+        // First check if player is in the VIP list (database)
+        const [authResult] = await pool.query(
+          `SELECT ka.* FROM kit_auth ka 
+           LEFT JOIN players p ON ka.discord_id = p.discord_id 
+           WHERE ka.server_id = ? AND (
+             (ka.kit_name = ? AND LOWER(ka.player_name) = LOWER(?)) OR
+             (p.ign = ? AND ka.kitlist = ?)
+           )`,
+          [serverId, kitKey, player, player, kitlistName]
+        );
+        
+        // If not in database list, check in-game VIP role
+        if (authResult.length === 0) {
+          console.log(`[VIP KIT] Player ${player} not in VIP list, checking in-game VIP role...`);
+          
+          // Send getauthlevel command to check in-game VIP role
+          const authLevelResponse = await sendRconCommandWithResponse(ip, port, password, `getauthlevel ${player}`);
+          
+          if (authLevelResponse && authLevelResponse.includes(' - VIP')) {
+            console.log(`[VIP KIT] Player ${player} has in-game VIP role, allowing kit claim`);
+          } else {
+            console.log(`[VIP KIT] Player ${player} not in VIP list and no in-game VIP role`);
+            sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>you need VIP access to claim</color> <color=#800080>VIP kits</color>`);
+            return;
+          }
+        } else {
+          console.log(`[VIP KIT] Player ${player} found in VIP list`);
+        }
+      } else {
+        // For ELITE kits, only check database list (no in-game role check)
+        const [authResult] = await pool.query(
+          `SELECT ka.* FROM kit_auth ka 
+           LEFT JOIN players p ON ka.discord_id = p.discord_id 
+           WHERE ka.server_id = ? AND (
+             (ka.kit_name = ? AND LOWER(ka.player_name) = LOWER(?)) OR
+             (p.ign = ? AND ka.kitlist = ?)
+           )`,
+          [serverId, kitKey, player, player, kitlistName]
+        );
+        
+        if (authResult.length === 0) {
+          console.log(`[ELITE KIT] Player ${player} not authorized for ${kitKey}`);
+          // Don't send any message - just silently ignore
+          return;
+        }
       }
     }
 
@@ -2247,6 +2277,17 @@ function sendRconCommand(ip, port, password, command) {
       }
     }, 20000);
   });
+}
+
+// Function to send RCON command and get response (for commands that return data)
+async function sendRconCommandWithResponse(ip, port, password, command) {
+  try {
+    const response = await sendRconCommand(ip, port, password, command);
+    return response;
+  } catch (error) {
+    console.error(`[RCON] Error getting response for command ${command}:`, error.message);
+    return null;
+  }
 }
 
 async function sendFeedEmbed(client, guildId, serverName, channelType, message) {
