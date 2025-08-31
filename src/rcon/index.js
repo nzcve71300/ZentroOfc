@@ -3741,6 +3741,7 @@ async function setZoneToGreen(ip, port, password, playerName) {
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'green');
       console.log(`[ZORP DEBUG] Successfully set zone ${zone.name} to green for player ${playerName}`);
+      console.log(`[ZORP DEBUG] Zone state updated in memory: ${zorpZoneStates.get(zone.name)}`);
     }
   } catch (error) {
     console.error('Error setting zone to green:', error);
@@ -4559,6 +4560,8 @@ function clearZorpTransitionTimer(zoneName) {
     clearTimeout(timerId);
     zorpTransitionTimers.delete(zoneName);
     console.log(`[ZORP] Cleared transition timer for zone ${zoneName}`);
+  } else {
+    console.log(`[ZORP DEBUG] No transition timer found to clear for zone ${zoneName}`);
   }
 }
 
@@ -4576,11 +4579,13 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     console.log(`[ZORP] Set zone ${zoneName} to white (initial creation)`);
     
     // Get the delay setting from the database for this zone
+    console.log(`[ZORP DEBUG] Querying delay for zone: ${zoneName}`);
     const [delayResult] = await pool.query(
       'SELECT delay FROM zorp_zones WHERE name = ?',
       [zoneName]
     );
     
+    console.log(`[ZORP DEBUG] Delay query result: ${delayResult.length} rows, delay value: ${delayResult.length > 0 ? delayResult[0].delay : 'N/A'}`);
     const delayMinutes = delayResult.length > 0 ? (delayResult[0].delay || 1) : 1;
     const delayMs = delayMinutes * 60 * 1000;
     
@@ -4606,6 +4611,7 @@ async function setZoneToWhite(ip, port, password, zoneName, whiteColor = '255,25
     zorpTransitionTimers.set(zoneName, timerId);
     
     console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
+    console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
   } catch (error) {
     console.error(`Error setting zone to white:`, error);
   }
