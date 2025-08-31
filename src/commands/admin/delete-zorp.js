@@ -22,15 +22,23 @@ module.exports = {
     const focusedValue = interaction.options.getFocused();
     const guildId = interaction.guildId;
 
+    console.log(`[DELETE-ZORP AUTCOMPLETE] Focused value: "${focusedValue}", Guild ID: ${guildId}`);
+
     try {
       const [servers] = await pool.query(
         'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ?',
         [guildId, `%${focusedValue}%`]
       );
 
-      await interaction.respond(
-        servers.map(server => ({ name: server.nickname, value: server.nickname }))
-      );
+      console.log(`[DELETE-ZORP AUTCOMPLETE] Found ${servers.length} servers for guild ${guildId}`);
+      servers.forEach(server => {
+        console.log(`[DELETE-ZORP AUTCOMPLETE] Server: ${server.nickname}`);
+      });
+
+      const options = servers.map(server => ({ name: server.nickname, value: server.nickname }));
+      console.log(`[DELETE-ZORP AUTCOMPLETE] Sending options:`, options);
+
+      await interaction.respond(options);
     } catch (error) {
       console.error('Delete zorp autocomplete error:', error);
       await interaction.respond([]);
@@ -46,12 +54,19 @@ module.exports = {
       const playerName = interaction.options.getString('player_name');
       
       // Debug logging
-      console.log(`[DELETE-ZORP] Received server: "${serverOption}", player name: "${playerName}"`);
+      console.log(`[DELETE-ZORP] Received server: "${serverOption}" (type: ${typeof serverOption})`);
+      console.log(`[DELETE-ZORP] Received player name: "${playerName}" (type: ${typeof playerName})`);
+      console.log(`[DELETE-ZORP] Server is null/undefined: ${serverOption === null || serverOption === undefined}`);
+      console.log(`[DELETE-ZORP] Player is null/undefined: ${playerName === null || playerName === undefined}`);
+      console.log(`[DELETE-ZORP] Server is empty string: ${serverOption === ''}`);
+      console.log(`[DELETE-ZORP] Player is empty string: ${playerName === ''}`);
 
       // Validate inputs
       if (!serverOption || !playerName || typeof serverOption !== 'string' || typeof playerName !== 'string' || 
           serverOption.trim() === '' || playerName.trim() === '') {
         console.log(`[DELETE-ZORP] Validation failed: invalid server or player name`);
+        console.log(`[DELETE-ZORP] Server validation: !serverOption=${!serverOption}, type=${typeof serverOption}, trim='${serverOption ? serverOption.trim() : 'null'}'`);
+        console.log(`[DELETE-ZORP] Player validation: !playerName=${!playerName}, type=${typeof playerName}, trim='${playerName ? playerName.trim() : 'null'}'`);
         return interaction.editReply({
           embeds: [errorEmbed('Error', 'Please provide valid server and player names.')]
         });
