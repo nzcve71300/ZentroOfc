@@ -1805,15 +1805,27 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
       }
 
       // Check for vehicle purchase position requests
-      if (global.vehiclePurchaseRequests) {
-        const vehiclePurchaseKey = Array.from(global.vehiclePurchaseRequests.keys()).find(key => {
-          const [serverId, playerIgn, shortName] = key.split(':');
-          return playerIgn && positionStr.includes(playerIgn);
-        });
+      if (global.vehiclePurchaseRequests && global.vehiclePurchaseRequests.size > 0) {
+        console.log(`[VEHICLE PURCHASE] Checking ${global.vehiclePurchaseRequests.size} pending vehicle requests`);
+        
+        // Find the most recent vehicle purchase request for this server
+        let foundVehicleRequest = null;
+        let foundKey = null;
+        
+        for (const [key, request] of global.vehiclePurchaseRequests.entries()) {
+          const [requestServerId, playerIgn, shortName] = key.split(':');
+          
+          // Check if this request is for the current server
+          if (requestServerId === serverId.toString()) {
+            console.log(`[VEHICLE PURCHASE] Found matching request for server ${serverId}: ${playerIgn} - ${shortName}`);
+            foundVehicleRequest = request;
+            foundKey = key;
+            break;
+          }
+        }
 
-        if (vehiclePurchaseKey) {
-          const vehicleRequest = global.vehiclePurchaseRequests.get(vehiclePurchaseKey);
-          const playerName = vehicleRequest.playerIgn;
+        if (foundVehicleRequest) {
+          const playerName = foundVehicleRequest.playerIgn;
 
           console.log(`[VEHICLE PURCHASE] Position response received for ${playerName}: ${positionStr}`);
 
@@ -1821,24 +1833,41 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
           const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
           if (coords.length !== 3 || coords.some(isNaN)) {
             console.log(`[VEHICLE PURCHASE] Invalid position format: ${positionStr}`);
-            global.vehiclePurchaseRequests.delete(vehiclePurchaseKey);
+            global.vehiclePurchaseRequests.delete(foundKey);
             return;
           }
 
-          // Execute vehicle spawn command
-          const vehicleCommand = `entity.spawn ${vehicleRequest.shortName} ${coords[0]} ${coords[1]} ${coords[2]}`;
-          await sendRconCommand(ip, port, password, vehicleCommand);
+          console.log(`[VEHICLE PURCHASE] Parsed coordinates: ${coords[0]}, ${coords[1]}, ${coords[2]}`);
 
-          // Send success message
-          await sendRconCommand(ip, port, password, `say <color=#00FF00><b>SUCCESS!</b></color> <color=white>${playerName} purchased ${vehicleRequest.displayName}!</color>`);
-
-          // Complete the purchase transaction
-          await completeVehiclePurchase(vehicleRequest);
-
-          // Clear the request
-          global.vehiclePurchaseRequests.delete(vehiclePurchaseKey);
-
-          console.log(`[VEHICLE PURCHASE] Vehicle ${vehicleRequest.displayName} spawned for ${playerName} at coordinates: ${coords[0]}, ${coords[1]}, ${coords[2]}`);
+          // Clean up nearby entities and spawn vehicle exactly like BAR
+          console.log(`[VEHICLE PURCHASE] Spawning ${foundVehicleRequest.shortName} for ${playerName} at position: ${positionStr}`);
+          await sendRconCommand(ip, port, password, `entcount`);
+          await sendRconCommand(ip, port, password, `entity.deleteby ${foundVehicleRequest.shortName} ${coords[0]} ${coords[1]} ${coords[2]} 15`);
+          
+          setTimeout(async () => {
+            // Add offset to spawn vehicle slightly away from player (3 units forward) like BAR
+            const offsetX = coords[0] + 3; // 3 units forward
+            const offsetY = coords[1];
+            const offsetZ = coords[2]; // Keep same height
+            const spawnPosition = `(${offsetX},${offsetY},${offsetZ})`;
+            
+            // Execute vehicle spawn command exactly like BAR
+            const vehicleCommand = `entity.spawn ${foundVehicleRequest.shortName} ${spawnPosition}`;
+            console.log(`[VEHICLE PURCHASE] Executing command: ${vehicleCommand}`);
+            await sendRconCommand(ip, port, password, vehicleCommand);
+            
+            // Send success message
+            await sendRconCommand(ip, port, password, `say <color=#00FF00><b>SUCCESS!</b></color> <color=white>${playerName} purchased ${foundVehicleRequest.displayName}!</color>`);
+            
+            // Complete the purchase transaction
+            await completeVehiclePurchase(foundVehicleRequest);
+            
+            // Clear the request
+            global.vehiclePurchaseRequests.delete(foundKey);
+            
+            console.log(`[VEHICLE PURCHASE] Vehicle ${foundVehicleRequest.displayName} spawned for ${playerName} at coordinates: ${offsetX}, ${offsetY}, ${offsetZ}`);
+          }, 1000); // 1 second delay like BAR
+          
           return;
         }
       }
@@ -6082,11 +6111,15 @@ async function completeVehiclePurchase(vehicleRequest) {
   try {
     const { playerId, userId, price, interaction } = vehicleRequest;
 
+    console.log(`[VEHICLE PURCHASE] Starting transaction for ${vehicleRequest.playerIgn}: ${vehicleRequest.displayName}`);
+
     // Deduct balance from player's account
     await pool.query(
       'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
       [price, playerId]
     );
+
+    console.log(`[VEHICLE PURCHASE] Balance deducted: ${price} coins from player ${playerId}`);
 
     // Record the transaction
     await pool.query(
@@ -6094,42 +6127,58 @@ async function completeVehiclePurchase(vehicleRequest) {
       [playerId, -price, 'vehicle_purchase']
     );
 
+    console.log(`[VEHICLE PURCHASE] Transaction recorded`);
+
     // Record cooldown if timer exists
     if (vehicleRequest.timer && vehicleRequest.timer > 0) {
       await pool.query(
         'INSERT INTO shop_vehicle_cooldowns (player_id, vehicle_id, purchased_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
         [playerId, vehicleRequest.vehicleId]
       );
+      console.log(`[VEHICLE PURCHASE] Cooldown recorded: ${vehicleRequest.timer} minutes`);
     }
 
     // Send success message to Discord
-    const { successEmbed } = require('../embeds/format');
-    const embed = successEmbed(
-      '🚗 Vehicle Purchased!',
-      `**Vehicle:** ${vehicleRequest.displayName}\n**Price:** ${price} coins\n**Server:** ${vehicleRequest.nickname}\n\nYour vehicle has been spawned at your location!`
-    );
+    try {
+      const { successEmbed } = require('../embeds/format');
+      const embed = successEmbed(
+        '🚗 Vehicle Purchased!',
+        `**Vehicle:** ${vehicleRequest.displayName}\n**Price:** ${price} coins\n**Server:** ${vehicleRequest.nickname}\n\nYour vehicle has been spawned at your location!`
+      );
 
-    await interaction.editReply({
-      embeds: [embed],
-      components: []
-    });
+      await interaction.editReply({
+        embeds: [embed],
+        components: []
+      });
 
-    console.log(`[VEHICLE PURCHASE] Transaction completed for ${vehicleRequest.playerIgn}: ${vehicleRequest.displayName}`);
+      console.log(`[VEHICLE PURCHASE] Success message sent to Discord`);
+    } catch (discordError) {
+      console.error('[VEHICLE PURCHASE] Error sending Discord message:', discordError);
+      // Don't fail the entire transaction if Discord message fails
+    }
+
+    console.log(`[VEHICLE PURCHASE] Transaction completed successfully for ${vehicleRequest.playerIgn}: ${vehicleRequest.displayName}`);
 
   } catch (error) {
-    console.error('Error completing vehicle purchase:', error);
+    console.error('[VEHICLE PURCHASE] Error completing vehicle purchase:', error);
     
-    // Send error message to Discord
-    const { errorEmbed } = require('../embeds/format');
-    const embed = errorEmbed(
-      'Purchase Error',
-      'There was an error processing your vehicle purchase. Please contact an administrator.'
-    );
+    // Try to send error message to Discord
+    try {
+      const { errorEmbed } = require('../embeds/format');
+      const embed = errorEmbed(
+        'Purchase Error',
+        'There was an error processing your vehicle purchase. Please contact an administrator.'
+      );
 
-    await vehicleRequest.interaction.editReply({
-      embeds: [embed],
-      components: []
-    });
+      if (vehicleRequest.interaction && typeof vehicleRequest.interaction.editReply === 'function') {
+        await vehicleRequest.interaction.editReply({
+          embeds: [embed],
+          components: []
+        });
+      }
+    } catch (discordError) {
+      console.error('[VEHICLE PURCHASE] Error sending error message to Discord:', discordError);
+    }
   }
 }
 
