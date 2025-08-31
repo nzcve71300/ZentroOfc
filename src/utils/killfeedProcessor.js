@@ -315,14 +315,21 @@ class KillfeedProcessor {
           kills: 0,
           deaths: 0,
           kill_streak: 0,
-          highest_streak: 0
+          highest_streak: 0,
+          kd_ratio: '0'
         };
       }
 
-      return result[0];
+      const stats = result[0];
+      const kd = stats.deaths > 0 ? (stats.kills / stats.deaths).toFixed(2) : stats.kills.toString();
+      
+      return {
+        ...stats,
+        kd_ratio: kd
+      };
     } catch (error) {
       console.error('Error getting/creating player stats:', error);
-      return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0 };
+      return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0, kd_ratio: '0' };
     }
   }
 
@@ -363,7 +370,7 @@ class KillfeedProcessor {
       );
 
       if (result.length === 0) {
-        return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0 };
+        return { kills: 0, deaths: 0, kill_streak: 0, highest_streak: 0, kd_ratio: '0' };
       }
 
       const stats = result[0];
