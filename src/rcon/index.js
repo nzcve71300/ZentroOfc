@@ -4848,8 +4848,78 @@ async function restoreZonesOnStartup(client) {
 
     console.log(`[ZORP] Zone restoration complete: ${restoredCount} zones restored, ${errorCount} errors`);
     
+    // Check for offline players and transition their zones to red (only if they're currently offline)
+    console.log(`[ZORP] Checking for offline players with active zones...`);
+    await checkAndTransitionOfflineZones(client);
+    
   } catch (error) {
     console.error('Error restoring zones on startup:', error);
+  }
+}
+
+async function checkAndTransitionOfflineZones(client) {
+  try {
+    console.log(`[ZORP OFFLINE CHECK] Starting offline zone transition check...`);
+    
+    // Get all active zones
+    const [activeZones] = await pool.query(`
+      SELECT z.*, rs.ip, rs.port, rs.password, g.discord_id as guild_id, rs.nickname
+      FROM zorp_zones z
+      JOIN rust_servers rs ON z.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+    `);
+
+    console.log(`[ZORP OFFLINE CHECK] Found ${activeZones.length} active zones to check`);
+
+    for (const zone of activeZones) {
+      try {
+        console.log(`[ZORP OFFLINE CHECK] Checking zone: ${zone.name} (owner: ${zone.owner})`);
+        
+        // Get online players for this server
+        const onlinePlayers = await getOnlinePlayers(zone.ip, zone.port, zone.password);
+        if (!onlinePlayers) {
+          console.log(`[ZORP OFFLINE CHECK] Could not get online players for ${zone.nickname} - skipping`);
+          continue;
+        }
+
+        console.log(`[ZORP OFFLINE CHECK] Online players count: ${onlinePlayers.size}`);
+        
+        // Check if zone owner is online
+        const isOwnerOnline = Array.from(onlinePlayers).some(player => 
+          player.toLowerCase() === zone.owner.toLowerCase()
+        );
+
+        console.log(`[ZORP OFFLINE CHECK] Owner ${zone.owner} is ${isOwnerOnline ? 'ONLINE' : 'OFFLINE'}`);
+
+        if (!isOwnerOnline) {
+          // Owner is offline, check if all team members are offline
+          const allTeamOffline = await checkIfAllTeamMembersOffline(zone.owner);
+          console.log(`[ZORP OFFLINE CHECK] All team members offline for ${zone.owner}: ${allTeamOffline}`);
+
+          if (allTeamOffline) {
+            console.log(`[ZORP OFFLINE CHECK] Transitioning zone ${zone.name} to red (owner and team offline)`);
+            
+            // Transition directly to red since this is a startup check
+            await setZoneToRed(zone.ip, zone.port, zone.password, zone.owner);
+            
+            console.log(`[ZORP OFFLINE CHECK] Successfully transitioned ${zone.name} to red`);
+          } else {
+            console.log(`[ZORP OFFLINE CHECK] Zone ${zone.name} staying green (team members still online)`);
+          }
+        } else {
+          console.log(`[ZORP OFFLINE CHECK] Zone ${zone.name} staying green (owner online)`);
+        }
+        
+      } catch (error) {
+        console.error(`[ZORP OFFLINE CHECK] Error checking zone ${zone.name}:`, error);
+      }
+    }
+    
+    console.log(`[ZORP OFFLINE CHECK] Offline zone transition check completed`);
+    
+  } catch (error) {
+    console.error('[ZORP OFFLINE CHECK] Error in checkAndTransitionOfflineZones:', error);
   }
 }
 
