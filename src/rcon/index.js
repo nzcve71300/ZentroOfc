@@ -3377,7 +3377,7 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
         
         // Check if player has a zone (try by owner first, then by any zone if owner is Unknown)
         let [zoneResult] = await pool.query(
-          'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
+          'SELECT name FROM zorp_zones WHERE server_id = ? AND LOWER(owner) = LOWER(?)',
           [serverId, player]
         );
 
@@ -3710,7 +3710,7 @@ async function setZoneToGreen(ip, port, password, playerName) {
     console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
     // Get zone name from database
     const [zoneResult] = await pool.query(
-      'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT * FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
     
@@ -3764,7 +3764,7 @@ async function setZoneToYellow(ip, port, password, playerName) {
     
     // Get zone name from database
     const [zoneResult] = await pool.query(
-      'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT * FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
     
@@ -3820,7 +3820,7 @@ async function setZoneToRed(ip, port, password, playerName) {
   try {
     // Get zone name from database
     const [zoneResult] = await pool.query(
-      'SELECT * FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT * FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [playerName]
     );
     
@@ -4216,7 +4216,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check if player already has a zone
     const [existingZone] = await pool.query(
-      'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
+      'SELECT name FROM zorp_zones WHERE server_id = ? AND LOWER(owner) = LOWER(?)',
       [serverId, playerName]
     );
 
@@ -4475,7 +4475,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check if player has a zone
     const [zoneResult] = await pool.query(
-      'SELECT name FROM zorp_zones WHERE server_id = ? AND owner = ?',
+      'SELECT name FROM zorp_zones WHERE server_id = ? AND LOWER(owner) = LOWER(?)',
       [serverId, playerName]
     );
 
@@ -4490,7 +4490,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
 
     // Delete zone from database
-    await pool.query('DELETE FROM zorp_zones WHERE server_id = ? AND owner = ?', [serverId, playerName]);
+    await pool.query('DELETE FROM zorp_zones WHERE server_id = ? AND LOWER(owner) = LOWER(?)', [serverId, playerName]);
 
     // Send success message
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);
@@ -5058,7 +5058,7 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
         
         // Check if this player has a Zorp zone before processing offline
         const [zoneResult] = await pool.query(
-          'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          'SELECT name FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
           [player]
         );
         
@@ -5082,7 +5082,7 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
         
         // Check if this player has a Zorp zone or is part of a team with a Zorp zone
         const [zoneResult] = await pool.query(
-          'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          'SELECT name FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
           [player]
         );
         
@@ -5094,7 +5094,7 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
           const teamInfo = await getPlayerTeam(ip, port, password, player);
           if (teamInfo && teamInfo.owner) {
             const [teamZoneResult] = await pool.query(
-              'SELECT name FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+              'SELECT name FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
               [teamInfo.owner]
             );
             
@@ -5141,7 +5141,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
-      'SELECT name, current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT name, current_state FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [cleanPlayerName]
     );
     
@@ -5172,7 +5172,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
           
           // Get zone delay for feed message
           const [zoneInfo] = await pool.query(
-            'SELECT delay FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+            'SELECT delay FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
             [cleanPlayerName]
           );
           const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
@@ -5194,7 +5194,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
       if (teamInfo && teamInfo.owner) {
         // Check if team owner has a zorp zone
         const [teamZoneResult] = await pool.query(
-          'SELECT name, current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          'SELECT name, current_state FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
           [teamInfo.owner]
         );
         
@@ -5213,7 +5213,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
               
               // Get zone delay for feed message
               const [zoneInfo] = await pool.query(
-                'SELECT delay FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+                'SELECT delay FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
                 [teamInfo.owner]
               );
               const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
@@ -5262,7 +5262,7 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     
     // Check if player has a Zorp zone before processing
     const [zoneResult] = await pool.query(
-      'SELECT name, current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+      'SELECT name, current_state FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
       [cleanPlayerName]
     );
     
@@ -5294,7 +5294,7 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
       if (teamInfo && teamInfo.owner) {
         // Check if team owner has a zorp zone
         const [teamZoneResult] = await pool.query(
-          'SELECT name, current_state FROM zorp_zones WHERE owner = ? AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
+          'SELECT name, current_state FROM zorp_zones WHERE LOWER(owner) = LOWER(?) AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP',
           [teamInfo.owner]
         );
         
