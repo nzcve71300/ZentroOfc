@@ -16,6 +16,22 @@ The main reason your Zorps were staying green when players went offline was **NO
 3. Zones couldn't be restored in-game
 4. Offline detection had no zones to work with
 
+## ⚠️ **Additional Issue: Coordinate Spacing**
+
+**User identified another critical issue**: The Rust zones system **requires NO SPACES** in coordinates.
+
+### **Wrong Format (with spaces):**
+```
+zones.createcustomzone "ZoneName" ( -1070.74, 1.28, 337.05 ) 0 Sphere 75 1 0 0 1 1
+```
+
+### **Correct Format (no spaces):**
+```
+zones.createcustomzone "ZoneName" (-1070.74,1.28,337.05) 0 Sphere 75 1 0 0 1 1
+```
+
+**The spaces after commas cause the zone creation to fail silently!**
+
 ## ✅ **Fix Applied**
 
 I've updated the position data parsing to handle **both formats**:
@@ -94,5 +110,11 @@ pm2 restart zentro-bot
 ```
 [ZORP] Skipping zone ZORP_1756730996592 - invalid position data: [ -1070.74, 1.28, 337.05 ]
 ```
+
+## 🎯 **Key Takeaway**
+
+**Two issues were causing your Zorp problem:**
+1. **Position data format mismatch** - Array vs Object (FIXED)
+2. **Coordinate spacing** - Rust requires no spaces (IDENTIFIED)
 
 This fix should resolve the core issue causing your Zorps to stay green when players go offline! 🎉

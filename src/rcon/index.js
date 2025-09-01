@@ -4816,7 +4816,7 @@ async function restoreZonesOnStartup(client) {
 
         console.log(`[ZORP DEBUG] Zone position: x=${position.x}, y=${position.y}, z=${position.z}`);
 
-        // Recreate zone in-game
+        // Recreate zone in-game - NO SPACES in coordinates
         const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${zone.size} 1 0 0 1 1`;
         console.log(`[ZORP DEBUG] Executing restoration command: ${zoneCommand}`);
         const createResult = await sendRconCommand(zone.ip, zone.port, zone.password, zoneCommand);
