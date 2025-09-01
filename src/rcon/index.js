@@ -76,6 +76,7 @@ const zorpZoneStates = new Map(); // Track current zone states
 const zorpOfflineTimers = new Map(); // Track offline expiration timers
 const zorpOfflineStartTimes = new Map(); // Track when players went offline
 const zorpOfflineExpireTimers = new Map(); // Track expire countdown timers (separate from offline timers)
+const zorpTimerLocks = new Map(); // Prevent concurrent timer operations
 
 
 
@@ -3786,12 +3787,9 @@ async function setZoneToYellow(ip, port, password, playerName) {
       
       // Start timer for transition to red (delay is in minutes, convert to milliseconds)
       const delayMs = (zone.delay || 5) * 60 * 1000;
-      const timerId = setTimeout(async () => {
+      await safeSetTransitionTimer(zone.name, async () => {
         await setZoneToRed(ip, port, password, playerName);
       }, delayMs);
-      
-      // Store timer reference
-      zorpTransitionTimers.set(zone.name, timerId);
     }
   } catch (error) {
     console.error('Error setting zone to yellow:', error);
@@ -3826,7 +3824,7 @@ async function setZoneToRed(ip, port, password, playerName) {
       
                     // Start expire countdown timer (this is the timer that counts down the expire time when offline)
       console.log(`[ZORP DEBUG] Starting expire countdown timer for ${playerName} (${zone.name}) with expire time: ${zone.expire} seconds`);
-      startExpireCountdownTimer(ip, port, password, playerName, zone.name, zone.expire);
+      await startExpireCountdownTimer(ip, port, password, playerName, zone.name, zone.expire);
       
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'red');
@@ -3841,6 +3839,12 @@ async function startOfflineExpirationTimer(ip, port, password, playerName, zoneN
   try {
     console.log(`[ZORP OFFLINE TIMER] Starting offline expiration timer for ${playerName} (${zoneName}) - ${expireSeconds} seconds`);
     
+    // Validate inputs
+    if (!zoneName || !playerName || !expireSeconds || expireSeconds <= 0) {
+      console.error(`[ZORP OFFLINE TIMER] Invalid parameters: zoneName=${zoneName}, playerName=${playerName}, expireSeconds=${expireSeconds}`);
+      return;
+    }
+    
     // Record when player went offline
     zorpOfflineStartTimes.set(zoneName, Date.now());
     
@@ -3849,7 +3853,14 @@ async function startOfflineExpirationTimer(ip, port, password, playerName, zoneN
     
     // Start new offline timer
     const timerId = setTimeout(async () => {
-      await handleOfflineExpiration(ip, port, password, playerName, zoneName);
+      try {
+        await handleOfflineExpiration(ip, port, password, playerName, zoneName);
+      } catch (error) {
+        console.error(`[ZORP OFFLINE TIMER] Error in timer callback for ${zoneName}:`, error);
+        // Clean up timer references on error
+        zorpOfflineTimers.delete(zoneName);
+        zorpOfflineStartTimes.delete(zoneName);
+      }
     }, expireSeconds * 1000);
     
     // Store timer reference
@@ -3858,6 +3869,9 @@ async function startOfflineExpirationTimer(ip, port, password, playerName, zoneN
     console.log(`[ZORP OFFLINE TIMER] Timer set for ${playerName} - will expire in ${expireSeconds} seconds`);
   } catch (error) {
     console.error('Error starting offline expiration timer:', error);
+    // Clean up on error
+    zorpOfflineTimers.delete(zoneName);
+    zorpOfflineStartTimes.delete(zoneName);
   }
 }
 
@@ -3917,14 +3931,26 @@ async function startExpireCountdownTimer(ip, port, password, playerName, zoneNam
   try {
     console.log(`[ZORP EXPIRE TIMER] Starting expire countdown timer for ${playerName} (${zoneName}) - ${expireSeconds} seconds`);
     
+    // Validate inputs
+    if (!zoneName || !playerName || !expireSeconds || expireSeconds <= 0) {
+      console.error(`[ZORP EXPIRE TIMER] Invalid parameters: zoneName=${zoneName}, playerName=${playerName}, expireSeconds=${expireSeconds}`);
+      return;
+    }
+    
     // Clear any existing expire timer
     clearExpireCountdownTimer(zoneName);
     
     // Start new expire countdown timer
     console.log(`[ZORP DEBUG] Setting timeout for ${expireSeconds} seconds (${expireSeconds * 1000} ms) for zone ${zoneName}`);
     const timerId = setTimeout(async () => {
-      console.log(`[ZORP DEBUG] Expire countdown timer fired for zone ${zoneName} - calling handleExpireCountdown`);
-      await handleExpireCountdown(ip, port, password, playerName, zoneName);
+      try {
+        console.log(`[ZORP DEBUG] Expire countdown timer fired for zone ${zoneName} - calling handleExpireCountdown`);
+        await handleExpireCountdown(ip, port, password, playerName, zoneName);
+      } catch (error) {
+        console.error(`[ZORP EXPIRE TIMER] Error in timer callback for ${zoneName}:`, error);
+        // Clean up timer references on error
+        zorpOfflineExpireTimers.delete(zoneName);
+      }
     }, expireSeconds * 1000);
     
     // Store timer reference
@@ -3933,6 +3959,8 @@ async function startExpireCountdownTimer(ip, port, password, playerName, zoneNam
     console.log(`[ZORP EXPIRE TIMER] Expire countdown timer set for ${playerName} - will delete zone in ${expireSeconds} seconds`);
   } catch (error) {
     console.error('Error starting expire countdown timer:', error);
+    // Clean up on error
+    zorpOfflineExpireTimers.delete(zoneName);
   }
 }
 
@@ -4358,7 +4386,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     
     console.log(`[ZORP DEBUG] About to create setTimeout with ${delayMs}ms delay`);
     
-    const timerId = setTimeout(async () => {
+    await safeSetTransitionTimer(zoneName, async () => {
       console.log(`[ZORP DEBUG] ${delayMinutes}-minute timer fired for zone ${zoneName} - transitioning to green`);
       console.log(`[ZORP DEBUG] Current time: ${new Date().toISOString()}`);
       // Get zone owner from database instead of parsing zone name
@@ -4376,11 +4404,8 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
       }
     }, delayMs);
     
-    // Store timer reference
-    zorpTransitionTimers.set(zoneName, timerId);
-    
     console.log(`[ZORP] Started ${delayMinutes}-minute timer for zone ${zoneName} to go green`);
-    console.log(`[ZORP DEBUG] Timer ID: ${timerId}, Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
+    console.log(`[ZORP DEBUG] Delay: ${delayMs}ms, Stored in zorpTransitionTimers: ${zorpTransitionTimers.has(zoneName)}`);
     
 
 
@@ -4613,6 +4638,42 @@ function clearZorpTransitionTimer(zoneName) {
     console.log(`[ZORP] Cleared transition timer for zone ${zoneName}`);
   } else {
     console.log(`[ZORP DEBUG] No transition timer found to clear for zone ${zoneName}`);
+  }
+}
+
+// Safe timer management with locks to prevent race conditions
+async function safeSetTransitionTimer(zoneName, callback, delayMs) {
+  // Check if timer is already being set for this zone
+  if (zorpTimerLocks.has(zoneName)) {
+    console.log(`[ZORP DEBUG] Timer operation already in progress for zone ${zoneName}, skipping`);
+    return;
+  }
+  
+  try {
+    // Set lock
+    zorpTimerLocks.set(zoneName, true);
+    
+    // Clear any existing timer first
+    clearZorpTransitionTimer(zoneName);
+    
+    // Set new timer
+    const timerId = setTimeout(async () => {
+      try {
+        await callback();
+      } finally {
+        // Always clear lock when timer fires
+        zorpTimerLocks.delete(zoneName);
+        zorpTransitionTimers.delete(zoneName);
+      }
+    }, delayMs);
+    
+    // Store timer reference
+    zorpTransitionTimers.set(zoneName, timerId);
+    console.log(`[ZORP DEBUG] Set transition timer for zone ${zoneName} with ${delayMs}ms delay`);
+    
+  } catch (error) {
+    console.error(`[ZORP ERROR] Failed to set transition timer for zone ${zoneName}:`, error);
+    zorpTimerLocks.delete(zoneName);
   }
 }
 
