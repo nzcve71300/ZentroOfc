@@ -4389,8 +4389,8 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     console.log(`[ZORP DEBUG] Inserting zone into database: ${zoneName} for player ${playerName}`);
     await pool.query(`
-      INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, last_online_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, created_at, updated_at, last_online_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
     `, [
       zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
       JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline, zoneData.color_yellow,
