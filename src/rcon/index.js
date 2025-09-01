@@ -4245,7 +4245,11 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     const MIN_DISTANCE = 150; // Minimum distance between zones
     for (const zone of nearbyZones) {
       if (zone.position) {
-        const zoneCoords = JSON.parse(zone.position);
+        let zoneCoords = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
+        // Convert object format {x,y,z} to array format [x,y,z] if needed
+        if (typeof zoneCoords === 'object' && !Array.isArray(zoneCoords)) {
+          zoneCoords = [zoneCoords.x, zoneCoords.y, zoneCoords.z];
+        }
         const distance = Math.sqrt(
           Math.pow(coords[0] - zoneCoords[0], 2) + 
           Math.pow(coords[2] - zoneCoords[2], 2) // Use X and Z for ground distance
@@ -4326,7 +4330,11 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     for (const zone of existingZones) {
       if (zone.position) {
-        const existingPos = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
+        let existingPos = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
+        // Convert object format {x,y,z} to array format [x,y,z] if needed
+        if (typeof existingPos === 'object' && !Array.isArray(existingPos)) {
+          existingPos = [existingPos.x, existingPos.y, existingPos.z];
+        }
         const existingSize = zone.size || 75; // Default size if not set
 
         // Debug logging removed for production
@@ -4793,10 +4801,15 @@ async function restoreZonesOnStartup(client) {
         // Enable team action logging for this server
         await enableTeamActionLogging(zone.ip, zone.port, zone.password);
         
-        // Parse position
-        const position = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
+        // Parse position - handle both array [x,y,z] and object {x,y,z} formats
+        let position = typeof zone.position === 'string' ? JSON.parse(zone.position) : zone.position;
         
-        if (!position || !position.x || !position.y || !position.z) {
+        // Convert array format [x,y,z] to object format {x,y,z}
+        if (Array.isArray(position) && position.length >= 3) {
+          position = { x: position[0], y: position[1], z: position[2] };
+        }
+        
+        if (!position || typeof position.x === 'undefined' || typeof position.y === 'undefined' || typeof position.z === 'undefined') {
           console.log(`[ZORP] Skipping zone ${zone.name} - invalid position data:`, position);
           continue;
         }
