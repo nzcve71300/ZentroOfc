@@ -323,6 +323,9 @@ module.exports = {
           // e.g., "CRATE-1" -> "" (empty for enable/disable)
           configType = '';
         }
+      } else if (isPrisonConfig) {
+        // For Prison-System, set configType to the full config name
+        configType = config;
       } else {
         // For other configs, use the original logic
         const parts = config.split('-');
