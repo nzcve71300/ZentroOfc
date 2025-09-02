@@ -127,7 +127,7 @@ module.exports = {
         `• Original Sentence: ${sentenceType} (${sentenceInfo})\n` +
         `• Sentenced By: ${prisonerInfo.sentenced_by}\n` +
         `• Released By: ${interaction.user.username}\n` +
-        `• Time Served: ${this.formatTimeServed(prisonerInfo.sentenced_at)}`
+        `• Time Served: ${formatTimeServed(prisonerInfo.sentenced_at)}`
       );
 
       await interaction.editReply({ embeds: [embed] });
@@ -143,9 +143,10 @@ module.exports = {
         embeds: [errorEmbed('Error', 'An error occurred while processing the command.')]
       });
     }
-  },
+  }
+};
 
-  formatTimeServed(sentencedAt) {
+function formatTimeServed(sentencedAt) {
     const now = new Date();
     const sentenced = new Date(sentencedAt);
     const diffMs = now - sentenced;

@@ -103,7 +103,7 @@ module.exports = {
       const isAlreadyInPrison = await prisonSystem.isPlayerInPrison(serverId, playerName);
       if (isAlreadyInPrison) {
         return interaction.editReply({
-          embeds: [errorEmbed('Player Already Imprisoned', `${playerName} is already in prison. Use `/release` to release them first.`)]
+          embeds: [errorEmbed('Player Already Imprisoned', `${playerName} is already in prison. Use /release to release them first.`)]
         });
       }
 
@@ -171,7 +171,7 @@ module.exports = {
         `• Sentence: Life imprisonment\n` +
         `• Release: Manual release only\n` +
         `• Sentenced By: ${interaction.user.username}\n\n` +
-        `**Note:** This player will remain in prison until manually released with `/release`.`
+        `**Note:** This player will remain in prison until manually released with /release.`
       );
 
       await interaction.editReply({ embeds: [embed] });
