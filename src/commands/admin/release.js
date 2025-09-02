@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const pool = require('../../db');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { sendRconCommand } = require('../../rcon');
+const { sendRconCommand } = require('../../rcon/index');
 const prisonSystem = require('../../utils/prisonSystem');
 
 module.exports = {

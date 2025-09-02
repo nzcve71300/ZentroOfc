@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const pool = require('../../db');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { sendRconCommand } = require('../../rcon');
+const { sendRconCommand } = require('../../rcon/index');
 const prisonSystem = require('../../utils/prisonSystem');
 
 module.exports = {
@@ -144,14 +144,26 @@ module.exports = {
         server.password
       );
 
-      // Teleport player to prison immediately
-      await prisonSystem.teleportToPrison(
-        server.ip,
-        server.port,
-        server.password,
-        playerName,
-        cellNumber
-      );
+      // Request player position and teleport to prison
+      const stateKey = `${guildId}:${serverName}:${playerName}`;
+      prisonPositionState.set(stateKey, {
+        step: 'waiting_for_position',
+        player: playerName,
+        cellNumber: cellNumber,
+        timestamp: Date.now()
+      });
+
+      // Send position request command
+      await sendRconCommand(server.ip, server.port, server.password, `printpos "${playerName}"`);
+      
+      // Set timeout to clean up state after 30 seconds
+      setTimeout(() => {
+        const currentState = prisonPositionState.get(stateKey);
+        if (currentState && currentState.step === 'waiting_for_position') {
+          console.log(`[PRISON] Position request timeout for ${playerName}, cleaning up state`);
+          prisonPositionState.delete(stateKey);
+        }
+      }, 30000);
 
       // Send message to game
       await sendRconCommand(

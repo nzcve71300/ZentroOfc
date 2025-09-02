@@ -1,5 +1,5 @@
 const pool = require('../db');
-const { sendRconCommand } = require('../rcon');
+const { sendRconCommand } = require('../rcon/index');
 
 class PrisonSystem {
   constructor() {
@@ -103,18 +103,40 @@ class PrisonSystem {
    */
   async addPrisoner(serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, sentencedBy) {
     try {
+      console.log(`[PRISON DEBUG] Adding ${playerName} to prison on server ${serverId}`);
+      
       // Calculate release time for temporary sentences
       let releaseTime = null;
       if (sentenceType === 'temporary' && sentenceMinutes) {
         releaseTime = new Date(Date.now() + (sentenceMinutes * 60 * 1000));
       }
       
-      // Insert prisoner record
-      await pool.query(
-        `INSERT INTO prisoners (server_id, player_name, discord_id, cell_number, sentence_type, sentence_minutes, release_time, sentenced_by) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, releaseTime, sentencedBy]
+      // Check if player is already in prison
+      const [existingPrisoner] = await pool.query(
+        'SELECT * FROM prisoners WHERE server_id = ? AND player_name = ? AND is_active = TRUE',
+        [serverId, playerName]
       );
+      
+      if (existingPrisoner.length > 0) {
+        console.log(`[PRISON DEBUG] Player ${playerName} is already in prison, updating record`);
+        
+        // Update existing prisoner record
+        await pool.query(
+          `UPDATE prisoners 
+           SET cell_number = ?, sentence_type = ?, sentence_minutes = ?, release_time = ?, sentenced_by = ?, sentenced_at = NOW()
+           WHERE server_id = ? AND player_name = ? AND is_active = TRUE`,
+          [cellNumber, sentenceType, sentenceMinutes, releaseTime, sentencedBy, serverId, playerName]
+        );
+      } else {
+        console.log(`[PRISON DEBUG] Creating new prisoner record for ${playerName}`);
+        
+        // Insert new prisoner record
+        await pool.query(
+          `INSERT INTO prisoners (server_id, player_name, discord_id, cell_number, sentence_type, sentence_minutes, release_time, sentenced_by) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, releaseTime, sentencedBy]
+        );
+      }
       
       // Add to active prisoners map
       const serverKey = serverId;
@@ -123,10 +145,10 @@ class PrisonSystem {
       }
       this.activePrisoners.get(serverKey).add(playerName);
       
-      console.log(`[PRISON] Added ${playerName} to prison (${sentenceType})`);
+      console.log(`[PRISON] Successfully added ${playerName} to prison (${sentenceType})`);
       return true;
     } catch (error) {
-      console.error('Error adding prisoner:', error);
+      console.error('[PRISON DEBUG] Error adding prisoner:', error);
       return false;
     }
   }
@@ -136,13 +158,28 @@ class PrisonSystem {
    */
   async releasePrisoner(serverId, playerName, releasedBy) {
     try {
-      // Update prisoner record
-      await pool.query(
+      console.log(`[PRISON DEBUG] Releasing ${playerName} from prison on server ${serverId}`);
+      
+      // First check if the prisoner exists and is active
+      const [existingPrisoner] = await pool.query(
+        'SELECT * FROM prisoners WHERE server_id = ? AND player_name = ? AND is_active = TRUE',
+        [serverId, playerName]
+      );
+      
+      if (existingPrisoner.length === 0) {
+        console.log(`[PRISON DEBUG] No active prisoner found for ${playerName} on server ${serverId}`);
+        return false;
+      }
+      
+      // Update prisoner record - use a more specific WHERE clause
+      const [updateResult] = await pool.query(
         `UPDATE prisoners 
          SET is_active = FALSE, released_at = NOW() 
          WHERE server_id = ? AND player_name = ? AND is_active = TRUE`,
         [serverId, playerName]
       );
+      
+      console.log(`[PRISON DEBUG] Update result: ${updateResult.affectedRows} rows affected`);
       
       // Remove from active prisoners map
       const serverKey = serverId;
@@ -157,10 +194,10 @@ class PrisonSystem {
         this.teleportTimers.delete(playerKey);
       }
       
-      console.log(`[PRISON] Released ${playerName} from prison`);
+      console.log(`[PRISON] Successfully released ${playerName} from prison`);
       return true;
     } catch (error) {
-      console.error('Error releasing prisoner:', error);
+      console.error('[PRISON DEBUG] Error releasing prisoner:', error);
       return false;
     }
   }
