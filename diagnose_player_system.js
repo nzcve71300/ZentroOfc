@@ -5,8 +5,9 @@ async function diagnosePlayerSystem() {
   console.log('🔍 Diagnosing Player System');
   console.log('============================\n');
 
+  let connection; // Declared outside try block for finally access
   try {
-    const connection = await mysql.createConnection({
+    connection = await mysql.createConnection({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
@@ -104,7 +105,9 @@ async function diagnosePlayerSystem() {
   } catch (error) {
     console.error('❌ Error during diagnosis:', error);
   } finally {
-    await connection.end();
+    if (connection) { // Check if connection was successfully established
+      await connection.end();
+    }
     process.exit();
   }
 }
