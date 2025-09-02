@@ -2,8 +2,8 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function fixServerName() {
-  console.log('🔧 Fix Server Name');
-  console.log('==================\n');
+  console.log('🔧 Fixing Server Name');
+  console.log('=====================\n');
 
   try {
     const connection = await mysql.createConnection({
@@ -16,59 +16,115 @@ async function fixServerName() {
 
     console.log('✅ Database connected successfully!');
 
-    console.log('\n📋 Step 1: Checking current server...');
-    const [currentServer] = await connection.execute('SELECT * FROM rust_servers WHERE guild_id = 176');
-    console.log(`Current server: ${currentServer[0].nickname} (ID: ${currentServer[0].id})`);
+    const guildId = '1387187628469653555';
+    const oldServerName = '[USA]DeadOps';
+    const newServerName = 'USA-DeadOps';
 
-    console.log('\n📋 Step 2: Updating server nickname...');
-    await connection.execute(
-      'UPDATE rust_servers SET nickname = ? WHERE guild_id = ?',
-      ['RISE 3X', 176]
-    );
-    console.log('✅ Server nickname updated to "RISE 3X"');
-
-    console.log('\n📋 Step 3: Verifying the update...');
-    const [updatedServer] = await connection.execute('SELECT * FROM rust_servers WHERE guild_id = 176');
-    console.log(`Updated server: ${updatedServer[0].nickname} (ID: ${updatedServer[0].id})`);
-
-    console.log('\n📋 Step 4: Testing autocomplete query...');
-    const guildId = '1391149977434329230';
-    const [autocompleteResult] = await connection.execute(
-      'SELECT nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname LIKE ? LIMIT 25',
-      [guildId, '%']
-    );
+    console.log(`\n📋 Step 1: Finding server with old name "${oldServerName}"...`);
     
-    console.log(`Autocomplete query returned ${autocompleteResult.length} servers:`);
-    for (const server of autocompleteResult) {
-      console.log(`- ${server.nickname}`);
+    // First, let's see what servers exist for this guild
+    const [guildServers] = await connection.execute(
+      'SELECT id, nickname, guild_id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?)',
+      [guildId]
+    );
+
+    console.log(`\n📊 Found ${guildServers.length} servers for guild ${guildId}:`);
+    guildServers.forEach(server => {
+      console.log(`  - ID: ${server.id}, Name: ${server.nickname}`);
+    });
+
+    // Find the specific server to update
+    const [targetServer] = await connection.execute(
+      'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, oldServerName]
+    );
+
+    if (targetServer.length === 0) {
+      console.log(`\n❌ No server found with name "${oldServerName}"`);
+      console.log('\n📋 Available server names:');
+      guildServers.forEach(server => {
+        console.log(`  - ${server.nickname}`);
+      });
+      return;
     }
 
-    console.log('\n📋 Step 5: Testing server lookup query...');
-    const [serverLookupResult] = await connection.execute(
-      'SELECT rs.id, rs.nickname FROM rust_servers rs JOIN guilds g ON rs.guild_id = g.id WHERE g.discord_id = ? AND rs.nickname = ?',
-      [guildId, 'RISE 3X']
-    );
+    const serverId = targetServer[0].id;
+    console.log(`\n✅ Found server: ID ${serverId}, Current name: "${targetServer[0].nickname}"`);
+
+    console.log(`\n📋 Step 2: Updating server name to "${newServerName}"...`);
     
-    console.log(`Server lookup for "RISE 3X" returned ${serverLookupResult.length} results:`);
-    for (const server of serverLookupResult) {
-      console.log(`- ID: ${server.id}, Nickname: ${server.nickname}`);
+    // Update the server name
+    const [updateResult] = await connection.execute(
+      'UPDATE rust_servers SET nickname = ? WHERE id = ?',
+      [newServerName, serverId]
+    );
+
+    if (updateResult.affectedRows > 0) {
+      console.log(`✅ Successfully updated server name from "${oldServerName}" to "${newServerName}"`);
+    } else {
+      console.log('❌ No rows were updated');
+      return;
     }
 
-    await connection.end();
+    console.log(`\n📋 Step 3: Verifying the update...`);
+    
+    // Verify the update
+    const [verifyResult] = await connection.execute(
+      'SELECT id, nickname FROM rust_servers WHERE id = ?',
+      [serverId]
+    );
 
-    console.log('\n🎯 SUMMARY:');
-    console.log('✅ Server nickname updated to "RISE 3X"');
-    console.log('✅ Autocomplete now shows "RISE 3X"');
-    console.log('✅ Server lookup now works for "RISE 3X"');
+    if (verifyResult.length > 0) {
+      console.log(`✅ Verification successful! Server ${serverId} now has name: "${verifyResult[0].nickname}"`);
+    }
 
-    console.log('\n🚀 RESTART THE BOT NOW:');
-    console.log('pm2 stop zentro-bot');
-    console.log('pm2 start zentro-bot');
-    console.log('pm2 logs zentro-bot');
+    console.log(`\n📋 Step 4: Checking for related tables that might need updates...`);
+    
+    // Check if there are any other tables that reference the old server name
+    const tablesToCheck = [
+      'eco_games_config',
+      'teleport_configs', 
+      'event_configs',
+      'position_configs',
+      'crate_event_configs',
+      'rider_config',
+      'home_teleport_configs',
+      'recycler_config',
+      'prison_configs',
+      'prison_positions',
+      'prisoners',
+      'bounty_configs',
+      'bounty_tracking'
+    ];
+
+    for (const table of tablesToCheck) {
+      try {
+        const [tableCheck] = await connection.execute(
+          `SELECT COUNT(*) as count FROM ${table} WHERE server_id = ?`,
+          [serverId]
+        );
+        
+        if (tableCheck[0].count > 0) {
+          console.log(`  - ${table}: ${tableCheck[0].count} records found`);
+        }
+      } catch (error) {
+        // Table might not exist, skip it
+        console.log(`  - ${table}: table not found (skipping)`);
+      }
+    }
+
+    console.log('\n🎉 Server name fix completed successfully!');
+    console.log('\n📝 Next steps:');
+    console.log('1. Restart the bot: pm2 restart zentro-bot');
+    console.log('2. Test the new server name: /balance server: USA-DeadOps');
+    console.log('3. The player nzcve7130 should now work on the new server');
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error fixing server name:', error);
+  } finally {
+    process.exit();
   }
 }
 
+// Run the script
 fixServerName(); 

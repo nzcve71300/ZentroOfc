@@ -725,7 +725,9 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
         }
         
         // Handle bounty system for player kills only
-        await handleBountySystem(guildId, serverName, killData.killer, killData.victim, ip, port, password);
+        if (killData.isPlayerKill) {
+          await handleBountySystem(guildId, serverName, killData.killer, killData.victim, ip, port, password);
+        }
         
               } else if (killData.isScientistKill) {
           const rewardResult = await handleKillRewards(guildId, serverName, killData.killer, killData.victim, true);
