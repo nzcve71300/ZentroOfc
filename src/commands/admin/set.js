@@ -305,8 +305,8 @@ module.exports = {
       const zorpMatch = config.match(/^ZORP-/);
       const isZorpConfig = zorpMatch !== null;
       
-      // Extract Prison System config from config (e.g., "Prison-System" -> "prison")
-      const prisonMatch = config.match(/^Prison-System$/);
+      // Extract Prison System config from config (e.g., "Prison-System", "Prison-Z-Size", "Prison-Z-Color" -> "prison")
+      const prisonMatch = config.match(/^Prison-/);
       const isPrisonConfig = prisonMatch !== null;
       
       // Extract Recycler config from config (e.g., "RECYCLER-USE" -> "recycler")
@@ -326,7 +326,7 @@ module.exports = {
           configType = '';
         }
       } else if (isPrisonConfig) {
-        // For Prison-System, set configType to the full config name
+        // For Prison configs, set configType to the full config name
         configType = config;
       } else {
         // For other configs, use the original logic

@@ -4933,7 +4933,7 @@ async function checkAndTransitionOfflineZones(client) {
 
         if (!isOwnerOnline) {
           // Owner is offline, check if all team members are offline
-          const allTeamOffline = await checkIfAllTeamMembersOffline(zone.owner);
+          const allTeamOffline = await checkIfAllTeamMembersOffline(zone.ip, zone.port, zone.password, zone.owner);
           console.log(`[ZORP OFFLINE CHECK] All team members offline for ${zone.owner}: ${allTeamOffline}`);
 
           if (allTeamOffline) {
