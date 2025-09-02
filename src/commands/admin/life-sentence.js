@@ -145,13 +145,15 @@ module.exports = {
       );
 
       // Teleport player to prison immediately using stored coordinates
-      await prisonSystem.teleportToPrison(
+      console.log(`[LIFE-SENTENCE DEBUG] Attempting to teleport ${playerName} to cell ${cellNumber}`);
+      const teleportResult = await prisonSystem.teleportToPrison(
         server.ip,
         server.port,
         server.password,
         playerName,
         cellNumber
       );
+      console.log(`[LIFE-SENTENCE DEBUG] Teleport result: ${teleportResult}`);
 
       // Send message to game
       await sendRconCommand(

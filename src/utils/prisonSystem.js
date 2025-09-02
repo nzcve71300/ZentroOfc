@@ -54,6 +54,7 @@ class PrisonSystem {
   async teleportToPrison(ip, port, password, playerName, cellNumber) {
     try {
       console.log(`[PRISON DEBUG] Starting teleport for ${playerName} to cell ${cellNumber}`);
+      console.log(`[PRISON DEBUG] Server details: ${ip}:${port}`);
       
       // Get server ID from IP/port
       const [serverResult] = await pool.query(
@@ -88,12 +89,14 @@ class PrisonSystem {
       const teleportCommand = `global.teleportposrot "${coords.x},${coords.y},${coords.z}" "${playerName}" "1"`;
       console.log(`[PRISON DEBUG] Sending teleport command: ${teleportCommand}`);
       
-      await sendRconCommand(ip, port, password, teleportCommand);
+      const result = await sendRconCommand(ip, port, password, teleportCommand);
+      console.log(`[PRISON DEBUG] Teleport command result:`, result);
       
       console.log(`[PRISON] Successfully teleported ${playerName} to cell ${cellNumber}`);
       return true;
     } catch (error) {
       console.error('[PRISON DEBUG] Error teleporting player to prison:', error);
+      console.error('[PRISON DEBUG] Error stack:', error.stack);
       return false;
     }
   }
@@ -138,15 +141,37 @@ class PrisonSystem {
         );
       }
       
-      // Add to active prisoners map
-      const serverKey = serverId;
-      if (!this.activePrisoners.has(serverKey)) {
-        this.activePrisoners.set(serverKey, new Set());
-      }
-      this.activePrisoners.get(serverKey).add(playerName);
-      
-      console.log(`[PRISON] Successfully added ${playerName} to prison (${sentenceType})`);
-      return true;
+             // Add to active prisoners map
+       const serverKey = serverId;
+       if (!this.activePrisoners.has(serverKey)) {
+         this.activePrisoners.set(serverKey, new Set());
+       }
+       this.activePrisoners.get(serverKey).add(playerName);
+       
+       // Start monitoring for this prisoner if it's a temporary sentence
+       if (sentenceType === 'temporary') {
+         // Get server connection details for monitoring
+         const [serverResult] = await pool.query(
+           'SELECT ip, port, password FROM rust_servers WHERE id = ?',
+           [serverId]
+         );
+         
+         if (serverResult.length > 0) {
+           const server = serverResult[0];
+           await this.startPrisonerMonitoring(
+             serverId,
+             playerName,
+             cellNumber,
+             server.ip,
+             server.port,
+             server.password
+           );
+           console.log(`[PRISON] Started auto-release monitoring for ${playerName} (${sentenceMinutes} minutes)`);
+         }
+       }
+       
+       console.log(`[PRISON] Successfully added ${playerName} to prison (${sentenceType})`);
+       return true;
     } catch (error) {
       console.error('[PRISON DEBUG] Error adding prisoner:', error);
       return false;

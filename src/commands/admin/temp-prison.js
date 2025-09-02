@@ -152,13 +152,15 @@ module.exports = {
       );
 
       // Teleport player to prison immediately using stored coordinates
-      await prisonSystem.teleportToPrison(
+      console.log(`[TEMP-PRISON DEBUG] Attempting to teleport ${playerName} to cell ${cellNumber}`);
+      const teleportResult = await prisonSystem.teleportToPrison(
         server.ip,
         server.port,
         server.password,
         playerName,
         cellNumber
       );
+      console.log(`[TEMP-PRISON DEBUG] Teleport result: ${teleportResult}`);
 
       // Send message to game
       const releaseTime = new Date(Date.now() + (minutes * 60 * 1000));
