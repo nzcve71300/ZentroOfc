@@ -204,7 +204,19 @@ module.exports = {
           });
         });
         
-        // Add HOMETP configuration options EIGHTH
+        // Add Prison System configuration options EIGHTH
+        const prisonConfigTypes = [
+          { name: 'Prison-System (ON/OFF)', value: 'Prison-System' }
+        ];
+        
+        prisonConfigTypes.forEach(configType => {
+          allOptions.push({
+            name: configType.name,
+            value: configType.value
+          });
+        });
+        
+        // Add HOMETP configuration options NINTH
         const hometpConfigTypes = [
           { name: 'HOMETP-USELIST (ON/OFF)', value: 'HOMETP-USELIST' }
         ];
@@ -290,6 +302,10 @@ module.exports = {
       // Extract ZORP config from config (e.g., "ZORP-USELIST" -> "zorp")
       const zorpMatch = config.match(/^ZORP-/);
       const isZorpConfig = zorpMatch !== null;
+      
+      // Extract Prison System config from config (e.g., "Prison-System" -> "prison")
+      const prisonMatch = config.match(/^Prison-System$/);
+      const isPrisonConfig = prisonMatch !== null;
       
       // Extract Recycler config from config (e.g., "RECYCLER-USE" -> "recycler")
       const recyclerMatch = config.match(/^RECYCLER-/);
@@ -462,6 +478,22 @@ module.exports = {
         if (existingZorpConfig.length === 0) {
           await connection.execute(`
             INSERT INTO zorp_configs (server_id, use_list) 
+            VALUES (?, false)
+          `, [server.id.toString()]);
+        }
+      }
+      
+      // Handle Prison System configurations
+      if (isPrisonConfig) {
+        // Check if prison config exists, create if not
+        const [existingPrisonConfig] = await connection.execute(
+          'SELECT * FROM prison_configs WHERE server_id = ?',
+          [server.id.toString()]
+        );
+
+        if (existingPrisonConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO prison_configs (server_id, enabled) 
             VALUES (?, false)
           `, [server.id.toString()]);
         }
@@ -756,6 +788,7 @@ module.exports = {
         case 'RECYCLER-USELIST':
         case 'ZORP-USELIST':
         case 'HOMETP-USELIST':
+        case 'Prison-System':
         case '':
           if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
             await connection.end();
@@ -1022,6 +1055,13 @@ module.exports = {
           console.log(`[SET COMMAND DEBUG] ZORP-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
           break;
           
+        // Prison System configurations
+        case 'Prison-System':
+          updateQuery = 'UPDATE prison_configs SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] Prison-System: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
+          break;
+          
         // HOMETP configurations
         case 'HOMETP-USELIST':
           updateQuery = 'UPDATE home_teleport_configs SET use_list = ? WHERE server_id = ?';
@@ -1112,6 +1152,12 @@ module.exports = {
         verifyId = server.id.toString();
         verifyIdField = 'server_id';
         verifyField = 'use_list';
+      } else if (configType === 'Prison-System') {
+        // Prison System configuration verification
+        verifyTable = 'prison_configs';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        verifyField = 'enabled';
       }
       
       const [verifyResult] = await connection.execute(
@@ -1136,6 +1182,8 @@ module.exports = {
       } else if (isPositionConfig) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       } else if (isCrateConfig) {
+        successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
+      } else if (isPrisonConfig) {
         successMessage = `✅ **${config}** set to **${validatedOption}** on **${server.nickname}**`;
       }
 

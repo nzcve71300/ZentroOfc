@@ -7,6 +7,7 @@ const teleportSystem = require('../utils/teleportSystem');
 const path = require('path');
 const Logger = require('../utils/logger');
 const PlaytimeTracker = require('../utils/playtimeTracker');
+const prisonSystem = require('../utils/prisonSystem');
 
 let activeConnections = {};
 let joinLeaveBuffer = {};
@@ -242,6 +243,12 @@ function startRconListeners(client) {
   setInterval(() => {
     syncAllZonesToDatabase(client);
   }, 600000); // 10 minutes
+  
+  // Initialize prison monitoring for all active prisoners
+  setTimeout(() => {
+    console.log('🚀 Initializing prison monitoring system...');
+    prisonSystem.initializePrisonMonitoring();
+  }, 15000); // Wait 15 seconds after startup
 }
 
 async function refreshConnections(client) {

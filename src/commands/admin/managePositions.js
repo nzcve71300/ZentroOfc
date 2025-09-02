@@ -23,7 +23,13 @@ module.exports = {
           { name: 'Crate-event-1', value: 'crate-event-1' },
           { name: 'Crate-event-2', value: 'crate-event-2' },
           { name: 'Crate-event-3', value: 'crate-event-3' },
-          { name: 'Crate-event-4', value: 'crate-event-4' }
+          { name: 'Crate-event-4', value: 'crate-event-4' },
+          { name: 'Prison-Cell-1', value: 'prison-cell-1' },
+          { name: 'Prison-Cell-2', value: 'prison-cell-2' },
+          { name: 'Prison-Cell-3', value: 'prison-cell-3' },
+          { name: 'Prison-Cell-4', value: 'prison-cell-4' },
+          { name: 'Prison-Cell-5', value: 'prison-cell-5' },
+          { name: 'Prison-Cell-6', value: 'prison-cell-6' }
         ))
     .addStringOption(option =>
       option.setName('coordinates')
@@ -150,24 +156,69 @@ module.exports = {
           });
         }
 
-        // Check if position coordinates exist
-        const [existingResult] = await pool.query(
-          'SELECT * FROM position_coordinates WHERE server_id = ? AND position_type = ?',
-          [serverId, positionType]
-        );
+        // Handle prison cell positions differently
+        if (positionType.startsWith('prison-cell-')) {
+          const cellNumber = parseInt(positionType.replace('prison-cell-', ''));
+          
+          // Check if prison_positions table exists, create if not
+          try {
+            await pool.query(`
+              CREATE TABLE IF NOT EXISTS prison_positions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                server_id VARCHAR(32) NOT NULL,
+                cell_number INT NOT NULL,
+                x_pos DECIMAL(10,2) NOT NULL,
+                y_pos DECIMAL(10,2) NOT NULL,
+                z_pos DECIMAL(10,2) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_server_cell (server_id, cell_number)
+              )
+            `);
+          } catch (error) {
+            console.error('Error creating prison_positions table:', error);
+          }
 
-        if (existingResult.length > 0) {
-          // Update existing coordinates
-          await pool.query(
-            'UPDATE position_coordinates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?',
-            [xPos, yPos, zPos, serverId, positionType]
+          // Check if prison cell position exists
+          const [existingPrisonResult] = await pool.query(
+            'SELECT * FROM prison_positions WHERE server_id = ? AND cell_number = ?',
+            [serverId, cellNumber]
           );
+
+          if (existingPrisonResult.length > 0) {
+            // Update existing prison cell coordinates
+            await pool.query(
+              'UPDATE prison_positions SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND cell_number = ?',
+              [xPos, yPos, zPos, serverId, cellNumber]
+            );
+          } else {
+            // Create new prison cell coordinates
+            await pool.query(
+              'INSERT INTO prison_positions (server_id, cell_number, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [serverId, cellNumber, xPos, yPos, zPos]
+            );
+          }
         } else {
-          // Create new coordinates
-          await pool.query(
-            'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-            [serverId, positionType, xPos, yPos, zPos]
+          // Handle regular position coordinates
+          // Check if position coordinates exist
+          const [existingResult] = await pool.query(
+            'SELECT * FROM position_coordinates WHERE server_id = ? AND position_type = ?',
+            [serverId, positionType]
           );
+
+          if (existingResult.length > 0) {
+            // Update existing coordinates
+            await pool.query(
+              'UPDATE position_coordinates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?',
+              [xPos, yPos, zPos, serverId, positionType]
+            );
+          } else {
+            // Create new coordinates
+            await pool.query(
+              'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [serverId, positionType, xPos, yPos, zPos]
+            );
+          }
         }
       }
 
@@ -176,17 +227,33 @@ module.exports = {
 
 
       // Get current coordinates for display
-      const [currentCoords] = await pool.query(
-        'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
-        [serverId, positionType]
-      );
+      let currentCoords = [];
+      let positionDisplayName = positionType;
 
-      const positionDisplayName = positionType === 'outpost' ? 'Outpost' : 
-                                 positionType === 'banditcamp' ? 'Bandit Camp' :
-                                 positionType === 'crate-event-1' ? 'Crate Event 1' :
-                                 positionType === 'crate-event-2' ? 'Crate Event 2' :
-                                 positionType === 'crate-event-3' ? 'Crate Event 3' :
-                                 positionType === 'crate-event-4' ? 'Crate Event 4' : positionType;
+      if (positionType.startsWith('prison-cell-')) {
+        const cellNumber = parseInt(positionType.replace('prison-cell-', ''));
+        positionDisplayName = `Prison Cell ${cellNumber}`;
+        
+        const [prisonCoords] = await pool.query(
+          'SELECT x_pos, y_pos, z_pos FROM prison_positions WHERE server_id = ? AND cell_number = ?',
+          [serverId, cellNumber]
+        );
+        currentCoords = prisonCoords;
+      } else {
+        const [regularCoords] = await pool.query(
+          'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',
+          [serverId, positionType]
+        );
+        currentCoords = regularCoords;
+        
+        positionDisplayName = positionType === 'outpost' ? 'Outpost' : 
+                             positionType === 'banditcamp' ? 'Bandit Camp' :
+                             positionType === 'crate-event-1' ? 'Crate Event 1' :
+                             positionType === 'crate-event-2' ? 'Crate Event 2' :
+                             positionType === 'crate-event-3' ? 'Crate Event 3' :
+                             positionType === 'crate-event-4' ? 'Crate Event 4' : positionType;
+      }
+      
       const coords = currentCoords.length > 0 ? currentCoords[0] : null;
 
       // Show confirmation message

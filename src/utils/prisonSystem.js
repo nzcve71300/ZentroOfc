@@ -1,0 +1,308 @@
+const pool = require('../db');
+const { sendRconCommand } = require('../rcon');
+
+class PrisonSystem {
+  constructor() {
+    this.activePrisoners = new Map(); // serverKey -> Set of player names
+    this.teleportTimers = new Map(); // playerKey -> timer ID
+  }
+
+  /**
+   * Check if prison system is enabled for a server
+   */
+  async isPrisonEnabled(serverId) {
+    try {
+      const [result] = await pool.query(
+        'SELECT enabled FROM prison_configs WHERE server_id = ?',
+        [serverId]
+      );
+      return result.length > 0 && result[0].enabled;
+    } catch (error) {
+      console.error('Error checking prison system status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get prison cell coordinates
+   */
+  async getPrisonCellCoordinates(serverId, cellNumber) {
+    try {
+      const [result] = await pool.query(
+        'SELECT x_pos, y_pos, z_pos FROM prison_positions WHERE server_id = ? AND cell_number = ?',
+        [serverId, cellNumber]
+      );
+      
+      if (result.length === 0) {
+        return null;
+      }
+      
+      return {
+        x: result[0].x_pos,
+        y: result[0].y_pos,
+        z: result[0].z_pos
+      };
+    } catch (error) {
+      console.error('Error getting prison cell coordinates:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Teleport player to prison cell
+   */
+  async teleportToPrison(ip, port, password, playerName, cellNumber) {
+    try {
+      // Get server ID from IP/port
+      const [serverResult] = await pool.query(
+        'SELECT id FROM rust_servers WHERE ip = ? AND port = ?',
+        [ip, port]
+      );
+      
+      if (serverResult.length === 0) {
+        console.error('Server not found for prison teleport');
+        return false;
+      }
+      
+      const serverId = serverResult[0].id;
+      
+      // Check if prison system is enabled
+      if (!(await this.isPrisonEnabled(serverId))) {
+        console.log('Prison system is disabled for this server');
+        return false;
+      }
+      
+      // Get cell coordinates
+      const coords = await this.getPrisonCellCoordinates(serverId, cellNumber);
+      if (!coords) {
+        console.error(`Prison cell ${cellNumber} not found for server ${serverId}`);
+        return false;
+      }
+      
+      // Teleport player
+      const teleportCommand = `global.teleportposrot "${coords.x},${coords.y},${coords.z}" "${playerName}" "1"`;
+      await sendRconCommand(ip, port, password, teleportCommand);
+      
+      console.log(`[PRISON] Teleported ${playerName} to cell ${cellNumber}`);
+      return true;
+    } catch (error) {
+      console.error('Error teleporting player to prison:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Add player to prison
+   */
+  async addPrisoner(serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, sentencedBy) {
+    try {
+      // Calculate release time for temporary sentences
+      let releaseTime = null;
+      if (sentenceType === 'temporary' && sentenceMinutes) {
+        releaseTime = new Date(Date.now() + (sentenceMinutes * 60 * 1000));
+      }
+      
+      // Insert prisoner record
+      await pool.query(
+        `INSERT INTO prisoners (server_id, player_name, discord_id, cell_number, sentence_type, sentence_minutes, release_time, sentenced_by) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, releaseTime, sentencedBy]
+      );
+      
+      // Add to active prisoners map
+      const serverKey = serverId;
+      if (!this.activePrisoners.has(serverKey)) {
+        this.activePrisoners.set(serverKey, new Set());
+      }
+      this.activePrisoners.get(serverKey).add(playerName);
+      
+      console.log(`[PRISON] Added ${playerName} to prison (${sentenceType})`);
+      return true;
+    } catch (error) {
+      console.error('Error adding prisoner:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Release player from prison
+   */
+  async releasePrisoner(serverId, playerName, releasedBy) {
+    try {
+      // Update prisoner record
+      await pool.query(
+        `UPDATE prisoners 
+         SET is_active = FALSE, released_at = NOW() 
+         WHERE server_id = ? AND player_name = ? AND is_active = TRUE`,
+        [serverId, playerName]
+      );
+      
+      // Remove from active prisoners map
+      const serverKey = serverId;
+      if (this.activePrisoners.has(serverKey)) {
+        this.activePrisoners.get(serverKey).delete(playerName);
+      }
+      
+      // Clear any active teleport timers for this player
+      const playerKey = `${serverId}_${playerName}`;
+      if (this.teleportTimers.has(playerKey)) {
+        clearInterval(this.teleportTimers.get(playerKey));
+        this.teleportTimers.delete(playerKey);
+      }
+      
+      console.log(`[PRISON] Released ${playerName} from prison`);
+      return true;
+    } catch (error) {
+      console.error('Error releasing prisoner:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if player is in prison
+   */
+  async isPlayerInPrison(serverId, playerName) {
+    try {
+      const [result] = await pool.query(
+        'SELECT * FROM prisoners WHERE server_id = ? AND player_name = ? AND is_active = TRUE',
+        [serverId, playerName]
+      );
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error checking if player is in prison:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get prisoner information
+   */
+  async getPrisonerInfo(serverId, playerName) {
+    try {
+      const [result] = await pool.query(
+        'SELECT * FROM prisoners WHERE server_id = ? AND player_name = ? AND is_active = TRUE',
+        [serverId, playerName]
+      );
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error('Error getting prisoner info:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all active prisoners for a server
+   */
+  async getActivePrisoners(serverId) {
+    try {
+      const [result] = await pool.query(
+        'SELECT * FROM prisoners WHERE server_id = ? AND is_active = TRUE ORDER BY sentenced_at DESC',
+        [serverId]
+      );
+      return result;
+    } catch (error) {
+      console.error('Error getting active prisoners:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Start teleport monitoring for a prisoner
+   */
+  async startPrisonerMonitoring(serverId, playerName, cellNumber, ip, port, password) {
+    try {
+      const playerKey = `${serverId}_${playerName}`;
+      
+      // Clear any existing timer
+      if (this.teleportTimers.has(playerKey)) {
+        clearInterval(this.teleportTimers.get(playerKey));
+      }
+      
+      // Set up periodic teleport (every 30 seconds)
+      const timerId = setInterval(async () => {
+        try {
+          // Check if player is still in prison
+          const isStillInPrison = await this.isPlayerInPrison(serverId, playerName);
+          if (!isStillInPrison) {
+            // Player was released, clear timer
+            clearInterval(timerId);
+            this.teleportTimers.delete(playerKey);
+            return;
+          }
+          
+          // Check if temporary sentence has expired
+          const prisonerInfo = await this.getPrisonerInfo(serverId, playerName);
+          if (prisonerInfo && prisonerInfo.sentence_type === 'temporary' && prisonerInfo.release_time) {
+            if (new Date() >= new Date(prisonerInfo.release_time)) {
+              // Sentence expired, release player
+              await this.releasePrisoner(serverId, playerName, 'System (Time Expired)');
+              clearInterval(timerId);
+              this.teleportTimers.delete(playerKey);
+              
+              // Send release message to game
+              await sendRconCommand(ip, port, password, `say <color=#FF69B4>[Prison]</color> <color=white>${playerName} has been released from prison!</color>`);
+              return;
+            }
+          }
+          
+          // Teleport player to cell
+          await this.teleportToPrison(ip, port, password, playerName, cellNumber);
+        } catch (error) {
+          console.error('Error in prisoner monitoring:', error);
+        }
+      }, 30000); // 30 seconds
+      
+      this.teleportTimers.set(playerKey, timerId);
+      console.log(`[PRISON] Started monitoring for ${playerName}`);
+    } catch (error) {
+      console.error('Error starting prisoner monitoring:', error);
+    }
+  }
+
+  /**
+   * Stop teleport monitoring for a prisoner
+   */
+  async stopPrisonerMonitoring(serverId, playerName) {
+    try {
+      const playerKey = `${serverId}_${playerName}`;
+      if (this.teleportTimers.has(playerKey)) {
+        clearInterval(this.teleportTimers.get(playerKey));
+        this.teleportTimers.delete(playerKey);
+        console.log(`[PRISON] Stopped monitoring for ${playerName}`);
+      }
+    } catch (error) {
+      console.error('Error stopping prisoner monitoring:', error);
+    }
+  }
+
+  /**
+   * Initialize prison monitoring for all active prisoners
+   */
+  async initializePrisonMonitoring() {
+    try {
+      const [result] = await pool.query(
+        `SELECT p.*, rs.ip, rs.port, rs.password 
+         FROM prisoners p 
+         JOIN rust_servers rs ON p.server_id = rs.id 
+         WHERE p.is_active = TRUE`
+      );
+      
+      for (const prisoner of result) {
+        await this.startPrisonerMonitoring(
+          prisoner.server_id,
+          prisoner.player_name,
+          prisoner.cell_number,
+          prisoner.ip,
+          prisoner.port,
+          prisoner.password
+        );
+      }
+      
+      console.log(`[PRISON] Initialized monitoring for ${result.length} active prisoners`);
+    } catch (error) {
+      console.error('Error initializing prison monitoring:', error);
+    }
+  }
+}
+
+module.exports = new PrisonSystem();
