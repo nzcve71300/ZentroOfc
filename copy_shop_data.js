@@ -76,25 +76,18 @@ async function copyShopData() {
     console.log('\n📋 Step 3: Checking existing shop data on target server...');
     const [existingShopData] = await connection.execute(`
       SELECT 
-        (SELECT COUNT(*) FROM shop_categories WHERE server_id = ?) as categories,
-        (SELECT COUNT(*) FROM shop_items WHERE server_id = ?) as items,
-        (SELECT COUNT(*) FROM shop_kits WHERE server_id = ?) as kits,
-        (SELECT COUNT(*) FROM shop_vehicles WHERE server_id = ?) as vehicles
-    `, [targetServerId, targetServerId, targetServerId, targetServerId]);
+        (SELECT COUNT(*) FROM shop_categories WHERE server_id = ?) as categories
+    `, [targetServerId]);
 
     const existing = existingShopData[0];
-    if (existing.categories > 0 || existing.items > 0 || existing.kits > 0 || existing.vehicles > 0) {
-      console.log(`⚠️ Target server already has some shop data:`);
-      console.log(`   Categories: ${existing.categories}`);
-      console.log(`   Items: ${existing.items}`);
-      console.log(`   Kits: ${existing.kits}`);
-      console.log(`   Vehicles: ${existing.vehicles}`);
-      console.log(`\n🔄 Proceeding with copy (will add to existing data)...`);
+    if (existing.categories > 0) {
+      console.log(`⚠️ Target server already has ${existing.categories} shop categories`);
+      console.log(`🔄 Proceeding with copy (will add to existing data)...`);
     } else {
       console.log(`✅ Target server has no existing shop data - clean slate!`);
     }
 
-    // Step 4: Copy shop categories
+    // Step 4: Copy shop categories and build ID mapping
     console.log('\n📋 Step 4: Copying shop categories...');
     const [categories] = await connection.execute(`
       SELECT * FROM shop_categories WHERE server_id = ?
@@ -104,185 +97,180 @@ async function copyShopData() {
       console.log(`ℹ️ No shop categories found on source server`);
     } else {
       let categoriesCopied = 0;
+      const categoryIdMapping = {}; // Maps old category ID to new category ID
+      
       for (const category of categories) {
         try {
-          await connection.execute(`
+          const [insertResult] = await connection.execute(`
             INSERT INTO shop_categories (
-              server_id, name, description, type, display_order, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?)
+              server_id, name, type, role
+            ) VALUES (?, ?, ?, ?)
           `, [
             targetServerId,
             category.name,
-            category.description,
             category.type,
-            category.display_order,
-            category.is_active
+            category.role
           ]);
+          
+          // Store the mapping from old category ID to new category ID
+          categoryIdMapping[category.id] = insertResult.insertId;
           categoriesCopied++;
         } catch (error) {
           console.log(`⚠️ Failed to copy category "${category.name}": ${error.message}`);
         }
       }
       console.log(`✅ Copied ${categoriesCopied} shop categories`);
-    }
+      
+      // Step 5: Copy shop items using category ID mapping
+      console.log('\n📋 Step 5: Copying shop items...');
+      const [items] = await connection.execute(`
+        SELECT * FROM shop_items WHERE category_id IN (${Object.keys(categoryIdMapping).join(',')})
+      `);
 
-    // Step 5: Copy shop items
-    console.log('\n📋 Step 5: Copying shop items...');
-    const [items] = await connection.execute(`
-      SELECT * FROM shop_items WHERE server_id = ?
-    `, [sourceServerId]);
-
-    if (items.length === 0) {
-      console.log(`ℹ️ No shop items found on source server`);
-    } else {
-      let itemsCopied = 0;
-      for (const item of items) {
-        try {
-          // First get the category ID for the target server
-          const [targetCategory] = await connection.execute(`
-            SELECT id FROM shop_categories 
-            WHERE server_id = ? AND name = ? AND type = ?
-          `, [targetServerId, item.category_name, item.category_type]);
-
-          if (targetCategory.length > 0) {
-            await connection.execute(`
-              INSERT INTO shop_items (
-                server_id, category_id, category_name, category_type,
-                display_name, short_name, price, description, is_active
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              targetServerId,
-              targetCategory[0].id,
-              item.category_name,
-              item.category_type,
-              item.display_name,
-              item.short_name,
-              item.price,
-              item.description,
-              item.is_active
-            ]);
-            itemsCopied++;
-          } else {
-            console.log(`⚠️ Skipping item "${item.display_name}" - category not found on target server`);
+      if (items.length === 0) {
+        console.log(`ℹ️ No shop items found on source server`);
+      } else {
+        let itemsCopied = 0;
+        for (const item of items) {
+          try {
+            const newCategoryId = categoryIdMapping[item.category_id];
+            if (newCategoryId) {
+              await connection.execute(`
+                INSERT INTO shop_items (
+                  category_id, display_name, short_name, price, quantity, timer
+                ) VALUES (?, ?, ?, ?, ?, ?)
+              `, [
+                newCategoryId,
+                item.display_name,
+                item.short_name,
+                item.price,
+                item.quantity,
+                item.timer
+              ]);
+              itemsCopied++;
+            } else {
+              console.log(`⚠️ Skipping item "${item.display_name}" - category mapping not found`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Failed to copy item "${item.display_name}": ${error.message}`);
           }
-        } catch (error) {
-          console.log(`⚠️ Failed to copy item "${item.display_name}": ${error.message}`);
         }
+        console.log(`✅ Copied ${itemsCopied} shop items`);
       }
-      console.log(`✅ Copied ${itemsCopied} shop items`);
-    }
 
-    // Step 6: Copy shop kits
-    console.log('\n📋 Step 6: Copying shop kits...');
-    const [kits] = await connection.execute(`
-      SELECT * FROM shop_kits WHERE server_id = ?
-    `, [sourceServerId]);
+      // Step 6: Copy shop kits using category ID mapping
+      console.log('\n📋 Step 6: Copying shop kits...');
+      const [kits] = await connection.execute(`
+        SELECT * FROM shop_kits WHERE category_id IN (${Object.keys(categoryIdMapping).join(',')})
+      `);
 
-    if (kits.length === 0) {
-      console.log(`ℹ️ No shop kits found on source server`);
-    } else {
-      let kitsCopied = 0;
-      for (const kit of kits) {
-        try {
-          // First get the category ID for the target server
-          const [targetCategory] = await connection.execute(`
-            SELECT id FROM shop_categories 
-            WHERE server_id = ? AND name = ? AND type = ?
-          `, [targetServerId, kit.category_name, kit.category_type]);
-
-          if (targetCategory.length > 0) {
-            await connection.execute(`
-              INSERT INTO shop_kits (
-                server_id, category_id, category_name, category_type,
-                display_name, short_name, price, description, is_active
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              targetServerId,
-              targetCategory[0].id,
-              kit.category_name,
-              kit.category_type,
-              kit.display_name,
-              kit.short_name,
-              kit.price,
-              kit.description,
-              kit.is_active
-            ]);
-            kitsCopied++;
-          } else {
-            console.log(`⚠️ Skipping kit "${kit.display_name}" - category not found on target server`);
+      if (kits.length === 0) {
+        console.log(`ℹ️ No shop kits found on source server`);
+      } else {
+        let kitsCopied = 0;
+        for (const kit of kits) {
+          try {
+            const newCategoryId = categoryIdMapping[kit.category_id];
+            if (newCategoryId) {
+              await connection.execute(`
+                INSERT INTO shop_kits (
+                  category_id, display_name, kit_name, price, quantity, timer
+                ) VALUES (?, ?, ?, ?, ?, ?)
+              `, [
+                newCategoryId,
+                kit.display_name,
+                kit.kit_name,
+                kit.price,
+                kit.quantity,
+                kit.timer
+              ]);
+              kitsCopied++;
+            } else {
+              console.log(`⚠️ Skipping kit "${kit.display_name}" - category mapping not found`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Failed to copy kit "${kit.display_name}": ${error.message}`);
           }
-        } catch (error) {
-          console.log(`⚠️ Failed to copy kit "${kit.display_name}": ${error.message}`);
         }
+        console.log(`✅ Copied ${kitsCopied} shop kits`);
       }
-      console.log(`✅ Copied ${kitsCopied} shop kits`);
-    }
 
-    // Step 7: Copy shop vehicles
-    console.log('\n📋 Step 7: Copying shop vehicles...');
-    const [vehicles] = await connection.execute(`
-      SELECT * FROM shop_vehicles WHERE server_id = ?
-    `, [sourceServerId]);
+      // Step 7: Copy shop vehicles using category ID mapping
+      console.log('\n📋 Step 7: Copying shop vehicles...');
+      const [vehicles] = await connection.execute(`
+        SELECT * FROM shop_vehicles WHERE category_id IN (${Object.keys(categoryIdMapping).join(',')})
+      `);
 
-    if (vehicles.length === 0) {
-      console.log(`ℹ️ No shop vehicles found on source server`);
-    } else {
-      let vehiclesCopied = 0;
-      for (const vehicle of vehicles) {
-        try {
-          // First get the category ID for the target server
-          const [targetCategory] = await connection.execute(`
-            SELECT id FROM shop_categories 
-            WHERE server_id = ? AND name = ? AND type = ?
-          `, [targetServerId, vehicle.category_name, vehicle.category_type]);
-
-          if (targetCategory.length > 0) {
-            await connection.execute(`
-              INSERT INTO shop_vehicles (
-                server_id, category_id, category_name, category_type,
-                display_name, short_name, price, timer, is_active
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              targetServerId,
-              targetCategory[0].id,
-              vehicle.category_name,
-              vehicle.category_type,
-              vehicle.display_name,
-              vehicle.short_name,
-              vehicle.price,
-              vehicle.timer,
-              vehicle.is_active
-            ]);
-            vehiclesCopied++;
-          } else {
-            console.log(`⚠️ Skipping vehicle "${vehicle.display_name}" - category not found on target server`);
+      if (vehicles.length === 0) {
+        console.log(`ℹ️ No shop vehicles found on source server`);
+      } else {
+        let vehiclesCopied = 0;
+        for (const vehicle of vehicles) {
+          try {
+            const newCategoryId = categoryIdMapping[vehicle.category_id];
+            if (newCategoryId) {
+              await connection.execute(`
+                INSERT INTO shop_vehicles (
+                  category_id, display_name, short_name, price, timer
+                ) VALUES (?, ?, ?, ?, ?)
+              `, [
+                newCategoryId,
+                vehicle.display_name,
+                vehicle.short_name,
+                vehicle.price,
+                vehicle.timer
+              ]);
+              vehiclesCopied++;
+            } else {
+              console.log(`⚠️ Skipping vehicle "${vehicle.display_name}" - category mapping not found`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Failed to copy vehicle "${vehicle.display_name}": ${error.message}`);
           }
-        } catch (error) {
-          console.log(`⚠️ Failed to copy vehicle "${vehicle.display_name}": ${error.message}`);
         }
+        console.log(`✅ Copied ${vehiclesCopied} shop vehicles`);
       }
-      console.log(`✅ Copied ${vehiclesCopied} shop vehicles`);
     }
+
+
 
     // Step 8: Final verification
     console.log('\n📋 Step 8: Final verification...');
-    const [finalCounts] = await connection.execute(`
-      SELECT 
-        (SELECT COUNT(*) FROM shop_categories WHERE server_id = ?) as categories,
-        (SELECT COUNT(*) FROM shop_items WHERE server_id = ?) as items,
-        (SELECT COUNT(*) FROM shop_kits WHERE server_id = ?) as kits,
-        (SELECT COUNT(*) FROM shop_vehicles WHERE server_id = ?) as vehicles
-    `, [targetServerId, targetServerId, targetServerId, targetServerId]);
+    
+    // Count categories on target server
+    const [finalCategories] = await connection.execute(`
+      SELECT COUNT(*) as count FROM shop_categories WHERE server_id = ?
+    `, [targetServerId]);
+    
+    // Count items linked to target server categories
+    const [finalItems] = await connection.execute(`
+      SELECT COUNT(*) as count FROM shop_items si
+      JOIN shop_categories sc ON si.category_id = sc.id
+      WHERE sc.server_id = ?
+    `, [targetServerId]);
+    
+    // Count kits linked to target server categories
+    const [finalKits] = await connection.execute(`
+      SELECT COUNT(*) as count FROM shop_kits sk
+      JOIN shop_categories sc ON sk.category_id = sc.id
+      WHERE sc.server_id = ?
+    `, [targetServerId]);
+    
+    // Count vehicles linked to target server categories
+    const [finalVehicles] = await connection.execute(`
+      SELECT COUNT(*) as count FROM shop_vehicles sv
+      JOIN shop_categories sc ON sv.category_id = sc.id
+      WHERE sc.server_id = ?
+    `, [targetServerId]);
 
-    const final = finalCounts[0];
-    const totalItems = final.categories + final.items + final.kits + final.vehicles;
+    const totalItems = finalCategories[0].count + finalItems[0].count + finalKits[0].count + finalVehicles[0].count;
 
     console.log(`\n🎉 Shop migration completed successfully!`);
     console.log(`📊 Final counts on ${targetServerName}:`);
-    console.log(`   Categories: ${final.categories}`);
-    console.log(`   Items: ${final.items}`);
-    console.log(`   Kits: ${final.kits}`);
-    console.log(`   Vehicles: ${final.vehicles}`);
+    console.log(`   Categories: ${finalCategories[0].count}`);
+    console.log(`   Items: ${finalItems[0].count}`);
+    console.log(`   Kits: ${finalKits[0].count}`);
+    console.log(`   Vehicles: ${finalVehicles[0].count}`);
     console.log(`   Total shop items: ${totalItems}`);
     console.log(`\n✅ ${targetServerName} now has identical shop system to ${sourceServerName}!`);
 
