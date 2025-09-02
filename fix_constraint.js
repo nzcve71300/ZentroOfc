@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function fixConstraint() {
-  console.log('🔧 Fixing Database Constraint');
+  console.log('🔧 Fixing Database Constraints');
   console.log('=============================\n');
 
   let connection;
@@ -15,14 +15,15 @@ async function fixConstraint() {
       port: process.env.DB_PORT || 3306
     });
 
-    console.log('📋 Current constraint causing the issue:');
-    console.log('  UNIQUE KEY `unique_active_ign_link_per_guild` (`ign`,`guild_id`,`is_active`)');
+    console.log('📋 Constraints causing the issue:');
+    console.log('  1. UNIQUE KEY `unique_active_ign_link_per_guild` (`ign`,`guild_id`,`is_active`)');
+    console.log('  2. UNIQUE KEY `unique_active_discord_link_per_guild` (`discord_id`,`guild_id`,`is_active`)');
     console.log('');
-    console.log('This prevents the same player (IGN) from being active on multiple servers in the same guild.');
+    console.log('These prevent the same player from being active on multiple servers in the same guild.');
     console.log('');
 
-    // Remove the problematic constraint
-    console.log('🗑️  Removing problematic constraint...');
+    // Remove the first problematic constraint
+    console.log('🗑️  Removing first constraint (unique_active_ign_link_per_guild)...');
     
     try {
       await connection.execute(`
@@ -31,39 +32,41 @@ async function fixConstraint() {
       `);
       console.log('✅ Successfully removed unique_active_ign_link_per_guild constraint');
     } catch (error) {
-      console.log('❌ Failed to remove constraint:', error.message);
-      console.log('Trying alternative approach...');
-      
-      // Try to drop by constraint name if index name doesn't work
-      try {
-        await connection.execute(`
-          ALTER TABLE players 
-          DROP INDEX unique_active_ign_link_per_guild
-        `);
-        console.log('✅ Successfully removed constraint using alternative method');
-      } catch (error2) {
-        console.log('❌ Alternative method also failed:', error2.message);
-        console.log('You may need to manually remove this constraint from your database.');
-        return;
-      }
+      console.log('❌ Failed to remove first constraint:', error.message);
     }
 
-    // Verify the constraint is removed
+    // Remove the second problematic constraint
+    console.log('\n🗑️  Removing second constraint (unique_active_discord_link_per_guild)...');
+    
+    try {
+      await connection.execute(`
+        ALTER TABLE players 
+        DROP INDEX unique_active_discord_link_per_guild
+      `);
+      console.log('✅ Successfully removed unique_active_discord_link_per_guild constraint');
+    } catch (error) {
+      console.log('❌ Failed to remove second constraint:', error.message);
+    }
+
+    // Verify both constraints are removed
     console.log('\n🔍 Verifying constraint removal...');
     
     const [indexes] = await connection.execute(`
       SHOW INDEX FROM players 
-      WHERE Key_name = 'unique_active_ign_link_per_guild'
+      WHERE Key_name IN ('unique_active_ign_link_per_guild', 'unique_active_discord_link_per_guild')
     `);
     
     if (indexes.length === 0) {
-      console.log('✅ Constraint successfully removed!');
+      console.log('✅ Both constraints successfully removed!');
     } else {
-      console.log('❌ Constraint still exists:', indexes.length, 'entries found');
+      console.log('❌ Some constraints still exist:', indexes.length, 'entries found');
+      for (const index of indexes) {
+        console.log(`  - ${index.Key_name}`);
+      }
     }
 
     // Now try the auto-linking again
-    console.log('\n🔄 Testing auto-linking with fixed constraint...');
+    console.log('\n🔄 Testing auto-linking with fixed constraints...');
     
     // Get USA-DeadOps server ID
     const [usaServer] = await connection.execute(`
