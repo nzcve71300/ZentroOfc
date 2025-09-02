@@ -190,13 +190,13 @@ module.exports = {
             // Update existing prison cell coordinates
             await pool.query(
               'UPDATE prison_positions SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND cell_number = ?',
-              [xPos, yPos, zPos, serverId, cellNumber]
+              [xNum, yNum, zNum, serverId, cellNumber]
             );
           } else {
             // Create new prison cell coordinates
             await pool.query(
               'INSERT INTO prison_positions (server_id, cell_number, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-              [serverId, cellNumber, xPos, yPos, zPos]
+              [serverId, cellNumber, xNum, yNum, zNum]
             );
           }
         } else {
@@ -207,19 +207,19 @@ module.exports = {
             [serverId, positionType]
           );
 
-          if (existingResult.length > 0) {
-            // Update existing coordinates
-            await pool.query(
-              'UPDATE position_coordinates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?',
-              [xPos, yPos, zPos, serverId, positionType]
-            );
-          } else {
-            // Create new coordinates
-            await pool.query(
-              'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-              [serverId, positionType, xPos, yPos, zPos]
-            );
-          }
+                     if (existingResult.length > 0) {
+             // Update existing coordinates
+             await pool.query(
+               'UPDATE position_coordinates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND position_type = ?',
+               [xNum, yNum, zNum, serverId, positionType]
+             );
+           } else {
+             // Create new coordinates
+             await pool.query(
+               'INSERT INTO position_coordinates (server_id, position_type, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+               [serverId, positionType, xNum, yNum, zNum]
+             );
+           }
         }
       }
 

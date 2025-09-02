@@ -151,26 +151,14 @@ module.exports = {
         server.password
       );
 
-      // Request player position and teleport to prison
-      const stateKey = `${guildId}:${serverName}:${playerName}`;
-      prisonPositionState.set(stateKey, {
-        step: 'waiting_for_position',
-        player: playerName,
-        cellNumber: cellNumber,
-        timestamp: Date.now()
-      });
-
-      // Send position request command
-      await sendRconCommand(server.ip, server.port, server.password, `printpos "${playerName}"`);
-      
-      // Set timeout to clean up state after 30 seconds
-      setTimeout(() => {
-        const currentState = prisonPositionState.get(stateKey);
-        if (currentState && currentState.step === 'waiting_for_position') {
-          console.log(`[PRISON] Position request timeout for ${playerName}, cleaning up state`);
-          prisonPositionState.delete(stateKey);
-        }
-      }, 30000);
+      // Teleport player to prison immediately using stored coordinates
+      await prisonSystem.teleportToPrison(
+        server.ip,
+        server.port,
+        server.password,
+        playerName,
+        cellNumber
+      );
 
       // Send message to game
       const releaseTime = new Date(Date.now() + (minutes * 60 * 1000));

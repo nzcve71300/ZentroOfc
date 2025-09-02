@@ -89,8 +89,7 @@ const botKillTracking = new Map(); // Track players killed by bot for respawn de
 const homeTeleportState = new Map(); // Track home teleport state
 const homeTeleportCooldowns = new Map(); // Track cooldowns per player
 
-// Prison position state tracking
-const prisonPositionState = new Map(); // Track prison position requests
+
 
 // Teleport System state tracking
 const teleportCooldowns = new Map(); // Track teleport cooldowns per player
@@ -1849,79 +1848,7 @@ async function handlePositionResponse(client, guildId, serverName, msg, ip, port
         return;
       }
 
-      // Check for prison position requests
-      const prisonServerStateKey = `${guildId}:${serverName}:`;
-      let foundPrisonState = null;
-      let foundPrisonStateKey = null;
-      
-      for (const [stateKey, prisonState] of prisonPositionState.entries()) {
-        if (stateKey.startsWith(prisonServerStateKey) && prisonState.step === 'waiting_for_position') {
-          foundPrisonState = prisonState;
-          foundPrisonStateKey = stateKey;
-          break;
-        }
-      }
 
-      if (foundPrisonState) {
-        const playerName = foundPrisonState.player;
-        const cellNumber = foundPrisonState.cellNumber;
-
-        console.log(`[PRISON] Position response received for ${playerName} to cell ${cellNumber}: ${positionStr}`);
-
-        // Parse position coordinates (handle both "x, y, z" and "x,y,z" formats)
-        const coords = positionStr.split(',').map(coord => parseFloat(coord.trim()));
-        if (coords.length !== 3 || coords.some(isNaN)) {
-          console.log(`[PRISON] Invalid position format: ${positionStr}`);
-          prisonPositionState.delete(foundPrisonStateKey);
-          return;
-        }
-
-        // Get server ID
-        const [serverResult] = await pool.query(
-          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
-          [guildId, serverName]
-        );
-
-        if (serverResult.length === 0) {
-          console.log(`[PRISON] No server found for ${serverName}`);
-          prisonPositionState.delete(foundPrisonStateKey);
-          return;
-        }
-
-        const serverId = serverResult[0].id;
-
-        // Import prison system
-        const prisonSystem = require('../utils/prisonSystem');
-        
-        // Teleport player to prison cell
-        const success = await prisonSystem.teleportToPrison(ip, port, password, playerName, cellNumber);
-        
-        if (success) {
-          console.log(`[PRISON] Successfully teleported ${playerName} to cell ${cellNumber}`);
-          
-          // Send appropriate message based on whether this is a respawn or initial teleport
-          if (foundPrisonState.isRespawn) {
-            await sendRconCommand(ip, port, password, 
-              `say <color=#FF69B4>[Prison]</color> <color=white>${playerName} has been returned to prison!</color>`
-            );
-          } else {
-            await sendRconCommand(ip, port, password, 
-              `say <color=#FF69B4>[Prison]</color> <color=white>${playerName} has been teleported to prison cell ${cellNumber}!</color>`
-            );
-          }
-        } else {
-          console.error(`[PRISON] Failed to teleport ${playerName} to cell ${cellNumber}`);
-          
-          // Send error message to game
-          await sendRconCommand(ip, port, password, 
-            `say <color=#FF0000>[Prison]</color> <color=white>Failed to teleport ${playerName} to prison!</color>`
-          );
-        }
-
-        // Clear the state
-        prisonPositionState.delete(foundPrisonStateKey);
-        return;
-      }
 
       // Check for vehicle purchase position requests
       if (global.vehiclePurchaseRequests && global.vehiclePurchaseRequests.size > 0) {
@@ -7017,27 +6944,22 @@ async function handlePrisonRespawn(client, guildId, serverName, player, ip, port
     const cellNumber = prisonerResult[0].cell_number;
     console.log(`[PRISON] Prisoner ${player} respawned, teleporting to cell ${cellNumber}`);
 
-    // Request player position and teleport back to prison
-    const stateKey = `${guildId}:${serverName}:${player}`;
-    prisonPositionState.set(stateKey, {
-      step: 'waiting_for_position',
-      player: player,
-      cellNumber: cellNumber,
-      timestamp: Date.now(),
-      isRespawn: true // Flag to indicate this is a respawn teleport
-    });
-
-    // Send position request command
-    await sendRconCommand(ip, port, password, `printpos "${player}"`);
+    // Import prison system
+    const prisonSystem = require('../utils/prisonSystem');
     
-    // Set timeout to clean up state after 30 seconds
-    setTimeout(() => {
-      const currentState = prisonPositionState.get(stateKey);
-      if (currentState && currentState.step === 'waiting_for_position') {
-        console.log(`[PRISON] Respawn position request timeout for ${player}, cleaning up state`);
-        prisonPositionState.delete(stateKey);
-      }
-    }, 30000);
+    // Teleport player back to prison cell using stored coordinates
+    const success = await prisonSystem.teleportToPrison(ip, port, password, player, cellNumber);
+    
+    if (success) {
+      console.log(`[PRISON] Successfully teleported ${player} back to prison cell ${cellNumber}`);
+      
+      // Send message to game
+      await sendRconCommand(ip, port, password, 
+        `say <color=#FF69B4>[Prison]</color> <color=white>${player} has been returned to prison!</color>`
+      );
+    } else {
+      console.error(`[PRISON] Failed to teleport ${player} back to prison`);
+    }
     
   } catch (error) {
     console.error('[PRISON] Error handling prison respawn:', error);
