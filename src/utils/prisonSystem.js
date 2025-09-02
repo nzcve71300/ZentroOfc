@@ -53,6 +53,8 @@ class PrisonSystem {
    */
   async teleportToPrison(ip, port, password, playerName, cellNumber) {
     try {
+      console.log(`[PRISON DEBUG] Starting teleport for ${playerName} to cell ${cellNumber}`);
+      
       // Get server ID from IP/port
       const [serverResult] = await pool.query(
         'SELECT id FROM rust_servers WHERE ip = ? AND port = ?',
@@ -60,33 +62,38 @@ class PrisonSystem {
       );
       
       if (serverResult.length === 0) {
-        console.error('Server not found for prison teleport');
+        console.error('[PRISON DEBUG] Server not found for prison teleport');
         return false;
       }
       
       const serverId = serverResult[0].id;
+      console.log(`[PRISON DEBUG] Found server ID: ${serverId}`);
       
       // Check if prison system is enabled
       if (!(await this.isPrisonEnabled(serverId))) {
-        console.log('Prison system is disabled for this server');
+        console.log('[PRISON DEBUG] Prison system is disabled for this server');
         return false;
       }
       
       // Get cell coordinates
       const coords = await this.getPrisonCellCoordinates(serverId, cellNumber);
       if (!coords) {
-        console.error(`Prison cell ${cellNumber} not found for server ${serverId}`);
+        console.error(`[PRISON DEBUG] Prison cell ${cellNumber} not found for server ${serverId}`);
         return false;
       }
       
+      console.log(`[PRISON DEBUG] Found coordinates for cell ${cellNumber}: x=${coords.x}, y=${coords.y}, z=${coords.z}`);
+      
       // Teleport player
       const teleportCommand = `global.teleportposrot "${coords.x},${coords.y},${coords.z}" "${playerName}" "1"`;
+      console.log(`[PRISON DEBUG] Sending teleport command: ${teleportCommand}`);
+      
       await sendRconCommand(ip, port, password, teleportCommand);
       
-      console.log(`[PRISON] Teleported ${playerName} to cell ${cellNumber}`);
+      console.log(`[PRISON] Successfully teleported ${playerName} to cell ${cellNumber}`);
       return true;
     } catch (error) {
-      console.error('Error teleporting player to prison:', error);
+      console.error('[PRISON DEBUG] Error teleporting player to prison:', error);
       return false;
     }
   }

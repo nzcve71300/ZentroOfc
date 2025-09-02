@@ -135,8 +135,9 @@ module.exports = {
 
       // Handle coordinates update
       if (coordinates) {
-        // Parse coordinates
-        const coordParts = coordinates.split(',').map(coord => coord.trim());
+        // Parse coordinates - remove all spaces and split by comma
+        const cleanCoordinates = coordinates.replace(/\s/g, ''); // Remove all spaces
+        const coordParts = cleanCoordinates.split(',');
         if (coordParts.length !== 3) {
           return interaction.editReply({
             embeds: [errorEmbed('Invalid Coordinates', 'Coordinates must be in format: X,Y,Z (e.g., 100.5,200.3,300.7)')]

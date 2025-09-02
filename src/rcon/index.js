@@ -393,6 +393,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           // Check if this respawn is for a player killed by the bot
           await handleBotKillRespawn(client, guildId, serverName, player, ip, port, password);
           
+          // Check if this respawn is for a prisoner
+          await handlePrisonRespawn(client, guildId, serverName, player, ip, port, password);
+          
           return; // Skip this "join" - it's probably a respawn
         }
         
@@ -6903,6 +6906,59 @@ async function checkEventGibs(client, guildId, serverName, serverId, ip, port, p
 
   } catch (error) {
     console.error('[EVENT DETECTION] Error checking event gibs:', error);
+  }
+}
+
+async function handlePrisonRespawn(client, guildId, serverName, player, ip, port, password) {
+  try {
+    console.log(`[PRISON] Checking respawn for prisoner: ${player}`);
+    
+    // Get server ID
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+
+    if (serverResult.length === 0) {
+      console.log(`[PRISON] No server found for ${serverName}`);
+      return;
+    }
+
+    const serverId = serverResult[0].id;
+    
+    // Check if player is currently in prison
+    const [prisonerResult] = await pool.query(
+      'SELECT cell_number FROM prisoners WHERE server_id = ? AND player_name = ? AND is_active = TRUE',
+      [serverId, player]
+    );
+
+    if (prisonerResult.length === 0) {
+      console.log(`[PRISON] Player ${player} is not in prison`);
+      return;
+    }
+
+    const cellNumber = prisonerResult[0].cell_number;
+    console.log(`[PRISON] Prisoner ${player} respawned, teleporting to cell ${cellNumber}`);
+
+    // Import prison system
+    const prisonSystem = require('../utils/prisonSystem');
+    
+    // Teleport player back to prison cell
+    const success = await prisonSystem.teleportToPrison(ip, port, password, player, cellNumber);
+    
+    if (success) {
+      console.log(`[PRISON] Successfully teleported ${player} back to prison cell ${cellNumber}`);
+      
+      // Send message to game
+      await sendRconCommand(ip, port, password, 
+        `say <color=#FF69B4>[Prison]</color> <color=white>${player} has been returned to prison!</color>`
+      );
+    } else {
+      console.error(`[PRISON] Failed to teleport ${player} back to prison`);
+    }
+    
+  } catch (error) {
+    console.error('[PRISON] Error handling prison respawn:', error);
   }
 }
 
