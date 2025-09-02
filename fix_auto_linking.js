@@ -47,15 +47,16 @@ async function fixAutoLinking() {
       
       // Get all servers in this guild
       const [servers] = await connection.execute(`
-        SELECT id, nickname, created_at
+        SELECT id, nickname
         FROM rust_servers 
-        WHERE guild_id = ? 
-        ORDER BY created_at ASC
+        WHERE guild_id = ?
+        ORDER BY id
       `, [guild.guild_id]);
 
       if (servers.length < 2) continue;
 
-      // Find the oldest server (main server)
+      // For simplicity, treat the first server as the main server
+      // You can modify this logic if you have a specific way to identify the main server
       const mainServer = servers[0];
       const newServers = servers.slice(1);
       
@@ -82,8 +83,7 @@ async function fixAutoLinking() {
             mp.ign,
             mp.id as player_id,
             mp.guild_id,
-            mp.is_active,
-            mp.created_at
+            mp.is_active
           FROM players mp
           WHERE mp.server_id = ? AND mp.is_active = true
           AND NOT EXISTS (
@@ -109,26 +109,29 @@ async function fixAutoLinking() {
                   discord_id, 
                   ign, 
                   server_id, 
-                  is_active, 
-                  created_at,
-                  updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, NOW())
+                  is_active
+                ) VALUES (?, ?, ?, ?, ?)
               `, [
                 player.guild_id,
                 player.discord_id,
                 player.ign,
                 newServer.id,
-                player.is_active,
-                player.created_at
+                player.is_active
               ]);
 
-              // Create economy record for the new server
-              await connection.execute(`
-                INSERT INTO economy (player_id, balance, created_at, updated_at)
-                SELECT id, 0, NOW(), NOW()
-                FROM players 
+              // Get the newly created player ID for economy record
+              const [newPlayer] = await connection.execute(`
+                SELECT id FROM players 
                 WHERE guild_id = ? AND discord_id = ? AND server_id = ?
               `, [player.guild_id, player.discord_id, newServer.id]);
+
+              if (newPlayer.length > 0) {
+                // Create economy record for the new server
+                await connection.execute(`
+                  INSERT INTO economy (player_id, balance)
+                  VALUES (?, 0)
+                `, [newPlayer[0].id]);
+              }
 
               console.log(`      ✅ Linked ${player.ign} (${player.discord_id}) to ${newServer.nickname}`);
             } catch (error) {
