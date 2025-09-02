@@ -157,11 +157,14 @@ class PrisonSystem {
    * Release player from prison
    */
   async releasePrisoner(serverId, playerName, releasedBy) {
+    const connection = await pool.getConnection();
     try {
+      await connection.beginTransaction();
+      
       console.log(`[PRISON DEBUG] Releasing ${playerName} from prison on server ${serverId}`);
       
       // First check if the prisoner exists and is active
-      const [existingPrisoner] = await pool.query(
+      const [existingPrisoner] = await connection.query(
         'SELECT * FROM prisoners WHERE server_id = ? AND player_name = ? AND is_active = TRUE',
         [serverId, playerName]
       );
@@ -170,25 +173,40 @@ class PrisonSystem {
       
       if (existingPrisoner.length === 0) {
         console.log(`[PRISON DEBUG] No active prisoner found for ${playerName} on server ${serverId}`);
+        await connection.rollback();
         return false;
       }
       
       console.log(`[PRISON DEBUG] Prisoner record:`, existingPrisoner[0]);
       
-      // Update prisoner record by ID to avoid unique constraint issues
-      const [updateResult] = await pool.query(
+      // Try to update the record by setting is_active to NULL first, then FALSE
+      // This might help avoid the unique constraint issue
+      const [updateResult] = await connection.query(
         `UPDATE prisoners 
-         SET is_active = FALSE, released_at = NOW() 
+         SET is_active = NULL, released_at = NOW() 
          WHERE id = ?`,
         [existingPrisoner[0].id]
       );
+      
+      if (updateResult.affectedRows > 0) {
+        // Now set it to FALSE
+        await connection.query(
+          `UPDATE prisoners 
+           SET is_active = FALSE 
+           WHERE id = ?`,
+          [existingPrisoner[0].id]
+        );
+      }
       
       console.log(`[PRISON DEBUG] Update result: ${updateResult.affectedRows} rows affected`);
       
       if (updateResult.affectedRows === 0) {
         console.log(`[PRISON DEBUG] No rows were updated - prisoner may have been released already`);
+        await connection.rollback();
         return false;
       }
+      
+      await connection.commit();
       
       // Remove from active prisoners map
       const serverKey = serverId;
@@ -209,7 +227,16 @@ class PrisonSystem {
       console.error('[PRISON DEBUG] Error releasing prisoner:', error);
       console.error('[PRISON DEBUG] Error details:', error.message);
       console.error('[PRISON DEBUG] Error stack:', error.stack);
+      
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error('[PRISON DEBUG] Error rolling back transaction:', rollbackError);
+      }
+      
       return false;
+    } finally {
+      connection.release();
     }
   }
 
