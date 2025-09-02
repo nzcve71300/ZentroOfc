@@ -29,7 +29,8 @@ module.exports = {
           { name: 'Prison-Cell-3', value: 'prison-cell-3' },
           { name: 'Prison-Cell-4', value: 'prison-cell-4' },
           { name: 'Prison-Cell-5', value: 'prison-cell-5' },
-          { name: 'Prison-Cell-6', value: 'prison-cell-6' }
+          { name: 'Prison-Cell-6', value: 'prison-cell-6' },
+          { name: 'Prison Zone', value: 'prison-zone' }
         ))
     .addStringOption(option =>
       option.setName('coordinates')
@@ -199,6 +200,45 @@ module.exports = {
               [serverId, cellNumber, xNum, yNum, zNum]
             );
           }
+        } else if (positionType === 'prison-zone') {
+          // Handle prison zone position
+          // Check if prison_configs table exists, create if not
+          try {
+            await pool.query(`
+              CREATE TABLE IF NOT EXISTS prison_configs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                server_id VARCHAR(32) NOT NULL,
+                enabled BOOLEAN DEFAULT FALSE,
+                zone_size INT DEFAULT 50,
+                zone_color VARCHAR(20) DEFAULT '255,0,0',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_server (server_id)
+              )
+            `);
+          } catch (error) {
+            console.error('Error creating prison_configs table:', error);
+          }
+
+          // Check if prison config exists
+          const [existingPrisonConfigResult] = await pool.query(
+            'SELECT * FROM prison_configs WHERE server_id = ?',
+            [serverId]
+          );
+
+          if (existingPrisonConfigResult.length > 0) {
+            // Update existing prison zone coordinates
+            await pool.query(
+              'UPDATE prison_configs SET zone_position = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?',
+              [`${xNum},${yNum},${zNum}`, serverId]
+            );
+          } else {
+            // Create new prison config with zone coordinates
+            await pool.query(
+              'INSERT INTO prison_configs (server_id, zone_position, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [serverId, `${xNum},${yNum},${zNum}`]
+            );
+          }
         } else {
           // Handle regular position coordinates
           // Check if position coordinates exist
@@ -240,6 +280,18 @@ module.exports = {
           [serverId, cellNumber]
         );
         currentCoords = prisonCoords;
+      } else if (positionType === 'prison-zone') {
+        positionDisplayName = 'Prison Zone';
+        
+        const [prisonZoneCoords] = await pool.query(
+          'SELECT zone_position FROM prison_configs WHERE server_id = ?',
+          [serverId]
+        );
+        
+        if (prisonZoneCoords.length > 0 && prisonZoneCoords[0].zone_position) {
+          const [x, y, z] = prisonZoneCoords[0].zone_position.split(',').map(coord => parseFloat(coord.trim()));
+          currentCoords = [{ x_pos: x, y_pos: y, z_pos: z }];
+        }
       } else {
         const [regularCoords] = await pool.query(
           'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',

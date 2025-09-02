@@ -206,7 +206,9 @@ module.exports = {
         
         // Add Prison System configuration options EIGHTH
         const prisonConfigTypes = [
-          { name: 'Prison-System (ON/OFF)', value: 'Prison-System' }
+          { name: 'Prison-System (ON/OFF)', value: 'Prison-System' },
+          { name: 'Prison-Z-Size (Zone Size)', value: 'Prison-Z-Size' },
+          { name: 'Prison-Z-Color (Zone Color)', value: 'Prison-Z-Color' }
         ];
         
         prisonConfigTypes.forEach(configType => {
@@ -1064,6 +1066,43 @@ module.exports = {
           updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           console.log(`[SET COMMAND DEBUG] Prison-System: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
           break;
+        case 'Prison-Z-Size':
+          const sizeValue = parseInt(option);
+          if (isNaN(sizeValue) || sizeValue < 10 || sizeValue > 200) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for Prison-Z-Size. Use a number between 10 and 200`,
+              ephemeral: true
+            });
+          }
+          updateQuery = 'UPDATE prison_configs SET zone_size = ? WHERE server_id = ?';
+          updateParams = [sizeValue, server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] Prison-Z-Size: sizeValue=${sizeValue}`);
+          break;
+        case 'Prison-Z-Color':
+          // Validate color format (R,G,B) where each value is 0-255
+          const colorMatch = option.match(/^(\d{1,3}),(\d{1,3}),(\d{1,3})$/);
+          if (!colorMatch) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid color format for Prison-Z-Color. Use: R,G,B (e.g., 255,0,0 for red)`,
+              ephemeral: true
+            });
+          }
+          const r = parseInt(colorMatch[1]);
+          const g = parseInt(colorMatch[2]);
+          const b = parseInt(colorMatch[3]);
+          if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid color values. Each RGB value must be between 0 and 255`,
+              ephemeral: true
+            });
+          }
+          updateQuery = 'UPDATE prison_configs SET zone_color = ? WHERE server_id = ?';
+          updateParams = [option, server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] Prison-Z-Color: color=${option}`);
+          break;
           
         // HOMETP configurations
         case 'HOMETP-USELIST':
@@ -1161,6 +1200,20 @@ module.exports = {
         verifyId = server.id.toString();
         verifyIdField = 'server_id';
         verifyField = 'enabled';
+        
+        // Handle prison zone creation/deletion
+        const prisonSystem = require('../../utils/prisonSystem');
+        const { sendRconCommand } = require('../../rcon');
+        
+        if (validatedOption === 'on' || validatedOption === 'true') {
+          // Prison system enabled - create zone
+          console.log(`[SET COMMAND DEBUG] Prison system enabled, creating zone for server ${server.id}`);
+          await prisonSystem.createPrisonZone(server.id.toString(), server.ip, server.port, server.password, sendRconCommand);
+        } else {
+          // Prison system disabled - delete zone
+          console.log(`[SET COMMAND DEBUG] Prison system disabled, deleting zone for server ${server.id}`);
+          await prisonSystem.deletePrisonZone(server.id.toString(), server.ip, server.port, server.password, sendRconCommand);
+        }
       }
       
       const [verifyResult] = await connection.execute(

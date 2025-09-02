@@ -379,10 +379,107 @@ class PrisonSystem {
   }
 
   /**
+   * Create prison zone
+   */
+  async createPrisonZone(serverId, ip, port, password, sendRconCommand) {
+    try {
+      // Get prison configuration
+      const [configResult] = await pool.query(
+        'SELECT zone_position, zone_size, zone_color FROM prison_configs WHERE server_id = ?',
+        [serverId]
+      );
+
+      if (configResult.length === 0 || !configResult[0].zone_position) {
+        console.log('[PRISON ZONE] No zone position configured for server');
+        return false;
+      }
+
+      const config = configResult[0];
+      const [x, y, z] = config.zone_position.split(',').map(coord => parseFloat(coord.trim()));
+      const zoneName = `PRISON_ZONE_${serverId}`;
+
+      // Create the zone with protective settings
+      const createZoneCommand = `zones.createcustomzone "${zoneName}" (${x},${y},${z}) 0 Sphere ${config.zone_size} 0 0 0 0 0`;
+      console.log(`[PRISON ZONE] Creating zone: ${createZoneCommand}`);
+      
+      const createResult = await sendRconCommand(ip, port, password, createZoneCommand);
+      console.log(`[PRISON ZONE] Create result:`, createResult);
+
+      // Set zone color
+      const [r, g, b] = config.zone_color.split(',').map(c => parseInt(c.trim()));
+      const colorCommand = `zones.editcustomzone "${zoneName}" color (${r},${g},${b})`;
+      console.log(`[PRISON ZONE] Setting color: ${colorCommand}`);
+      
+      const colorResult = await sendRconCommand(ip, port, password, colorCommand);
+      console.log(`[PRISON ZONE] Color result:`, colorResult);
+
+      // Show zone area
+      const showAreaCommand = `zones.editcustomzone "${zoneName}" showarea 1`;
+      await sendRconCommand(ip, port, password, showAreaCommand);
+
+      // Track the zone in database
+      await pool.query(
+        'INSERT INTO prison_zones (server_id, zone_name, zone_position, zone_size, zone_color) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE zone_position = VALUES(zone_position), zone_size = VALUES(zone_size), zone_color = VALUES(zone_color)',
+        [serverId, zoneName, config.zone_position, config.zone_size, config.zone_color]
+      );
+
+      console.log(`[PRISON ZONE] Successfully created prison zone: ${zoneName}`);
+      return true;
+    } catch (error) {
+      console.error('[PRISON ZONE] Error creating prison zone:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete prison zone
+   */
+  async deletePrisonZone(serverId, ip, port, password, sendRconCommand) {
+    try {
+      const zoneName = `PRISON_ZONE_${serverId}`;
+      
+      // Delete the zone from the server
+      const deleteCommand = `zones.deletecustomzone "${zoneName}"`;
+      console.log(`[PRISON ZONE] Deleting zone: ${deleteCommand}`);
+      
+      const deleteResult = await sendRconCommand(ip, port, password, deleteCommand);
+      console.log(`[PRISON ZONE] Delete result:`, deleteResult);
+
+      // Remove from database
+      await pool.query(
+        'DELETE FROM prison_zones WHERE server_id = ?',
+        [serverId]
+      );
+
+      console.log(`[PRISON ZONE] Successfully deleted prison zone: ${zoneName}`);
+      return true;
+    } catch (error) {
+      console.error('[PRISON ZONE] Error deleting prison zone:', error);
+      return false;
+    }
+  }
+
+  /**
    * Initialize prison monitoring for all active prisoners
    */
   async initializePrisonMonitoring(sendRconCommand) {
     try {
+      // Restore prison zones for enabled servers
+      const [enabledServers] = await pool.query(
+        `SELECT pc.server_id, pc.zone_position, pc.zone_size, pc.zone_color, rs.ip, rs.port, rs.password 
+         FROM prison_configs pc 
+         JOIN rust_servers rs ON pc.server_id = rs.id 
+         WHERE pc.enabled = TRUE AND pc.zone_position IS NOT NULL`
+      );
+      
+      for (const server of enabledServers) {
+        console.log(`[PRISON ZONE] Restoring zone for server ${server.server_id}`);
+        await this.createPrisonZone(server.server_id, server.ip, server.port, server.password, sendRconCommand);
+      }
+      
+      console.log(`[PRISON ZONE] Restored zones for ${enabledServers.length} servers`);
+      
+      // Initialize prisoner monitoring
       const [result] = await pool.query(
         `SELECT p.*, rs.ip, rs.port, rs.password 
          FROM prisoners p 
