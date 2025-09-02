@@ -12,14 +12,48 @@ async function setupPrisonZoneSystem() {
   try {
     console.log('🔧 Setting up Prison Zone System...');
 
-    // Add zone_size, zone_color, and zone_position columns to prison_configs table
-    await connection.execute(`
-      ALTER TABLE prison_configs 
-      ADD COLUMN zone_size INT DEFAULT 50,
-      ADD COLUMN zone_color VARCHAR(20) DEFAULT '255,0,0',
-      ADD COLUMN zone_position VARCHAR(255) DEFAULT NULL
-    `);
-    console.log('✅ Added zone_size and zone_color columns to prison_configs table');
+    // Add zone_size, zone_color, and zone_position columns to prison_configs table (if they don't exist)
+    try {
+      await connection.execute(`
+        ALTER TABLE prison_configs 
+        ADD COLUMN zone_size INT DEFAULT 50
+      `);
+      console.log('✅ Added zone_size column to prison_configs table');
+    } catch (error) {
+      if (error.code === 'ER_DUP_FIELDNAME') {
+        console.log('ℹ️ zone_size column already exists');
+      } else {
+        throw error;
+      }
+    }
+
+    try {
+      await connection.execute(`
+        ALTER TABLE prison_configs 
+        ADD COLUMN zone_color VARCHAR(20) DEFAULT '255,0,0'
+      `);
+      console.log('✅ Added zone_color column to prison_configs table');
+    } catch (error) {
+      if (error.code === 'ER_DUP_FIELDNAME') {
+        console.log('ℹ️ zone_color column already exists');
+      } else {
+        throw error;
+      }
+    }
+
+    try {
+      await connection.execute(`
+        ALTER TABLE prison_configs 
+        ADD COLUMN zone_position VARCHAR(255) DEFAULT NULL
+      `);
+      console.log('✅ Added zone_position column to prison_configs table');
+    } catch (error) {
+      if (error.code === 'ER_DUP_FIELDNAME') {
+        console.log('ℹ️ zone_position column already exists');
+      } else {
+        throw error;
+      }
+    }
 
     // Create prison_zones table to track active zones
     await connection.execute(`
