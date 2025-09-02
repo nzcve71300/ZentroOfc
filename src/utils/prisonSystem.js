@@ -398,8 +398,13 @@ class PrisonSystem {
       const [x, y, z] = config.zone_position.split(',').map(coord => parseFloat(coord.trim()));
       const zoneName = `PRISON_ZONE_${serverId}`;
 
-      // Create the zone with protective settings
-      const createZoneCommand = `zones.createcustomzone "${zoneName}" (${x},${y},${z}) 0 Sphere ${config.zone_size} 0 0 0 0 0`;
+      // Create the zone with protective settings:
+      // [5] PvP: 1 (enabled - players can fight)
+      // [6] NPC Damage: 1 (enabled - NPCs can damage players)
+      // [7] Radiation: 0 (disabled - no radiation damage)
+      // [8] Building Damage: 0 (disabled - no raiding)
+      // [9] Building: 0 (disabled - no building)
+      const createZoneCommand = `zones.createcustomzone "${zoneName}" (${x},${y},${z}) 0 Sphere ${config.zone_size} 1 1 0 0 0`;
       console.log(`[PRISON ZONE] Creating zone: ${createZoneCommand}`);
       
       const createResult = await sendRconCommand(ip, port, password, createZoneCommand);
@@ -416,6 +421,18 @@ class PrisonSystem {
       // Show zone area
       const showAreaCommand = `zones.editcustomzone "${zoneName}" showarea 1`;
       await sendRconCommand(ip, port, password, showAreaCommand);
+
+      // Enable chat messages
+      const showChatMessageCommand = `zones.editcustomzone "${zoneName}" showchatmessage 1`;
+      await sendRconCommand(ip, port, password, showChatMessageCommand);
+
+      // Set custom enter message
+      const enterMessageCommand = `zones.editcustomzone "${zoneName}" entermessage "{PlayerName} entered the prison."`;
+      await sendRconCommand(ip, port, password, enterMessageCommand);
+
+      // Set custom leave message
+      const leaveMessageCommand = `zones.editcustomzone "${zoneName}" leavemessage "{PlayerName} left the prison."`;
+      await sendRconCommand(ip, port, password, leaveMessageCommand);
 
       // Track the zone in database
       await pool.query(
