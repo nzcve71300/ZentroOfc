@@ -52,31 +52,48 @@ async function fixMultiServerPlayers() {
 
     console.log(`\n📋 Step 2: Checking current database structure...`);
     
+    // Check the structure of existing tables to understand data types
+    console.log('📋 Checking players table structure...');
+    const [playerColumns] = await connection.execute('SHOW COLUMNS FROM players');
+    console.log('Players table columns:', playerColumns.map(col => `${col.Field}: ${col.Type}`));
+    
+    console.log('📋 Checking rust_servers table structure...');
+    const [serverColumns] = await connection.execute('SHOW COLUMNS FROM rust_servers');
+    console.log('Rust_servers table columns:', serverColumns.map(col => `${col.Field}: ${col.Type}`));
+    
+    console.log('📋 Checking guilds table structure...');
+    const [guildColumns] = await connection.execute('SHOW COLUMNS FROM guilds');
+    console.log('Guilds table columns:', guildColumns.map(col => `${col.Field}: ${col.Type}`));
+    
     // Check if player_server_links table exists
     const [tables] = await connection.execute('SHOW TABLES LIKE "player_server_links"');
     
     if (tables.length === 0) {
       console.log('📋 Creating player_server_links table...');
       
+      // Get the actual data types from the referenced tables
+      const playerIdType = playerColumns.find(col => col.Field === 'id')?.Type || 'INT';
+      const serverIdType = serverColumns.find(col => col.Field === 'id')?.Type || 'VARCHAR(255)';
+      const guildIdType = guildColumns.find(col => col.Field === 'id')?.Type || 'INT';
+      
+      console.log(`📊 Using data types: player_id=${playerIdType}, server_id=${serverIdType}, guild_id=${guildIdType}`);
+      
       await connection.execute(`
         CREATE TABLE player_server_links (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          player_id INT NOT NULL,
-          server_id VARCHAR(255) NOT NULL,
-          guild_id INT NOT NULL,
+          player_id ${playerIdType} NOT NULL,
+          server_id ${serverIdType} NOT NULL,
+          guild_id ${guildIdType} NOT NULL,
           discord_id VARCHAR(255) NOT NULL,
           ign VARCHAR(255) NOT NULL,
           is_active BOOLEAN DEFAULT TRUE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY unique_player_server (player_id, server_id),
-          UNIQUE KEY unique_ign_server_guild (ign, server_id, guild_id),
-          FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
-          FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE,
-          FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+          UNIQUE KEY unique_ign_server_guild (ign, server_id, guild_id)
         )
       `);
       
-      console.log('✅ Created player_server_links table');
+      console.log('✅ Created player_server_links table (without foreign keys for now)');
     } else {
       console.log('✅ player_server_links table already exists');
     }
