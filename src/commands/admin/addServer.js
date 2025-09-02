@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 const { errorEmbed, successEmbed } = require('../../embeds/format');
 const { canAddServer, incrementActiveServers } = require('../../utils/subscriptionSystem');
+const { autoLinkPlayersToNewServer } = require('../../utils/autoPlayerLinking');
 const pool = require('../../db');
 
 module.exports = {
@@ -104,11 +105,27 @@ module.exports = {
       // Increment active servers count
       await incrementActiveServers(guildId);
 
-      const successEmbedObj = successEmbed(
-        'Server Added Successfully',
-        `**${nickname}** has been added successfully!\n\n**IP:** ${ip}:${port}\n**RCON:** ${rconPassword ? 'Configured' : 'Not configured'}\n\nYou can now use this server in other commands with autocomplete.`
-      );
+      // Auto-link existing players to the new server
+      console.log(`🚀 Starting automatic player linking for new server: ${nickname}`);
+      const autoLinkResult = await autoLinkPlayersToNewServer(guildId, serverId, nickname);
 
+      // Build success message
+      let successMessage = `**${nickname}** has been added successfully!\n\n**IP:** ${ip}:${port}\n**RCON:** ${rconPassword ? 'Configured' : 'Not configured'}`;
+      
+      if (autoLinkResult.success && autoLinkResult.linkedCount > 0) {
+        successMessage += `\n\n🔗 **Auto-linking completed successfully!**\n**Players linked:** ${autoLinkResult.linkedCount}`;
+        if (autoLinkResult.errors.length > 0) {
+          successMessage += `\n⚠️ **Errors:** ${autoLinkResult.errors.length} (some players may not have been linked)`;
+        }
+      } else if (autoLinkResult.linkedCount === 0) {
+        successMessage += `\n\nℹ️ **No existing players found to auto-link** (this is normal for new guilds)`;
+      } else {
+        successMessage += `\n\n⚠️ **Auto-linking encountered issues**\n**Players linked:** ${autoLinkResult.linkedCount}\n**Errors:** ${autoLinkResult.errors.length}`;
+      }
+
+      successMessage += `\n\nYou can now use this server in other commands with autocomplete.`;
+
+      const successEmbedObj = successEmbed('Server Added Successfully', successMessage);
       await interaction.editReply({ embeds: [successEmbedObj] });
 
     } catch (error) {
