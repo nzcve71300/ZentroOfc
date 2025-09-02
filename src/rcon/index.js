@@ -6,6 +6,7 @@ const killfeedProcessor = require('../utils/killfeedProcessor');
 const teleportSystem = require('../utils/teleportSystem');
 const path = require('path');
 const Logger = require('../utils/logger');
+const PlaytimeTracker = require('../utils/playtimeTracker');
 
 let activeConnections = {};
 let joinLeaveBuffer = {};
@@ -92,6 +93,10 @@ const teleportCooldowns = new Map(); // Track teleport cooldowns per player
 
 // Recycler state tracking
 const recyclerState = new Map(); // Track recycler spawn state
+
+// Playtime tracking
+const playtimeTracker = new PlaytimeTracker();
+const previousOnlinePlayers = new Map(); // serverKey -> Set of player names
 
 // Book-a-Ride constants
 const BOOKARIDE_EMOTE = 'd11_quick_chat_orders_slot_5';
@@ -392,6 +397,23 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         console.log(`[PLAYERFEED] Real join detected for ${player}`);
         addToBuffer(guildId, serverName, 'joins', player);
         await ensurePlayerExists(guildId, serverName, player);
+        
+        // Start playtime tracking for this player
+        try {
+          const [playerResult] = await pool.query(
+            'SELECT p.id FROM players p JOIN rust_servers rs ON p.server_id = rs.id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? AND LOWER(p.ign) = LOWER(?)',
+            [guildId, serverName, player]
+          );
+          
+          if (playerResult.length > 0) {
+            const playerId = playerResult[0].id;
+            await playtimeTracker.ensurePlaytimeRecord(playerId);
+            await playtimeTracker.startSession(playerId, serverId);
+            console.log(`[PLAYTIME] Started session for ${player} (ID: ${playerId})`);
+          }
+        } catch (error) {
+          console.error(`[PLAYTIME] Error starting session for ${player}:`, error);
+        }
         
         // Send to playerfeed
         await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
@@ -2229,6 +2251,9 @@ async function pollPlayerCounts(client) {
         if (info && info.Players !== undefined) {
           await updatePlayerCountChannel(client, server.guild_discord_id, server.nickname, info.Players, info.Queued || 0);
         }
+        
+        // Track playtime changes
+        await trackPlaytimeChanges(client, server.guild_discord_id, server.nickname, server.ip, server.port, server.password);
       } catch (e) {
         console.log(`❌ Failed to fetch playercount for ${server.nickname}:`, e.message);
       }
@@ -5003,6 +5028,46 @@ async function enableTeamActionLogging(ip, port, password) {
     console.log('[ZORP] Team action logging enabled');
   } catch (error) {
     console.error('Error enabling team action logging:', error);
+  }
+}
+
+async function trackPlaytimeChanges(client, guildId, serverName, ip, port, password) {
+  try {
+    const serverKey = `${guildId}_${serverName}`;
+    const currentOnline = await getOnlinePlayers(ip, port, password);
+    const previousOnline = previousOnlinePlayers.get(serverKey) || new Set();
+    
+    // Find players who left (were online before, not online now)
+    const playersWhoLeft = new Set();
+    for (const player of previousOnline) {
+      if (!currentOnline.has(player)) {
+        playersWhoLeft.add(player);
+      }
+    }
+    
+    // End sessions for players who left
+    for (const player of playersWhoLeft) {
+      try {
+        const [playerResult] = await pool.query(
+          'SELECT p.id FROM players p JOIN rust_servers rs ON p.server_id = rs.id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? AND LOWER(p.ign) = LOWER(?)',
+          [guildId, serverName, player]
+        );
+        
+        if (playerResult.length > 0) {
+          const playerId = playerResult[0].id;
+          await playtimeTracker.endSession(playerId, serverName);
+          console.log(`[PLAYTIME] Ended session for ${player} (ID: ${playerId}) - player left server`);
+        }
+      } catch (error) {
+        console.error(`[PLAYTIME] Error ending session for ${player}:`, error);
+      }
+    }
+    
+    // Update the previous online players for this server
+    previousOnlinePlayers.set(serverKey, currentOnline);
+    
+  } catch (error) {
+    console.error('Error tracking playtime changes:', error);
   }
 }
 

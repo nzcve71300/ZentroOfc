@@ -272,14 +272,14 @@ class KillfeedProcessor {
              } else {
          killerPlayerId = killerResult[0].id;
        }
-      const isPlayerKill = await this.isPlayerKill(sanitizedVictim, serverId);
+      // Check if this is a player vs player kill (not NPC/animal)
       const isNPCorAnimal = this.isNPCorAnimal(sanitizedVictim);
 
       // Get or create killer stats
       let killerStats = await this.getOrCreatePlayerStats(killerPlayerId);
 
-      if (isPlayerKill) {
-        // Player kill - increase stats
+      if (!isNPCorAnimal) {
+        // Player vs Player kill - increase stats
         await this.updatePlayerStats(killerPlayerId, {
           kills: killerStats.kills + 1,
           kill_streak: killerStats.kill_streak + 1,
@@ -290,7 +290,7 @@ class KillfeedProcessor {
         // Process victim death
         await this.processVictimDeath(sanitizedVictim, serverId);
 
-      } else if (isNPCorAnimal) {
+      } else {
         // NPC/Animal kill - NO CHANGE to KD (as per requirements)
         // Only update last kill time, don't affect kills/deaths
         await this.updatePlayerStats(killerPlayerId, {
