@@ -1,5 +1,4 @@
 const pool = require('../db');
-const { sendRconCommand } = require('../../rcon');
 
 class PrisonSystem {
   constructor() {
@@ -51,7 +50,7 @@ class PrisonSystem {
   /**
    * Teleport player to prison cell
    */
-  async teleportToPrison(ip, port, password, playerName, cellNumber) {
+  async teleportToPrison(ip, port, password, playerName, cellNumber, sendRconCommand) {
     try {
       console.log(`[PRISON DEBUG] Starting teleport for ${playerName} to cell ${cellNumber}`);
       console.log(`[PRISON DEBUG] Server details: ${ip}:${port}`);
@@ -104,7 +103,7 @@ class PrisonSystem {
   /**
    * Add player to prison
    */
-  async addPrisoner(serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, sentencedBy) {
+  async addPrisoner(serverId, playerName, discordId, cellNumber, sentenceType, sentenceMinutes, sentencedBy, sendRconCommand) {
     try {
       console.log(`[PRISON DEBUG] Adding ${playerName} to prison on server ${serverId}`);
       
@@ -158,14 +157,15 @@ class PrisonSystem {
          
          if (serverResult.length > 0) {
            const server = serverResult[0];
-           await this.startPrisonerMonitoring(
-             serverId,
-             playerName,
-             cellNumber,
-             server.ip,
-             server.port,
-             server.password
-           );
+                       await this.startPrisonerMonitoring(
+              serverId,
+              playerName,
+              cellNumber,
+              server.ip,
+              server.port,
+              server.password,
+              sendRconCommand
+            );
            console.log(`[PRISON] Started auto-release monitoring for ${playerName} (${sentenceMinutes} minutes)`);
          }
        }
@@ -312,7 +312,7 @@ class PrisonSystem {
   /**
    * Start teleport monitoring for a prisoner
    */
-  async startPrisonerMonitoring(serverId, playerName, cellNumber, ip, port, password) {
+  async startPrisonerMonitoring(serverId, playerName, cellNumber, ip, port, password, sendRconCommand) {
     try {
       const playerKey = `${serverId}_${playerName}`;
       
@@ -348,8 +348,8 @@ class PrisonSystem {
             }
           }
           
-          // Teleport player to cell
-          await this.teleportToPrison(ip, port, password, playerName, cellNumber);
+                     // Teleport player to cell
+           await this.teleportToPrison(ip, port, password, playerName, cellNumber, sendRconCommand);
         } catch (error) {
           console.error('Error in prisoner monitoring:', error);
         }
@@ -381,7 +381,7 @@ class PrisonSystem {
   /**
    * Initialize prison monitoring for all active prisoners
    */
-  async initializePrisonMonitoring() {
+  async initializePrisonMonitoring(sendRconCommand) {
     try {
       const [result] = await pool.query(
         `SELECT p.*, rs.ip, rs.port, rs.password 
@@ -397,7 +397,8 @@ class PrisonSystem {
           prisoner.cell_number,
           prisoner.ip,
           prisoner.port,
-          prisoner.password
+          prisoner.password,
+          sendRconCommand
         );
       }
       

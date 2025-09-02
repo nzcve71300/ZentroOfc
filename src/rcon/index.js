@@ -249,7 +249,7 @@ function startRconListeners(client) {
   // Initialize prison monitoring for all active prisoners
   setTimeout(() => {
     console.log('🚀 Initializing prison monitoring system...');
-    prisonSystem.initializePrisonMonitoring();
+    prisonSystem.initializePrisonMonitoring(sendRconCommand);
   }, 15000); // Wait 15 seconds after startup
 }
 
@@ -6948,7 +6948,7 @@ async function handlePrisonRespawn(client, guildId, serverName, player, ip, port
     const prisonSystem = require('../utils/prisonSystem');
     
     // Teleport player back to prison cell using stored coordinates
-    const success = await prisonSystem.teleportToPrison(ip, port, password, player, cellNumber);
+    const success = await prisonSystem.teleportToPrison(ip, port, password, player, cellNumber, sendRconCommand);
     
     if (success) {
       console.log(`[PRISON] Successfully teleported ${player} back to prison cell ${cellNumber}`);

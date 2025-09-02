@@ -125,7 +125,8 @@ module.exports = {
         cellNumber,
         'life',
         null, // No minutes for life sentence
-        interaction.user.username
+        interaction.user.username,
+        sendRconCommand
       );
 
       if (!success) {
@@ -141,7 +142,8 @@ module.exports = {
         cellNumber,
         server.ip,
         server.port,
-        server.password
+        server.password,
+        sendRconCommand
       );
 
       // Teleport player to prison immediately using stored coordinates
@@ -151,7 +153,8 @@ module.exports = {
         server.port,
         server.password,
         playerName,
-        cellNumber
+        cellNumber,
+        sendRconCommand
       );
       console.log(`[LIFE-SENTENCE DEBUG] Teleport result: ${teleportResult}`);
 
