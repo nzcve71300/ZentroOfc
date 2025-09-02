@@ -166,10 +166,14 @@ class PrisonSystem {
         [serverId, playerName]
       );
       
+      console.log(`[PRISON DEBUG] Found ${existingPrisoner.length} active prisoners for ${playerName}`);
+      
       if (existingPrisoner.length === 0) {
         console.log(`[PRISON DEBUG] No active prisoner found for ${playerName} on server ${serverId}`);
         return false;
       }
+      
+      console.log(`[PRISON DEBUG] Prisoner record:`, existingPrisoner[0]);
       
       // Update prisoner record - use a more specific WHERE clause
       const [updateResult] = await pool.query(
@@ -180,6 +184,11 @@ class PrisonSystem {
       );
       
       console.log(`[PRISON DEBUG] Update result: ${updateResult.affectedRows} rows affected`);
+      
+      if (updateResult.affectedRows === 0) {
+        console.log(`[PRISON DEBUG] No rows were updated - prisoner may have been released already`);
+        return false;
+      }
       
       // Remove from active prisoners map
       const serverKey = serverId;
@@ -198,6 +207,8 @@ class PrisonSystem {
       return true;
     } catch (error) {
       console.error('[PRISON DEBUG] Error releasing prisoner:', error);
+      console.error('[PRISON DEBUG] Error details:', error.message);
+      console.error('[PRISON DEBUG] Error stack:', error.stack);
       return false;
     }
   }

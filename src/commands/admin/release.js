@@ -94,7 +94,10 @@ module.exports = {
       }
 
       // Release the prisoner
+      console.log(`[RELEASE DEBUG] Attempting to release ${playerName} from server ${serverId} (${serverName})`);
       const success = await prisonSystem.releasePrisoner(serverId, playerName, interaction.user.username);
+      console.log(`[RELEASE DEBUG] Release result: ${success}`);
+      
       if (!success) {
         return interaction.editReply({
           embeds: [errorEmbed('Failed to Release Player', 'An error occurred while releasing the player from prison.')]
