@@ -399,11 +399,11 @@ class PrisonSystem {
       const zoneName = `PRISON_ZONE_${serverId}`;
 
       // Create the zone with protective settings:
-      // [5] PvP: 1 (enabled - players can fight)
+      // [5] PvP: 1 (enabled - players can fight prisoners)
       // [6] NPC Damage: 1 (enabled - NPCs can damage players)
       // [7] Radiation: 0 (disabled - no radiation damage)
-      // [8] Building Damage: 0 (disabled - no raiding)
-      // [9] Building: 0 (disabled - no building)
+      // [8] Building Damage: 0 (disabled - no raiding prisoners out)
+      // [9] Building: 0 (disabled - no building in prison)
       const createZoneCommand = `zones.createcustomzone "${zoneName}" (${x},${y},${z}) 0 Sphere ${config.zone_size} 1 1 0 0 0`;
       console.log(`[PRISON ZONE] Creating zone: ${createZoneCommand}`);
       
@@ -427,11 +427,30 @@ class PrisonSystem {
 
       // Set custom enter message
       const enterMessageCommand = `zones.editcustomzone "${zoneName}" entermessage "{PlayerName} entered the prison."`;
-      await sendRconCommand(ip, port, password, enterMessageCommand);
+      console.log(`[PRISON ZONE] Setting enter message: ${enterMessageCommand}`);
+      const enterMessageResult = await sendRconCommand(ip, port, password, enterMessageCommand);
+      console.log(`[PRISON ZONE] Enter message result:`, enterMessageResult);
 
       // Set custom leave message
       const leaveMessageCommand = `zones.editcustomzone "${zoneName}" leavemessage "{PlayerName} left the prison."`;
-      await sendRconCommand(ip, port, password, leaveMessageCommand);
+      console.log(`[PRISON ZONE] Setting leave message: ${leaveMessageCommand}`);
+      const leaveMessageResult = await sendRconCommand(ip, port, password, leaveMessageCommand);
+      console.log(`[PRISON ZONE] Leave message result:`, leaveMessageResult);
+
+      // Try alternative message format if the first doesn't work
+      if (!enterMessageResult || enterMessageResult.includes('error') || enterMessageResult.includes('failed')) {
+        console.log(`[PRISON ZONE] Trying alternative enter message format`);
+        const altEnterMessageCommand = `zones.editcustomzone "${zoneName}" entermessage "{PlayerName} entered the prison"`;
+        const altEnterResult = await sendRconCommand(ip, port, password, altEnterMessageCommand);
+        console.log(`[PRISON ZONE] Alternative enter message result:`, altEnterResult);
+      }
+
+      if (!leaveMessageResult || leaveMessageResult.includes('error') || leaveMessageResult.includes('failed')) {
+        console.log(`[PRISON ZONE] Trying alternative leave message format`);
+        const altLeaveMessageCommand = `zones.editcustomzone "${zoneName}" leavemessage "{PlayerName} left the prison"`;
+        const altLeaveResult = await sendRconCommand(ip, port, password, altLeaveMessageCommand);
+        console.log(`[PRISON ZONE] Alternative leave message result:`, altLeaveResult);
+      }
 
       // Track the zone in database
       await pool.query(
