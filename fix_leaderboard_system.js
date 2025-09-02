@@ -106,15 +106,15 @@ async function fixLeaderboardSystem() {
     
     if (killStats.length > 0) {
       console.log('📊 Current kill statistics:');
-      killStats.forEach(server => {
-        console.log(`   ${server.nickname}:`);
-        console.log(`     Players: ${server.total_players}`);
-        console.log(`     Total Kills: ${server.total_kills || 0}`);
-        console.log(`     Total Deaths: ${server.total_deaths || 0}`);
-        console.log(`     Avg Kills: ${(server.avg_kills || 0).toFixed(1)}`);
-        console.log(`     Max Kills: ${server.max_kills || 0}`);
-        console.log(`     Max Streak: ${server.max_streak || 0}`);
-      });
+             killStats.forEach(server => {
+         console.log(`   ${server.nickname}:`);
+         console.log(`     Players: ${server.total_players}`);
+         console.log(`     Total Kills: ${server.total_kills || 0}`);
+         console.log(`     Total Deaths: ${server.total_deaths || 0}`);
+         console.log(`     Avg Kills: ${(parseFloat(server.avg_kills) || 0).toFixed(1)}`);
+         console.log(`     Max Kills: ${server.max_kills || 0}`);
+         console.log(`     Max Streak: ${server.max_streak || 0}`);
+       });
     } else {
       console.log('⚠️ No kill statistics found');
     }
@@ -138,20 +138,20 @@ async function fixLeaderboardSystem() {
     
     if (playtimeStats.length > 0) {
       console.log('📊 Current playtime statistics:');
-      playtimeStats.forEach(server => {
-        const totalHours = Math.floor((server.total_minutes || 0) / 60);
-        const totalMins = (server.total_minutes || 0) % 60;
-        const avgHours = Math.floor((server.avg_minutes || 0) / 60);
-        const avgMins = Math.floor((server.avg_minutes || 0) % 60);
-        const maxHours = Math.floor((server.max_minutes || 0) / 60);
-        const maxMins = (server.max_minutes || 0) % 60;
-        
-        console.log(`   ${server.nickname}:`);
-        console.log(`     Players: ${server.total_players}`);
-        console.log(`     Total Playtime: ${totalHours}h ${totalMins}m`);
-        console.log(`     Avg Playtime: ${avgHours}h ${avgMins}m`);
-        console.log(`     Max Playtime: ${maxHours}h ${maxMins}m`);
-      });
+             playtimeStats.forEach(server => {
+         const totalHours = Math.floor((server.total_minutes || 0) / 60);
+         const totalMins = (server.total_minutes || 0) % 60;
+         const avgHours = Math.floor((parseFloat(server.avg_minutes) || 0) / 60);
+         const avgMins = Math.floor((parseFloat(server.avg_minutes) || 0) % 60);
+         const maxHours = Math.floor((server.max_minutes || 0) / 60);
+         const maxMins = (server.max_minutes || 0) % 60;
+         
+         console.log(`   ${server.nickname}:`);
+         console.log(`     Players: ${server.total_players}`);
+         console.log(`     Total Playtime: ${totalHours}h ${totalMins}m`);
+         console.log(`     Avg Playtime: ${avgHours}h ${avgMins}m`);
+         console.log(`     Max Playtime: ${maxHours}h ${maxMins}m`);
+       });
     } else {
       console.log('⚠️ No playtime statistics found');
     }
