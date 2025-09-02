@@ -1,5 +1,5 @@
 const pool = require('../db');
-const { sendRconCommand } = require('../rcon');
+const { sendRconCommand } = require('../../rcon');
 
 class PrisonSystem {
   constructor() {
