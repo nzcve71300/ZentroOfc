@@ -804,6 +804,39 @@ module.exports = {
           }
           validatedOption = option.toLowerCase();
           break;
+        case 'Prison-Z-Size':
+          const sizeValue = parseInt(option);
+          if (isNaN(sizeValue) || sizeValue < 10 || sizeValue > 200) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid value for Prison-Z-Size. Use a number between 10 and 200`,
+              ephemeral: true
+            });
+          }
+          validatedOption = sizeValue;
+          break;
+        case 'Prison-Z-Color':
+          // Validate color format (R,G,B) where each value is 0-255
+          const colorMatch = option.match(/^(\d{1,3}),(\d{1,3}),(\d{1,3})$/);
+          if (!colorMatch) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid color format for Prison-Z-Color. Use: R,G,B (e.g., 255,0,0 for red)`,
+              ephemeral: true
+            });
+          }
+          const r = parseInt(colorMatch[1]);
+          const g = parseInt(colorMatch[2]);
+          const b = parseInt(colorMatch[3]);
+          if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+            await connection.end();
+            return await interaction.reply({
+              content: `❌ Invalid color values. Each RGB value must be between 0 and 255`,
+              ephemeral: true
+            });
+          }
+          validatedOption = option;
+          break;
         case 'TIME':
         case 'DELAYTIME':
         case 'COOLDOWN':
