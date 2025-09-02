@@ -179,24 +179,20 @@ class PrisonSystem {
       
       console.log(`[PRISON DEBUG] Prisoner record:`, existingPrisoner[0]);
       
-      // Try to update the record by setting is_active to NULL first, then FALSE
-      // This might help avoid the unique constraint issue
+      // First, delete any existing inactive records for this player to avoid unique constraint conflicts
+      await connection.query(
+        `DELETE FROM prisoners 
+         WHERE server_id = ? AND player_name = ? AND is_active = FALSE`,
+        [serverId, playerName]
+      );
+      
+      // Now update the current record to set it as inactive
       const [updateResult] = await connection.query(
         `UPDATE prisoners 
-         SET is_active = NULL, released_at = NOW() 
+         SET is_active = FALSE, released_at = NOW() 
          WHERE id = ?`,
         [existingPrisoner[0].id]
       );
-      
-      if (updateResult.affectedRows > 0) {
-        // Now set it to FALSE
-        await connection.query(
-          `UPDATE prisoners 
-           SET is_active = FALSE 
-           WHERE id = ?`,
-          [existingPrisoner[0].id]
-        );
-      }
       
       console.log(`[PRISON DEBUG] Update result: ${updateResult.affectedRows} rows affected`);
       
