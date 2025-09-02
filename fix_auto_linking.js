@@ -102,6 +102,9 @@ async function fixAutoLinking() {
           
           for (const player of playersNeedingLink) {
             try {
+              // Debug: Show what we're trying to insert
+              console.log(`      Attempting to link: guild_id=${player.guild_id}, discord_id=${player.discord_id}, ign=${player.ign}, server_id=${newServer.id}, is_active=${player.is_active}`);
+              
               // Insert the player link to the new server
               await connection.execute(`
                 INSERT INTO players (
@@ -136,6 +139,8 @@ async function fixAutoLinking() {
               console.log(`      ✅ Linked ${player.ign} (${player.discord_id}) to ${newServer.nickname}`);
             } catch (error) {
               console.log(`      ❌ Failed to link ${player.ign}: ${error.message}`);
+              // Debug: Show the exact values that failed
+              console.log(`         Values: guild_id=${player.guild_id}, discord_id=${player.discord_id}, ign=${player.ign}, server_id=${newServer.id}, is_active=${player.is_active}`);
             }
           }
         }
