@@ -146,48 +146,76 @@ async function transferPlayersToNewServer() {
 
     console.log(`\n📋 Step 5: Transferring player stats...`);
     
-    // Get player stats from source server
-    const [sourceStats] = await connection.execute(
-      'SELECT player_id, kills, deaths, kill_streak, highest_streak, last_kill_time, last_death_time FROM player_stats WHERE player_id IN (SELECT id FROM players WHERE server_id = ?)',
-      [sourceServerId]
-    );
-
-    console.log(`📊 Found ${sourceStats.length} player stats records to transfer`);
-
-    let statsTransferred = 0;
-
-    for (const statRecord of sourceStats) {
-      try {
-        // Get the corresponding player ID on target server
-        const [targetPlayer] = await connection.execute(
-          'SELECT id FROM players WHERE server_id = ? AND discord_id = (SELECT discord_id FROM players WHERE server_id = ? AND id = ?)',
-          [targetServerId, sourceServerId, statRecord.player_id]
-        );
-
-        if (targetPlayer.length > 0) {
-          const targetPlayerId = targetPlayer[0].id;
-          
-          // Check if stats record already exists
-          const [existingStats] = await connection.execute(
-            'SELECT id FROM player_stats WHERE player_id = ?',
-            [targetPlayerId]
-          );
-
-          if (existingStats.length === 0) {
-            // Create stats record
-            await connection.execute(
-              'INSERT INTO player_stats (player_id, kills, deaths, kill_streak, highest_streak, last_kill_time, last_death_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              [targetPlayerId, statRecord.kills, statRecord.deaths, statRecord.kill_streak, statRecord.highest_streak, statRecord.last_kill_time, statRecord.last_death_time]
+    // Get player stats from source server - check what columns exist first
+    try {
+      const [columns] = await connection.execute(
+        'SHOW COLUMNS FROM player_stats'
+      );
+      
+      const availableColumns = columns.map(col => col.Field);
+      console.log(`📊 Available columns in player_stats: ${availableColumns.join(', ')}`);
+      
+      // Build dynamic query based on available columns
+      const selectColumns = [];
+      if (availableColumns.includes('player_id')) selectColumns.push('player_id');
+      if (availableColumns.includes('kills')) selectColumns.push('kills');
+      if (availableColumns.includes('deaths')) selectColumns.push('deaths');
+      if (availableColumns.includes('kill_streak')) selectColumns.push('kill_streak');
+      if (availableColumns.includes('highest_streak')) selectColumns.push('highest_streak');
+      if (availableColumns.includes('last_kill_time')) selectColumns.push('last_kill_time');
+      if (availableColumns.includes('last_death_time')) selectColumns.push('last_death_time');
+      
+      if (selectColumns.length === 0) {
+        console.log('  ⚠️  No valid columns found in player_stats table, skipping stats transfer');
+      } else {
+        const selectQuery = `SELECT ${selectColumns.join(', ')} FROM player_stats WHERE player_id IN (SELECT id FROM players WHERE server_id = ?)`;
+        const [sourceStats] = await connection.execute(selectQuery, [sourceServerId]);
+        
+        console.log(`📊 Found ${sourceStats.length} player stats records to transfer`);
+        
+        let statsTransferred = 0;
+        
+        for (const statRecord of sourceStats) {
+          try {
+            // Get the corresponding player ID on target server
+            const [targetPlayer] = await connection.execute(
+              'SELECT id FROM players WHERE server_id = ? AND discord_id = (SELECT discord_id FROM players WHERE server_id = ? AND id = ?)',
+              [targetServerId, sourceServerId, statRecord.player_id]
             );
-            console.log(`  ✅ Stats transferred for player ID ${targetPlayerId}`);
-            statsTransferred++;
-          } else {
-            console.log(`  ⏭️  Stats record already exists for player ID ${targetPlayerId}`);
+            
+            if (targetPlayer.length > 0) {
+              const targetPlayerId = targetPlayer[0].id;
+              
+              // Check if stats record already exists
+              const [existingStats] = await connection.execute(
+                'SELECT id FROM player_stats WHERE player_id = ?',
+                [targetPlayerId]
+              );
+              
+              if (existingStats.length === 0) {
+                // Build dynamic INSERT query
+                const insertColumns = selectColumns.filter(col => col !== 'player_id');
+                const placeholders = insertColumns.map(() => '?').join(', ');
+                const insertQuery = `INSERT INTO player_stats (player_id, ${insertColumns.join(', ')}) VALUES (?, ${placeholders})`;
+                
+                const insertValues = [targetPlayerId, ...insertColumns.map(col => statRecord[col])];
+                
+                await connection.execute(insertQuery, insertValues);
+                console.log(`  ✅ Stats transferred for player ID ${targetPlayerId}`);
+                statsTransferred++;
+              } else {
+                console.log(`  ⏭️  Stats record already exists for player ID ${targetPlayerId}`);
+              }
+            }
+          } catch (error) {
+            console.log(`  ❌ Failed to transfer stats for player ID ${statRecord.player_id}: ${error.message}`);
           }
         }
-      } catch (error) {
-        console.log(`  ❌ Failed to transfer stats for player ID ${statRecord.player_id}: ${error.message}`);
+        
+        console.log(`  📊 Stats transfer completed: ${statsTransferred} records transferred`);
       }
+    } catch (error) {
+      console.log(`  ⚠️  Player stats table not found or error: ${error.message}`);
     }
 
     console.log(`\n📋 Step 6: Copying server configurations...`);
