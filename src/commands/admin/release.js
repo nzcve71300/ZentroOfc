@@ -164,7 +164,6 @@ function formatTimeServed(sentencedAt) {
       return `${days}d ${hours}h`;
     }
   }
-};
 
 // Helper function to send feed embed (if not already imported)
 async function sendFeedEmbed(client, guildId, serverName, feedType, message) {
