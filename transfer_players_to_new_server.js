@@ -147,6 +147,8 @@ async function transferPlayersToNewServer() {
     console.log(`\n📋 Step 5: Transferring player stats...`);
     
     // Get player stats from source server - check what columns exist first
+    let statsTransferred = 0;
+    
     try {
       const [columns] = await connection.execute(
         'SHOW COLUMNS FROM player_stats'
@@ -172,8 +174,6 @@ async function transferPlayersToNewServer() {
         const [sourceStats] = await connection.execute(selectQuery, [sourceServerId]);
         
         console.log(`📊 Found ${sourceStats.length} player stats records to transfer`);
-        
-        let statsTransferred = 0;
         
         for (const statRecord of sourceStats) {
           try {
@@ -293,7 +293,7 @@ async function transferPlayersToNewServer() {
     console.log(`  - Players transferred: ${transferredCount}`);
     console.log(`  - Players skipped (already existed): ${skippedCount}`);
     console.log(`  - Economy records transferred: ${economyTransferred}`);
-    console.log(`  - Stats records transferred: ${statsTransferred}`);
+    console.log(`  - Stats records transferred: ${statsTransferred || 0}`);
     console.log(`  - Total players processed: ${sourcePlayers.length}`);
     
     console.log('\n📝 Next steps:');
