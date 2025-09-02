@@ -84,8 +84,8 @@ class PrisonSystem {
       
       console.log(`[PRISON DEBUG] Found coordinates for cell ${cellNumber}: x=${coords.x}, y=${coords.y}, z=${coords.z}`);
       
-      // Teleport player
-      const teleportCommand = `global.teleportposrot "${coords.x},${coords.y},${coords.z}" "${playerName}" "1"`;
+             // Teleport player
+       const teleportCommand = `global.teleportposrot "${coords.x},${coords.y},${coords.z}" "${playerName}" "0"`;
       console.log(`[PRISON DEBUG] Sending teleport command: ${teleportCommand}`);
       
       const result = await sendRconCommand(ip, port, password, teleportCommand);
