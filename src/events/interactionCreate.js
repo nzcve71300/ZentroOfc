@@ -2577,13 +2577,27 @@ async function handleRustInfo(interaction) {
     );
 
     const totalMinutes = playtimeResult.length > 0 ? playtimeResult[0].total_minutes : 0;
-    const playtimeHours = (totalMinutes / 60).toFixed(1);
+    
+    // Format playtime in a more user-friendly way
+    let playtimeText;
+    if (totalMinutes === 0) {
+      playtimeText = '0m';
+    } else {
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      if (hours > 0) {
+        playtimeText = `${hours}h ${minutes}m`;
+      } else {
+        playtimeText = `${minutes}m`;
+      }
+    }
 
     // Create Rust statistics embed
     const embed = orangeEmbed(
       'Rust Statistics',
-      `**Playtime:** ${playtimeHours} Hours\n` +
-      `**Kills:** ${kills.toLocaleString()}   **Deaths:** ${deaths.toLocaleString()}   **K/D:** ${kdRatio}`
+      `**Playtime:** ${playtimeText}\n` +
+      `**Kills:** ${kills.toLocaleString()}   **Deaths:** ${deaths.toLocaleString()}   **K/D:** ${kdRatio}\n` +
+      `**Current Streak:** ${stats.kill_streak || 0}   **Best Streak:** ${stats.highest_streak || 0}`
     );
 
     await interaction.followUp({
