@@ -175,12 +175,12 @@ class PrisonSystem {
       
       console.log(`[PRISON DEBUG] Prisoner record:`, existingPrisoner[0]);
       
-      // Update prisoner record - use a more specific WHERE clause
+      // Update prisoner record by ID to avoid unique constraint issues
       const [updateResult] = await pool.query(
         `UPDATE prisoners 
          SET is_active = FALSE, released_at = NOW() 
-         WHERE server_id = ? AND player_name = ? AND is_active = TRUE`,
-        [serverId, playerName]
+         WHERE id = ?`,
+        [existingPrisoner[0].id]
       );
       
       console.log(`[PRISON DEBUG] Update result: ${updateResult.affectedRows} rows affected`);
