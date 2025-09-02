@@ -417,13 +417,31 @@ class PrisonSystem {
       const colorResult = await sendRconCommand(ip, port, password, colorCommand);
       console.log(`[PRISON ZONE] Color result:`, colorResult);
 
-      // Show zone area
-      const showAreaCommand = `zones.editcustomzone "${zoneName}" showarea 1`;
-      await sendRconCommand(ip, port, password, showAreaCommand);
+             // Show zone area
+       const showAreaCommand = `zones.editcustomzone "${zoneName}" showarea 1`;
+       await sendRconCommand(ip, port, password, showAreaCommand);
 
-      // Enable chat messages
-      const showChatMessageCommand = `zones.editcustomzone "${zoneName}" showchatmessage 1`;
-      await sendRconCommand(ip, port, password, showChatMessageCommand);
+       // Enable chat messages
+       const showChatMessageCommand = `zones.editcustomzone "${zoneName}" showchatmessage 1`;
+       await sendRconCommand(ip, port, password, showChatMessageCommand);
+
+       // Explicitly disable building damage to prevent raiding
+       const disableBuildingDamageCommand = `zones.editcustomzone "${zoneName}" allowbuildingdamage 0`;
+       console.log(`[PRISON ZONE] Disabling building damage: ${disableBuildingDamageCommand}`);
+       const buildingDamageResult = await sendRconCommand(ip, port, password, disableBuildingDamageCommand);
+       console.log(`[PRISON ZONE] Building damage disable result:`, buildingDamageResult);
+
+       // Explicitly disable building to prevent construction
+       const disableBuildingCommand = `zones.editcustomzone "${zoneName}" allowbuilding 0`;
+       console.log(`[PRISON ZONE] Disabling building: ${disableBuildingCommand}`);
+       const buildingResult = await sendRconCommand(ip, port, password, disableBuildingCommand);
+       console.log(`[PRISON ZONE] Building disable result:`, buildingResult);
+
+       // Explicitly enable PvP
+       const enablePvpCommand = `zones.editcustomzone "${zoneName}" allowpvpdamage 1`;
+       console.log(`[PRISON ZONE] Enabling PvP: ${enablePvpCommand}`);
+       const pvpResult = await sendRconCommand(ip, port, password, enablePvpCommand);
+       console.log(`[PRISON ZONE] PvP enable result:`, pvpResult);
 
       // Set custom enter message
       const enterMessageCommand = `zones.editcustomzone "${zoneName}" entermessage "{PlayerName} entered the prison."`;
