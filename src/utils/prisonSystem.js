@@ -394,11 +394,11 @@ class PrisonSystem {
         return false;
       }
 
-      const config = configResult[0];
-      const [x, y, z] = config.zone_position.split(',').map(coord => parseFloat(coord.trim()));
-      const zoneName = `PRISON_ZONE_${serverId}`;
+             const config = configResult[0];
+       const [x, y, z] = config.zone_position.split(',').map(coord => parseFloat(coord.trim()));
+       const zoneName = `PRISON ZONE`;
 
-      // Create the zone with protective settings:
+       // Create the zone with protective settings:
       // [5] PvP: 1 (enabled - players can fight prisoners)
       // [6] NPC Damage: 1 (enabled - NPCs can damage players)
       // [7] Radiation: 0 (disabled - no radiation damage)
@@ -469,11 +469,11 @@ class PrisonSystem {
   /**
    * Delete prison zone
    */
-  async deletePrisonZone(serverId, ip, port, password, sendRconCommand) {
-    try {
-      const zoneName = `PRISON_ZONE_${serverId}`;
-      
-      // Delete the zone from the server
+     async deletePrisonZone(serverId, ip, port, password, sendRconCommand) {
+     try {
+       const zoneName = `PRISON ZONE`;
+       
+       // Delete the zone from the server
       const deleteCommand = `zones.deletecustomzone "${zoneName}"`;
       console.log(`[PRISON ZONE] Deleting zone: ${deleteCommand}`);
       
