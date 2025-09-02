@@ -17,14 +17,32 @@ async function copyShopData() {
 
     // Step 1: Find the source server (Dead-ops) - oldest server in guild
     console.log('📋 Step 1: Finding source server (Dead-ops)...');
+    
+    // First, let's find the guild that contains both Dead-ops and USA-DeadOps
+    const [guilds] = await connection.execute(`
+      SELECT DISTINCT g.id, g.discord_id, g.name
+      FROM guilds g
+      JOIN rust_servers rs ON g.id = rs.guild_id
+      WHERE rs.nickname IN ('Dead-ops', 'USA-DeadOps')
+      ORDER BY g.id ASC
+    `);
+    
+    if (guilds.length === 0) {
+      console.log('❌ No guild found containing both Dead-ops and USA-DeadOps!');
+      return;
+    }
+    
+    const guildId = guilds[0].id;
+    console.log(`✅ Found guild: ${guilds[0].name} (ID: ${guildId})`);
+    
+    // Now find the source server (Dead-ops) - oldest server in this guild
     const [sourceServer] = await connection.execute(`
       SELECT rs.id, rs.nickname, rs.guild_id
       FROM rust_servers rs
-      JOIN guilds g ON rs.guild_id = g.id
-      WHERE g.discord_id = '609'  -- DEAD-OPS guild Discord ID
+      WHERE rs.guild_id = ? AND rs.nickname = 'Dead-ops'
       ORDER BY rs.id ASC
       LIMIT 1
-    `);
+    `, [guildId]);
 
     if (sourceServer.length === 0) {
       console.log('❌ Source server (Dead-ops) not found!');
@@ -33,7 +51,6 @@ async function copyShopData() {
 
     const sourceServerId = sourceServer[0].id;
     const sourceServerName = sourceServer[0].nickname;
-    const guildId = sourceServer[0].guild_id;
 
     console.log(`✅ Found source server: ${sourceServerName} (ID: ${sourceServerId})`);
 
