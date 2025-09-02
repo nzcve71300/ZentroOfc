@@ -411,8 +411,7 @@ class PrisonSystem {
       console.log(`[PRISON ZONE] Create result:`, createResult);
 
       // Set zone color
-      const [r, g, b] = config.zone_color.split(',').map(c => parseInt(c.trim()));
-      const colorCommand = `zones.editcustomzone "${zoneName}" color (${r},${g},${b})`;
+      const colorCommand = `zones.editcustomzone "${zoneName}" color ${config.zone_color}`;
       console.log(`[PRISON ZONE] Setting color: ${colorCommand}`);
       
       const colorResult = await sendRconCommand(ip, port, password, colorCommand);

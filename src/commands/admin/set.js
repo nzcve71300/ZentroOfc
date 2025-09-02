@@ -817,11 +817,11 @@ module.exports = {
           break;
         case 'Prison-Z-Color':
           // Validate color format (R,G,B) where each value is 0-255
-          const colorMatch = option.match(/^(\d{1,3}),(\d{1,3}),(\d{1,3})$/);
+          const colorMatch = option.match(/^\((\d{1,3}),(\d{1,3}),(\d{1,3})\)$/);
           if (!colorMatch) {
             await connection.end();
             return await interaction.reply({
-              content: `❌ Invalid color format for Prison-Z-Color. Use: R,G,B (e.g., 255,0,0 for red)`,
+              content: `❌ Invalid color format for Prison-Z-Color. Use: (R,G,B) (e.g., (255,0,0) for red)`,
               ephemeral: true
             });
           }
