@@ -91,8 +91,8 @@ async function autoLinkPlayersToNewServer(guildDiscordId, newServerId, newServer
           if (newPlayer.length > 0) {
             // Create economy record for the new server (starting with 0 balance)
             await pool.query(
-              'INSERT INTO economy (player_id, balance) VALUES (?, 0)',
-              [newPlayer[0].id]
+              'INSERT INTO economy (player_id, balance, guild_id) VALUES (?, 0, ?)',
+              [newPlayer[0].id, player.guild_id]
             );
           }
 
