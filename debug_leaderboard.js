@@ -2,8 +2,8 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function debugLeaderboard() {
-  console.log('🔍 Debugging Leaderboard Query');
-  console.log('==============================\n');
+  console.log('🔍 Debugging Leaderboard Query - Multi-Tenant Bot');
+  console.log('================================================\n');
 
   let connection;
   try {
@@ -15,75 +15,129 @@ async function debugLeaderboard() {
       port: process.env.DB_PORT || 3306
     });
 
-    // Test the leaderboard query
-    console.log('📋 Testing leaderboard query...');
+    // Test the leaderboard query across all guilds
+    console.log('📋 Testing leaderboard query across all guilds...');
     
-    // First, let's see what guilds exist
+    // Get all guilds
     const [guilds] = await connection.execute(`
-      SELECT id, discord_id, name FROM guilds LIMIT 5
+      SELECT id, discord_id, name FROM guilds ORDER BY id
     `);
-    console.log('Guilds found:', guilds);
+    console.log(`Found ${guilds.length} guilds:`);
+    guilds.forEach(guild => {
+      console.log(`   - ${guild.name} (ID: ${guild.id}, Discord: ${guild.discord_id})`);
+    });
 
     if (guilds.length === 0) {
       console.log('❌ No guilds found!');
       return;
     }
 
-    const guildId = guilds[0].id;
-    console.log(`\n🔍 Testing with guild ID: ${guildId}`);
+    // Test each guild systematically
+    for (const guild of guilds) {
+      console.log(`\n🔍 Testing Guild: ${guild.name} (ID: ${guild.id})`);
+      console.log('─'.repeat(50));
 
-    // Test the exact query from leaderboard command
-    const [topPlayers] = await connection.execute(
-      `SELECT p.ign, p.discord_id, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak, p.linked_at,
-              COALESCE(ppt.total_minutes, 0) as total_minutes
-       FROM players p
-       JOIN player_stats ps ON p.id = ps.player_id
-       LEFT JOIN player_playtime ppt ON p.id = ppt.player_id
-       WHERE p.guild_id = ?
-       AND ps.kills > 0
-       ORDER BY ps.kills DESC, ps.deaths ASC
-       LIMIT 5`,
-      [guildId]
-    );
+      // Check servers in this guild
+      const [servers] = await connection.execute(`
+        SELECT id, nickname FROM rust_servers WHERE guild_id = ?
+      `, [guild.id]);
+      
+      if (servers.length === 0) {
+        console.log(`   ❌ No servers found in guild ${guild.name}`);
+        continue;
+      }
 
-    console.log(`\n📊 Found ${topPlayers.length} players with kills:`);
-    topPlayers.forEach((player, index) => {
-      console.log(`\n${index + 1}. ${player.ign}:`);
-      console.log(`   Kills: ${player.kills}, Deaths: ${player.deaths}`);
-      console.log(`   Kill Streak: ${player.kill_streak}, Best Streak: ${player.highest_streak}`);
-      console.log(`   Playtime: ${player.total_minutes} minutes`);
-      console.log(`   Discord ID: ${player.discord_id || 'Unlinked'}`);
-    });
-
-    // Check if playtime records exist
-    console.log('\n📋 Checking playtime records...');
-    const [playtimeCheck] = await connection.execute(`
-      SELECT COUNT(*) as total_playtime_records
-      FROM player_playtime
-    `);
-    console.log(`Total playtime records: ${playtimeCheck[0].total_playtime_records}`);
-
-    // Check if player_stats records exist
-    console.log('\n📋 Checking player_stats records...');
-    const [statsCheck] = await connection.execute(`
-      SELECT COUNT(*) as total_stats_records
-      FROM player_stats
-    `);
-    console.log(`Total player_stats records: ${statsCheck[0].total_stats_records}`);
-
-    // Check sample playtime data
-    if (playtimeCheck[0].total_playtime_records > 0) {
-      console.log('\n📋 Sample playtime data:');
-      const [samplePlaytime] = await connection.execute(`
-        SELECT ppt.*, p.ign
-        FROM player_playtime ppt
-        JOIN players p ON ppt.player_id = p.id
-        LIMIT 3
-      `);
-      samplePlaytime.forEach(record => {
-        console.log(`   ${record.ign}: ${record.total_minutes} minutes`);
+      console.log(`   📋 Found ${servers.length} servers:`);
+      servers.forEach(server => {
+        console.log(`      - ${server.nickname} (ID: ${server.id})`);
       });
+
+      // Test each server in this guild
+      for (const server of servers) {
+        console.log(`\n   🎯 Testing Server: ${server.nickname} (ID: ${server.id})`);
+        
+        // Count total players on this server
+        const [playerCount] = await connection.execute(`
+          SELECT COUNT(*) as total_players
+          FROM players 
+          WHERE guild_id = ? AND server_id = ?
+        `, [guild.id, server.id]);
+        
+        console.log(`      📊 Total players on server: ${playerCount[0].total_players}`);
+
+        // Count players with stats
+        const [statsCount] = await connection.execute(`
+          SELECT COUNT(*) as players_with_stats
+          FROM players p
+          JOIN player_stats ps ON p.id = ps.player_id
+          WHERE p.guild_id = ? AND p.server_id = ?
+        `, [guild.id, server.id]);
+        
+        console.log(`      📊 Players with stats: ${statsCount[0].players_with_stats}`);
+
+        // Count players with kills
+        const [killsCount] = await connection.execute(`
+          SELECT COUNT(*) as players_with_kills
+          FROM players p
+          JOIN player_stats ps ON p.id = ps.player_id
+          WHERE p.guild_id = ? AND p.server_id = ? AND ps.kills > 0
+        `, [guild.id, server.id]);
+        
+        console.log(`      📊 Players with kills: ${killsCount[0].players_with_kills}`);
+
+        // Test the exact leaderboard query
+        const [topPlayers] = await connection.execute(
+          `SELECT p.ign, p.discord_id, ps.kills, ps.deaths, ps.kill_streak, ps.highest_streak, p.linked_at,
+                  COALESCE(ppt.total_minutes, 0) as total_minutes
+           FROM players p
+           JOIN player_stats ps ON p.id = ps.player_id
+           LEFT JOIN player_playtime ppt ON p.id = ppt.player_id
+           WHERE p.guild_id = ?
+           AND p.server_id = ?
+           AND ps.kills > 0
+           ORDER BY ps.kills DESC, ps.deaths ASC
+           LIMIT 3`,
+          [guild.id, server.id]
+        );
+
+        if (topPlayers.length === 0) {
+          console.log(`      ❌ No players with kills found on ${server.nickname}`);
+        } else {
+          console.log(`      ✅ Found ${topPlayers.length} players with kills:`);
+          topPlayers.forEach((player, index) => {
+            const hours = Math.floor(player.total_minutes / 60);
+            const minutes = player.total_minutes % 60;
+            const playtimeText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            console.log(`         ${index + 1}. ${player.ign}: ${player.kills} kills, ${player.deaths} deaths, ${playtimeText} playtime`);
+          });
+        }
+      }
     }
+
+    // Overall statistics
+    console.log('\n📊 Overall Database Statistics');
+    console.log('─'.repeat(50));
+    
+    const [totalStats] = await connection.execute(`
+      SELECT 
+        COUNT(DISTINCT g.id) as total_guilds,
+        COUNT(DISTINCT rs.id) as total_servers,
+        COUNT(DISTINCT p.id) as total_players,
+        COUNT(DISTINCT ps.player_id) as players_with_stats,
+        COUNT(DISTINCT ppt.player_id) as players_with_playtime
+      FROM guilds g
+      LEFT JOIN rust_servers rs ON g.id = rs.guild_id
+      LEFT JOIN players p ON rs.id = p.server_id
+      LEFT JOIN player_stats ps ON p.id = ps.player_id
+      LEFT JOIN player_playtime ppt ON p.id = ppt.player_id
+    `);
+    
+    const stats = totalStats[0];
+    console.log(`Total Guilds: ${stats.total_guilds}`);
+    console.log(`Total Servers: ${stats.total_servers}`);
+    console.log(`Total Players: ${stats.total_players}`);
+    console.log(`Players with Stats: ${stats.players_with_stats}`);
+    console.log(`Players with Playtime: ${stats.players_with_playtime}`);
 
   } catch (error) {
     console.error('❌ Error:', error);
