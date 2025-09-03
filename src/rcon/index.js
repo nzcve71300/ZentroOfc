@@ -5118,6 +5118,19 @@ async function getOnlinePlayers(ip, port, password) {
             }
           }
         }
+        // Also check for lines that might be player names without steam IDs
+        else if (line.trim() && !line.includes('died') && !line.includes('Generic') && 
+                 !line.includes('<slot:') && !line.includes('1users') && 
+                 !line.includes('id ;name') && !line.includes('NA ;') &&
+                 !line.includes('status') && !line.includes('players') &&
+                 !line.includes('0users') && !line.includes('users') &&
+                 line.length > 2 && line.length < 50) {
+          // This might be a player name without steam ID
+          const playerName = line.trim();
+          if (playerName && !playerName.includes(' ')) {
+            players.add(playerName);
+          }
+        }
       }
     }
     
@@ -5132,16 +5145,15 @@ async function getOnlinePlayers(ip, port, password) {
       if (result) {
         const lines = result.split('\n');
         for (const line of lines) {
-          if (line.trim() && line.includes('(') && line.includes(')')) {
-            // Extract player name from format like "PlayerName (SteamID)"
-            const match = line.match(/^([^(]+)/);
-            if (match) {
-              const playerName = match[1].trim();
-              // Filter out death messages and other non-player data
-              if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
-                  !playerName.includes('<slot:') && !playerName.includes('1users') && 
-                  !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
-                  !playerName.includes('0users') && !playerName.includes('users')) {
+          // Parse format: "NA ;PlayerName ;ping ;snap ;updt ;posi ;dist ;"
+          if (line.trim() && line.includes(';') && !line.includes('id ;name')) {
+            const parts = line.split(';');
+            if (parts.length >= 2) {
+              const playerName = parts[1].trim();
+              // Filter out header and invalid entries
+              if (playerName && playerName !== 'name' && !playerName.includes('NA') && 
+                  !playerName.includes('id') && !playerName.includes('died') && 
+                  !playerName.includes('Generic') && !playerName.includes('<slot:')) {
                 players.add(playerName);
               }
             }
@@ -5161,13 +5173,15 @@ async function getOnlinePlayers(ip, port, password) {
       if (result) {
         const lines = result.split('\n');
         for (const line of lines) {
-          if (line.trim() && !line.includes('Users:') && !line.includes('Total:')) {
-            const playerName = line.trim();
-            // Filter out death messages and other non-player data
+          // Parse format: "PlayerName" (quoted names)
+          if (line.trim() && line.startsWith('"') && line.endsWith('"')) {
+            const playerName = line.trim().replace(/^"|"$/g, '');
+            // Filter out invalid entries
             if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
                 !playerName.includes('<slot:') && !playerName.includes('1users') && 
                 !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
-                !playerName.includes('0users') && !playerName.includes('users')) {
+                !playerName.includes('0users') && !playerName.includes('users') &&
+                !playerName.includes('slot:') && !playerName.includes('name')) {
               players.add(playerName);
             }
           }

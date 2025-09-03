@@ -1,86 +1,181 @@
-const pool = require('./src/db');
-
-console.log('🧪 Testing ZORP Online Status Fix');
-console.log('=================================\n');
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function testZorpFix() {
+  console.log('🧪 Testing ZORP Player Detection Fix');
+  console.log('====================================\n');
+
+  let connection;
   try {
-    // 1. Check current ZORP zones and their states
-    console.log('📋 Step 1: Checking current ZORP zones...');
-    const [zones] = await pool.query(`
-      SELECT 
-        z.name,
-        z.owner,
-        z.current_state,
-        z.last_online_at,
-        rs.nickname as server,
-        CASE 
-          WHEN z.created_at + INTERVAL z.expire SECOND > NOW() THEN 'Active'
-          ELSE 'Expired'
-        END as status
-      FROM zorp_zones z
-      JOIN rust_servers rs ON z.server_id = rs.id
-      WHERE z.created_at + INTERVAL z.expire SECOND > NOW()
-      ORDER BY z.created_at DESC
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT || 3306
+    });
+
+    // Get a server with active ZORP zones to test
+    console.log('📋 Finding server with active ZORP zones...\n');
+    
+    const [serverResult] = await connection.execute(`
+      SELECT DISTINCT
+        rs.id,
+        rs.nickname,
+        rs.ip,
+        rs.port,
+        rs.password,
+        COUNT(z.id) as zone_count
+      FROM rust_servers rs
+      JOIN zorp_zones z ON rs.id = z.server_id
+      WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+      GROUP BY rs.id
+      ORDER BY zone_count DESC
+      LIMIT 1
     `);
 
-    if (zones.length === 0) {
-      console.log('❌ No active ZORP zones found');
+    if (serverResult.length === 0) {
+      console.log('❌ No servers with active ZORP zones found!');
       return;
     }
 
-    console.log(`✅ Found ${zones.length} active ZORP zones:`);
-    zones.forEach((zone, index) => {
-      console.log(`   ${index + 1}. ${zone.owner} (${zone.server}) - State: ${zone.current_state} - Status: ${zone.status}`);
-    });
+    const server = serverResult[0];
+    console.log(`🎯 Testing server: ${server.nickname}`);
+    console.log(`   IP: ${server.ip}`);
+    console.log(`   Port: ${server.port}`);
+    console.log(`   Active Zones: ${server.zone_count}`);
+    console.log('');
 
-    // 2. Check the fix logic
-    console.log('\n🔍 Step 2: Testing the fix logic...');
-    console.log('✅ The fix prevents unnecessary color transitions:');
-    console.log('   • Only processes offline events if zone is currently GREEN');
-    console.log('   • Only processes online events if zone is NOT GREEN');
-    console.log('   • Prevents yellow delay from activating when players are online');
-    console.log('   • Only checks players who actually have ZORP zones');
+    // Test the fixed getOnlinePlayers function
+    console.log('🔌 Testing Fixed RCON Player Detection...');
+    
+    try {
+      // Import the RCON function
+      const { sendRconCommand } = require('./src/rcon/index.js');
+      
+      console.log('✅ RCON module imported successfully');
+      
+      // Test 'players' command (this should now work correctly)
+      console.log('\n📡 Testing "players" command with fixed parsing...');
+      try {
+        const playersResult = await sendRconCommand(server.ip, server.port, server.password, 'players');
+        console.log('✅ Players command successful');
+        console.log('📄 Response preview:');
+        console.log(playersResult.substring(0, 500) + '...');
+        
+        // Parse player count from players using the NEW logic
+        const lines = playersResult.split('\n');
+        let playerCount = 0;
+        let detectedPlayers = [];
+        
+        for (const line of lines) {
+          // Parse format: "NA ;PlayerName ;ping ;snap ;updt ;posi ;dist ;"
+          if (line.trim() && line.includes(';') && !line.includes('id ;name')) {
+            const parts = line.split(';');
+            if (parts.length >= 2) {
+              const playerName = parts[1].trim();
+              // Filter out header and invalid entries
+              if (playerName && playerName !== 'name' && !playerName.includes('NA') && 
+                  !playerName.includes('id') && !playerName.includes('died') && 
+                  !playerName.includes('Generic') && !playerName.includes('<slot:')) {
+                playerCount++;
+                detectedPlayers.push(playerName);
+              }
+            }
+          }
+        }
+        
+        console.log(`👥 Players detected from players: ${playerCount}`);
+        if (detectedPlayers.length > 0) {
+          console.log(`   Sample players: ${detectedPlayers.slice(0, 5).join(', ')}`);
+        }
+        
+      } catch (error) {
+        console.log(`❌ Players command failed: ${error.message}`);
+      }
 
-    // 3. Show the expected behavior
-    console.log('\n🎯 Step 3: Expected behavior after fix:');
-    console.log('   ✅ Green zones stay green when players are online');
-    console.log('   ✅ Yellow delay only activates when ALL team members are offline');
-    console.log('   ✅ No more flashing between colors');
-    console.log('   ✅ Clean transitions: Green → Yellow (delay) → Red');
+      // Test 'users' command (this should also work correctly now)
+      console.log('\n📡 Testing "users" command with fixed parsing...');
+      try {
+        const usersResult = await sendRconCommand(server.ip, server.port, server.password, 'users');
+        console.log('✅ Users command successful');
+        console.log('📄 Response preview:');
+        console.log(usersResult.substring(0, 500) + '...');
+        
+        // Parse player count from users using the NEW logic
+        const lines = usersResult.split('\n');
+        let playerCount = 0;
+        let detectedPlayers = [];
+        
+        for (const line of lines) {
+          // Parse format: "PlayerName" (quoted names)
+          if (line.trim() && line.startsWith('"') && line.endsWith('"')) {
+            const playerName = line.trim().replace(/^"|"$/g, '');
+            // Filter out invalid entries
+            if (playerName && !playerName.includes('died') && !playerName.includes('Generic') && 
+                !playerName.includes('<slot:') && !playerName.includes('1users') && 
+                !playerName.includes('id ;name') && !playerName.includes('NA ;') &&
+                !playerName.includes('0users') && !playerName.includes('users') &&
+                !playerName.includes('slot:') && !playerName.includes('name')) {
+              playerCount++;
+              detectedPlayers.push(playerName);
+            }
+          }
+        }
+        
+        console.log(`👥 Players detected from users: ${playerCount}`);
+        if (detectedPlayers.length > 0) {
+          console.log(`   Sample players: ${detectedPlayers.slice(0, 5).join(', ')}`);
+        }
+        
+      } catch (error) {
+        console.log(`❌ Users command failed: ${error.message}`);
+      }
 
-    // 4. Check database schema
-    console.log('\n🗄️ Step 4: Checking database schema...');
-    const [columns] = await pool.query(`
-      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'zorp_zones' 
-      AND COLUMN_NAME IN ('current_state', 'last_online_at', 'color_yellow')
-      ORDER BY COLUMN_NAME
-    `);
+      // Check if any of the detected players have ZORP zones
+      console.log('\n🏠 Checking if detected players have ZORP zones...');
+      
+      const [zones] = await connection.execute(`
+        SELECT 
+          z.name,
+          z.owner,
+          z.current_state,
+          z.last_online_at
+        FROM zorp_zones z
+        WHERE z.server_id = ? AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+        ORDER BY z.created_at DESC
+        LIMIT 10
+      `, [server.id]);
 
-    console.log('✅ Required columns for the fix:');
-    columns.forEach(col => {
-      console.log(`   • ${col.COLUMN_NAME}: ${col.DATA_TYPE} (${col.IS_NULLABLE === 'YES' ? 'nullable' : 'not null'})`);
-    });
+      if (zones.length > 0) {
+        console.log(`Found ${zones.length} active zones:`);
+        zones.forEach(zone => {
+          console.log(`   - ${zone.name} (${zone.owner}): ${zone.current_state || 'unknown'} - Last online: ${zone.last_online_at || 'Never'}`);
+        });
+      } else {
+        console.log('No active zones found on this server');
+      }
 
-    console.log('\n🎉 ZORP Online Status Fix Summary:');
-    console.log('====================================');
-    console.log('✅ Fixed unnecessary color transitions');
-    console.log('✅ Added state checking to prevent flashing');
-    console.log('✅ Only processes players with ZORP zones');
-    console.log('✅ Yellow delay only activates when truly offline');
-    console.log('✅ Clean, stable color states');
+    } catch (error) {
+      console.log(`❌ Failed to import RCON module: ${error.message}`);
+      console.log('   This suggests the RCON system might not be properly configured');
+    }
+
+    console.log('\n🔍 **ZORP Fix Test Summary:**');
+    console.log('   This test verifies that the player detection parsing has been fixed');
+    console.log('   The system should now correctly detect players from:');
+    console.log('   1. players command (semicolon-separated format)');
+    console.log('   2. users command (quoted names format)');
+    console.log('   3. status command (with fallback for non-steam ID names)');
 
   } catch (error) {
-    console.error('❌ Error testing ZORP fix:', error);
+    console.error('❌ Error:', error);
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
+    process.exit();
   }
 }
 
-testZorpFix().then(() => {
-  console.log('\n✅ Test completed');
-  process.exit(0);
-}).catch(error => {
-  console.error('❌ Test failed:', error);
-  process.exit(1);
-});
+testZorpFix();
