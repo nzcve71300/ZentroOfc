@@ -87,15 +87,15 @@ async function fixLinkingSystem() {
       if (duplicate.count > 1) {
         console.log(`🔍 Processing Discord ID ${duplicate.discord_id} (${duplicate.count} players)...`);
         
-        // Get all players with this Discord ID
-        const [playersWithId] = await connection.execute(`
-          SELECT id, ign, discord_id, server_id, rs.nickname as server_name, g.discord_id as guild_id
-          FROM players p
-          JOIN rust_servers rs ON p.server_id = rs.id
-          JOIN guilds g ON rs.guild_id = g.id
-          WHERE p.discord_id = ?
-          ORDER BY server_id
-        `, [duplicate.discord_id]);
+                 // Get all players with this Discord ID
+         const [playersWithId] = await connection.execute(`
+           SELECT p.id, p.ign, p.discord_id, p.server_id, rs.nickname as server_name, g.discord_id as guild_id
+           FROM players p
+           JOIN rust_servers rs ON p.server_id = rs.id
+           JOIN guilds g ON rs.guild_id = g.id
+           WHERE p.discord_id = ?
+           ORDER BY p.server_id
+         `, [duplicate.discord_id]);
 
         if (playersWithId.length > 1) {
           // Keep the first player, remove Discord ID from others
