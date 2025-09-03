@@ -40,11 +40,11 @@ async function fixLinkingSystem() {
     console.log('📋 Step 2: Fixing "De_Donzels" Conflict...\n');
     
     const [deDonzelsPlayers] = await connection.execute(`
-      SELECT id, ign, discord_id, server_id, rs.nickname as server_name
+      SELECT p.id, p.ign, p.discord_id, p.server_id, rs.nickname as server_name
       FROM players p
       JOIN rust_servers rs ON p.server_id = rs.id
-      WHERE LOWER(ign) = LOWER('De_Donzels')
-      ORDER BY server_id
+      WHERE LOWER(p.ign) = LOWER('De_Donzels')
+      ORDER BY p.server_id
     `);
 
     if (deDonzelsPlayers.length > 0) {
