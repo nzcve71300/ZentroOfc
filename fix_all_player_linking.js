@@ -53,57 +53,42 @@ async function fixAllPlayerLinking() {
     console.log(`✅ Main server: ${mainServer.nickname} (ID: ${mainServer.id})`);
     console.log(`✅ USA server: ${usaServer.nickname} (ID: ${usaServer.id})`);
 
-    // Step 2: Get all unique players from both servers
+    // Step 2: Get all unique players from both servers (MariaDB compatible)
     console.log('\n📋 Step 2: Collecting all unique players...');
     
-    const [allPlayers] = await connection.execute(`
-      SELECT DISTINCT 
-        COALESCE(p1.discord_id, p2.discord_id) as discord_id,
-        COALESCE(p1.ign, p2.ign) as ign,
-        p1.guild_id
-      FROM players p1
-      FULL OUTER JOIN players p2 ON p1.discord_id = p2.discord_id 
-        AND p1.guild_id = p2.guild_id 
-        AND p1.ign = p2.ign
-      WHERE (p1.guild_id = ? OR p2.guild_id = ?) 
-        AND (p1.is_active = true OR p2.is_active = true)
-    `, [guildId, guildId]);
+    // Get players from main server
+    const [mainPlayers] = await connection.execute(`
+      SELECT DISTINCT discord_id, ign, guild_id
+      FROM players 
+      WHERE guild_id = ? AND is_active = true
+    `, [guildId]);
 
-    // Alternative approach if FULL OUTER JOIN not supported
-    if (allPlayers.length === 0) {
-      console.log('⚠️ FULL OUTER JOIN not supported, using alternative method...');
-      
-      const [mainPlayers] = await connection.execute(`
-        SELECT DISTINCT discord_id, ign, guild_id
-        FROM players 
-        WHERE guild_id = ? AND is_active = true
-      `, [guildId]);
+    // Get players from USA server
+    const [usaPlayers] = await connection.execute(`
+      SELECT DISTINCT discord_id, ign, guild_id
+      FROM players 
+      WHERE guild_id = ? AND is_active = true
+    `, [guildId]);
 
-      const [usaPlayers] = await connection.execute(`
-        SELECT DISTINCT discord_id, ign, guild_id
-        FROM players 
-        WHERE guild_id = ? AND is_active = true
-      `, [guildId]);
+    console.log(`📊 Main server players: ${mainPlayers.length}`);
+    console.log(`📊 USA server players: ${usaPlayers.length}`);
 
-      // Combine and deduplicate
-      const playerMap = new Map();
-      
-      [...mainPlayers, ...usaPlayers].forEach(player => {
-        const key = `${player.discord_id}_${player.ign}`;
-        if (!playerMap.has(key)) {
-          playerMap.set(key, player);
-        }
-      });
+    // Combine and deduplicate players
+    const playerMap = new Map();
+    
+    [...mainPlayers, ...usaPlayers].forEach(player => {
+      // Create a unique key for each player
+      const key = `${player.discord_id || 'null'}_${player.ign}`;
+      if (!playerMap.has(key)) {
+        playerMap.set(key, player);
+      }
+    });
 
-      const uniquePlayers = Array.from(playerMap.values());
-      console.log(`📊 Found ${uniquePlayers.length} unique players using alternative method`);
-      
-      // Continue with the unique players
-      await processPlayerLinking(connection, guildId, mainServer, usaServer, uniquePlayers);
-    } else {
-      console.log(`📊 Found ${allPlayers.length} unique players`);
-      await processPlayerLinking(connection, guildId, mainServer, usaServer, allPlayers);
-    }
+    const uniquePlayers = Array.from(playerMap.values());
+    console.log(`📊 Total unique players found: ${uniquePlayers.length}`);
+
+    // Continue with the unique players
+    await processPlayerLinking(connection, guildId, mainServer, usaServer, uniquePlayers);
 
   } catch (error) {
     console.error('❌ Error during player linking fix:', error);
