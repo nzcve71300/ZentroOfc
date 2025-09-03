@@ -26,7 +26,7 @@ async function cleanupZorpSystem() {
       CREATE TABLE IF NOT EXISTS zorp_player_status (
         id INT PRIMARY KEY AUTO_INCREMENT,
         player_name VARCHAR(255) NOT NULL,
-        server_id INT NOT NULL,
+        server_id VARCHAR(32) NOT NULL,
         is_online BOOLEAN DEFAULT FALSE,
         last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         zone_name VARCHAR(255),
@@ -46,7 +46,7 @@ async function cleanupZorpSystem() {
         zone_name VARCHAR(255) NOT NULL,
         event_type ENUM('player_online', 'player_offline', 'zone_green', 'zone_red', 'zone_yellow') NOT NULL,
         player_name VARCHAR(255),
-        server_id INT,
+        server_id VARCHAR(32),
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         details JSON,
         FOREIGN KEY (server_id) REFERENCES rust_servers(id) ON DELETE CASCADE
@@ -60,7 +60,7 @@ async function cleanupZorpSystem() {
       CREATE TABLE IF NOT EXISTS zorp_zone_health (
         id INT PRIMARY KEY AUTO_INCREMENT,
         zone_name VARCHAR(255) NOT NULL,
-        server_id INT NOT NULL,
+        server_id VARCHAR(32) NOT NULL,
         expected_state ENUM('green', 'red', 'yellow') NOT NULL,
         actual_state ENUM('green', 'red', 'yellow'),
         last_check TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
