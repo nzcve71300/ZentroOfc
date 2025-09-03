@@ -85,11 +85,21 @@ module.exports = {
         });
       }
 
-      // Create embed
-      const embed = successEmbed(
-        `🏆 Kill Leaderboard - ${serverName}`,
-        `Here are the top ${topPlayers.length} players with kills:`
-      );
+      // Create embed with enhanced design
+      const embed = {
+        color: 0xFFD700, // Gold color for leaderboard
+        title: `🏆 Kill Leaderboard - ${serverName}`,
+        description: `Here are the top ${topPlayers.length} players with kills:`,
+        thumbnail: {
+          url: 'https://cdn.discordapp.com/emojis/🏆.png'
+        },
+        fields: [],
+        timestamp: new Date().toISOString(),
+        footer: {
+          text: `Last updated • ${new Date().toLocaleString()}`,
+          icon_url: 'https://cdn.discordapp.com/emojis/📊.png'
+        }
+      };
 
       // Add each player to the embed
       for (let i = 0; i < topPlayers.length; i++) {
@@ -108,9 +118,14 @@ module.exports = {
         // Show link status
         const linkStatus = player.discord_id ? '🔗 Linked' : '🔓 Unlinked';
         
-        embed.addFields({
+        // Add visual indicators based on performance
+        const killEmoji = player.kills > 100 ? '💀' : player.kills > 50 ? '⚔️' : player.kills > 10 ? '🗡️' : '🔪';
+        const kdEmoji = parseFloat(kdRatio) > 2 ? '🔥' : parseFloat(kdRatio) > 1 ? '⚡' : parseFloat(kdRatio) > 0.5 ? '⚖️' : '📉';
+        const streakEmoji = player.highest_streak > 20 ? '🔥' : player.highest_streak > 10 ? '⚡' : player.highest_streak > 5 ? '💪' : '🎯';
+        
+        embed.fields.push({
           name: `${medal} ${player.ign} ${linkStatus}`,
-          value: `**Kills:** ${player.kills.toLocaleString()} | **Deaths:** ${player.deaths.toLocaleString()} | **K/D:** ${kdRatio} | **Playtime:** ${playtimeText}\n**Current Streak:** ${player.kill_streak} | **Best Streak:** ${player.highest_streak}`,
+          value: `\`\`\`\n${killEmoji} Kills: ${player.kills.toString().padStart(6)} | ${deathEmoji} Deaths: ${player.deaths.toString().padStart(6)}\n${kdEmoji} K/D: ${kdRatio.padStart(8)} | ⏰ Playtime: ${playtimeText.padStart(8)}\n${streakEmoji} Current: ${player.kill_streak.toString().padStart(3)} | Best: ${player.highest_streak.toString().padStart(3)}\`\`\``,
           inline: false
         });
       }
@@ -131,14 +146,10 @@ module.exports = {
       const stats = totalStats[0];
       const serverKD = stats.total_deaths > 0 ? (stats.total_kills / stats.total_deaths).toFixed(2) : stats.total_kills.toString();
 
-      embed.addFields({
+      embed.fields.push({
         name: '📊 Server Statistics',
-        value: `**Total Players:** ${stats.total_players.toLocaleString()}\n**Total Kills:** ${(stats.total_kills || 0).toLocaleString()}\n**Total Deaths:** ${(stats.total_deaths || 0).toLocaleString()}\n**Server K/D:** ${serverKD}`,
+        value: `\`\`\`\nTotal Players: ${stats.total_players.toLocaleString()}\nTotal Kills:  ${(stats.total_kills || 0).toLocaleString()}\nTotal Deaths: ${(stats.total_deaths || 0).toLocaleString()}\nServer K/D:   ${serverKD}\`\`\``,
         inline: false
-      });
-
-      embed.setFooter({ 
-        text: `Showing top ${topPlayers.length} players with kills (including unlinked) • Total players: ${stats.total_players} • Last updated: ${new Date().toLocaleString()}` 
       });
 
       await interaction.editReply({ embeds: [embed] });
