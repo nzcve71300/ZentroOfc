@@ -100,23 +100,21 @@ async function fixAllPlayerLinking() {
   }
 }
 
-async function processPlayerLinking(connection, guildId, mainServer, usaServer, allPlayers) {
+async function processPlayerLinking(connection, guildId, mainServer, usaServer, players) {
   console.log('\n📋 Step 3: Processing player linking...');
   
   let mainLinksCreated = 0;
   let usaLinksCreated = 0;
   let economyRecordsCreated = 0;
-  let playersProcessed = 0;
+  let skippedPlayers = 0;
 
-  for (const player of allPlayers) {
-    playersProcessed++;
-    if (playersProcessed % 100 === 0) {
-      console.log(`   Progress: ${playersProcessed}/${allPlayers.length} players processed`);
-    }
-
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    
     // Skip players with null values
     if (!player.discord_id || !player.ign) {
       console.log(`⚠️ Skipping player with null values: ${JSON.stringify(player)}`);
+      skippedPlayers++;
       continue;
     }
 
@@ -128,20 +126,24 @@ async function processPlayerLinking(connection, guildId, mainServer, usaServer, 
       `, [guildId, player.discord_id, mainServer.id]);
 
       if (mainLink.length === 0) {
-        // Create link to main server
+        // Create link to main server using INSERT IGNORE to avoid duplicates
         const [mainResult] = await connection.execute(`
-          INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
+          INSERT IGNORE INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, true)
         `, [guildId, mainServer.id, player.discord_id, player.ign]);
 
-        // Create economy record for main server
-        await connection.execute(`
-          INSERT INTO economy (player_id, balance, guild_id) VALUES (?, 0, ?)
-        `, [mainResult.insertId, guildId]);
+        if (mainResult.affectedRows > 0) {
+          // Create economy record for main server
+          await connection.execute(`
+            INSERT IGNORE INTO economy (player_id, balance, guild_id) VALUES (?, 0, ?)
+          `, [mainResult.insertId, guildId]);
 
-        mainLinksCreated++;
-        economyRecordsCreated++;
-        console.log(`✅ Created main server link for ${player.ign} (Discord: ${player.discord_id})`);
+          mainLinksCreated++;
+          economyRecordsCreated++;
+          console.log(`✅ Created main server link for ${player.ign} (Discord: ${player.discord_id})`);
+        } else {
+          console.log(`ℹ️ Player ${player.ign} already exists on main server`);
+        }
       }
 
       // Check if linked to USA server
@@ -151,24 +153,34 @@ async function processPlayerLinking(connection, guildId, mainServer, usaServer, 
       `, [guildId, player.discord_id, usaServer.id]);
 
       if (usaLink.length === 0) {
-        // Create link to USA server
+        // Create link to USA server using INSERT IGNORE to avoid duplicates
         const [usaResult] = await connection.execute(`
-          INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
+          INSERT IGNORE INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, true)
         `, [guildId, usaServer.id, player.discord_id, player.ign]);
 
-        // Create economy record for USA server
-        await connection.execute(`
-          INSERT INTO economy (player_id, balance, guild_id) VALUES (?, 0, ?)
-        `, [usaResult.insertId, guildId]);
+        if (usaResult.affectedRows > 0) {
+          // Create economy record for USA server
+          await connection.execute(`
+            INSERT IGNORE INTO economy (player_id, balance, guild_id) VALUES (?, 0, ?)
+          `, [usaResult.insertId, guildId]);
 
-        usaLinksCreated++;
-        economyRecordsCreated++;
-        console.log(`✅ Created USA server link for ${player.ign} (Discord: ${player.discord_id})`);
+          usaLinksCreated++;
+          economyRecordsCreated++;
+          console.log(`✅ Created USA server link for ${player.ign} (Discord: ${player.discord_id})`);
+        } else {
+          console.log(`ℹ️ Player ${player.ign} already exists on USA server`);
+        }
+      }
+
+      // Show progress every 100 players
+      if ((i + 1) % 100 === 0) {
+        console.log(`   Progress: ${i + 1}/${players.length} players processed`);
       }
 
     } catch (error) {
-      console.error(`❌ Error processing player ${player.ign}:`, error.message);
+      console.log(`❌ Error processing player ${player.ign}: ${error.message}`);
+      // Continue with next player instead of stopping
     }
   }
 
@@ -205,7 +217,7 @@ async function processPlayerLinking(connection, guildId, mainServer, usaServer, 
   console.log(`   Main server links created: ${mainLinksCreated}`);
   console.log(`   USA server links created: ${usaLinksCreated}`);
   console.log(`   Economy records created: ${economyRecordsCreated}`);
-  console.log(`   Total players processed: ${playersProcessed}`);
+  console.log(`   Total players processed: ${players.length}`);
   console.log(`\n✅ All players are now properly linked to both servers!`);
   console.log(`✅ You can now give coins to players on both servers.`);
   console.log(`✅ The "no player found" error should be resolved.`);
@@ -233,3 +245,4 @@ async function processPlayerLinking(connection, guildId, mainServer, usaServer, 
 
 // Run the script
 fixAllPlayerLinking();
+
