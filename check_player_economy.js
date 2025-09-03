@@ -44,14 +44,25 @@ async function checkPlayerEconomy() {
     console.log('\n📋 Checking economy records...');
     console.log('==============================');
 
+    // First, let's check what columns exist in the economy table
+    console.log('🔍 Checking economy table structure...');
+    const [columns] = await connection.execute(`
+      DESCRIBE economy
+    `);
+    
+    console.log('   📊 Economy table columns:');
+    columns.forEach(col => {
+      console.log(`      - ${col.Field} (${col.Type})`);
+    });
+
     for (const player of players) {
       console.log(`\n🔍 Checking economy for ${player.ign} on ${player.server_name}:`);
       
       const [economyRecords] = await connection.execute(`
-        SELECT e.id, e.player_id, e.balance, e.guild_id, e.created_at, e.updated_at
+        SELECT e.id, e.player_id, e.balance, e.guild_id
         FROM economy e
         WHERE e.player_id = ?
-        ORDER BY e.created_at DESC
+        ORDER BY e.id DESC
       `, [player.id]);
 
       if (economyRecords.length === 0) {
@@ -71,7 +82,7 @@ async function checkPlayerEconomy() {
       } else {
         console.log(`   ✅ Found ${economyRecords.length} economy record(s):`);
         economyRecords.forEach(record => {
-          console.log(`      💰 Balance: ${record.balance} | Created: ${record.created_at} | Updated: ${record.updated_at}`);
+          console.log(`      💰 Balance: ${record.balance} | Player ID: ${record.player_id} | Guild ID: ${record.guild_id}`);
         });
       }
     }
