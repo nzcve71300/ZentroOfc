@@ -5437,8 +5437,12 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
       const zone = zoneResult[0];
       const currentState = zone.current_state || 'green';
       
-      // Only process online if zone is not already green
+      console.log(`[ZORP DEBUG] Zone ${zone.name} current state: ${currentState}`);
+      
+      // Always process online - force zone to green if player is online
       if (currentState !== 'green') {
+        console.log(`[ZORP DEBUG] Zone is ${currentState}, setting to green for online player ${cleanPlayerName}`);
+        
         // Set zone to green when ANY team member comes online
         await setZoneToGreen(ip, port, password, cleanPlayerName);
         
@@ -5451,7 +5455,13 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
         
         console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green (was ${currentState}), offline timer cleared`);
       } else {
-        console.log(`[ZORP] Player ${cleanPlayerName} came online but zone is already green - no transition needed`);
+        console.log(`[ZORP] Player ${cleanPlayerName} came online, zone already green - updating last_online_at`);
+        
+        // Update last_online_at even if zone is already green
+        await pool.query(
+          'UPDATE zorp_zones SET last_online_at = NOW() WHERE id = ?',
+          [zone.id]
+        );
       }
     } else {
       // Check if this player is part of a team that has a zorp zone
@@ -5467,8 +5477,12 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
           const teamZone = teamZoneResult[0];
           const teamCurrentState = teamZone.current_state || 'green';
           
-          // Only process online if zone is not already green
+          console.log(`[ZORP DEBUG] Team zone ${teamZone.name} current state: ${teamCurrentState}`);
+          
+          // Always process online - force zone to green if team member is online
           if (teamCurrentState !== 'green') {
+            console.log(`[ZORP DEBUG] Team zone is ${teamCurrentState}, setting to green for team member ${cleanPlayerName}`);
+            
             // Set team owner's zone to green since a team member came online
             await setZoneToGreen(ip, port, password, teamInfo.owner);
             
@@ -5481,7 +5495,13 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
             
             console.log(`[ZORP] Team member ${cleanPlayerName} came online, set team owner ${teamInfo.owner}'s zone to green (was ${teamCurrentState}), offline timer cleared`);
           } else {
-            console.log(`[ZORP] Team member ${cleanPlayerName} came online but team owner ${teamInfo.owner}'s zone is already green - no transition needed`);
+            console.log(`[ZORP] Team member ${cleanPlayerName} came online, team zone already green - updating last_online_at`);
+            
+            // Update last_online_at even if zone is already green
+            await pool.query(
+              'UPDATE zorp_zones SET last_online_at = NOW() WHERE id = ?',
+              [teamZone.id]
+            );
           }
         }
       } else {
