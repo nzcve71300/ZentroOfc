@@ -208,19 +208,9 @@ module.exports = {
         inline: false
       });
 
-      // Create Rust Info button with enhanced styling
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId(`rust_info_${guildId}_${discordId}_${server.id}`)
-            .setLabel('🔧 Rust Info')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('⚙️')
-        );
-
+      // Send the enhanced profile without buttons
       await interaction.editReply({ 
-        embeds: [embed], 
-        components: [row] 
+        embeds: [embed]
       });
 
     } catch (error) {
