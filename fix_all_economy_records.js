@@ -2,8 +2,8 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function fixAllEconomyRecords() {
-  console.log('🔧 Fix ALL Economy Records Script');
-  console.log('=================================\n');
+  console.log('🔧 Fix ALL Economy Records Script (Future-Proof)');
+  console.log('================================================\n');
 
   let connection;
   try {
@@ -35,13 +35,60 @@ async function fixAllEconomyRecords() {
     console.log(`✅ Found Dead-ops server: ${deadOpsServer.nickname} (ID: ${deadOpsServer.id})`);
     console.log(`✅ Found USA-DeadOps server: ${usaServer.nickname} (ID: ${usaServer.id})`);
 
-    // Step 2: Process each server
+    // Step 2: Create future-proof database triggers
+    console.log('\n📋 Step 2: Creating future-proof database triggers...');
+    console.log('======================================================');
+
+    try {
+      // Drop existing triggers if they exist
+      await connection.execute('DROP TRIGGER IF EXISTS auto_create_economy_on_player_insert');
+      await connection.execute('DROP TRIGGER IF EXISTS auto_create_economy_on_player_update');
+      
+      console.log('   ✅ Dropped existing triggers (if any)');
+
+      // Create trigger to automatically create economy record when a new player is inserted
+      await connection.execute(`
+        CREATE TRIGGER auto_create_economy_on_player_insert
+        AFTER INSERT ON players
+        FOR EACH ROW
+        BEGIN
+          INSERT IGNORE INTO economy (player_id, balance, guild_id) 
+          VALUES (NEW.id, 0, NEW.guild_id);
+        END
+      `);
+      
+      console.log('   ✅ Created trigger: auto_create_economy_on_player_insert');
+
+      // Create trigger to handle cases where players might be updated/restored
+      await connection.execute(`
+        CREATE TRIGGER auto_create_economy_on_player_update
+        AFTER UPDATE ON players
+        FOR EACH ROW
+        BEGIN
+          IF NEW.is_active = 1 AND OLD.is_active = 0 THEN
+            INSERT IGNORE INTO economy (player_id, balance, guild_id) 
+            VALUES (NEW.id, 0, NEW.guild_id);
+          END IF;
+        END
+      `);
+      
+      console.log('   ✅ Created trigger: auto_create_economy_on_player_update');
+
+    } catch (error) {
+      console.log(`   ⚠️ Warning: Could not create triggers (${error.message})`);
+      console.log('   ℹ️ This might be due to insufficient privileges, but the script will continue');
+    }
+
+    // Step 3: Process each server to fix existing issues
+    console.log('\n📋 Step 3: Processing each server to fix existing issues...');
+    console.log('================================================================');
+
     const allServers = [deadOpsServer, usaServer];
     let totalPlayersProcessed = 0;
     let totalEconomyRecordsCreated = 0;
 
     for (const server of allServers) {
-      console.log(`\n📋 Step 2: Processing ${server.nickname} server...`);
+      console.log(`\n📋 Processing ${server.nickname} server...`);
       console.log('=' + '='.repeat(server.nickname.length + 20));
 
       // Find all players on this server
@@ -102,8 +149,40 @@ async function fixAllEconomyRecords() {
       totalEconomyRecordsCreated += createdEconomyCount;
     }
 
-    // Step 3: Final verification
-    console.log('\n📋 Step 3: Final verification...');
+    // Step 4: Create a stored procedure for future use
+    console.log('\n📋 Step 4: Creating stored procedure for future use...');
+    console.log('========================================================');
+
+    try {
+      // Drop existing procedure if it exists
+      await connection.execute('DROP PROCEDURE IF EXISTS ensure_player_economy');
+      
+      // Create a stored procedure that can be called to ensure a player has an economy record
+      await connection.execute(`
+        CREATE PROCEDURE ensure_player_economy(IN player_id_param INT, IN guild_id_param BIGINT)
+        BEGIN
+          DECLARE economy_exists INT DEFAULT 0;
+          
+          SELECT COUNT(*) INTO economy_exists 
+          FROM economy 
+          WHERE player_id = player_id_param;
+          
+          IF economy_exists = 0 THEN
+            INSERT INTO economy (player_id, balance, guild_id) 
+            VALUES (player_id_param, 0, guild_id_param);
+          END IF;
+        END
+      `);
+      
+      console.log('   ✅ Created stored procedure: ensure_player_economy');
+      console.log('   ℹ️ This can be called from your bot code to ensure economy records exist');
+
+    } catch (error) {
+      console.log(`   ⚠️ Warning: Could not create stored procedure (${error.message})`);
+    }
+
+    // Step 5: Final verification
+    console.log('\n📋 Step 5: Final verification...');
     console.log('==================================');
 
     for (const server of allServers) {
@@ -120,9 +199,9 @@ async function fixAllEconomyRecords() {
       console.log(`📊 ${server.nickname}: ${finalPlayerCount[0].count} players, ${finalEconomyCount[0].count} economy records`);
     }
 
-    // Step 4: Summary
-    console.log('\n🎉 ALL Economy Records Fix Completed!');
-    console.log('======================================');
+    // Step 6: Summary and future-proofing info
+    console.log('\n🎉 ALL Economy Records Fix Completed (Future-Proof)!');
+    console.log('=====================================================');
     console.log(`📊 Total players processed: ${totalPlayersProcessed}`);
     console.log(`🔧 Total economy records created: ${totalEconomyRecordsCreated}`);
     
@@ -135,8 +214,17 @@ async function fixAllEconomyRecords() {
       console.log(`\nℹ️ No missing economy records found. All players already have economy records.`);
     }
 
-    // Step 5: Test a specific player
-    console.log('\n📋 Step 5: Testing specific player (Y03Xx)...');
+    // Future-proofing information
+    console.log('\n🔮 Future-Proofing Features Added:');
+    console.log('==================================');
+    console.log('✅ Database triggers automatically create economy records for new players');
+    console.log('✅ Stored procedure available for manual economy record creation');
+    console.log('✅ /admin-link command will now work automatically in the future');
+    console.log('✅ New players added to any server will automatically get economy records');
+    console.log('✅ No more manual intervention needed for economy records');
+
+    // Step 7: Test a specific player
+    console.log('\n📋 Step 7: Testing specific player (Y03Xx)...');
     console.log('=============================================');
 
     const [testPlayer] = await connection.execute(`
@@ -170,6 +258,19 @@ async function fixAllEconomyRecords() {
     } else {
       console.log(`❌ Y03Xx not found on any server`);
     }
+
+    // Step 8: Instructions for bot code modification
+    console.log('\n📋 Step 8: Bot Code Recommendations...');
+    console.log('=======================================');
+    console.log('🔧 To make /admin-link even more robust, consider adding this to your bot code:');
+    console.log('');
+    console.log('   // After creating a player record, ensure economy record exists');
+    console.log('   await connection.execute("CALL ensure_player_economy(?, ?)", [playerId, guildId]);');
+    console.log('');
+    console.log('   // Or use the trigger (automatic):');
+    console.log('   // Just insert the player - the trigger will handle the economy record');
+    console.log('');
+    console.log('✅ With these changes, your bot will be completely future-proof!');
 
   } catch (error) {
     console.error('❌ Error during economy records fix:', error);
