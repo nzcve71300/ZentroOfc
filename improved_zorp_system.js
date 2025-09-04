@@ -361,11 +361,25 @@ class ImprovedZorpSystem {
       // Always update database
       const connection = await this.getConnection();
       try {
-        await connection.execute(
-          'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
-          ['yellow', zone.id]
-        );
-        console.log(`✅ Zone ${zone.name} state updated to yellow in database`);
+        // Try to update with last_state_change column first
+        try {
+          await connection.execute(
+            'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
+            ['yellow', zone.id]
+          );
+          console.log(`✅ Zone ${zone.name} state updated to yellow in database (with timestamp)`);
+        } catch (dbError) {
+          // Fallback if last_state_change column doesn't exist
+          if (dbError.code === 'ER_BAD_FIELD_ERROR') {
+            await connection.execute(
+              'UPDATE zorp_zones SET current_state = ? WHERE id = ?',
+              ['yellow', zone.id]
+            );
+            console.log(`✅ Zone ${zone.name} state updated to yellow in database (fallback)`);
+          } else {
+            throw dbError;
+          }
+        }
       } finally {
         await connection.end();
       }
@@ -395,10 +409,25 @@ class ImprovedZorpSystem {
       // Update database
       const connection = await this.getConnection();
       try {
-        await connection.execute(
-          'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
-          ['red', zone.id]
-        );
+        // Try to update with last_state_change column first
+        try {
+          await connection.execute(
+            'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
+            ['red', zone.id]
+          );
+          console.log(`✅ Zone ${zone.name} state updated to red in database (with timestamp)`);
+        } catch (dbError) {
+          // Fallback if last_state_change column doesn't exist
+          if (dbError.code === 'ER_BAD_FIELD_ERROR') {
+            await connection.execute(
+              'UPDATE zorp_zones SET current_state = ? WHERE id = ?',
+              ['red', zone.id]
+            );
+            console.log(`✅ Zone ${zone.name} state updated to red in database (fallback)`);
+          } else {
+            throw dbError;
+          }
+        }
       } finally {
         await connection.end();
       }
@@ -434,11 +463,25 @@ class ImprovedZorpSystem {
       // Always update database to mark zone as deleted
       const connection = await this.getConnection();
       try {
-        await connection.execute(
-          'UPDATE zorp_zones SET current_state = ?, deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
-          ['deleted', zone.id]
-        );
-        console.log(`✅ Zone ${zone.name} marked as deleted in database`);
+        // Try to update with deleted_at column first
+        try {
+          await connection.execute(
+            'UPDATE zorp_zones SET current_state = ?, deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
+            ['deleted', zone.id]
+          );
+          console.log(`✅ Zone ${zone.name} marked as deleted in database (with timestamp)`);
+        } catch (dbError) {
+          // Fallback if deleted_at column doesn't exist
+          if (dbError.code === 'ER_BAD_FIELD_ERROR') {
+            await connection.execute(
+              'UPDATE zorp_zones SET current_state = ? WHERE id = ?',
+              ['deleted', zone.id]
+            );
+            console.log(`✅ Zone ${zone.name} marked as deleted in database (fallback)`);
+          } else {
+            throw dbError;
+          }
+        }
       } finally {
         await connection.end();
       }
@@ -463,10 +506,25 @@ class ImprovedZorpSystem {
       // Update database
       const connection = await this.getConnection();
       try {
-        await connection.execute(
-          'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
-          ['green', zone.id]
-        );
+        // Try to update with last_state_change column first
+        try {
+          await connection.execute(
+            'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
+            ['green', zone.id]
+          );
+          console.log(`✅ Zone ${zone.name} state updated to green in database (with timestamp)`);
+        } catch (dbError) {
+          // Fallback if last_state_change column doesn't exist
+          if (dbError.code === 'ER_BAD_FIELD_ERROR') {
+            await connection.execute(
+              'UPDATE zorp_zones SET current_state = ? WHERE id = ?',
+              ['green', zone.id]
+            );
+            console.log(`✅ Zone ${zone.name} state updated to green in database (fallback)`);
+          } else {
+            throw dbError;
+          }
+        }
       } finally {
         await connection.end();
       }
