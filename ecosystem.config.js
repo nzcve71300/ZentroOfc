@@ -2,53 +2,38 @@ module.exports = {
   apps: [
     {
       name: 'zentro-bot',
-      script: 'src/index.js',
-      cwd: __dirname,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3000,
-        LOG_LEVEL: 'WARN'
-      },
-      log_file: './logs/combined.log',
-      out_file: './logs/bot-out.log',
-      error_file: './logs/bot-error.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      merge_logs: true,
-      max_size: '10M',
-      max_files: '5',
-      time: true,
+      script: './src/index.js',
       instances: 1,
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',
-      env_production: {
+      env: {
         NODE_ENV: 'production'
-      }
+      },
+      error_file: './logs/zentro-bot-error.log',
+      out_file: './logs/zentro-bot-out.log',
+      log_file: './logs/zentro-bot-combined.log',
+      time: true
     },
     {
-      name: 'nivaro-api',
-      script: 'src/api/server.js',
-      cwd: __dirname,
-      env: {
-        NODE_ENV: 'production',
-        API_PORT: 8081,
-        LOG_LEVEL: 'WARN'
-      },
-      log_file: './logs/api-combined.log',
-      out_file: './logs/api-out.log',
-      error_file: './logs/api-error.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      merge_logs: true,
-      max_size: '10M',
-      max_files: '5',
-      time: true,
+      name: 'zone-refresh-system',
+      script: './zone_refresh_system.js',
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '1G',
-      env_production: {
+      max_memory_restart: '512M',
+      env: {
         NODE_ENV: 'production'
-      }
+      },
+      error_file: './logs/zone-refresh-error.log',
+      out_file: './logs/zone-refresh-out.log',
+      log_file: './logs/zone-refresh-combined.log',
+      time: true,
+      // Run every 5 minutes
+      cron_restart: '*/5 * * * *',
+      // Keep it running even if it crashes
+      restart_delay: 10000,
+      max_restarts: 10
     }
   ]
 }; 
