@@ -17,17 +17,11 @@ async function fixMissingPlayerRecords() {
 
     console.log('✅ Database connected successfully!\n');
 
-    // Step 1: Find both servers
+    // Step 1: Use the specific guild ID and find both servers
     console.log('📋 Step 1: Finding DeadOps and USA-DeadOps servers...\n');
     
-    const [guilds] = await connection.execute('SELECT id, discord_id, name FROM guilds WHERE name LIKE "%DeadOps%"');
-    if (guilds.length === 0) {
-      console.log('❌ No DeadOps guilds found');
-      return;
-    }
-    
-    const guildId = guilds[0].id;
-    console.log(`  ✅ Found guild: ${guilds[0].name} (ID: ${guildId})`);
+    const guildId = '1387187628469653555';
+    console.log(`  ✅ Using guild ID: ${guildId}`);
     
     const [servers] = await connection.execute(
       'SELECT id, nickname FROM rust_servers WHERE guild_id = ? AND nickname IN ("DeadOps", "USA-DeadOps")',
@@ -36,6 +30,7 @@ async function fixMissingPlayerRecords() {
     
     if (servers.length !== 2) {
       console.log('❌ Need exactly 2 servers (DeadOps and USA-DeadOps)');
+      console.log(`  Found ${servers.length} servers: ${servers.map(s => s.nickname).join(', ')}`);
       return;
     }
     
