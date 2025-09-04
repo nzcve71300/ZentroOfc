@@ -113,7 +113,12 @@ module.exports = {
       if (existingIgnLinks.length > 0) {
         const existingDiscordId = existingIgnLinks[0].discord_id;
         if (existingDiscordId !== discordId) {
-          warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${existingIgnLinks.map(p => p.nickname).join(', ')}`);
+          // Handle null Discord ID gracefully
+          if (existingDiscordId) {
+            warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${existingIgnLinks.map(p => p.nickname).join(', ')}`);
+          } else {
+            warnings.push(`⚠️ **${playerName}** already has economy records on: ${existingIgnLinks.map(p => p.nickname).join(', ')} (no Discord account linked)`);
+          }
         }
       }
 
