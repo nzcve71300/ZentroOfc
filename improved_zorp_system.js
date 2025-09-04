@@ -112,6 +112,7 @@ class ImprovedZorpSystem {
         JOIN rust_servers rs ON z.server_id = rs.id
         JOIN guilds g ON rs.guild_id = g.id
         WHERE z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
+          AND z.current_state != 'deleted'
         ORDER BY z.server_id, z.created_at
       `);
       return result;
@@ -214,21 +215,42 @@ class ImprovedZorpSystem {
 
       // Check team status if owner is offline
       let shouldTransition = false;
+      let offlineMinutes = 0;
+      
       if (!isOwnerOnline) {
         const allTeamOffline = await this.checkIfAllTeamMembersOffline(server.ip, server.port, server.password, zone.owner);
         shouldTransition = allTeamOffline;
+        
+        // Calculate how long the team has been offline
+        if (allTeamOffline && zone.last_online_at) {
+          const lastOnlineTime = new Date(zone.last_online_at).getTime();
+          offlineMinutes = Math.floor((Date.now() - lastOnlineTime) / (1000 * 60));
+          console.log(`⏰ [ZORP REFRESH] Team ${zone.owner} offline for ${offlineMinutes} minutes`);
+        }
       }
 
-      // Update zone state based on online status
-      if (zone.current_state === 'green' && shouldTransition) {
+      // Check if zone is actually expired first
+      const isExpired = this.isZoneExpired(zone);
+      
+      if (isExpired) {
+        console.log(`⏰ [ZORP REFRESH] Zone ${zone.name} is expired, deleting...`);
+        await this.deleteExpiredZone(zone, server);
+        return; // Skip other processing for expired zones
+      }
+
+      // Update zone state based on online status (only for non-expired zones)
+      if (zone.current_state === 'green' && shouldTransition && this.shouldZoneTransition(zone, offlineMinutes)) {
         await this.transitionZoneToYellow(zone, server);
-      } else if (zone.current_state === 'yellow' && shouldTransition) {
+      } else if (zone.current_state === 'yellow' && shouldTransition && this.shouldZoneTransition(zone, offlineMinutes)) {
         await this.transitionZoneToRed(zone, server);
       } else if (zone.current_state === 'red' && shouldTransition) {
-        await this.deleteExpiredZone(zone, server);
+        // Don't delete red zones immediately - let them expire naturally
+        console.log(`🔴 [ZORP REFRESH] Zone ${zone.name} is red but not expired yet`);
       } else if (zone.current_state === 'yellow' && !shouldTransition) {
         // Team came back online, revert to green
         await this.revertZoneToGreen(zone, server);
+      } else if (shouldTransition && !this.shouldZoneTransition(zone, offlineMinutes)) {
+        console.log(`⏰ [ZORP REFRESH] Zone ${zone.name} team offline but delay (${zone.delay || 5} min) not reached yet`);
       }
 
       // Update cache
@@ -315,6 +337,42 @@ class ImprovedZorpSystem {
   }
 
   /**
+   * Check if a zone is actually expired based on its expire timestamp
+   */
+  isZoneExpired(zone) {
+    if (!zone.created_at || !zone.expire) {
+      console.log(`⚠️  Zone ${zone.name} missing created_at or expire data`);
+      return false;
+    }
+
+    const createdTime = new Date(zone.created_at).getTime();
+    const expireTime = createdTime + (zone.expire * 1000); // expire is in seconds
+    const currentTime = Date.now();
+    
+    const isExpired = currentTime > expireTime;
+    
+    if (isExpired) {
+      const expiredMinutes = Math.floor((currentTime - expireTime) / (1000 * 60));
+      console.log(`⏰ Zone ${zone.name} expired ${expiredMinutes} minutes ago (expire: ${zone.expire} seconds)`);
+    } else {
+      const remainingMinutes = Math.floor((expireTime - currentTime) / (1000 * 60));
+      if (remainingMinutes < 60) { // Log if less than 1 hour remaining
+        console.log(`⏰ Zone ${zone.name} expires in ${remainingMinutes} minutes`);
+      }
+    }
+    
+    return isExpired;
+  }
+
+  /**
+   * Check if a zone should transition based on offline time and delay settings
+   */
+  shouldZoneTransition(zone, offlineMinutes) {
+    const delayMinutes = zone.delay || 5; // Default to 5 minutes if not set
+    return offlineMinutes >= delayMinutes;
+  }
+
+  /**
    * Get player team information
    */
   async getPlayerTeam(ip, port, password, playerName) {
@@ -384,10 +442,15 @@ class ImprovedZorpSystem {
         await connection.end();
       }
 
-      // Set timer to transition to red
+      // Set timer to transition to red based on server's delay setting
+      const delayMinutes = zone.delay || 5; // Default to 5 minutes if not set
+      const delayMs = delayMinutes * 60 * 1000;
+      
+      console.log(`⏰ [ZORP REFRESH] Zone ${zone.name} will transition to red in ${delayMinutes} minutes`);
+      
       setTimeout(async () => {
         await this.transitionZoneToRed(zone, server);
-      }, 5 * 60 * 1000); // 5 minutes
+      }, delayMs);
 
     } catch (error) {
       console.error(`❌ Error transitioning zone ${zone.name} to yellow:`, error);
@@ -432,10 +495,15 @@ class ImprovedZorpSystem {
         await connection.end();
       }
 
-      // Set timer to delete zone
+      // Set timer to delete zone based on server's delay setting
+      const delayMinutes = zone.delay || 5; // Default to 5 minutes if not set
+      const delayMs = delayMinutes * 60 * 1000;
+      
+      console.log(`⏰ [ZORP REFRESH] Zone ${zone.name} will be deleted in ${delayMinutes} minutes`);
+      
       setTimeout(async () => {
         await this.deleteExpiredZone(zone, server);
-      }, 5 * 60 * 1000); // 5 minutes
+      }, delayMs);
 
     } catch (error) {
       console.error(`❌ Error transitioning zone ${zone.name} to red:`, error);
