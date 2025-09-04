@@ -579,8 +579,8 @@ async function handleShopItemSelect(interaction) {
       });
     }
 
-    const serverId = serverResult[0].server_id;
-    const nickname = serverResult[0].nickname;
+    const serverId = serverResult[0][0].server_id;
+    const nickname = serverResult[0][0].nickname;
 
     // Now get player balance for the specific server
     const balanceResult = await pool.query(
