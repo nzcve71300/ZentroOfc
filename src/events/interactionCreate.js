@@ -312,7 +312,7 @@ async function handleShopCategorySelect(interaction) {
       });
     }
 
-    const { name, type, role, nickname, server_id } = categoryResult[0];
+    const { name, type, role, nickname, server_id } = categoryResult[0][0];
     console.log('[SHOP DEBUG] Extracted category data:', { name, type, role, nickname, server_id });
 
     // Check if user has required role
@@ -380,7 +380,7 @@ async function handleShopCategorySelect(interaction) {
     console.log('[SHOP DEBUG] Balance query result:', balanceResult);
     console.log('[SHOP DEBUG] User ID:', userId, 'Server ID:', server_id);
 
-    const balance = balanceResult.length > 0 ? balanceResult[0].balance : 0;
+    const balance = balanceResult[0].length > 0 ? balanceResult[0][0].balance : 0;
     const serverId = server_id;
     console.log('[SHOP DEBUG] Final balance:', balance);
 
@@ -575,13 +575,13 @@ async function handleShopItemSelect(interaction) {
     
     console.log('Balance result:', balanceResult);
 
-    if (!balanceResult || balanceResult.length === 0) {
+    if (!balanceResult || balanceResult[0].length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    let { balance, player_id } = balanceResult[0];
+    let { balance, player_id } = balanceResult[0][0];
     console.log('Extracted balance:', balance, 'player_id:', player_id);
 
     // If balance is null, create or update economy record
@@ -597,7 +597,7 @@ async function handleShopItemSelect(interaction) {
         'SELECT balance FROM economy WHERE player_id = ?',
         [player_id]
       );
-      balance = updatedBalanceResult[0] ? updatedBalanceResult[0].balance : 0;
+      balance = updatedBalanceResult[0] ? updatedBalanceResult[0][0].balance : 0;
       console.log('Updated balance:', balance);
     }
 
