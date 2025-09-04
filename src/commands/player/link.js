@@ -2,7 +2,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = re
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 const { compareDiscordIds } = require('../../utils/discordUtils');
-const { ensurePlayerOnAllServers } = require('../../utils/autoServerLinking');
+const { ensurePlayerOnAllServers, isIgnAvailable, normalizeIGN } = require('../../utils/autoServerLinking');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -20,12 +20,13 @@ module.exports = {
     const discordGuildId = interaction.guildId;
     const discordId = interaction.user.id;
     
-    // 🛡️ FUTURE-PROOF IGN HANDLING: Preserve original case, only trim spaces
+    // 🛡️ FUTURE-PROOF IGN HANDLING: Normalize IGN for consistent processing
     const rawIgn = interaction.options.getString('in-game-name');
-    const ign = rawIgn.trim(); // Only trim spaces, preserve case and special characters
+    const ign = rawIgn.trim(); // Preserve original for display
+    const normalizedIgn = normalizeIGN(rawIgn); // Normalize for comparison
 
     // Validate IGN - be very permissive for weird names
-    if (!ign || ign.length < 1) {
+    if (!ign || ign.length < 1 || !normalizedIgn) {
       return await interaction.editReply({
         embeds: [errorEmbed('Invalid Name', 'Please provide a valid in-game name (at least 1 character).')]
       });
@@ -69,37 +70,45 @@ module.exports = {
         });
       }
 
-      // 🔍 CRITICAL CHECK 2: Check if this IGN is actively linked to ANYONE (case-insensitive) - BULLETPROOF VERSION
-      const [activeIgnLinks] = await pool.query(
-        `SELECT p.*, rs.nickname 
-         FROM players p
-         JOIN rust_servers rs ON p.server_id = rs.id
-         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND LOWER(p.ign) = LOWER(?) 
-         AND p.is_active = true`,
-        [discordGuildId, ign]
+      // 🔍 CRITICAL CHECK 2: Check if this IGN is available for linking (scoped by guild)
+      console.log(`[LINK DEBUG] Checking IGN availability for "${ign}" (normalized: "${normalizedIgn}")`);
+      
+      // Get database guild ID for proper scoping
+      const [guildResult] = await pool.query(
+        'SELECT id FROM guilds WHERE discord_id = ?',
+        [discordGuildId]
       );
-
-      if (activeIgnLinks.length > 0) {
-        console.log(`[LINK DEBUG] Found ${activeIgnLinks.length} active records for IGN ${ign}`);
-        
-        // Check if it's the same user trying to link the same IGN (should be allowed)
-        const sameUserLink = activeIgnLinks.find(link => compareDiscordIds(link.discord_id, discordId));
-        
-        if (sameUserLink) {
-          console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);
-          // Allow the user to update their existing link - continue to confirmation
-        } else {
-          // IGN is actively linked to someone else
-          const existingDiscordId = activeIgnLinks[0].discord_id;
-          const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
-          
-          console.log(`[LINK DEBUG] IGN ${ign} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
+      
+      if (guildResult.length === 0) {
+        console.error(`[LINK ERROR] No guild found for Discord ID ${discordGuildId}`);
+        return await interaction.editReply({
+          embeds: [errorEmbed('Guild Error', 'Failed to find guild configuration. Please contact an admin.')]
+        });
+      }
+      
+      const dbGuildId = guildResult[0].id;
+      
+      // ✅ CRITICAL: Use new utility function for proper tenant-scoped IGN checking
+      const ignAvailability = await isIgnAvailable(dbGuildId, ign, discordId);
+      
+      if (!ignAvailability.available) {
+        if (ignAvailability.error) {
+          console.error(`[LINK ERROR] IGN availability check failed: ${ignAvailability.error}`);
           return await interaction.editReply({
-            embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
+            embeds: [errorEmbed('System Error', 'Failed to check IGN availability. Please try again.')]
           });
         }
+        
+        // IGN is already linked to someone else
+        const serverList = ignAvailability.existingLinks.map(p => p.nickname).join(', ');
+        console.log(`[LINK DEBUG] IGN "${ign}" is already linked to other accounts on: ${serverList}`);
+        
+        return await interaction.editReply({
+          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${ign}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)]
+        });
       }
+      
+      console.log(`[LINK DEBUG] IGN "${ign}" is available for linking`);
 
       // ✅ All checks passed - show confirmation
       const row = new ActionRowBuilder().addComponents(

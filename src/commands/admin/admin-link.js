@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { ensurePlayerOnAllServers } = require('../../utils/autoServerLinking');
+const { ensurePlayerOnAllServers, isIgnAvailable, normalizeIGN } = require('../../utils/autoServerLinking');
 const pool = require('../../db');
 
 module.exports = {
@@ -32,7 +32,9 @@ module.exports = {
       const guildId = interaction.guildId;
       const discordUser = interaction.options.getUser('discord');
       const discordId = discordUser.id;
-      const playerName = interaction.options.getString('name').trim();
+      const rawPlayerName = interaction.options.getString('name');
+      const playerName = rawPlayerName.trim(); // Preserve original for display
+      const normalizedPlayerName = normalizeIGN(rawPlayerName); // Normalize for comparison
 
       // Validate inputs
       if (!guildId) {
@@ -43,10 +45,10 @@ module.exports = {
         return;
       }
 
-      if (!playerName || playerName.length < 2 || playerName.length > 32) {
-        console.error(`🚨 ADMIN-LINK: Invalid IGN detected: "${playerName}"`);
+      if (!playerName || playerName.length < 2 || playerName.length > 32 || !normalizedPlayerName) {
+        console.error(`🚨 ADMIN-LINK: Invalid IGN detected: "${playerName}" (normalized: "${normalizedPlayerName}")`);
         await interaction.editReply({
-          embeds: [errorEmbed('Invalid IGN', '❌ **Error:** Invalid in-game name. Must be 2-32 characters.')]
+          embeds: [errorEmbed('Invalid IGN', '❌ **Error:** Invalid in-game name. Must be 2-32 characters and contain valid characters.')]
         });
         return;
       }
@@ -102,24 +104,34 @@ module.exports = {
         }
       }
 
-      const [existingIgnLinks] = await pool.query(`
-        SELECT p.*, rs.nickname 
-        FROM players p
-        JOIN rust_servers rs ON p.server_id = rs.id
-        WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-        AND LOWER(p.ign) = LOWER(?) 
-        AND p.is_active = true
-      `, [guildId, playerName]);
-
-      if (existingIgnLinks.length > 0) {
-        const existingDiscordId = existingIgnLinks[0].discord_id;
-        if (existingDiscordId !== discordId) {
-          // Handle null Discord ID gracefully
-          if (existingDiscordId) {
-            warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${existingIgnLinks.map(p => p.nickname).join(', ')}`);
-          } else {
-            warnings.push(`⚠️ **${playerName}** already has economy records on: ${existingIgnLinks.map(p => p.nickname).join(', ')} (no Discord account linked)`);
-          }
+      // ✅ CRITICAL: Use new utility function for proper tenant-scoped IGN checking
+      const [guildResult] = await pool.query(
+        'SELECT id FROM guilds WHERE discord_id = ?',
+        [guildId]
+      );
+      
+      if (guildResult.length === 0) {
+        console.error(`🚨 ADMIN-LINK: No guild found for Discord ID ${guildId}`);
+        await interaction.editReply({
+          embeds: [errorEmbed('Guild Error', '❌ **Error:** Failed to find guild configuration. Please try again.')]
+        });
+        return;
+      }
+      
+      const dbGuildId = guildResult[0].id;
+      
+      // Check IGN availability (excluding current user)
+      const ignAvailability = await isIgnAvailable(dbGuildId, playerName, discordId);
+      
+      if (!ignAvailability.available && !ignAvailability.error) {
+        // IGN is already linked to someone else
+        const serverList = ignAvailability.existingLinks.map(p => p.nickname).join(', ');
+        const existingDiscordId = ignAvailability.existingLinks[0].discord_id;
+        
+        if (existingDiscordId) {
+          warnings.push(`⚠️ **${playerName}** is already linked to Discord ID **${existingDiscordId}** on: ${serverList}`);
+        } else {
+          warnings.push(`⚠️ **${playerName}** already has economy records on: ${serverList} (no Discord account linked)`);
         }
       }
 
