@@ -573,15 +573,36 @@ async function handleShopItemSelect(interaction) {
     const item = itemData[0]; // Get the first item from the result
 
     // Get server details using the extracted server ID
+    console.log('[SHOP DEBUG] Looking for server with ID:', serverId);
+    
+    // Debug: Check what servers exist in the database
+    const allServersResult = await pool.query('SELECT id, nickname FROM rust_servers');
+    console.log('[SHOP DEBUG] All servers in database:', allServersResult[0]);
+    
     const serverResult = await pool.query(
       'SELECT id as server_id, nickname FROM rust_servers WHERE id = ?',
       [serverId]
     );
-
+    
+    console.log('[SHOP DEBUG] Server query result:', serverResult);
+    
     if (!serverResult || serverResult.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Server Not Found', 'The server was not found.')]
-      });
+      // Try to find the server by partial match
+      console.log('[SHOP DEBUG] Server not found, trying partial match...');
+      const partialServerResult = await pool.query(
+        'SELECT id as server_id, nickname FROM rust_servers WHERE id LIKE ?',
+        [`%${serverId}%`]
+      );
+      console.log('[SHOP DEBUG] Partial server query result:', partialServerResult);
+      
+      if (partialServerResult && partialServerResult[0] && partialServerResult[0].length > 0) {
+        console.log('[SHOP DEBUG] Found server with partial match, using that');
+        serverResult = partialServerResult;
+      } else {
+        return interaction.editReply({
+          embeds: [errorEmbed('Server Not Found', 'The server was not found.')]
+        });
+      }
     }
 
     const nickname = serverResult[0][0].nickname;
