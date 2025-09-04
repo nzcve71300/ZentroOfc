@@ -120,6 +120,7 @@ module.exports = {
         
         // Add visual indicators based on performance
         const killEmoji = player.kills > 100 ? '💀' : player.kills > 50 ? '⚔️' : player.kills > 10 ? '🗡️' : '🔪';
+        const deathEmoji = player.deaths > 100 ? '💀' : player.deaths > 50 ? '💔' : player.deaths > 10 ? '💥' : '💀';
         const kdEmoji = parseFloat(kdRatio) > 2 ? '🔥' : parseFloat(kdRatio) > 1 ? '⚡' : parseFloat(kdRatio) > 0.5 ? '⚖️' : '📉';
         const streakEmoji = player.highest_streak > 20 ? '🔥' : player.highest_streak > 10 ? '⚡' : player.highest_streak > 5 ? '💪' : '🎯';
         
