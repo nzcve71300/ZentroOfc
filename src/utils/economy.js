@@ -134,8 +134,9 @@ async function getAllPlayersForServer(guildId, serverId) {
     `SELECT p.*, e.balance 
      FROM players p 
      LEFT JOIN economy e ON p.id = e.player_id 
-     WHERE p.discord_id = ? AND rs.id = ? AND rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)`,
-    [guildId, serverId, guildId]
+     LEFT JOIN rust_servers rs ON p.server_id = rs.id
+     WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND p.server_id = ?`,
+    [guildId, serverId]
   );
   return result;
 }
