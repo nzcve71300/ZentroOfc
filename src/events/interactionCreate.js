@@ -381,7 +381,7 @@ async function handleShopCategorySelect(interaction) {
         );
 
     console.log('[SHOP DEBUG] Balance query result:', balanceResult);
-    console.log('[SHOP DEBUG] User ID:', userId, 'Server ID:', server_id);
+    console.log('[SHOP DEBUG] User ID:', userId, 'Server ID:', serverId);
     
     // Debug: Check if player exists on this server at all
     const playerCheck = await pool.query(
@@ -404,7 +404,6 @@ async function handleShopCategorySelect(interaction) {
       console.log('[SHOP DEBUG] Balance data:', balanceData);
       console.log('[SHOP DEBUG] Balance:', balanceData.balance);
     }
-    const serverId = server_id;
     console.log('[SHOP DEBUG] Final balance:', balance);
 
     // Get currency name for this server
