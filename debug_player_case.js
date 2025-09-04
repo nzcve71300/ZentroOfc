@@ -36,14 +36,14 @@ async function debugPlayerCase() {
       
       // Check players table
       const [players] = await connection.execute(
-        'SELECT id, ign, discord_id, server_id, active FROM players WHERE guild_id = ? AND ign = ?',
+        'SELECT id, ign, discord_id, server_id FROM players WHERE guild_id = ? AND ign = ?',
         [guildId, variation]
       );
       
       if (players.length > 0) {
         console.log(`  ✅ Found in players table:`);
         players.forEach(p => {
-          console.log(`    - ID: ${p.id}, IGN: ${p.ign}, Server: ${p.server_id}, Active: ${p.active}`);
+          console.log(`    - ID: ${p.id}, IGN: ${p.ign}, Server: ${p.server_id}`);
         });
       } else {
         console.log(`  ❌ Not found in players table`);
@@ -71,14 +71,14 @@ async function debugPlayerCase() {
     
     // Search for partial matches
     const [similarPlayers] = await connection.execute(
-      'SELECT id, ign, discord_id, server_id, active FROM players WHERE guild_id = ? AND ign LIKE ?',
+      'SELECT id, ign, discord_id, server_id FROM players WHERE guild_id = ? AND ign LIKE ?',
       [guildId, '%waisted%']
     );
     
     if (similarPlayers.length > 0) {
       console.log(`  📊 Found ${similarPlayers.length} players with similar names:`);
       similarPlayers.forEach(p => {
-        console.log(`    - ID: ${p.id}, IGN: ${p.ign}, Server: ${p.server_id}, Active: ${p.active}`);
+        console.log(`    - ID: ${p.id}, IGN: ${p.ign}, Server: ${p.server_id}`);
       });
     } else {
       console.log(`  ❌ No players found with similar names`);
@@ -88,17 +88,17 @@ async function debugPlayerCase() {
     
     // Check player counts
     const [deadOpsCount] = await connection.execute(
-      'SELECT COUNT(*) as count FROM players WHERE guild_id = ? AND server_id = ? AND active = 1',
+      'SELECT COUNT(*) as count FROM players WHERE guild_id = ? AND server_id = ?',
       [guildId, deadOpsServerId]
     );
     
     const [usaDeadOpsCount] = await connection.execute(
-      'SELECT COUNT(*) as count FROM players WHERE guild_id = ? AND server_id = ? AND active = 1',
+      'SELECT COUNT(*) as count FROM players WHERE guild_id = ? AND server_id = ?',
       [guildId, usaDeadOpsServerId]
     );
     
-    console.log(`  📊 Dead-ops active players: ${deadOpsCount[0].count}`);
-    console.log(`  📊 USA-DeadOps active players: ${usaDeadOpsCount[0].count}`);
+    console.log(`  📊 Dead-ops players: ${deadOpsCount[0].count}`);
+    console.log(`  📊 USA-DeadOps players: ${usaDeadOpsCount[0].count}`);
 
     await connection.end();
     console.log('\n✅ Debug complete!');
