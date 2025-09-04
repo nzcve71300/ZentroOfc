@@ -728,6 +728,8 @@ async function handleConfirmPurchase(interaction) {
         [itemId]
       );
       console.log('Confirm purchase - item query result:', result);
+      console.log('Confirm purchase - item query result[0]:', result[0]);
+      console.log('Confirm purchase - item query result[0][0]:', result[0] && result[0][0] ? result[0][0] : null);
       itemData = result[0] && result[0][0] ? result[0][0] : null;
       timer = itemData ? itemData.timer : null;
       
@@ -748,6 +750,13 @@ async function handleConfirmPurchase(interaction) {
         finalQuantity: finalQuantity
       });
       command = `inventory.giveto "${playerIgn}" "${itemData.short_name}" ${finalQuantity}`;
+      console.log(`[SHOP COMMAND DEBUG] Generated command for item: ${command}`);
+      console.log(`[SHOP COMMAND DEBUG] Item data:`, {
+        display_name: itemData.display_name,
+        short_name: itemData.short_name,
+        playerIgn: playerIgn,
+        finalQuantity: finalQuantity
+      });
     } else if (type === 'kit') {
       console.log('Confirm purchase - querying kit with ID:', itemId);
       const result = await pool.query(
@@ -920,8 +929,34 @@ async function handleConfirmPurchase(interaction) {
       }, 30000); // 30 second timeout
       
       // Request player position
-      const { sendRconCommand } = require('../rcon/index');
-      sendRconCommand(itemData.ip, itemData.port, itemData.password, `printpos "${playerIgn}"`);
+      console.log(`[VEHICLE RCON DEBUG] Requesting position for ${playerIgn} on server ${itemData.nickname}`);
+      console.log(`[VEHICLE RCON DEBUG] Server IP: ${itemData.ip}, Port: ${itemData.port}`);
+      console.log(`[VEHICLE RCON DEBUG] About to call sendRconCommand with:`, {
+        ip: itemData.ip,
+        port: itemData.port,
+        password: itemData.password ? '***' : 'undefined',
+        command: `printpos "${playerIgn}"`
+      });
+      
+      console.log(`[VEHICLE RCON DEBUG] sendRconCommand function:`, typeof sendRconCommand);
+      console.log(`[VEHICLE RCON DEBUG] sendRconCommand function name:`, sendRconCommand.name);
+      
+      try {
+        const posResult = await sendRconCommand(itemData.ip, itemData.port, itemData.password, `printpos "${playerIgn}"`);
+        console.log(`[VEHICLE RCON DEBUG] Position request result:`, posResult);
+      } catch (error) {
+        console.error(`[VEHICLE RCON ERROR] Failed to request position:`, error);
+        console.error(`[VEHICLE RCON ERROR] Error details:`, error.message, error.stack);
+        console.error(`[VEHICLE RCON ERROR] Full error object:`, error);
+        
+        // Try to get more details about the connection
+        console.log(`[VEHICLE RCON DEBUG] Connection details:`, {
+          ip: itemData.ip,
+          port: itemData.port,
+          hasPassword: !!itemData.password,
+          passwordLength: itemData.password ? itemData.password.length : 0
+        });
+      }
     }
 
     if (!itemData) {
@@ -1077,10 +1112,34 @@ async function handleConfirmPurchase(interaction) {
        // Send confirmation message to player in-game (same as items)
        const confirmMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>Successfully delivered</color>`;
        try {
-         sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
+         console.log(`[KIT RCON DEBUG] Attempting to send confirmation message to ${itemData.nickname}:`);
+         console.log(`[KIT RCON DEBUG] Server IP: ${itemData.ip}, Port: ${itemData.port}`);
+         console.log(`[KIT RCON DEBUG] Message: ${confirmMessage}`);
+         console.log(`[KIT RCON DEBUG] About to call sendRconCommand with:`, {
+           ip: itemData.ip,
+           port: itemData.port,
+           password: itemData.password ? '***' : 'undefined',
+           command: confirmMessage
+         });
+         
+         console.log(`[KIT RCON DEBUG] sendRconCommand function:`, typeof sendRconCommand);
+         console.log(`[KIT RCON DEBUG] sendRconCommand function name:`, sendRconCommand.name);
+         
+         const confirmResult = await sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
+         console.log(`[KIT RCON DEBUG] Confirmation message result:`, confirmResult);
          console.log(`Confirmation message sent to ${itemData.nickname}: ${confirmMessage}`);
        } catch (error) {
-         console.error(`Failed to send confirmation message to ${itemData.nickname}:`, error);
+         console.error(`[KIT RCON ERROR] Failed to send confirmation message to ${itemData.nickname}:`, error);
+         console.error(`[KIT RCON ERROR] Error details:`, error.message, error.stack);
+         console.error(`[KIT RCON ERROR] Full error object:`, error);
+         
+         // Try to get more details about the connection
+         console.log(`[KIT RCON DEBUG] Connection details:`, {
+           ip: itemData.ip,
+           port: itemData.port,
+           hasPassword: !!itemData.password,
+           passwordLength: itemData.password ? itemData.password.length : 0
+         });
        }
        
        // Send to admin feed
@@ -1089,18 +1148,47 @@ async function handleConfirmPurchase(interaction) {
      } else {
        // For items only, deliver immediately as before
        try {
-         sendRconCommand(itemData.ip, itemData.port, itemData.password, command);
+         console.log(`[SHOP RCON DEBUG] Attempting to send command to ${itemData.nickname}:`);
+         console.log(`[SHOP RCON DEBUG] Server IP: ${itemData.ip}, Port: ${itemData.port}`);
+         console.log(`[SHOP RCON DEBUG] Command: ${command}`);
+         console.log(`[SHOP RCON DEBUG] Full itemData:`, JSON.stringify(itemData, null, 2));
+         
+         console.log(`[SHOP RCON DEBUG] About to call sendRconCommand with:`, {
+           ip: itemData.ip,
+           port: itemData.port,
+           password: itemData.password ? '***' : 'undefined',
+           command: command
+         });
+         
+         console.log(`[SHOP RCON DEBUG] sendRconCommand function:`, typeof sendRconCommand);
+         console.log(`[SHOP RCON DEBUG] sendRconCommand function name:`, sendRconCommand.name);
+         
+         const rconResult = await sendRconCommand(itemData.ip, itemData.port, itemData.password, command);
+         console.log(`[SHOP RCON DEBUG] RCON Command result:`, rconResult);
          console.log(`RCON Command sent to ${itemData.nickname}: ${command}`);
          
          // Send confirmation message to player in-game
          const confirmMessage = `say <color=#00FF00>[SHOP]</color> <color=#FFD700>${playerName}</color> <color=#00FF00>Successfully delivered</color>`;
-         sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
+         console.log(`[SHOP RCON DEBUG] About to send confirmation message:`, confirmMessage);
+         
+         const confirmResult = await sendRconCommand(itemData.ip, itemData.port, itemData.password, confirmMessage);
+         console.log(`[SHOP RCON DEBUG] Confirmation message result:`, confirmResult);
          console.log(`Confirmation message sent to ${itemData.nickname}: ${confirmMessage}`);
          
          // Send to admin feed
          await sendFeedEmbed(interaction.client, guildId, itemData.nickname, 'adminfeed', `🛒 **Shop Purchase:** ${playerName} purchased ${itemData.display_name} x${finalQuantity} for ${totalPrice} ${currencyName}`);
        } catch (error) {
-         console.error(`Failed to send RCON command to ${itemData.nickname}:`, error);
+         console.error(`[SHOP RCON ERROR] Failed to send RCON command to ${itemData.nickname}:`, error);
+         console.error(`[SHOP RCON ERROR] Error details:`, error.message, error.stack);
+         console.error(`[SHOP RCON ERROR] Full error object:`, error);
+         
+         // Try to get more details about the connection
+         console.log(`[SHOP RCON DEBUG] Connection details:`, {
+           ip: itemData.ip,
+           port: itemData.port,
+           hasPassword: !!itemData.password,
+           passwordLength: itemData.password ? itemData.password.length : 0
+         });
        }
      }
 
