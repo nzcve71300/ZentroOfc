@@ -366,9 +366,9 @@ async function handleShopCategorySelect(interaction) {
       }
     }
 
-    // Get player balance for the specific server
+        // Get player balance for the specific server
     const balanceResult = await pool.query(
-      `SELECT e.balance
+      `SELECT e.balance, p.id as player_id, p.discord_id, p.server_id
        FROM players p
        JOIN economy e ON p.id = e.player_id
        JOIN rust_servers rs ON p.server_id = rs.id
@@ -376,10 +376,24 @@ async function handleShopCategorySelect(interaction) {
        LIMIT 1`,
       [userId, server_id]
     );
-
+ 
     console.log('[SHOP DEBUG] Balance query result:', balanceResult);
     console.log('[SHOP DEBUG] User ID:', userId, 'Server ID:', server_id);
-
+    
+    // Debug: Check if player exists on this server at all
+    const playerCheck = await pool.query(
+      `SELECT id, discord_id, server_id FROM players WHERE discord_id = ? AND server_id = ?`,
+      [userId, server_id]
+    );
+    console.log('[SHOP DEBUG] Player check result:', playerCheck);
+    
+    // Debug: Check if player exists on ANY server
+    const anyPlayerCheck = await pool.query(
+      `SELECT id, discord_id, server_id FROM players WHERE discord_id = ?`,
+      [userId]
+    );
+    console.log('[SHOP DEBUG] Any player check result:', anyPlayerCheck);
+ 
     const balance = balanceResult[0].length > 0 ? balanceResult[0][0].balance : 0;
     const serverId = server_id;
     console.log('[SHOP DEBUG] Final balance:', balance);
