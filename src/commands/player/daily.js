@@ -36,10 +36,18 @@ module.exports = {
         });
       }
 
-      // Get all linked players across all servers using unified system
-      const players = await getAllActivePlayersByDiscordId(guildId, userId);
+      // Get all linked players across all servers with server information
+      const [playersResult] = await pool.query(
+        `SELECT p.*, rs.nickname as server_nickname 
+         FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
+         AND p.discord_id = ?
+         AND p.is_active = true`,
+        [guildId, userId]
+      );
 
-      if (players.length === 0) {
+      if (playersResult.length === 0) {
         return interaction.editReply({
           embeds: [errorEmbed('Account Not Linked', 'Use `/link <in-game-name>` to link your account first.')]
         });
@@ -50,7 +58,7 @@ module.exports = {
       let perServerAmounts = {};
 
       // Get daily amount for each server
-      const serverIds = [...new Set(players.map(p => p.server_id))];
+      const serverIds = [...new Set(playersResult.map(p => p.server_id))];
       if (serverIds.length > 0) {
         const [configRows] = await pool.query(
           `SELECT server_id, setting_value FROM eco_games_config WHERE server_id IN (${serverIds.map(() => '?').join(',')}) AND setting_name = 'daily_amount'`,
@@ -61,7 +69,7 @@ module.exports = {
         }
       }
 
-      for (const player of players) {
+      for (const player of playersResult) {
         // Use config value if present, else default to 100
         const dailyAmount = perServerAmounts[player.server_id] || 100;
         // Update balance using unified system
@@ -69,13 +77,13 @@ module.exports = {
         // Record transaction using unified system
         await recordTransaction(player.id, dailyAmount, 'daily_reward');
         totalAdded += dailyAmount;
-        serverList.push(player.nickname + ` (+${dailyAmount})`);
+        serverList.push(player.server_nickname + ` (+${dailyAmount})`);
       }
 
       const uniqueServers = [...new Set(serverList)];
               // Get currency name for the first server (they should all be the same)
         const { getCurrencyName } = require('../../utils/economy');
-        const currencyName = await getCurrencyName(players[0].server_id);
+        const currencyName = await getCurrencyName(playersResult[0].server_id);
         
         await interaction.editReply({
           embeds: [successEmbed('Daily Reward Claimed', 
