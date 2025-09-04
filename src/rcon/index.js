@@ -2343,53 +2343,33 @@ function extractPlayerName(logLine) {
 }
 
 function sendRconCommand(ip, port, password, command) {
-  console.log(`[RCON FUNCTION DEBUG] sendRconCommand called with:`, {
-    ip: ip,
-    port: port,
-    password: password ? '***' : 'undefined',
-    command: command
-  });
-  
   return new Promise((resolve, reject) => {
-    const wsUrl = `ws://${ip}:${port}/${password}`;
-    console.log(`[RCON FUNCTION DEBUG] Creating WebSocket connection to: ${wsUrl}`);
-    
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
     
     let responseReceived = false;
     
     ws.on('open', () => {
-      console.log(`[RCON FUNCTION DEBUG] WebSocket connection opened to ${ip}:${port}`);
-      const message = JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' });
-      console.log(`[RCON FUNCTION DEBUG] Sending message:`, message);
-      ws.send(message);
+      ws.send(JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' }));
     });
     
     ws.on('error', (error) => {
-      console.error(`[RCON FUNCTION DEBUG] WebSocket error for ${ip}:${port}:`, error.message);
-      console.error(`[RCON FUNCTION DEBUG] Full error:`, error);
+      console.error(`[RCON] WebSocket error for ${ip}:${port}:`, error.message);
       if (!responseReceived) {
         reject(new Error(`RCON connection failed: ${error.message}`));
       }
     });
     
     ws.on('message', async (data) => {
-      console.log(`[RCON FUNCTION DEBUG] Received message from ${ip}:${port}:`, data.toString());
       try {
         const parsed = JSON.parse(data);
-        console.log(`[RCON FUNCTION DEBUG] Parsed message:`, parsed);
         
         if (parsed.Message) {
-          console.log(`[RCON FUNCTION DEBUG] Message content:`, parsed.Message);
-          
           // Check if this is a position response and inject it into main message handler
           
           // Clean the message by removing invisible characters
           const cleanMessage = parsed.Message.replace(/[\x00-\x1F\x7F]/g, '').trim();
-          console.log(`[RCON FUNCTION DEBUG] Cleaned message:`, cleanMessage);
           
           if (cleanMessage.match(/^\([^)]+\)$/)) {
-            console.log(`[RCON FUNCTION DEBUG] Position response detected, attempting to inject into main handler`);
             // Inject this message into the main WebSocket handler by triggering it manually
             // Find the main connection for this server by looking up server details
             
@@ -2405,24 +2385,12 @@ function sendRconCommand(ip, port, password, command) {
                 const guildId = serverResult[0].discord_id;
                 const connectionKey = `${guildId}_${serverName}`;
                 
-                console.log(`[RCON FUNCTION DEBUG] Found server in database:`, { serverName, guildId, connectionKey });
-                
                 const mainConnection = activeConnections[connectionKey];
-                console.log(`[RCON FUNCTION DEBUG] Active connections keys:`, Object.keys(activeConnections));
-                console.log(`[RCON FUNCTION DEBUG] Looking for connection key:`, connectionKey);
-                console.log(`[RCON FUNCTION DEBUG] Found connection:`, mainConnection);
-                
                 if (mainConnection && mainConnection.readyState === 1) {
-                  console.log(`[RCON FUNCTION DEBUG] Main connection found and ready, injecting message`);
                   // Simulate a message event on the main connection
                   const simulatedData = JSON.stringify({ Message: cleanMessage });
                   // We'll trigger the main handler by emitting a message event
                   mainConnection.emit('message', simulatedData);
-                } else {
-                  console.log(`[RCON FUNCTION DEBUG] Main connection not found or not ready:`, {
-                    hasConnection: !!mainConnection,
-                    readyState: mainConnection ? mainConnection.readyState : 'undefined'
-                  });
                 }
               } else {
                 Logger.warn(`Server not found in database for ${ip}:${port}`);
@@ -2433,27 +2401,23 @@ function sendRconCommand(ip, port, password, command) {
           }
           
           responseReceived = true;
-          console.log(`[RCON FUNCTION DEBUG] Response received, closing connection and resolving`);
           ws.close();
           resolve(parsed.Message);
         }
       } catch (err) {
-        console.error(`[RCON FUNCTION DEBUG] Failed to parse response from ${ip}:${port}:`, err);
+        console.error(`[RCON] Failed to parse response from ${ip}:${port}:`, err);
         if (!responseReceived) {
           reject(new Error(`Invalid RCON response: ${err.message}`));
         }
       }
     });
     
-    ws.on('close', (code, reason) => {
-      console.log(`[RCON FUNCTION DEBUG] WebSocket connection closed to ${ip}:${port}:`, { code, reason });
-    });
+
     
     // Timeout after 20 seconds (increased from 10)
     setTimeout(() => {
       if (!responseReceived) {
-        console.error(`[RCON FUNCTION DEBUG] Timeout for command to ${ip}:${port}: ${command}`);
-        console.error(`[RCON FUNCTION DEBUG] WebSocket state:`, ws.readyState);
+        console.error(`[RCON] Timeout for command to ${ip}:${port}: ${command}`);
         ws.close();
         reject(new Error('RCON command timeout'));
       }
