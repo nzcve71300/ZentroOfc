@@ -17,27 +17,27 @@ async function fixMissingPlayerRecords() {
 
     console.log('✅ Database connected successfully!\n');
 
-    // Step 1: Use the specific guild ID and find both servers
+    // Step 1: Use the correct database guild ID and find both servers
     console.log('📋 Step 1: Finding DeadOps and USA-DeadOps servers...\n');
     
-    const guildId = '1387187628469653555';
-    console.log(`  ✅ Using guild ID: ${guildId}`);
+    const guildId = 609; // Database guild ID for DEAD-OPS 10x
+    console.log(`  ✅ Using database guild ID: ${guildId} (DEAD-OPS 10x)`);
     
     const [servers] = await connection.execute(
-      'SELECT id, nickname FROM rust_servers WHERE guild_id = ? AND nickname IN ("DeadOps", "USA-DeadOps")',
+      'SELECT id, nickname FROM rust_servers WHERE guild_id = ? AND nickname IN ("Dead-ops", "USA-DeadOps")',
       [guildId]
     );
     
     if (servers.length !== 2) {
-      console.log('❌ Need exactly 2 servers (DeadOps and USA-DeadOps)');
+      console.log('❌ Need exactly 2 servers (Dead-ops and USA-DeadOps)');
       console.log(`  Found ${servers.length} servers: ${servers.map(s => s.nickname).join(', ')}`);
       return;
     }
     
-    const deadOpsServer = servers.find(s => s.nickname === 'DeadOps');
+    const deadOpsServer = servers.find(s => s.nickname === 'Dead-ops');
     const usaDeadOpsServer = servers.find(s => s.nickname === 'USA-DeadOps');
     
-    console.log(`  ✅ DeadOps server: ${deadOpsServer.nickname} (ID: ${deadOpsServer.id})`);
+    console.log(`  ✅ Dead-ops server: ${deadOpsServer.nickname} (ID: ${deadOpsServer.id})`);
     console.log(`  ✅ USA-DeadOps server: ${usaDeadOpsServer.nickname} (ID: ${usaDeadOpsServer.id})\n`);
 
     // Step 2: Find all Discord users who have economy records but missing player records
@@ -59,7 +59,7 @@ async function fixMissingPlayerRecords() {
     
     for (const record of economyRecords) {
       if (record.discord_id) {
-        // Check if player exists on DeadOps
+        // Check if player exists on Dead-ops
         const [deadOpsPlayer] = await connection.execute(
           'SELECT * FROM players WHERE server_id = ? AND discord_id = ? AND is_active = 1',
           [deadOpsServer.id, record.discord_id]
@@ -96,7 +96,7 @@ async function fixMissingPlayerRecords() {
             'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES (?, ?, ?, ?, NOW(), 1)',
             [guildId, deadOpsServer.id, player.discord_id, player.ign]
           );
-          console.log(`    ✅ Created DeadOps record for ${player.ign}`);
+          console.log(`    ✅ Created Dead-ops record for ${player.ign}`);
           createdCount++;
         }
         
