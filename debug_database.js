@@ -1,62 +1,82 @@
-const pool = require('./src/db');
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function debugDatabase() {
+  console.log('🔍 DEBUGGING DATABASE STRUCTURE');
+  console.log('================================\n');
+
+  let connection;
   try {
-    console.log('🔍 Debugging database issues...');
-    
-    // Test the exact query that's failing
-    console.log('📋 Testing the failing query...');
-    
-    const result = await pool.query(`
-      SELECT * FROM players 
-      WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = $1)
-      AND discord_id = $2
-      AND LOWER(ign) != LOWER($3)
-      AND is_active = true
-    `, [123456789, 987654321, 'test']);
-    
-    console.log('✅ Query executed successfully!');
-    console.log('📊 Result rows:', result.rows.length);
-    
-    // Check if the column actually exists
-    const columnCheck = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'players' AND column_name = 'is_active'
-    `);
-    
-    console.log('🔍 is_active column exists:', columnCheck.rows.length > 0);
-    
-    if (columnCheck.rows.length > 0) {
-      console.log('✅ is_active column exists in database');
-    } else {
-      console.log('❌ is_active column does NOT exist in database');
-    }
-    
-    // Check what database we're connected to
-    const dbInfo = await pool.query('SELECT current_database() as db_name');
-    console.log('🗄️  Connected to database:', dbInfo.rows[0].db_name);
-    
-    // Check table structure
-    const tableStructure = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'players' 
-      ORDER BY ordinal_position
-    `);
-    
-    console.log('📋 Table structure:');
-    tableStructure.rows.forEach(col => {
-      console.log(`  - ${col.column_name}: ${col.data_type}`);
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT || 3306
     });
+
+    console.log('✅ Database connected successfully!\n');
+
+    // Check what guilds exist
+    console.log('📋 Checking guilds table...');
+    const [guilds] = await connection.execute('SELECT * FROM guilds');
+    console.log(`  Found ${guilds.length} guilds:`);
+    guilds.forEach(guild => {
+      console.log(`    - ID: ${guild.id}, Discord ID: ${guild.discord_id}, Name: ${guild.name}`);
+    });
+
+    console.log('\n📋 Checking rust_servers table...');
+    const [servers] = await connection.execute('SELECT * FROM rust_servers');
+    console.log(`  Found ${servers.length} servers:`);
+    servers.forEach(server => {
+      console.log(`    - ID: ${server.id}, Guild ID: ${server.guild_id}, Nickname: ${server.nickname}`);
+    });
+
+    // Check if there's a mismatch between Discord guild ID and database guild ID
+    console.log('\n📋 Checking for Discord guild ID mismatch...');
+    const [discordGuild] = await connection.execute(
+      'SELECT * FROM guilds WHERE discord_id = ?',
+      ['1387187628469653555']
+    );
     
+    if (discordGuild.length > 0) {
+      console.log(`  ✅ Found guild with Discord ID 1387187628469653555:`);
+      console.log(`    - Database ID: ${discordGuild[0].id}`);
+      console.log(`    - Name: ${discordGuild[0].name}`);
+      
+      // Check what servers belong to this guild
+      const [guildServers] = await connection.execute(
+        'SELECT * FROM rust_servers WHERE guild_id = ?',
+        [discordGuild[0].id]
+      );
+      console.log(`  📊 Found ${guildServers.length} servers for this guild:`);
+      guildServers.forEach(server => {
+        console.log(`    - ${server.nickname} (ID: ${server.id})`);
+      });
+    } else {
+      console.log('  ❌ No guild found with Discord ID 1387187628469653555');
+      
+      // Check if the Discord ID might be stored differently
+      console.log('\n📋 Checking for similar Discord IDs...');
+      const [similarGuilds] = await connection.execute(
+        'SELECT * FROM guilds WHERE discord_id LIKE "%1387187628469653555%" OR discord_id LIKE "%138718762%"'
+      );
+      if (similarGuilds.length > 0) {
+        console.log('  Found similar Discord IDs:');
+        similarGuilds.forEach(guild => {
+          console.log(`    - ${guild.discord_id} -> ${guild.name}`);
+        });
+      }
+    }
+
   } catch (error) {
-    console.error('❌ Debug failed:', error.message);
-    console.error('Error code:', error.code);
-    console.error('Error position:', error.position);
+    console.error('❌ Error:', error);
   } finally {
-    await pool.end();
+    if (connection) {
+      await connection.end();
+    }
   }
 }
 
-debugDatabase();
+// Run the debug
+debugDatabase().catch(console.error);
