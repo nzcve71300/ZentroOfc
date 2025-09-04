@@ -2718,3 +2718,172 @@ async function handleRustInfo(interaction) {
     });
   }
 }
+
+// Missing scheduler functions
+async function handleSchedulerEdit(interaction) {
+  await interaction.deferUpdate();
+  
+  try {
+    const customId = interaction.customId;
+    const parts = customId.split('_');
+    const schedulerId = parts[2];
+    
+    // Get scheduler details
+    const [schedulerResult] = await pool.query(
+      'SELECT * FROM schedulers WHERE id = ?',
+      [schedulerId]
+    );
+    
+    if (schedulerResult.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Scheduler not found.')],
+        components: []
+      });
+    }
+    
+    const scheduler = schedulerResult[0];
+    
+    // For now, just show current info
+    await interaction.editReply({
+      embeds: [orangeEmbed(
+        'Scheduler Edit',
+        `**Current Settings:**\n• **Name:** ${scheduler.name}\n• **Message 1:** ${scheduler.message1 || 'None'}\n• **Message 2:** ${scheduler.message2 || 'None'}\n• **Interval:** ${scheduler.interval} minutes\n• **Active:** ${scheduler.is_active ? 'Yes' : 'No'}`
+      )],
+      components: []
+    });
+    
+  } catch (error) {
+    console.error('Error in handleSchedulerEdit:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to edit scheduler.')],
+      components: []
+    });
+  }
+}
+
+async function handleSchedulerToggle(interaction) {
+  await interaction.deferUpdate();
+  
+  try {
+    const customId = interaction.customId;
+    const parts = customId.split('_');
+    const schedulerId = parts[2];
+    
+    // Toggle scheduler status
+    const [currentResult] = await pool.query(
+      'SELECT is_active FROM schedulers WHERE id = ?',
+      [schedulerId]
+    );
+    
+    if (currentResult.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Scheduler not found.')],
+        components: []
+      });
+    }
+    
+    const newStatus = !currentResult[0].is_active;
+    
+    await pool.query(
+      'UPDATE schedulers SET is_active = ? WHERE id = ?',
+      [newStatus, schedulerId]
+    );
+    
+    await interaction.editReply({
+      embeds: [successEmbed(
+        'Scheduler Updated',
+        `Scheduler has been ${newStatus ? 'activated' : 'deactivated'}.`
+      )],
+      components: []
+    });
+    
+  } catch (error) {
+    console.error('Error in handleSchedulerToggle:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to toggle scheduler.')],
+      components: []
+    });
+  }
+}
+
+async function handleSchedulerMessage(interaction) {
+  await interaction.deferUpdate();
+  
+  try {
+    const customId = interaction.customId;
+    const parts = customId.split('_');
+    const schedulerId = parts[2];
+    const messageType = parts[3]; // msg1 or msg2
+    
+    // Get current message
+    const [currentResult] = await pool.query(
+      `SELECT ${messageType === 'msg1' ? 'message1' : 'message2'} as message FROM schedulers WHERE id = ?`,
+      [schedulerId]
+    );
+    
+    if (currentResult.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Scheduler not found.')],
+        components: []
+      });
+    }
+    
+    const currentMessage = currentResult[0].message || 'None';
+    
+    await interaction.editReply({
+      embeds: [orangeEmbed(
+        'Scheduler Message',
+        `**Current ${messageType === 'msg1' ? 'Message 1' : 'Message 2'}:**\n${currentMessage}`
+      )],
+      components: []
+    });
+    
+  } catch (error) {
+    console.error('Error in handleSchedulerMessage:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to get scheduler message.')],
+      components: []
+    });
+  }
+}
+
+async function handleSchedulerCustomMessage(interaction) {
+  await interaction.deferUpdate();
+  
+  try {
+    const customId = interaction.customId;
+    const parts = customId.split('_');
+    const schedulerId = parts[2];
+    const messageType = parts[3]; // msg1 or msg2
+    
+    // Get current message
+    const [currentResult] = await pool.query(
+      `SELECT ${messageType === 'msg1' ? 'message1' : 'message2'} as message FROM schedulers WHERE id = ?`,
+      [schedulerId]
+    );
+    
+    if (currentResult.length === 0) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Error', 'Scheduler not found.')],
+        components: []
+      });
+    }
+    
+    const currentMessage = currentResult[0].message || 'None';
+    
+    await interaction.editReply({
+      embeds: [orangeEmbed(
+        'Scheduler Custom Message',
+        `**Current ${messageType === 'msg1' ? 'Message 1' : 'Message 2'}:**\n${currentMessage}\n\nUse the modal to update this message.`
+      )],
+      components: []
+    });
+    
+  } catch (error) {
+    console.error('Error in handleSchedulerCustomMessage:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Error', 'Failed to get scheduler custom message.')],
+      components: []
+    });
+  }
+}
