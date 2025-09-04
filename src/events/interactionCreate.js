@@ -366,16 +366,16 @@ async function handleShopCategorySelect(interaction) {
       }
     }
 
-        // Get player balance for the specific server - check multiple possible currency fields
-    const balanceResult = await pool.query(
-      `SELECT e.balance, e.ops_tokens, e.tokens, p.id as player_id, p.discord_id, p.server_id
-       FROM players p
-       JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = ? AND rs.id = ?
-       LIMIT 1`,
-      [userId, server_id]
-    );
+                // Get player balance for the specific server
+        const balanceResult = await pool.query(
+          `SELECT e.balance, p.id as player_id, p.discord_id, p.server_id
+           FROM players p
+           JOIN economy e ON p.id = e.player_id
+           JOIN rust_servers rs ON p.server_id = rs.id
+           WHERE p.discord_id = ? AND rs.id = ?
+           LIMIT 1`,
+          [userId, server_id]
+        );
 
     console.log('[SHOP DEBUG] Balance query result:', balanceResult);
     console.log('[SHOP DEBUG] User ID:', userId, 'Server ID:', server_id);
@@ -397,11 +397,8 @@ async function handleShopCategorySelect(interaction) {
     let balance = 0;
     if (balanceResult[0].length > 0) {
       const balanceData = balanceResult[0][0];
-      // Check for different currency types - prioritize ops_tokens, then tokens, then balance
-      balance = balanceData.ops_tokens || balanceData.tokens || balanceData.balance || 0;
+      balance = balanceData.balance || 0;
       console.log('[SHOP DEBUG] Balance data:', balanceData);
-      console.log('[SHOP DEBUG] Ops tokens:', balanceData.ops_tokens);
-      console.log('[SHOP DEBUG] Tokens:', balanceData.tokens);
       console.log('[SHOP DEBUG] Balance:', balanceData.balance);
     }
     const serverId = server_id;
@@ -585,9 +582,9 @@ async function handleShopItemSelect(interaction) {
     const serverId = serverResult[0].server_id;
     const nickname = serverResult[0].nickname;
 
-    // Now get player balance (guild-wide balance) - check multiple possible currency fields
+    // Now get player balance (guild-wide balance)
     const balanceResult = await pool.query(
-      `SELECT e.balance, e.ops_tokens, e.tokens, p.id as player_id
+      `SELECT e.balance, p.id as player_id
        FROM players p
        LEFT JOIN economy e ON p.id = e.player_id
        JOIN guilds g ON p.guild_id = g.id
@@ -606,20 +603,7 @@ async function handleShopItemSelect(interaction) {
 
     let { balance, player_id } = balanceResult[0][0];
     console.log('Extracted balance data:', balanceResult[0][0]);
-    
-    // Check for different currency types - prioritize ops_tokens, then tokens, then balance
-    if (balanceResult[0][0].ops_tokens !== null && balanceResult[0][0].ops_tokens !== undefined) {
-      balance = balanceResult[0][0].ops_tokens;
-      console.log('Using ops_tokens balance:', balance);
-    } else if (balanceResult[0][0].tokens !== null && balanceResult[0][0].tokens !== undefined) {
-      balance = balanceResult[0][0].tokens;
-      console.log('Using tokens balance:', balance);
-    } else {
-      balance = balanceResult[0][0].balance || 0;
-      console.log('Using default balance field:', balance);
-    }
-    
-    console.log('Final extracted balance:', balance, 'player_id:', player_id);
+    console.log('Extracted balance:', balance, 'player_id:', player_id);
 
     // If balance is null, create or update economy record
     if (balance === null) {
@@ -815,24 +799,13 @@ async function handleConfirmPurchase(interaction) {
       // Calculate total price for vehicle
       const totalPrice = itemData.price;
       
-      // Check if player has enough balance BEFORE storing request - check multiple possible currency fields
+      // Check if player has enough balance BEFORE storing request
       const [balanceResult] = await pool.query(
-        'SELECT balance, ops_tokens, tokens FROM economy WHERE player_id = ?',
+        'SELECT balance FROM economy WHERE player_id = ?',
         [playerId]
       );
       
-      // Determine which balance to use - prioritize ops_tokens, then tokens, then balance
-      let currentBalance = 0;
-      if (balanceResult[0] && balanceResult[0].ops_tokens !== null && balanceResult[0].ops_tokens !== undefined) {
-        currentBalance = balanceResult[0].ops_tokens;
-        console.log('[VEHICLE PURCHASE] Using ops_tokens balance:', currentBalance);
-      } else if (balanceResult[0] && balanceResult[0].tokens !== null && balanceResult[0].tokens !== undefined) {
-        currentBalance = balanceResult[0].tokens;
-        console.log('[VEHICLE PURCHASE] Using tokens balance:', currentBalance);
-      } else {
-        currentBalance = balanceResult[0]?.balance || 0;
-        console.log('[VEHICLE PURCHASE] Using default balance field:', currentBalance);
-      }
+      const currentBalance = balanceResult[0]?.balance || 0;
       
       if (currentBalance < totalPrice) {
         // Get currency name for error message
@@ -1008,24 +981,13 @@ async function handleConfirmPurchase(interaction) {
     // Calculate total price (admin's price * user's multiplier)
     const totalPrice = itemData.price * (quantityToUse || 1);
     
-    // Check if player has enough balance - check multiple possible currency fields
+    // Check if player has enough balance
     const [balanceResult] = await pool.query(
-      'SELECT balance, ops_tokens, tokens FROM economy WHERE player_id = ?',
+      'SELECT balance FROM economy WHERE player_id = ?',
       [playerId]
     );
     
-    // Determine which balance to use - prioritize ops_tokens, then tokens, then balance
-    let currentBalance = 0;
-    if (balanceResult[0] && balanceResult[0].ops_tokens !== null && balanceResult[0].ops_tokens !== undefined) {
-      currentBalance = balanceResult[0].ops_tokens;
-      console.log('[SHOP PURCHASE] Using ops_tokens balance:', currentBalance);
-    } else if (balanceResult[0] && balanceResult[0].tokens !== null && balanceResult[0].tokens !== undefined) {
-      currentBalance = balanceResult[0].tokens;
-      console.log('[SHOP PURCHASE] Using tokens balance:', currentBalance);
-    } else {
-      currentBalance = balanceResult[0]?.balance || 0;
-      console.log('[SHOP PURCHASE] Using default balance field:', currentBalance);
-    }
+    const currentBalance = balanceResult[0]?.balance || 0;
     
     if (currentBalance < totalPrice) {
       // Get currency name for error message
@@ -1062,20 +1024,9 @@ async function handleConfirmPurchase(interaction) {
       });
     }
     
-    // Deduct balance - determine which currency field to update
-    let updateField = 'balance'; // default
-    if (balanceResult[0] && balanceResult[0].ops_tokens !== null && balanceResult[0].ops_tokens !== undefined) {
-      updateField = 'ops_tokens';
-      console.log('[SHOP PURCHASE] Deducting from ops_tokens field');
-    } else if (balanceResult[0] && balanceResult[0].tokens !== null && balanceResult[0].tokens !== undefined) {
-      updateField = 'tokens';
-      console.log('[SHOP PURCHASE] Deducting from tokens field');
-    } else {
-      console.log('[SHOP PURCHASE] Deducting from default balance field');
-    }
-    
+    // Deduct balance
     await pool.query(
-      `UPDATE economy SET ${updateField} = ${updateField} - ? WHERE player_id = ?`,
+      'UPDATE economy SET balance = balance - ? WHERE player_id = ?',
       [totalPrice, playerId]
     );
 
@@ -2672,24 +2623,13 @@ async function handleRemoveShopItem(interaction) {
             // Calculate new total price (admin's price × user's multiplier)
             const newTotalPrice = itemData.price * numQuantity;
 
-            // Get player balance - check multiple possible currency fields
+            // Get player balance
             const [balanceResult] = await pool.query(
-              'SELECT balance, ops_tokens, tokens FROM economy WHERE player_id = ?',
+              'SELECT balance FROM economy WHERE player_id = ?',
               [playerId]
             );
             
-            // Determine which balance to use - prioritize ops_tokens, then tokens, then balance
-            let balance = 0;
-            if (balanceResult[0] && balanceResult[0].ops_tokens !== null && balanceResult[0].ops_tokens !== undefined) {
-              balance = balanceResult[0].ops_tokens;
-              console.log('[SET_QUANTITY] Using ops_tokens balance:', balance);
-            } else if (balanceResult[0] && balanceResult[0].tokens !== null && balanceResult[0].tokens !== undefined) {
-              balance = balanceResult[0].tokens;
-              console.log('[SET_QUANTITY] Using tokens balance:', balance);
-            } else {
-              balance = balanceResult[0]?.balance || 0;
-              console.log('[SET_QUANTITY] Using default balance field:', balance);
-            }
+            const balance = balanceResult[0]?.balance || 0;
 
             // Check if player has enough balance
             if (balance < newTotalPrice) {
