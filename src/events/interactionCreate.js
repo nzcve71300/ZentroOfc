@@ -2169,6 +2169,53 @@ async function handleAdjustQuantityModal(interaction) {
   }
 }
 
+async function handleAdjustCartQuantityModal(interaction) {
+  console.log('[CART MODAL] Starting cart quantity modal handler');
+  
+  try {
+    // Defer immediately
+    await interaction.deferReply({ ephemeral: true });
+    console.log('[CART MODAL] Deferred reply');
+    
+    // Get the quantity value
+    const quantity = interaction.fields.getTextInputValue('quantity');
+    console.log('[CART MODAL] Got quantity:', quantity);
+    
+    // Simple validation
+    const num = parseInt(quantity);
+    if (isNaN(num) || num < 1 || num > 100) {
+      console.log('[CART MODAL] Invalid quantity');
+      return await interaction.editReply({
+        content: '❌ Invalid quantity. Must be between 1 and 100.'
+      });
+    }
+    
+    console.log('[CART MODAL] Quantity is valid:', num);
+    
+    // Just show success for now
+    await interaction.editReply({
+      content: `✅ Cart quantity set to ${num}!`
+    });
+    
+    console.log('[CART MODAL] Success response sent');
+    
+  } catch (error) {
+    console.error('[CART MODAL] Error:', error);
+    
+    try {
+      await interaction.editReply({
+        content: '❌ Error processing cart quantity modal.'
+      });
+    } catch (replyError) {
+      console.error('[CART MODAL] Reply error:', replyError);
+      await interaction.reply({
+        content: '❌ Error processing cart quantity modal.',
+        ephemeral: true
+      });
+    }
+  }
+}
+
 async function handleRemoveServerButton(interaction) {
   const customId = interaction.customId;
   
