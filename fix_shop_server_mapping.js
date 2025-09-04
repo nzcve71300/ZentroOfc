@@ -32,126 +32,179 @@ async function fixShopServerMapping() {
       return;
     }
 
-    console.log(`\n📊 Found ${servers.length} servers:`);
-    servers.forEach(server => {
-      console.log(`  - ID: ${server.id}, Name: ${server.nickname}, IP: ${server.ip}:${server.port}`);
-    });
-
-    // Step 2: Check current shop categories
-    console.log('\n📋 Step 2: Checking current shop categories...');
-    const [categories] = await connection.execute(`
-      SELECT sc.id, sc.name, sc.type, sc.server_id, rs.nickname as server_name
-      FROM shop_categories sc
-      JOIN rust_servers rs ON sc.server_id = rs.id
-      WHERE rs.nickname IN ('Dead-ops', 'USA-DeadOps')
-      ORDER BY rs.nickname, sc.name
-    `);
-
-    if (categories.length === 0) {
-      console.log('❌ No shop categories found for these servers!');
-      return;
-    }
-
-    console.log(`\n🏷️ Found ${categories.length} shop categories:`);
-    categories.forEach(cat => {
-      console.log(`  - Category: ${cat.name} (${cat.type}) -> Server: ${cat.server_name} (ID: ${cat.server_id})`);
-    });
-
-    // Step 3: Identify the correct mapping
-    console.log('\n📋 Step 3: Identifying the correct mapping...');
-    
-    // Based on your description:
-    // - When you select "DeadOps" in shop → should deliver to USA-DeadOps server
-    // - When you select "USA-DeadOps" in shop → should deliver to Dead-ops server
-    
     const deadOpsServer = servers.find(s => s.nickname === 'Dead-ops');
     const usaDeadOpsServer = servers.find(s => s.nickname === 'USA-DeadOps');
     
-    if (!deadOpsServer || !usaDeadOpsServer) {
-      console.log('❌ Could not find both servers!');
-      return;
-    }
+    console.log(`\n📊 Found servers:`);
+    console.log(`  - Dead-ops: ${deadOpsServer.id} (${deadOpsServer.ip}:${deadOpsServer.port})`);
+    console.log(`  - USA-DeadOps: ${usaDeadOpsServer.id} (${usaDeadOpsServer.ip}:${usaDeadOpsServer.port})`);
 
-    console.log(`✅ Dead-ops server: ${deadOpsServer.nickname} (ID: ${deadOpsServer.id})`);
-    console.log(`✅ USA-DeadOps server: ${usaDeadOpsServer.nickname} (ID: ${usaDeadOpsServer.id})`);
-
-    // Step 4: Find which categories need to be swapped
-    console.log('\n📋 Step 4: Identifying categories that need swapping...');
+    // Step 2: Check where shop data is currently pointing
+    console.log('\n📋 Step 2: Checking where shop data is currently pointing...');
     
-    // Categories that currently point to Dead-ops should point to USA-DeadOps
-    // Categories that currently point to USA-DeadOps should point to Dead-ops
-    const categoriesToSwap = categories.map(cat => {
-      if (cat.server_id === deadOpsServer.id) {
-        return {
-          categoryId: cat.id,
-          categoryName: cat.name,
-          currentServer: 'Dead-ops',
-          newServer: 'USA-DeadOps',
-          newServerId: usaDeadOpsServer.id
-        };
-      } else if (cat.server_id === usaDeadOpsServer.id) {
-        return {
-          categoryId: cat.id,
-          categoryName: cat.name,
-          currentServer: 'USA-DeadOps',
-          newServer: 'Dead-ops',
-          newServerId: deadOpsServer.id
-        };
-      }
-      return null;
-    }).filter(Boolean);
-
-    if (categoriesToSwap.length === 0) {
-      console.log('✅ No categories need swapping!');
-      return;
-    }
-
-    console.log(`\n🔧 Found ${categoriesToSwap.length} categories that need swapping:`);
-    categoriesToSwap.forEach(cat => {
-      console.log(`  - Category: ${cat.categoryName} (${cat.currentServer} → ${cat.newServer})`);
-    });
-
-    // Step 5: Swap the server mappings
-    console.log('\n📋 Step 5: Swapping server mappings...');
-    
-    for (const category of categoriesToSwap) {
-      console.log(`\n🔧 Updating category "${category.categoryName}"...`);
-      console.log(`  - Current server: ${category.currentServer}`);
-      console.log(`  - New server: ${category.newServer} (ID: ${category.newServerId})`);
-      
-      const [updateResult] = await connection.execute(
-        'UPDATE shop_categories SET server_id = ? WHERE id = ?',
-        [category.newServerId, category.categoryId]
-      );
-      
-      if (updateResult.affectedRows > 0) {
-        console.log(`✅ Successfully updated category "${category.categoryName}" to point to ${category.newServer}`);
-      } else {
-        console.log(`❌ Failed to update category "${category.categoryName}"`);
-      }
-    }
-
-    // Step 6: Verify the fix
-    console.log('\n📋 Step 6: Verifying the fix...');
-    const [verifyCategories] = await connection.execute(`
-      SELECT sc.id, sc.name, sc.type, sc.server_id, rs.nickname as server_name
-      FROM shop_categories sc
+    // Check items
+    const [itemServerMapping] = await connection.execute(`
+      SELECT 
+        si.id,
+        si.display_name,
+        si.short_name,
+        sc.name as category_name,
+        sc.type as category_type,
+        rs.nickname as server_nickname,
+        rs.id as server_id
+      FROM shop_items si
+      JOIN shop_categories sc ON si.category_id = sc.id
       JOIN rust_servers rs ON sc.server_id = rs.id
-      WHERE rs.nickname IN ('Dead-ops', 'USA-DeadOps')
-      ORDER BY rs.nickname, sc.name
+      ORDER BY rs.nickname, sc.name, si.display_name
     `);
 
-    console.log(`\n📊 Updated categories:`);
-    verifyCategories.forEach(cat => {
-      console.log(`  - Category: ${cat.name} (${cat.type}) -> Server: ${cat.server_name} (ID: ${cat.server_id})`);
-    });
+    // Check kits
+    const [kitServerMapping] = await connection.execute(`
+      SELECT 
+        sk.id,
+        sk.display_name,
+        sk.kit_name,
+        sc.name as category_name,
+        sc.type as category_type,
+        rs.nickname as server_nickname,
+        rs.id as server_id
+      FROM shop_kits sk
+      JOIN shop_categories sc ON sk.category_id = sc.id
+      JOIN rust_servers rs ON sc.server_id = rs.id
+      ORDER BY rs.nickname, sc.name, sk.display_name
+    `);
 
-    console.log('\n✅ Shop server mapping fix completed!');
-    console.log('\n📝 Summary:');
-    console.log(`  - Shop categories now correctly map to the intended servers`);
-    console.log(`  - When you select "DeadOps" in the shop → items will be delivered to USA-DeadOps server`);
-    console.log(`  - When you select "USA-DeadOps" in the shop → items will be delivered to Dead-ops server`);
-    console.log(`  - The RCON commands will now be sent to the correct IP/port combinations`);
+    // Check vehicles
+    const [vehicleServerMapping] = await connection.execute(`
+      SELECT 
+        sv.id,
+        sv.display_name,
+        sv.short_name,
+        sc.name as category_name,
+        sc.type as category_type,
+        rs.nickname as server_nickname,
+        rs.id as server_id
+      FROM shop_vehicles sv
+      JOIN shop_categories sc ON sv.category_id = sc.id
+      JOIN rust_servers rs ON sc.server_id = rs.id
+      ORDER BY rs.nickname, sc.name, sv.display_name
+    `);
+
+    console.log(`\n📦 Current shop data distribution:`);
+    console.log(`  - Items: ${itemServerMapping.length} total`);
+    console.log(`  - Kits: ${kitServerMapping.length} total`);
+    console.log(`  - Vehicles: ${vehicleServerMapping.length} total`);
+
+    // Group by server
+    const deadOpsItems = itemServerMapping.filter(item => item.server_nickname === 'Dead-ops');
+    const usaDeadOpsItems = itemServerMapping.filter(item => item.server_nickname === 'USA-DeadOps');
+    
+    const deadOpsKits = kitServerMapping.filter(kit => kit.server_nickname === 'Dead-ops');
+    const usaDeadOpsKits = kitServerMapping.filter(kit => kit.server_nickname === 'USA-DeadOps');
+    
+    const deadOpsVehicles = vehicleServerMapping.filter(vehicle => vehicle.server_nickname === 'Dead-ops');
+    const usaDeadOpsVehicles = vehicleServerMapping.filter(vehicle => vehicle.server_nickname === 'USA-DeadOps');
+
+    console.log(`\n📊 Current distribution by server:`);
+    console.log(`  Dead-ops: ${deadOpsItems.length} items, ${deadOpsKits.length} kits, ${deadOpsVehicles.length} vehicles`);
+    console.log(`  USA-DeadOps: ${usaDeadOpsItems.length} items, ${usaDeadOpsKits.length} kits, ${usaDeadOpsVehicles.length} vehicles`);
+
+    // Step 3: Check if we need to swap the data
+    console.log('\n📋 Step 3: Analyzing the current setup...');
+    
+    if (deadOpsItems.length === 0 && usaDeadOpsItems.length > 0) {
+      console.log('❌ Problem detected: Dead-ops server has no items, but USA-DeadOps does!');
+      console.log('🔧 This means the shop data is pointing to the wrong server.');
+      
+      // Step 4: Fix the mapping by updating category server_ids
+      console.log('\n📋 Step 4: Fixing the server mapping...');
+      
+      // Get all categories that currently point to USA-DeadOps but should point to Dead-ops
+      const [categoriesToFix] = await connection.execute(`
+        SELECT id, name, type, server_id
+        FROM shop_categories
+        WHERE server_id = ?
+      `, [usaDeadOpsServer.id]);
+      
+      console.log(`\n🏷️ Found ${categoriesToFix.length} categories to fix...`);
+      
+      for (const category of categoriesToFix) {
+        // Check if there's already a category with the same name and type on Dead-ops
+        const [existingCategory] = await connection.execute(`
+          SELECT id FROM shop_categories 
+          WHERE name = ? AND type = ? AND server_id = ?
+        `, [category.name, category.type, deadOpsServer.id]);
+        
+        if (existingCategory.length > 0) {
+          console.log(`  ℹ️ Category ${category.name} (${category.type}) already exists on Dead-ops`);
+          
+          // Update all shop data to point to the Dead-ops category
+          const [updateItems] = await connection.execute(`
+            UPDATE shop_items SET category_id = ? WHERE category_id = ?
+          `, [existingCategory[0].id, category.id]);
+          
+          const [updateKits] = await connection.execute(`
+            UPDATE shop_kits SET category_id = ? WHERE category_id = ?
+          `, [existingCategory[0].id, category.id]);
+          
+          const [updateVehicles] = await connection.execute(`
+            UPDATE shop_vehicles SET category_id = ? WHERE category_id = ?
+          `, [existingCategory[0].id, category.id]);
+          
+          console.log(`    ✅ Moved shop data: ${updateItems.affectedRows} items, ${updateKits.affectedRows} kits, ${updateVehicles.affectedRows} vehicles`);
+          
+        } else {
+          console.log(`  ⚠️ No matching category found on Dead-ops for ${category.name} (${category.type})`);
+        }
+      }
+      
+      // Step 5: Verify the fix
+      console.log('\n📋 Step 5: Verifying the fix...');
+      
+      const [finalDeadOpsItemCount] = await connection.execute(
+        'SELECT COUNT(*) as count FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id WHERE sc.server_id = ?',
+        [deadOpsServer.id]
+      );
+      
+      const [finalUsaDeadOpsItemCount] = await connection.execute(
+        'SELECT COUNT(*) as count FROM shop_items si JOIN shop_categories sc ON si.category_id = sc.id WHERE sc.server_id = ?',
+        [usaDeadOpsServer.id]
+      );
+
+      const [finalDeadOpsKitCount] = await connection.execute(
+        'SELECT COUNT(*) as count FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id WHERE sc.server_id = ?',
+        [deadOpsServer.id]
+      );
+      
+      const [finalUsaDeadOpsKitCount] = await connection.execute(
+        'SELECT COUNT(*) as count FROM shop_kits sk JOIN shop_categories sc ON sk.category_id = sc.id WHERE sc.server_id = ?',
+        [usaDeadOpsServer.id]
+      );
+
+      const [finalDeadOpsVehicleCount] = await connection.execute(
+        'SELECT COUNT(*) as count FROM shop_vehicles sv JOIN shop_categories sc ON sv.category_id = sc.id WHERE sc.server_id = ?',
+        [deadOpsServer.id]
+      );
+      
+      const [finalUsaDeadOpsVehicleCount] = await connection.execute(
+        'SELECT COUNT(*) as count FROM shop_vehicles sv JOIN shop_categories sc ON sv.category_id = sc.id WHERE sc.server_id = ?',
+        [usaDeadOpsServer.id]
+      );
+
+      console.log(`\n📊 Final counts:`);
+      console.log(`  Dead-ops: ${finalDeadOpsItemCount[0].count} items, ${finalDeadOpsKitCount[0].count} kits, ${finalDeadOpsVehicleCount[0].count} vehicles`);
+      console.log(`  USA-DeadOps: ${finalUsaDeadOpsItemCount[0].count} items, ${finalUsaDeadOpsKitCount[0].count} kits, ${finalUsaDeadOpsVehicleCount[0].count} vehicles`);
+
+      console.log('\n✅ Shop server mapping fix completed!');
+      console.log('\n📝 Summary:');
+      console.log(`  - Shop data has been moved to point to the correct Dead-ops categories`);
+      console.log(`  - The shop should now work correctly for both servers`);
+      console.log(`  - Items purchased from Dead-ops shop will be delivered to Dead-ops server`);
+      
+    } else {
+      console.log('✅ Shop data distribution looks correct!');
+      console.log('🔍 The issue might be elsewhere in the code...');
+    }
 
   } catch (error) {
     console.error('❌ Error fixing shop server mapping:', error);
