@@ -303,6 +303,9 @@ async function handleShopCategorySelect(interaction) {
       [categoryId]
     );
 
+    console.log('[SHOP DEBUG] Category query result:', categoryResult);
+    console.log('[SHOP DEBUG] Category ID:', categoryId);
+
     if (categoryResult.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Category Not Found', 'The selected category was not found.')]
@@ -310,6 +313,7 @@ async function handleShopCategorySelect(interaction) {
     }
 
     const { name, type, role, nickname, server_id } = categoryResult[0];
+    console.log('[SHOP DEBUG] Extracted category data:', { name, type, role, nickname, server_id });
 
     // Check if user has required role
     if (role && !interaction.member.roles.cache.has(role)) {
@@ -332,7 +336,9 @@ async function handleShopCategorySelect(interaction) {
         'SELECT id, display_name, short_name, price, quantity, timer FROM shop_items WHERE category_id = ? ORDER BY display_name',
         [categoryId]
       );
-      items = itemsResult[0];
+      console.log('[SHOP DEBUG] Items query result:', itemsResult);
+      items = itemsResult[0] || [];
+      console.log('[SHOP DEBUG] Items array:', items);
     }
 
     if (type === 'kits') {
@@ -340,7 +346,9 @@ async function handleShopCategorySelect(interaction) {
         'SELECT id, display_name, kit_name, price, quantity, timer FROM shop_kits WHERE category_id = ? ORDER BY display_name',
         [categoryId]
       );
-      kits = kitsResult[0];
+      console.log('[SHOP DEBUG] Kits query result:', kitsResult);
+      kits = kitsResult[0] || [];
+      console.log('[SHOP DEBUG] Kits array:', kits);
     }
 
     if (type === 'vehicles') {
@@ -349,7 +357,9 @@ async function handleShopCategorySelect(interaction) {
           'SELECT id, display_name, short_name, price, timer FROM shop_vehicles WHERE category_id = ? ORDER BY display_name',
           [categoryId]
         );
-        vehicles = vehiclesResult[0];
+        console.log('[SHOP DEBUG] Vehicles query result:', vehiclesResult);
+        vehicles = vehiclesResult[0] || [];
+        console.log('[SHOP DEBUG] Vehicles array:', vehicles);
       } catch (error) {
         console.log('[SHOP] Vehicles table not found, skipping vehicles:', error.message);
         vehicles = [];
@@ -367,8 +377,12 @@ async function handleShopCategorySelect(interaction) {
       [userId, server_id]
     );
 
-    const balance = balanceResult[0].length > 0 ? balanceResult[0][0].balance : 0;
+    console.log('[SHOP DEBUG] Balance query result:', balanceResult);
+    console.log('[SHOP DEBUG] User ID:', userId, 'Server ID:', server_id);
+
+    const balance = balanceResult.length > 0 ? balanceResult[0].balance : 0;
     const serverId = server_id;
+    console.log('[SHOP DEBUG] Final balance:', balance);
 
     // Get currency name for this server
     const { getCurrencyName } = require('../utils/economy');
@@ -539,14 +553,14 @@ async function handleShopItemSelect(interaction) {
       [categoryId]
     );
 
-    if (!serverResult[0] || serverResult[0].length === 0) {
+    if (!serverResult || serverResult.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Server Not Found', 'The server for this category was not found.')]
       });
     }
 
-    const serverId = serverResult[0][0].server_id;
-    const nickname = serverResult[0][0].nickname;
+    const serverId = serverResult[0].server_id;
+    const nickname = serverResult[0].nickname;
 
     // Now get player balance (guild-wide balance)
     const balanceResult = await pool.query(
@@ -559,15 +573,15 @@ async function handleShopItemSelect(interaction) {
       [userId, interaction.guildId]
     );
     
-    console.log('Balance result:', balanceResult[0]);
+    console.log('Balance result:', balanceResult);
 
-    if (!balanceResult[0] || balanceResult[0].length === 0) {
+    if (!balanceResult || balanceResult.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Account Not Linked', 'You must link your Discord account to your in-game character first.\n\nUse `/link <in-game-name>` to link your account before using this command.')]
       });
     }
 
-    let { balance, player_id } = balanceResult[0][0];
+    let { balance, player_id } = balanceResult[0];
     console.log('Extracted balance:', balance, 'player_id:', player_id);
 
     // If balance is null, create or update economy record
@@ -583,7 +597,7 @@ async function handleShopItemSelect(interaction) {
         'SELECT balance FROM economy WHERE player_id = ?',
         [player_id]
       );
-      balance = updatedBalanceResult[0] && updatedBalanceResult[0][0] ? updatedBalanceResult[0][0].balance : 0;
+      balance = updatedBalanceResult[0] ? updatedBalanceResult[0].balance : 0;
       console.log('Updated balance:', balance);
     }
 
