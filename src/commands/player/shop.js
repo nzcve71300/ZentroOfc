@@ -91,7 +91,7 @@ module.exports = {
 
       const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId('shop_category_select')
+          .setCustomId(`shop_category_select_${server.id}`)
           .setPlaceholder('Select a category to browse')
           .addOptions(categoryOptions)
       );

@@ -293,6 +293,9 @@ async function handleShopCategorySelect(interaction) {
   const categoryId = interaction.values[0];
   const userId = interaction.user.id;
   
+  // Extract server ID from customId (format: shop_category_select_<serverId>)
+  const serverId = interaction.customId.split('_')[3];
+  
   try {
     // Get category info including role requirement
     const categoryResult = await pool.query(
@@ -374,7 +377,7 @@ async function handleShopCategorySelect(interaction) {
            JOIN rust_servers rs ON p.server_id = rs.id
            WHERE p.discord_id = ? AND rs.id = ?
            LIMIT 1`,
-          [userId, server_id]
+          [userId, serverId]
         );
 
     console.log('[SHOP DEBUG] Balance query result:', balanceResult);
@@ -383,7 +386,7 @@ async function handleShopCategorySelect(interaction) {
     // Debug: Check if player exists on this server at all
     const playerCheck = await pool.query(
       `SELECT id, discord_id, server_id FROM players WHERE discord_id = ? AND server_id = ?`,
-      [userId, server_id]
+      [userId, serverId]
     );
     console.log('[SHOP DEBUG] Player check result:', playerCheck);
     
@@ -493,7 +496,7 @@ async function handleShopCategorySelect(interaction) {
     const row = new ActionRowBuilder()
       .addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId('shop_item_' + categoryId)
+          .setCustomId(`shop_item_${categoryId}_${serverId}`)
           .setPlaceholder(`Select an item, kit, or vehicle to purchase${hasMoreItems ? ' (showing first 25)' : ''}`)
           .addOptions(limitedOptions)
       );
@@ -521,6 +524,7 @@ async function handleShopItemSelect(interaction) {
   
   const selection = interaction.values[0];
   const categoryId = interaction.customId.split('_')[2];
+  const serverId = interaction.customId.split('_')[3];
   const userId = interaction.user.id;
   
   console.log('Shop item select - selection:', selection, 'categoryId:', categoryId, 'customId:', interaction.customId);
@@ -567,19 +571,18 @@ async function handleShopItemSelect(interaction) {
 
     const item = itemData[0]; // Get the first item from the result
 
-    // Get player balance - first get the server_id from the category
+    // Get server details using the extracted server ID
     const serverResult = await pool.query(
-      'SELECT rs.id as server_id, rs.nickname FROM shop_categories sc JOIN rust_servers rs ON sc.server_id = rs.id WHERE sc.id = ?',
-      [categoryId]
+      'SELECT id as server_id, nickname FROM rust_servers WHERE id = ?',
+      [serverId]
     );
 
     if (!serverResult || serverResult.length === 0) {
       return interaction.editReply({
-        embeds: [errorEmbed('Server Not Found', 'The server for this category was not found.')]
+        embeds: [errorEmbed('Server Not Found', 'The server was not found.')]
       });
     }
 
-    const serverId = serverResult[0][0].server_id;
     const nickname = serverResult[0][0].nickname;
 
     // Now get player balance for the specific server
