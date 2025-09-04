@@ -582,15 +582,15 @@ async function handleShopItemSelect(interaction) {
     const serverId = serverResult[0].server_id;
     const nickname = serverResult[0].nickname;
 
-    // Now get player balance (guild-wide balance)
+    // Now get player balance for the specific server
     const balanceResult = await pool.query(
       `SELECT e.balance, p.id as player_id
        FROM players p
-       LEFT JOIN economy e ON p.id = e.player_id
-       JOIN guilds g ON p.guild_id = g.id
-       WHERE p.discord_id = ? AND g.discord_id = ?
+       JOIN economy e ON p.id = e.player_id
+       JOIN rust_servers rs ON p.server_id = rs.id
+       WHERE p.discord_id = ? AND rs.id = ?
        LIMIT 1`,
-      [userId, interaction.guildId]
+      [userId, serverId]
     );
     
     console.log('Balance result:', balanceResult);
