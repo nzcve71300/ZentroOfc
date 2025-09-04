@@ -17,6 +17,14 @@ class ImprovedZorpSystem {
     this.lastRefresh = new Map(); // Track last refresh time per server
     this.refreshInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
     this.isRunning = false;
+    
+    // Configuration options
+    this.config = {
+      skipProblematicServers: true, // Skip servers with RCON issues
+      maxRconRetries: 2, // Maximum RCON retry attempts
+      rconTimeout: 10000, // RCON timeout in milliseconds
+      skipServers: [] // List of server nicknames to skip
+    };
   }
 
   /**
@@ -133,6 +141,13 @@ class ImprovedZorpSystem {
     if (zones.length === 0) return;
 
     const server = zones[0]; // Use first zone to get server info
+    
+    // Check if server should be skipped
+    if (this.shouldSkipServer(server)) {
+      console.log(`⏭️  [ZORP REFRESH] Skipping problematic server: ${server.nickname}`);
+      return;
+    }
+    
     console.log(`\n🖥️  [ZORP REFRESH] Processing server: ${server.nickname} (${zones.length} zones)`);
 
     try {
@@ -147,7 +162,34 @@ class ImprovedZorpSystem {
 
     } catch (error) {
       console.error(`❌ [ZORP REFRESH] Error processing server ${server.nickname}:`, error);
+      
+      // Mark server as problematic for future skips
+      if (this.config.skipProblematicServers) {
+        this.config.skipServers.push(server.nickname);
+        console.log(`⚠️  Added ${server.nickname} to skip list due to errors`);
+      }
     }
+  }
+
+  /**
+   * Check if a server should be skipped
+   */
+  shouldSkipServer(server) {
+    // Skip if server is in the skip list
+    if (this.config.skipServers.includes(server.nickname)) {
+      return true;
+    }
+    
+    // Skip if server has had multiple RCON failures
+    const failureKey = `failures_${server.nickname}`;
+    const failures = this.zoneCache.get(failureKey) || 0;
+    
+    if (failures >= 3) {
+      console.log(`⚠️  Server ${server.nickname} has had ${failures} failures, skipping`);
+      return true;
+    }
+    
+    return false;
   }
 
   /**
@@ -277,6 +319,7 @@ class ImprovedZorpSystem {
    */
   async getPlayerTeam(ip, port, password, playerName) {
     try {
+      // Try to get team info with a shorter timeout
       const result = await sendRconCommand(ip, port, password, 'oxide.call OxideTeam', 'GetTeam', playerName);
       if (result && result !== 'null') {
         // Parse team data (this will depend on your team plugin)
@@ -288,8 +331,12 @@ class ImprovedZorpSystem {
       }
       return null;
     } catch (error) {
-      console.error('Error getting player team:', error);
-      return null;
+      // If team command fails, assume no team (solo player)
+      console.log(`⚠️  Team command failed for ${playerName}, assuming solo player: ${error.message}`);
+      return {
+        owner: playerName,
+        members: [playerName] // Solo player
+      };
     }
   }
 
@@ -300,18 +347,25 @@ class ImprovedZorpSystem {
     try {
       console.log(`🟡 [ZORP REFRESH] Transitioning ${zone.name} to yellow`);
       
-      // Set zone color to yellow in game
-      await sendRconCommand(server.ip, server.port, server.password, 
-        `zones.editcustomzone "${zone.name}" color 255 255 0`
-      );
+      // Try to set zone color to yellow in game
+      try {
+        await sendRconCommand(server.ip, server.port, server.password, 
+          `zones.editcustomzone "${zone.name}" color 255 255 0`
+        );
+        console.log(`✅ Zone ${zone.name} color set to yellow in game`);
+      } catch (rconError) {
+        console.log(`⚠️  Could not set zone ${zone.name} color in game (RCON timeout): ${rconError.message}`);
+        // Continue with database update even if game update fails
+      }
 
-      // Update database
+      // Always update database
       const connection = await this.getConnection();
       try {
         await connection.execute(
           'UPDATE zorp_zones SET current_state = ?, last_state_change = CURRENT_TIMESTAMP WHERE id = ?',
           ['yellow', zone.id]
         );
+        console.log(`✅ Zone ${zone.name} state updated to yellow in database`);
       } finally {
         await connection.end();
       }
@@ -366,18 +420,25 @@ class ImprovedZorpSystem {
     try {
       console.log(`🗑️  [ZORP REFRESH] Deleting expired zone: ${zone.name}`);
       
-      // Delete zone in game
-      await sendRconCommand(server.ip, server.port, server.password, 
-        `zones.delcustomzone "${zone.name}"`
-      );
+      // Try to delete zone in game
+      try {
+        await sendRconCommand(server.ip, server.port, server.password, 
+          `zones.delcustomzone "${zone.name}"`
+        );
+        console.log(`✅ Zone ${zone.name} deleted in game successfully`);
+      } catch (rconError) {
+        console.log(`⚠️  Could not delete zone ${zone.name} in game (RCON timeout): ${rconError.message}`);
+        // Continue with database cleanup even if game deletion fails
+      }
 
-      // Update database
+      // Always update database to mark zone as deleted
       const connection = await this.getConnection();
       try {
         await connection.execute(
           'UPDATE zorp_zones SET current_state = ?, deleted_at = CURRENT_TIMESTAMP WHERE id = ?',
           ['deleted', zone.id]
         );
+        console.log(`✅ Zone ${zone.name} marked as deleted in database`);
       } finally {
         await connection.end();
       }
@@ -444,8 +505,45 @@ class ImprovedZorpSystem {
       isRunning: this.isRunning,
       lastRefresh: this.lastRefresh,
       zoneCacheSize: this.zoneCache.size,
-      refreshInterval: this.refreshInterval
+      refreshInterval: this.refreshInterval,
+      skippedServers: this.config.skipServers,
+      config: this.config
     };
+  }
+
+  /**
+   * Reset server failures and skip list
+   */
+  resetServerFailures() {
+    this.config.skipServers = [];
+    // Clear failure counts
+    for (const [key, value] of this.zoneCache.entries()) {
+      if (key.startsWith('failures_')) {
+        this.zoneCache.delete(key);
+      }
+    }
+    console.log('✅ Server failures reset, all servers will be processed again');
+  }
+
+  /**
+   * Add server to skip list
+   */
+  addServerToSkipList(serverNickname) {
+    if (!this.config.skipServers.includes(serverNickname)) {
+      this.config.skipServers.push(serverNickname);
+      console.log(`⚠️  Added ${serverNickname} to skip list`);
+    }
+  }
+
+  /**
+   * Remove server from skip list
+   */
+  removeServerFromSkipList(serverNickname) {
+    const index = this.config.skipServers.indexOf(serverNickname);
+    if (index > -1) {
+      this.config.skipServers.splice(index, 1);
+      console.log(`✅ Removed ${serverNickname} from skip list`);
+    }
   }
 }
 
