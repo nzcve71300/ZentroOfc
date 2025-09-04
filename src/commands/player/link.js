@@ -66,7 +66,7 @@ module.exports = {
         const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
         
         return await interaction.editReply({
-          embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`)]
+          embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild.\n\n**Need to change your name?** Ask an admin to use \`/admin-link\` to unlink you first.`)]
         });
       }
 
