@@ -2,6 +2,7 @@ const { Events, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, Button
 const { errorEmbed, orangeEmbed, successEmbed } = require('../embeds/format');
 const { compareDiscordIds } = require('../utils/discordUtils');
 const { getServerByNickname, getServerById, getLinkedPlayer, updateBalance, recordTransaction } = require('../utils/economy');
+const { ensurePlayerOnAllServers } = require('../utils/autoServerLinking');
 const pool = require('../db');
 const { sendRconCommand } = require('../rcon');
 
@@ -1237,7 +1238,7 @@ async function handleLinkConfirm(interaction) {
         embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`)],
         components: []
       });
-    }
+
 
     // ✅ CRITICAL CHECK: Verify IGN is not actively linked to anyone else
     const [activeIgnLinks] = await pool.query(
@@ -1404,6 +1405,32 @@ async function handleLinkConfirm(interaction) {
     });
 
     console.log(`[LINK] Successfully linked ${discordId} to ${normalizedIgn} on ${serverList}`);
+    
+    // 🔗 AUTO-SERVER-LINKING: Ensure player exists on ALL servers in this guild
+    try {
+      console.log(`🔗 AUTO-SERVER-LINKING: Starting cross-server player creation for ${normalizedIgn}`);
+      
+      // Get the database guild ID
+      const [guildResult] = await pool.query(
+        'SELECT id FROM guilds WHERE discord_id = ?',
+        [discordGuildId]
+      );
+      
+      if (guildResult.length > 0) {
+        const dbGuildId = guildResult[0].id;
+        
+        // Ensure player exists on all servers
+        const autoLinkResult = await ensurePlayerOnAllServers(dbGuildId, discordId, normalizedIgn);
+        
+        if (autoLinkResult.success) {
+          console.log(`🔗 AUTO-SERVER-LINKING: Successfully ensured ${normalizedIgn} exists on ${autoLinkResult.totalServers} servers (${autoLinkResult.createdCount} created, ${autoLinkResult.existingCount} existing)`);
+        } else {
+          console.log(`⚠️ AUTO-SERVER-LINKING: Failed to ensure ${normalizedIgn} on all servers: ${autoLinkResult.error}`);
+        }
+      }
+    } catch (autoLinkError) {
+      console.log(`⚠️ AUTO-SERVER-LINKING: Error during cross-server linking: ${autoLinkError.message}`);
+    }
 
   } catch (error) {
     console.error('Error in handleLinkConfirm:', error);

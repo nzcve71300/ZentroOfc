@@ -2,6 +2,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = re
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 const { compareDiscordIds } = require('../../utils/discordUtils');
+const { ensurePlayerOnAllServers } = require('../../utils/autoServerLinking');
 
 module.exports = {
   data: new SlashCommandBuilder()

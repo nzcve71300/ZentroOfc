@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
+const { ensurePlayerOnAllServers } = require('../../utils/autoServerLinking');
 const pool = require('../../db');
 
 module.exports = {
@@ -208,6 +209,32 @@ module.exports = {
       await interaction.editReply({ embeds: [embed] });
       
       console.log(`🔗 ADMIN-LINK: Successfully admin-linked ${discordUser.username} to ${playerName} on ${linkedServers.length} servers`);
+      
+      // 🔗 AUTO-SERVER-LINKING: Ensure player exists on ALL servers in this guild
+      try {
+        console.log(`🔗 AUTO-SERVER-LINKING: Starting cross-server player creation for ${playerName}`);
+        
+        // Get the database guild ID
+        const [guildResult] = await pool.query(
+          'SELECT id FROM guilds WHERE discord_id = ?',
+          [guildId]
+        );
+        
+        if (guildResult.length > 0) {
+          const dbGuildId = guildResult[0].id;
+          
+          // Ensure player exists on all servers
+          const autoLinkResult = await ensurePlayerOnAllServers(dbGuildId, discordId, playerName);
+          
+          if (autoLinkResult.success) {
+            console.log(`🔗 AUTO-SERVER-LINKING: Successfully ensured ${playerName} exists on ${autoLinkResult.totalServers} servers (${autoLinkResult.createdCount} created, ${autoLinkResult.existingCount} existing)`);
+          } else {
+            console.log(`⚠️ AUTO-SERVER-LINKING: Failed to ensure ${playerName} on all servers: ${autoLinkResult.error}`);
+          }
+        }
+      } catch (autoLinkError) {
+        console.log(`⚠️ AUTO-SERVER-LINKING: Error during cross-server linking: ${autoLinkError.message}`);
+      }
 
     } catch (error) {
       console.error('❌ ADMIN-LINK: Error in admin-link:', error);
