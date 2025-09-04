@@ -174,6 +174,34 @@ module.exports = {
 
 
   },
+
+  // Helper functions
+  handleShopServerSelect,
+  handleShopCategorySelect,
+  handleShopItemSelect,
+  handleRemoveShopItem,
+  handleSchedulerDeleteSelect,
+  handleSchedulerSelectMsg1,
+  handleSchedulerSelectMsg2,
+  handleSchedulerAddModal,
+  handleSchedulerMsg1Modal,
+  handleSchedulerMsg2Modal,
+  handleSchedulerCustomMsg1,
+  handleSchedulerCustomMsg2,
+  handleAdjustQuantityModal,
+  handleAdjustCartQuantityModal,
+  handleLinkConfirm,
+  handleLinkCancel,
+  handleEditItemModal,
+  handleEditKitModal,
+  handleSchedulerAdd,
+  handleSchedulerDelete,
+  handleSchedulerEdit,
+  handleSchedulerToggle,
+  handleSchedulerMessage,
+  handleSchedulerCustomMessage,
+  handleRustInfo,
+  handleSetQuantity
 };
 
 async function handleShopServerSelect(interaction) {
@@ -275,13 +303,13 @@ async function handleShopCategorySelect(interaction) {
       [categoryId]
     );
 
-    if (categoryResult[0].length === 0) {
+    if (categoryResult.length === 0) {
       return interaction.editReply({
         embeds: [errorEmbed('Category Not Found', 'The selected category was not found.')]
       });
     }
 
-    const { name, type, role, nickname, server_id } = categoryResult[0][0];
+    const { name, type, role, nickname, server_id } = categoryResult[0];
 
     // Check if user has required role
     if (role && !interaction.member.roles.cache.has(role)) {
@@ -316,11 +344,16 @@ async function handleShopCategorySelect(interaction) {
     }
 
     if (type === 'vehicles') {
-      const vehiclesResult = await pool.query(
-        'SELECT id, display_name, short_name, price, timer FROM shop_vehicles WHERE category_id = ? ORDER BY display_name',
-        [categoryId]
-      );
-      vehicles = vehiclesResult[0];
+      try {
+        const vehiclesResult = await pool.query(
+          'SELECT id, display_name, short_name, price, timer FROM shop_vehicles WHERE category_id = ? ORDER BY display_name',
+          [categoryId]
+        );
+        vehicles = vehiclesResult[0];
+      } catch (error) {
+        console.log('[SHOP] Vehicles table not found, skipping vehicles:', error.message);
+        vehicles = [];
+      }
     }
 
     // Get player balance for the specific server
@@ -1232,13 +1265,13 @@ async function handleLinkConfirm(interaction) {
 
     if (activeDiscordLinks.length > 0) {
       const currentIgn = activeDiscordLinks[0].ign;
-      const serverList = activeDiscordLinks.map(p => p.nickname).join(', ');
+      const discordServerList = activeDiscordLinks.map(p => p.nickname).join(', ');
       
       return interaction.editReply({
-        embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${serverList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`)],
+        embeds: [orangeEmbed('Already Linked', `You are already linked to **${currentIgn}** on: ${discordServerList}\n\n**⚠️ ONE-TIME LINKING:** You can only link once per guild. Contact an admin to unlink you if you need to change your name.`)],
         components: []
       });
-
+    }
 
     // ✅ CRITICAL CHECK: Verify IGN is not actively linked to anyone else
     const [activeIgnLinks] = await pool.query(
@@ -1261,11 +1294,11 @@ async function handleLinkConfirm(interaction) {
       } else {
         // IGN is actively linked to someone else
         const existingDiscordId = activeIgnLinks[0].discord_id;
-        const serverList = activeIgnLinks.map(p => p.nickname).join(', ');
+        const ignServerList = activeIgnLinks.map(p => p.nickname).join(', ');
         
         console.log(`[LINK DEBUG] IGN ${normalizedIgn} is actively linked to Discord ID ${existingDiscordId}, blocking new user ${discordId}`);
         return interaction.editReply({
-          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${normalizedIgn}** is already linked to another Discord account on: ${serverList}\n\nPlease use a different in-game name or contact an admin.`)],
+          embeds: [orangeEmbed('IGN Already Linked', `The in-game name **${normalizedIgn}** is already linked to another Discord account on: ${ignServerList}\n\nPlease use a different in-game name or contact an admin.`)],
           components: []
         });
       }
@@ -1448,8 +1481,6 @@ async function handleLinkCancel(interaction) {
     components: []
   });
 }
-
- 
 
 async function handleEditItemModal(interaction) {
   await interaction.deferReply({ flags: 64 });
@@ -2452,103 +2483,103 @@ async function handleRemoveShopItem(interaction) {
   }
 }
 
-        async function handleSetQuantity(interaction) {
-          try {
-            const parts = interaction.customId.split('_');
-            const [, , type, itemId, playerId, quantity] = parts;
-            const numQuantity = parseInt(quantity);
+async function handleSetQuantity(interaction) {
+  try {
+    const parts = interaction.customId.split('_');
+    const [, , type, itemId, playerId, quantity] = parts;
+    const numQuantity = parseInt(quantity);
 
-            console.log('[SET_QUANTITY] Setting quantity multiplier:', { type, itemId, playerId, quantity: numQuantity });
+    console.log('[SET_QUANTITY] Setting quantity multiplier:', { type, itemId, playerId, quantity: numQuantity });
 
-            // Prevent quantity adjustment for kits
-            if (type === 'kit') {
-              await interaction.update({
-                content: '❌ Quantity adjustment is not available for kits. Kits are delivered one at a time.',
-                components: []
-              });
-              return;
-            }
+    // Prevent quantity adjustment for kits
+    if (type === 'kit') {
+      await interaction.update({
+        content: '❌ Quantity adjustment is not available for kits. Kits are delivered one at a time.',
+        components: []
+      });
+      return;
+    }
 
-            // Get the original item details (don't update the shop database)
-            let itemData;
-            if (type === 'item') {
-              const [itemResult] = await pool.query(
-                `SELECT si.display_name, si.price, si.quantity as base_quantity, rs.nickname, rs.id as server_id
-                 FROM shop_items si 
-                 JOIN shop_categories sc ON si.category_id = sc.id 
-                 JOIN rust_servers rs ON sc.server_id = rs.id 
-                 WHERE si.id = ?`,
-                [itemId]
-              );
-              itemData = itemResult[0];
-            } else if (type === 'kit') {
-              const [kitResult] = await pool.query(
-                `SELECT sk.display_name, sk.price, sk.quantity as base_quantity, rs.nickname, rs.id as server_id
-                 FROM shop_kits sk 
-                 JOIN shop_categories sc ON sk.category_id = sc.id 
-                 JOIN rust_servers rs ON sc.server_id = rs.id 
-                 WHERE sk.id = ?`,
-                [itemId]
-              );
-              itemData = kitResult[0];
-            }
+    // Get the original item details (don't update the shop database)
+    let itemData;
+    if (type === 'item') {
+      const [itemResult] = await pool.query(
+        `SELECT si.display_name, si.price, si.quantity as base_quantity, rs.nickname, rs.id as server_id
+         FROM shop_items si 
+         JOIN shop_categories sc ON si.category_id = sc.id 
+         JOIN rust_servers rs ON sc.server_id = rs.id 
+         WHERE si.id = ?`,
+        [itemId]
+      );
+      itemData = itemResult[0];
+    } else if (type === 'kit') {
+      const [kitResult] = await pool.query(
+        `SELECT sk.display_name, sk.price, sk.quantity as base_quantity, rs.nickname, rs.id as server_id
+         FROM shop_kits sk 
+         JOIN shop_categories sc ON sk.category_id = sc.id 
+         JOIN rust_servers rs ON sc.server_id = rs.id 
+         WHERE sk.id = ?`,
+        [itemId]
+      );
+      itemData = kitResult[0];
+    }
 
-            if (!itemData) {
-              return interaction.update({
-                content: '❌ Error: Item not found.',
-                components: []
-              });
-            }
+    if (!itemData) {
+      return interaction.update({
+        content: '❌ Error: Item not found.',
+        components: []
+      });
+    }
 
-            // Calculate the actual quantity (admin's base_quantity × user's multiplier)
-            const actualQuantity = itemData.base_quantity * numQuantity;
+    // Calculate the actual quantity (admin's base_quantity × user's multiplier)
+    const actualQuantity = itemData.base_quantity * numQuantity;
 
-            // Get currency name
-            const { getCurrencyName } = require('../utils/economy');
-            const currencyName = await getCurrencyName(itemData.server_id);
+    // Get currency name
+    const { getCurrencyName } = require('../utils/economy');
+    const currencyName = await getCurrencyName(itemData.server_id);
 
-            // Calculate new total price (admin's price × user's multiplier)
-            const newTotalPrice = itemData.price * numQuantity;
+    // Calculate new total price (admin's price × user's multiplier)
+    const newTotalPrice = itemData.price * numQuantity;
 
-            // Get player balance
-            const [balanceResult] = await pool.query(
-              'SELECT balance FROM economy WHERE player_id = ?',
-              [playerId]
-            );
-            
-            const balance = balanceResult[0]?.balance || 0;
+    // Get player balance
+    const [balanceResult] = await pool.query(
+      'SELECT balance FROM economy WHERE player_id = ?',
+      [playerId]
+    );
+    
+    const balance = balanceResult[0]?.balance || 0;
 
-            // Check if player has enough balance
-            if (balance < newTotalPrice) {
-              return interaction.update({
-                content: `❌ **Insufficient Funds!**\n\n**Item:** ${itemData.display_name}\n**Quantity:** ${actualQuantity}\n**Total Price:** ${newTotalPrice.toLocaleString()} ${currencyName}\n**Your Balance:** ${balance.toLocaleString()} ${currencyName}\n**Short:** ${(newTotalPrice - balance).toLocaleString()} ${currencyName}`,
-                components: []
-              });
-            }
+    // Check if player has enough balance
+    if (balance < newTotalPrice) {
+      return interaction.update({
+        content: `❌ **Insufficient Funds!**\n\n**Item:** ${itemData.display_name}\n**Quantity:** ${actualQuantity}\n**Total Price:** ${newTotalPrice.toLocaleString()} ${currencyName}\n**Your Balance:** ${balance.toLocaleString()} ${currencyName}\n**Short:** ${(newTotalPrice - balance).toLocaleString()} ${currencyName}`,
+        components: []
+      });
+    }
 
-            // Create new confirm purchase button with the adjusted quantity
-            const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-            const confirmRow = new ActionRowBuilder()
-              .addComponents(
-                new ButtonBuilder()
-                  .setCustomId(`confirm_purchase_${type}_${itemId}_${playerId}_${numQuantity}`)
-                  .setLabel('Confirm Purchase')
-                  .setStyle(ButtonStyle.Success)
-              );
+    // Create new confirm purchase button with the adjusted quantity
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const confirmRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`confirm_purchase_${type}_${itemId}_${playerId}_${numQuantity}`)
+          .setLabel('Confirm Purchase')
+          .setStyle(ButtonStyle.Success)
+      );
 
-            await interaction.update({
-              content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (per purchase)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per purchase:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
-              components: [confirmRow]
-            });
+    await interaction.update({
+      content: `✅ Quantity set to ${numQuantity}x!\n\n**Item:** ${itemData.display_name}\n**Base Quantity:** ${itemData.base_quantity} (per purchase)\n**Your Multiplier:** ${numQuantity}x\n**Total Items You'll Get:** ${actualQuantity}\n**Price per purchase:** ${itemData.price} ${currencyName}\n**Total Price:** ${newTotalPrice} ${currencyName}\n**Server:** ${itemData.nickname}\n**Your Balance:** ${balance} ${currencyName}\n**New Balance:** ${balance - newTotalPrice} ${currencyName}`,
+      components: [confirmRow]
+    });
 
-          } catch (error) {
-            console.error('[SET_QUANTITY] Error:', error);
-            await interaction.update({
-              content: '❌ Error setting quantity.',
-              components: []
-            });
-          }
-        }
+  } catch (error) {
+    console.error('[SET_QUANTITY] Error:', error);
+    await interaction.update({
+      content: '❌ Error setting quantity.',
+      components: []
+    });
+  }
+}
 
 async function handleRustInfo(interaction) {
   await interaction.deferUpdate();
@@ -2640,8 +2671,3 @@ async function handleRustInfo(interaction) {
     });
   }
 }
-
-
-
-
-
