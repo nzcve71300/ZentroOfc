@@ -293,8 +293,9 @@ async function handleShopCategorySelect(interaction) {
   const categoryId = interaction.values[0];
   const userId = interaction.user.id;
   
-  // Extract server ID from customId (format: shop_category_select_<serverId>)
-  const serverId = interaction.customId.split('_')[3];
+  // Extract server ID from customId (format: shop_category_select_<serverId>_<suffix>)
+  const serverIdParts = interaction.customId.split('_');
+  const serverId = serverIdParts.slice(3).join('_'); // Join all parts after the first 3 to handle server IDs with underscores
   
   try {
     // Get category info including role requirement
@@ -523,7 +524,8 @@ async function handleShopItemSelect(interaction) {
   
   const selection = interaction.values[0];
   const categoryId = interaction.customId.split('_')[2];
-  const serverId = interaction.customId.split('_')[3];
+  const serverIdParts = interaction.customId.split('_');
+  const serverId = serverIdParts.slice(3).join('_'); // Join all parts after the first 3 to handle server IDs with underscores
   const userId = interaction.user.id;
   
   console.log('Shop item select - selection:', selection, 'categoryId:', categoryId, 'customId:', interaction.customId);
