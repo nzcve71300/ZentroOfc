@@ -91,8 +91,8 @@ async function debugLeaderboard() {
       `, [guildId]);
       
       console.log(`  📊 Records with NULL values: ${nullCheck[0].count}`);
-      
-    } catch (error) {
+
+  } catch (error) {
       console.log(`  ❌ NULL check failed: ${error.message}`);
     }
 

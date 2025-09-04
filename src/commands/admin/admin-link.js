@@ -135,43 +135,117 @@ module.exports = {
         }
       }
 
-      // Process each server
-      console.log(`🔗 ADMIN-LINK: Processing ${servers.length} servers...`);
-      for (const server of servers) {
-        try {
-          console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
+             // Process each server
+       console.log(`🔗 ADMIN-LINK: Processing ${servers.length} servers...`);
+       
+       // 🔒 CRITICAL: First, backup existing player data to preserve currency and stats
+       console.log(`🔗 ADMIN-LINK: Backing up existing player data for Discord ID ${discordId}...`);
+       
+       const [existingPlayerData] = await pool.query(`
+         SELECT p.*, e.balance, rs.nickname
+         FROM players p
+         LEFT JOIN economy e ON p.id = e.player_id
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+         AND p.discord_id = ? 
+         AND p.is_active = true
+       `, [guildId, discordId]);
+       
+       console.log(`🔗 ADMIN-LINK: Found ${existingPlayerData.length} existing player records to preserve`);
+       
+       // Store existing data for restoration
+       const existingData = {};
+       for (const record of existingPlayerData) {
+         if (!existingData[record.server_id]) {
+           existingData[record.server_id] = {
+             balance: record.balance || 0,
+             kills: record.kills || 0,
+             deaths: record.deaths || 0,
+             playtime: record.playtime || 0,
+             last_seen: record.last_seen,
+             linked_at: record.linked_at
+           };
+         }
+       }
+       
+       for (const server of servers) {
+         try {
+           console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
 
-          // Delete any existing records that would conflict (guild-wide, not just server-specific)
-          await pool.query(
-            'DELETE FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND discord_id = ? AND is_active = true',
-            [guildId, discordId]
-          );
+           // 🔒 CRITICAL: Check if player already exists on this server
+           const [existingPlayer] = await pool.query(
+             'SELECT id, discord_id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
+             [guildId, server.id, playerName]
+           );
 
-          await pool.query(
-            'DELETE FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND LOWER(ign) = LOWER(?) AND is_active = true',
-            [guildId, playerName]
-          );
+           if (existingPlayer.length > 0) {
+             // Player with this IGN already exists - update the Discord ID instead of deleting
+             console.log(`🔗 ADMIN-LINK: Player "${playerName}" already exists on ${server.nickname}, updating Discord ID...`);
+             
+             await pool.query(
+               'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP WHERE id = ?',
+               [discordId, existingPlayer[0].id]
+             );
+             
+             console.log(`🔗 ADMIN-LINK: Updated Discord ID for existing player "${playerName}" on ${server.nickname}`);
+             linkedServers.push(server.nickname);
+             continue;
+           }
 
-          // Insert new player using the same pattern as /link command
-          const [playerResult] = await pool.query(
-            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [guildId, server.id, discordId, playerName]
-          );
-          console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
-          
-          // Create economy record using the same pattern as /link command
-          await pool.query(
-            'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), 0) ON DUPLICATE KEY UPDATE balance = balance',
-            [playerResult.insertId, playerResult.insertId]
-          );
-          console.log(`🔗 ADMIN-LINK: Created economy record for player ${playerResult.insertId} on server ${server.nickname}`);
-          
-          linkedServers.push(server.nickname);
-        } catch (error) {
-          console.error(`❌ ADMIN-LINK: Failed to link to server ${server.nickname}:`, error);
-          errors.push(`${server.nickname}: ${error.message}`);
-        }
-      }
+           // 🔒 CRITICAL: Check if Discord user already has a record on this server
+           const [existingDiscordPlayer] = await pool.query(
+             'SELECT id, ign, balance FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND is_active = true',
+             [guildId, server.id, discordId]
+           );
+
+           if (existingDiscordPlayer.length > 0) {
+             // Discord user already has a record on this server - update IGN and preserve data
+             console.log(`🔗 ADMIN-LINK: Discord user already has record on ${server.nickname}, updating IGN and preserving data...`);
+             
+             const existingBalance = existingDiscordPlayer[0].balance || 0;
+             const existingIgn = existingDiscordPlayer[0].ign;
+             
+             // Update the existing record with new IGN
+             await pool.query(
+               'UPDATE players SET ign = ?, linked_at = CURRENT_TIMESTAMP WHERE id = ?',
+               [playerName, existingDiscordPlayer[0].id]
+             );
+             
+             console.log(`🔗 ADMIN-LINK: Updated IGN from "${existingIgn}" to "${playerName}" on ${server.nickname}, preserved balance: ${existingBalance}`);
+             linkedServers.push(server.nickname);
+             continue;
+           }
+
+           // 🔒 CRITICAL: Create new player record and restore existing data if available
+           console.log(`🔗 ADMIN-LINK: Creating new player record for "${playerName}" on ${server.nickname}...`);
+           
+           const [playerResult] = await pool.query(
+             'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
+             [guildId, server.id, discordId, playerName]
+           );
+           
+           console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
+           
+           // 🔒 CRITICAL: Create economy record with EXISTING balance if available
+           const existingBalance = existingData[server.id]?.balance || 0;
+           
+           await pool.query(
+             'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?) ON DUPLICATE KEY UPDATE balance = VALUES(balance)',
+             [playerResult.insertId, playerResult.insertId, existingBalance]
+           );
+           
+           if (existingBalance > 0) {
+             console.log(`🔗 ADMIN-LINK: Restored existing balance ${existingBalance} for "${playerName}" on ${server.nickname}`);
+           } else {
+             console.log(`🔗 ADMIN-LINK: Created economy record with 0 balance for "${playerName}" on ${server.nickname}`);
+           }
+           
+           linkedServers.push(server.nickname);
+         } catch (error) {
+           console.error(`❌ ADMIN-LINK: Failed to link to server ${server.nickname}:`, error);
+           errors.push(`${server.nickname}: ${error.message}`);
+         }
+       }
 
       // Create ZentroLinked role if it doesn't exist and assign it to the user
       try {
@@ -201,21 +275,34 @@ module.exports = {
         console.log(`🔗 ADMIN-LINK: Could not create/assign ZentroLinked role: ${roleError.message}`);
       }
 
-      // Build response message
-      console.log(`🔗 ADMIN-LINK: Building response message...`);
-      let responseMessage = `**${discordUser.username}** has been admin-linked to **${playerName}**!\n\n`;
-      
-      if (warnings.length > 0) {
-        responseMessage += `**Warnings:**\n${warnings.join('\n')}\n\n`;
-      }
-      
-      if (linkedServers.length > 0) {
-        responseMessage += `**✅ Successfully linked to:** ${linkedServers.join(', ')}`;
-      }
-      
-      if (errors.length > 0) {
-        responseMessage += `\n\n**❌ Errors:**\n${errors.join('\n')}`;
-      }
+             // Build response message
+       console.log(`🔗 ADMIN-LINK: Building response message...`);
+       let responseMessage = `**${discordUser.username}** has been admin-linked to **${playerName}**!\n\n`;
+       
+       // 🔒 CRITICAL: Show what data was preserved
+       const totalPreservedBalance = Object.values(existingData).reduce((sum, data) => sum + (data.balance || 0), 0);
+       if (totalPreservedBalance > 0) {
+         responseMessage += `**💰 Data Preserved:**\n`;
+         for (const [serverId, data] of Object.entries(existingData)) {
+           const serverName = servers.find(s => s.id === serverId)?.nickname || 'Unknown Server';
+           if (data.balance > 0) {
+             responseMessage += `• ${serverName}: ${data.balance.toLocaleString()} coins\n`;
+           }
+         }
+         responseMessage += `\n`;
+       }
+       
+       if (warnings.length > 0) {
+         responseMessage += `**Warnings:**\n${warnings.join('\n')}\n\n`;
+       }
+       
+       if (linkedServers.length > 0) {
+         responseMessage += `**✅ Successfully linked to:** ${linkedServers.join(', ')}`;
+       }
+       
+       if (errors.length > 0) {
+         responseMessage += `\n\n**❌ Errors:**\n${errors.join('\n')}`;
+       }
 
       const embed = successEmbed('Admin Link Complete', responseMessage);
       await interaction.editReply({ embeds: [embed] });
