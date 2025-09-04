@@ -85,7 +85,7 @@ module.exports = {
       // Handle shop dropdown selection
       if (interaction.isStringSelectMenu()) {
         console.log('🔍 StringSelectMenu interaction - customId:', interaction.customId);
-        if (interaction.customId === 'shop_category_select') {
+        if (interaction.customId.startsWith('shop_category_select')) {
           await handleShopCategorySelect(interaction);
         } else if (interaction.customId.startsWith('shop_item_')) {
           await handleShopItemSelect(interaction);
