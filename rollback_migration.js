@@ -74,50 +74,20 @@ async function rollbackCoreData(oldGuildId, newGuildId) {
     WHERE p.guild_id = ?
   `, [oldGuildId, oldGuildId]);
 
-  // Rollback shop categories
-  console.log('   🛒 Rolling back shop categories...');
-  await pool.query(`
-    UPDATE shop_categories sc 
-    JOIN rust_servers rs ON sc.server_id = rs.id 
-    SET sc.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback shop categories (shop_categories don't have guild_id, they're linked via server_id)
+  console.log('   🛒 Shop categories will be rolled back automatically via server rollback');
 
-  // Rollback shop items
-  console.log('   🛍️  Rolling back shop items...');
-  await pool.query(`
-    UPDATE shop_items si 
-    JOIN shop_categories sc ON si.category_id = sc.id 
-    SET si.guild_id = ? 
-    WHERE sc.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback shop items (shop_items don't have guild_id, they're linked via category_id)
+  console.log('   🛍️  Shop items will be rolled back automatically via category rollback');
 
-  // Rollback shop kits
-  console.log('   🎒 Rolling back shop kits...');
-  await pool.query(`
-    UPDATE shop_kits sk 
-    JOIN shop_categories sc ON sk.category_id = sc.id 
-    SET sk.guild_id = ? 
-    WHERE sc.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback shop kits (shop_kits don't have guild_id, they're linked via category_id)
+  console.log('   🎒 Shop kits will be rolled back automatically via category rollback');
 
-  // Rollback autokits
-  console.log('   ⚡ Rolling back autokits...');
-  await pool.query(`
-    UPDATE autokits ak 
-    JOIN rust_servers rs ON ak.server_id = rs.id 
-    SET ak.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback autokits (autokits don't have guild_id, they're linked via server_id)
+  console.log('   ⚡ Autokits will be rolled back automatically via server rollback');
 
-  // Rollback kit_auth
-  console.log('   🔐 Rolling back kit auth...');
-  await pool.query(`
-    UPDATE kit_auth ka 
-    JOIN rust_servers rs ON ka.server_id = rs.id 
-    SET ka.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback kit_auth (kit_auth don't have guild_id, they're linked via server_id)
+  console.log('   🔐 Kit auth will be rolled back automatically via server rollback');
 
   // Rollback link_blocks and link_requests
   console.log('   🔗 Rolling back link blocks and requests...');
@@ -134,50 +104,20 @@ async function rollbackCoreData(oldGuildId, newGuildId) {
 }
 
 async function rollbackAdditionalFeatures(oldGuildId, newGuildId) {
-  // Rollback channel settings
-  console.log('   📺 Rolling back channel settings...');
-  await pool.query(`
-    UPDATE channel_settings cs 
-    JOIN rust_servers rs ON cs.server_id = rs.id 
-    SET cs.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback channel settings (channel_settings don't have guild_id, they're linked via server_id)
+  console.log('   📺 Channel settings will be rolled back automatically via server rollback');
 
-  // Rollback position coordinates
-  console.log('   📍 Rolling back position coordinates...');
-  await pool.query(`
-    UPDATE position_coordinates pc 
-    JOIN rust_servers rs ON pc.server_id = rs.id 
-    SET pc.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback position coordinates (position_coordinates don't have guild_id, they're linked via server_id)
+  console.log('   📍 Position coordinates will be rolled back automatically via server rollback');
 
-  // Rollback zones
-  console.log('   🗺️  Rolling back zones...');
-  await pool.query(`
-    UPDATE zones z 
-    JOIN rust_servers rs ON z.server_id = rs.id 
-    SET z.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback zones (zones don't have guild_id, they're linked via server_id)
+  console.log('   🗺️  Zones will be rolled back automatically via server rollback');
 
-  // Rollback killfeed configs
-  console.log('   💀 Rolling back killfeed configs...');
-  await pool.query(`
-    UPDATE killfeed_configs kc 
-    JOIN rust_servers rs ON kc.server_id = rs.id 
-    SET kc.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback killfeed configs (killfeed_configs don't have guild_id, they're linked via server_id)
+  console.log('   💀 Killfeed configs will be rolled back automatically via server rollback');
 
-  // Rollback player stats
-  console.log('   📈 Rolling back player stats...');
-  await pool.query(`
-    UPDATE player_stats ps 
-    JOIN players p ON ps.player_id = p.id 
-    SET ps.guild_id = ? 
-    WHERE p.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback player stats (player_stats don't have guild_id, they're linked via player_id)
+  console.log('   📈 Player stats will be rolled back automatically via player rollback');
 
   // Rollback home teleport data
   console.log('   🏠 Rolling back home teleport data...');
@@ -190,42 +130,84 @@ async function rollbackAdditionalFeatures(oldGuildId, newGuildId) {
     [oldGuildId, newGuildId]
   );
 
-  // Rollback ZORP data
-  console.log('   🎯 Rolling back ZORP data...');
-  await pool.query(`
-    UPDATE zorp_defaults zd 
-    JOIN rust_servers rs ON zd.server_id = rs.id 
-    SET zd.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [oldGuildId, oldGuildId]);
+  // Rollback ZORP data (zorp_defaults don't have guild_id, they're linked via server_id)
+  console.log('   🎯 ZORP data will be rolled back automatically via server rollback');
 
-  // Rollback bounty system data
-  console.log('   🎯 Rolling back bounty system data...');
-  await pool.query(
-    'UPDATE bounties SET guild_id = ? WHERE guild_id = ?',
-    [oldGuildId, newGuildId]
-  );
+  // Rollback bounty system data (if bounties table exists and has guild_id)
+  console.log('   🎯 Checking for bounty system data...');
+  try {
+    const [bountyCheck] = await pool.query('SHOW TABLES LIKE "bounties"');
+    if (bountyCheck.length > 0) {
+      const [bountyColumns] = await pool.query('SHOW COLUMNS FROM bounties LIKE "guild_id"');
+      if (bountyColumns.length > 0) {
+        await pool.query('UPDATE bounties SET guild_id = ? WHERE guild_id = ?', [oldGuildId, newGuildId]);
+        console.log('   ✅ Bounty system data rolled back');
+      } else {
+        console.log('   ℹ️  Bounty system data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Bounty system table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Bounty system not available');
+  }
 
-  // Rollback prison system data
-  console.log('   🏛️  Rolling back prison system data...');
-  await pool.query(
-    'UPDATE prison_system SET guild_id = ? WHERE guild_id = ?',
-    [oldGuildId, newGuildId]
-  );
+  // Rollback prison system data (if prison_system table exists and has guild_id)
+  console.log('   🏛️  Checking for prison system data...');
+  try {
+    const [prisonCheck] = await pool.query('SHOW TABLES LIKE "prison_system"');
+    if (prisonCheck.length > 0) {
+      const [prisonColumns] = await pool.query('SHOW COLUMNS FROM prison_system LIKE "guild_id"');
+      if (prisonColumns.length > 0) {
+        await pool.query('UPDATE prison_system SET guild_id = ? WHERE guild_id = ?', [oldGuildId, newGuildId]);
+        console.log('   ✅ Prison system data rolled back');
+      } else {
+        console.log('   ℹ️  Prison system data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Prison system table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Prison system not available');
+  }
 
-  // Rollback rider config data
-  console.log('   🚗 Rolling back rider config data...');
-  await pool.query(
-    'UPDATE rider_configs SET guild_id = ? WHERE guild_id = ?',
-    [oldGuildId, newGuildId]
-  );
+  // Rollback rider config data (if rider_configs table exists and has guild_id)
+  console.log('   🚗 Checking for rider config data...');
+  try {
+    const [riderCheck] = await pool.query('SHOW TABLES LIKE "rider_configs"');
+    if (riderCheck.length > 0) {
+      const [riderColumns] = await pool.query('SHOW COLUMNS FROM rider_configs LIKE "guild_id"');
+      if (riderColumns.length > 0) {
+        await pool.query('UPDATE rider_configs SET guild_id = ? WHERE guild_id = ?', [oldGuildId, newGuildId]);
+        console.log('   ✅ Rider config data rolled back');
+      } else {
+        console.log('   ℹ️  Rider config data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Rider config table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Rider config not available');
+  }
 
-  // Rollback Nivaro store data
-  console.log('   🏪 Rolling back Nivaro store data...');
-  await pool.query(
-    'UPDATE nivaro_store SET guild_id = ? WHERE guild_id = ?',
-    [oldGuildId, newGuildId]
-  );
+  // Rollback Nivaro store data (if nivaro_store table exists and has guild_id)
+  console.log('   🏪 Checking for Nivaro store data...');
+  try {
+    const [nivaroCheck] = await pool.query('SHOW TABLES LIKE "nivaro_store"');
+    if (nivaroCheck.length > 0) {
+      const [nivaroColumns] = await pool.query('SHOW COLUMNS FROM nivaro_store LIKE "guild_id"');
+      if (nivaroColumns.length > 0) {
+        await pool.query('UPDATE nivaro_store SET guild_id = ? WHERE guild_id = ?', [oldGuildId, newGuildId]);
+        console.log('   ✅ Nivaro store data rolled back');
+      } else {
+        console.log('   ℹ️  Nivaro store data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Nivaro store table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Nivaro store not available');
+  }
 
   console.log('   ✅ Additional features rollback completed');
 }

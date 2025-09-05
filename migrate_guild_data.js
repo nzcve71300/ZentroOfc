@@ -148,50 +148,20 @@ async function migrateCoreData() {
     WHERE p.guild_id = ?
   `, [newGuildId, newGuildId]);
 
-  // Migrate shop categories
-  console.log('   🛒 Migrating shop categories...');
-  await pool.query(`
-    UPDATE shop_categories sc 
-    JOIN rust_servers rs ON sc.server_id = rs.id 
-    SET sc.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate shop categories (shop_categories don't have guild_id, they're linked via server_id)
+  console.log('   🛒 Shop categories will be migrated automatically via server migration');
 
-  // Migrate shop items
-  console.log('   🛍️  Migrating shop items...');
-  await pool.query(`
-    UPDATE shop_items si 
-    JOIN shop_categories sc ON si.category_id = sc.id 
-    SET si.guild_id = ? 
-    WHERE sc.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate shop items (shop_items don't have guild_id, they're linked via category_id)
+  console.log('   🛍️  Shop items will be migrated automatically via category migration');
 
-  // Migrate shop kits
-  console.log('   🎒 Migrating shop kits...');
-  await pool.query(`
-    UPDATE shop_kits sk 
-    JOIN shop_categories sc ON sk.category_id = sc.id 
-    SET sk.guild_id = ? 
-    WHERE sc.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate shop kits (shop_kits don't have guild_id, they're linked via category_id)
+  console.log('   🎒 Shop kits will be migrated automatically via category migration');
 
-  // Migrate autokits
-  console.log('   ⚡ Migrating autokits...');
-  await pool.query(`
-    UPDATE autokits ak 
-    JOIN rust_servers rs ON ak.server_id = rs.id 
-    SET ak.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate autokits (autokits don't have guild_id, they're linked via server_id)
+  console.log('   ⚡ Autokits will be migrated automatically via server migration');
 
-  // Migrate kit_auth
-  console.log('   🔐 Migrating kit auth...');
-  await pool.query(`
-    UPDATE kit_auth ka 
-    JOIN rust_servers rs ON ka.server_id = rs.id 
-    SET ka.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate kit_auth (kit_auth don't have guild_id, they're linked via server_id)
+  console.log('   🔐 Kit auth will be migrated automatically via server migration');
 
   // Migrate link_blocks and link_requests
   console.log('   🔗 Migrating link blocks and requests...');
@@ -214,50 +184,20 @@ async function migrateAdditionalFeatures() {
   const oldGuildId = oldGuild[0].id;
   const newGuildId = newGuild[0].id;
 
-  // Migrate channel settings
-  console.log('   📺 Migrating channel settings...');
-  await pool.query(`
-    UPDATE channel_settings cs 
-    JOIN rust_servers rs ON cs.server_id = rs.id 
-    SET cs.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate channel settings (channel_settings don't have guild_id, they're linked via server_id)
+  console.log('   📺 Channel settings will be migrated automatically via server migration');
 
-  // Migrate position coordinates
-  console.log('   📍 Migrating position coordinates...');
-  await pool.query(`
-    UPDATE position_coordinates pc 
-    JOIN rust_servers rs ON pc.server_id = rs.id 
-    SET pc.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate position coordinates (position_coordinates don't have guild_id, they're linked via server_id)
+  console.log('   📍 Position coordinates will be migrated automatically via server migration');
 
-  // Migrate zones
-  console.log('   🗺️  Migrating zones...');
-  await pool.query(`
-    UPDATE zones z 
-    JOIN rust_servers rs ON z.server_id = rs.id 
-    SET z.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate zones (zones don't have guild_id, they're linked via server_id)
+  console.log('   🗺️  Zones will be migrated automatically via server migration');
 
-  // Migrate killfeed configs
-  console.log('   💀 Migrating killfeed configs...');
-  await pool.query(`
-    UPDATE killfeed_configs kc 
-    JOIN rust_servers rs ON kc.server_id = rs.id 
-    SET kc.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate killfeed configs (killfeed_configs don't have guild_id, they're linked via server_id)
+  console.log('   💀 Killfeed configs will be migrated automatically via server migration');
 
-  // Migrate player stats
-  console.log('   📈 Migrating player stats...');
-  await pool.query(`
-    UPDATE player_stats ps 
-    JOIN players p ON ps.player_id = p.id 
-    SET ps.guild_id = ? 
-    WHERE p.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate player stats (player_stats don't have guild_id, they're linked via player_id)
+  console.log('   📈 Player stats will be migrated automatically via player migration');
 
   // Migrate home teleport data
   console.log('   🏠 Migrating home teleport data...');
@@ -270,42 +210,84 @@ async function migrateAdditionalFeatures() {
     [newGuildId, oldGuildId]
   );
 
-  // Migrate ZORP data
-  console.log('   🎯 Migrating ZORP data...');
-  await pool.query(`
-    UPDATE zorp_defaults zd 
-    JOIN rust_servers rs ON zd.server_id = rs.id 
-    SET zd.guild_id = ? 
-    WHERE rs.guild_id = ?
-  `, [newGuildId, newGuildId]);
+  // Migrate ZORP data (zorp_defaults don't have guild_id, they're linked via server_id)
+  console.log('   🎯 ZORP data will be migrated automatically via server migration');
 
-  // Migrate bounty system data
-  console.log('   🎯 Migrating bounty system data...');
-  await pool.query(
-    'UPDATE bounties SET guild_id = ? WHERE guild_id = ?',
-    [newGuildId, oldGuildId]
-  );
+  // Migrate bounty system data (if bounties table exists and has guild_id)
+  console.log('   🎯 Checking for bounty system data...');
+  try {
+    const [bountyCheck] = await pool.query('SHOW TABLES LIKE "bounties"');
+    if (bountyCheck.length > 0) {
+      const [bountyColumns] = await pool.query('SHOW COLUMNS FROM bounties LIKE "guild_id"');
+      if (bountyColumns.length > 0) {
+        await pool.query('UPDATE bounties SET guild_id = ? WHERE guild_id = ?', [newGuildId, oldGuildId]);
+        console.log('   ✅ Bounty system data migrated');
+      } else {
+        console.log('   ℹ️  Bounty system data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Bounty system table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Bounty system not available');
+  }
 
-  // Migrate prison system data
-  console.log('   🏛️  Migrating prison system data...');
-  await pool.query(
-    'UPDATE prison_system SET guild_id = ? WHERE guild_id = ?',
-    [newGuildId, oldGuildId]
-  );
+  // Migrate prison system data (if prison_system table exists and has guild_id)
+  console.log('   🏛️  Checking for prison system data...');
+  try {
+    const [prisonCheck] = await pool.query('SHOW TABLES LIKE "prison_system"');
+    if (prisonCheck.length > 0) {
+      const [prisonColumns] = await pool.query('SHOW COLUMNS FROM prison_system LIKE "guild_id"');
+      if (prisonColumns.length > 0) {
+        await pool.query('UPDATE prison_system SET guild_id = ? WHERE guild_id = ?', [newGuildId, oldGuildId]);
+        console.log('   ✅ Prison system data migrated');
+      } else {
+        console.log('   ℹ️  Prison system data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Prison system table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Prison system not available');
+  }
 
-  // Migrate rider config data
-  console.log('   🚗 Migrating rider config data...');
-  await pool.query(
-    'UPDATE rider_configs SET guild_id = ? WHERE guild_id = ?',
-    [newGuildId, oldGuildId]
-  );
+  // Migrate rider config data (if rider_configs table exists and has guild_id)
+  console.log('   🚗 Checking for rider config data...');
+  try {
+    const [riderCheck] = await pool.query('SHOW TABLES LIKE "rider_configs"');
+    if (riderCheck.length > 0) {
+      const [riderColumns] = await pool.query('SHOW COLUMNS FROM rider_configs LIKE "guild_id"');
+      if (riderColumns.length > 0) {
+        await pool.query('UPDATE rider_configs SET guild_id = ? WHERE guild_id = ?', [newGuildId, oldGuildId]);
+        console.log('   ✅ Rider config data migrated');
+      } else {
+        console.log('   ℹ️  Rider config data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Rider config table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Rider config not available');
+  }
 
-  // Migrate Nivaro store data
-  console.log('   🏪 Migrating Nivaro store data...');
-  await pool.query(
-    'UPDATE nivaro_store SET guild_id = ? WHERE guild_id = ?',
-    [newGuildId, oldGuildId]
-  );
+  // Migrate Nivaro store data (if nivaro_store table exists and has guild_id)
+  console.log('   🏪 Checking for Nivaro store data...');
+  try {
+    const [nivaroCheck] = await pool.query('SHOW TABLES LIKE "nivaro_store"');
+    if (nivaroCheck.length > 0) {
+      const [nivaroColumns] = await pool.query('SHOW COLUMNS FROM nivaro_store LIKE "guild_id"');
+      if (nivaroColumns.length > 0) {
+        await pool.query('UPDATE nivaro_store SET guild_id = ? WHERE guild_id = ?', [newGuildId, oldGuildId]);
+        console.log('   ✅ Nivaro store data migrated');
+      } else {
+        console.log('   ℹ️  Nivaro store data linked via other tables');
+      }
+    } else {
+      console.log('   ℹ️  Nivaro store table not found');
+    }
+  } catch (error) {
+    console.log('   ℹ️  Nivaro store not available');
+  }
 
   console.log('   ✅ Additional features migration completed');
 }
