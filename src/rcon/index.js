@@ -251,6 +251,13 @@ function startRconListeners(client) {
     console.log('🚀 Initializing prison monitoring system...');
     prisonSystem.initializePrisonMonitoring(sendRconCommand);
   }, 15000); // Wait 15 seconds after startup
+  
+  // Initialize backup ZORP monitoring system (5-minute backup to 2-minute primary)
+  setTimeout(() => {
+    console.log('🚀 Initializing backup ZORP monitoring system...');
+    const { startBackupZorpMonitoring } = require('../../add_backup_zorp_monitoring');
+    startBackupZorpMonitoring();
+  }, 20000); // Wait 20 seconds after startup
 }
 
 async function refreshConnections(client) {
