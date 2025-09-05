@@ -189,6 +189,11 @@ function startRconListeners(client) {
   setInterval(() => checkAllEvents(client), EVENT_POLLING_INTERVAL); // Check for events every 30 seconds for better detection
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
   
+  // Player feed monitoring - check for actual joins/leaves every 30 seconds
+  setInterval(() => {
+    monitorAllPlayerFeeds(client);
+  }, 30000);
+  
   // Cleanup old join tracking entries to prevent memory leaks
   setInterval(() => {
     const now = Date.now();
@@ -198,6 +203,14 @@ function startRconListeners(client) {
     for (const [key, timestamp] of recentJoins.entries()) {
       if (timestamp < cutoff) {
         recentJoins.delete(key);
+        cleanedCount++;
+      }
+    }
+    
+    // Clean up player feed join cooldown entries
+    for (const [key, timestamp] of playerFeedJoinCooldown.entries()) {
+      if (timestamp < cutoff) {
+        playerFeedJoinCooldown.delete(key);
         cleanedCount++;
       }
     }
@@ -441,8 +454,8 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
           console.error(`[PLAYTIME] Error starting session for ${player}:`, error);
         }
         
-        // Send to playerfeed
-        await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
+        // Send to playerfeed (only for real joins, not respawns) - DISABLED: Now using users command monitoring
+        // await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
         
         // Handle Zorp zone online immediately (only for reliable join messages)
         await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
@@ -6011,6 +6024,112 @@ async function getZonesFromGameServer(server) {
 
 // Track current message pair index for each server
 const currentMessagePairIndex = new Map();
+
+// Player feed tracking - track actual joins/leaves using users command
+const playerFeedOnlinePlayers = new Map(); // serverKey -> Set of online players
+const playerFeedJoinCooldown = new Map(); // playerKey -> timestamp
+
+// Player feed monitoring function
+async function monitorPlayerFeed(client, guildId, serverName, ip, port, password) {
+  try {
+    const serverKey = `${guildId}_${serverName}`;
+    
+    // Get current online players using users command
+    const onlinePlayers = await getOnlinePlayersRobust(ip, port, password);
+    
+    if (!onlinePlayers || onlinePlayers.length === 0) {
+      console.log(`[PLAYERFEED] Could not get online players for ${serverName} - skipping player feed check`);
+      return;
+    }
+    
+    const currentOnline = new Set(onlinePlayers.map(p => normalizePlayerName(p)));
+    const previousOnline = playerFeedOnlinePlayers.get(serverKey) || new Set();
+    
+    // Check for new joins
+    for (const player of currentOnline) {
+      if (!previousOnline.has(player)) {
+        // Player joined
+        const playerKey = `${guildId}_${serverName}_${player}`;
+        const now = Date.now();
+        const lastJoin = playerFeedJoinCooldown.get(playerKey) || 0;
+        
+        // Only send join message if it's been more than 2 minutes since last join (prevents respawn spam)
+        if (now - lastJoin > 120000) { // 2 minutes
+          console.log(`[PLAYERFEED] Player ${player} joined ${serverName}`);
+          
+          // Send join message to player feed
+          await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has joined the server!`);
+          
+          // Record this join
+          playerFeedJoinCooldown.set(playerKey, now);
+          
+          // Ensure player exists in database
+          await ensurePlayerExists(guildId, serverName, player);
+          
+          // Handle ZORP zone online
+          await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+        } else {
+          console.log(`[PLAYERFEED] Ignoring join for ${player} (last join was ${Math.round((now - lastJoin) / 1000)}s ago - likely respawn)`);
+        }
+      }
+    }
+    
+    // Check for leaves
+    for (const player of previousOnline) {
+      if (!currentOnline.has(player)) {
+        // Player left
+        console.log(`[PLAYERFEED] Player ${player} left ${serverName}`);
+        
+        // Send leave message to player feed
+        await sendFeedEmbed(client, guildId, serverName, 'playerfeed', `**${player}** has left the server!`);
+        
+        // Handle ZORP zone offline
+        await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
+      }
+    }
+    
+    // Update the online players set
+    playerFeedOnlinePlayers.set(serverKey, currentOnline);
+    
+  } catch (error) {
+    console.error(`[PLAYERFEED] Error monitoring player feed for ${serverName}:`, error);
+  }
+}
+
+// Monitor all player feeds
+async function monitorAllPlayerFeeds(client) {
+  try {
+    // Get all active servers
+    const [servers] = await pool.query(`
+      SELECT rs.*, g.discord_id 
+      FROM rust_servers rs 
+      JOIN guilds g ON rs.guild_id = g.id
+    `);
+    
+    for (const server of servers) {
+      const guildId = server.discord_id;
+      const serverName = server.nickname;
+      const ip = server.ip;
+      const port = server.port;
+      const password = server.password;
+      
+      // Check if this server has a player feed channel configured
+      const [channelResult] = await pool.query(
+        `SELECT cs.channel_id 
+         FROM channel_settings cs 
+         WHERE cs.server_id = ? AND cs.channel_type = 'playerfeed'`,
+        [server.id]
+      );
+      
+      if (channelResult.length > 0) {
+        // This server has a player feed channel, monitor it
+        await monitorPlayerFeed(client, guildId, serverName, ip, port, password);
+      }
+    }
+  } catch (error) {
+    console.error('[PLAYERFEED] Error monitoring all player feeds:', error);
+  }
+}
 
 async function displayScheduledMessages(client) {
   try {
