@@ -201,8 +201,46 @@ async function getOnlinePlayersBackup(ip, port, password) {
         return null;
       }
       
-      if (!response.includes('players connected')) {
-        console.log(`[ZORP BACKUP] Invalid response from 'users' command (attempt ${retryCount + 1}/${maxRetries}): ${response.substring(0, 100)}...`);
+      const players = new Set();
+      const lines = response.split('\n');
+      
+      // Handle different response formats
+      let foundPlayers = false;
+      
+      for (const line of lines) {
+        // Check for standard format: "1. "PlayerName" ..."
+        const standardMatch = line.match(/^\s*\d+\.\s+"([^"]+)"\s+/);
+        if (standardMatch) {
+          players.add(standardMatch[1]);
+          foundPlayers = true;
+          continue;
+        }
+        
+        // Check for slot format: <slot:"name"> followed by "PlayerName"
+        const slotMatch = line.match(/^<slot:"name">\s*$/);
+        if (slotMatch) {
+          // Next line should contain the player name
+          continue;
+        }
+        
+        // Check for quoted player names (from slot format)
+        const quotedMatch = line.match(/^"([^"]+)"$/);
+        if (quotedMatch) {
+          players.add(quotedMatch[1]);
+          foundPlayers = true;
+          continue;
+        }
+      }
+      
+      // If we found players, return them regardless of format
+      if (foundPlayers) {
+        console.log(`[ZORP BACKUP] Successfully parsed ${players.size} online players via 'users' command`);
+        return players;
+      }
+      
+      // If no players found and no "players connected" text, it might be an empty server
+      if (!response.includes('players connected') && !response.includes('No players')) {
+        console.log(`[ZORP BACKUP] Unexpected response format from 'users' command (attempt ${retryCount + 1}/${maxRetries}): ${response.substring(0, 200)}...`);
         retryCount++;
         if (retryCount < maxRetries) {
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
@@ -211,17 +249,8 @@ async function getOnlinePlayersBackup(ip, port, password) {
         return null;
       }
       
-      const players = new Set();
-      const lines = response.split('\n');
-      
-      for (const line of lines) {
-        const match = line.match(/^\s*\d+\.\s+"([^"]+)"\s+/);
-        if (match) {
-          players.add(match[1]);
-        }
-      }
-      
-      console.log(`[ZORP BACKUP] Successfully got ${players.size} online players via 'users' command`);
+      // Empty server response
+      console.log(`[ZORP BACKUP] No players online (server empty)`);
       return players;
       
     } catch (error) {
