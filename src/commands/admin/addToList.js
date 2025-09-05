@@ -77,6 +77,12 @@ module.exports = {
           value: 'HOMETP-BANLIST'
         });
         
+        // Add Home teleport option
+        allOptions.push({
+          name: 'Home teleport (Home Teleport Allowed Users)',
+          value: 'HOMETP-LIST'
+        });
+        
         // Filter based on user input
         const filtered = allOptions.filter(option => 
           option.name.toLowerCase().includes(focusedValue.toLowerCase())

@@ -220,7 +220,9 @@ module.exports = {
         
         // Add HOMETP configuration options NINTH
         const hometpConfigTypes = [
-          { name: 'HOMETP-USELIST (ON/OFF)', value: 'HOMETP-USELIST' }
+          { name: 'HOMETP-USE (ON/OFF)', value: 'HOMETP-USE' },
+          { name: 'HOMETP-USELIST (ON/OFF)', value: 'HOMETP-USELIST' },
+          { name: 'HOMETP-TIME (Cooldown in minutes)', value: 'HOMETP-TIME' }
         ];
         
         hometpConfigTypes.forEach(configType => {
@@ -313,6 +315,10 @@ module.exports = {
       const recyclerMatch = config.match(/^RECYCLER-/);
       const isRecyclerConfig = recyclerMatch !== null;
       
+      // Extract HOMETP config from config (e.g., "HOMETP-USE" -> "hometp")
+      const hometpMatch = config.match(/^HOMETP-/);
+      const isHometpConfig = hometpMatch !== null;
+      
       // Extract config type, handling crate events properly
       let configType = '';
       if (isCrateConfig) {
@@ -353,7 +359,8 @@ module.exports = {
         isPositionConfig,
         isEconomyConfig,
         isZorpConfig,
-        isRecyclerConfig
+        isRecyclerConfig,
+        isHometpConfig
       });
       
       if (!server) {
@@ -500,6 +507,22 @@ module.exports = {
           await connection.execute(`
             INSERT INTO prison_configs (server_id, enabled) 
             VALUES (?, false)
+          `, [server.id.toString()]);
+        }
+      }
+      
+      // Handle HOMETP configurations
+      if (isHometpConfig) {
+        // Check if home teleport config exists, create if not
+        const [existingHometpConfig] = await connection.execute(
+          'SELECT * FROM home_teleport_configs WHERE server_id = ?',
+          [server.id.toString()]
+        );
+
+        if (existingHometpConfig.length === 0) {
+          await connection.execute(`
+            INSERT INTO home_teleport_configs (server_id, enabled, use_list, cooldown_minutes, created_at, updated_at) 
+            VALUES (?, false, false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [server.id.toString()]);
         }
       }
@@ -792,6 +815,7 @@ module.exports = {
         case 'RECYCLER-USE':
         case 'RECYCLER-USELIST':
         case 'ZORP-USELIST':
+        case 'HOMETP-USE':
         case 'HOMETP-USELIST':
         case 'Prison-System':
         case '':
@@ -840,6 +864,7 @@ module.exports = {
         case 'TIME':
         case 'DELAYTIME':
         case 'COOLDOWN':
+        case 'HOMETP-TIME':
           const timeValue = parseInt(option);
           if (isNaN(timeValue) || timeValue < 0) {
             await connection.end();
@@ -1138,10 +1163,20 @@ module.exports = {
           break;
           
         // HOMETP configurations
+        case 'HOMETP-USE':
+          updateQuery = 'UPDATE home_teleport_configs SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] HOMETP-USE: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
+          break;
         case 'HOMETP-USELIST':
           updateQuery = 'UPDATE home_teleport_configs SET use_list = ? WHERE server_id = ?';
           updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           console.log(`[SET COMMAND DEBUG] HOMETP-USELIST: validatedOption=${validatedOption}, boolean=${validatedOption === 'on' || validatedOption === 'true'}`);
+          break;
+        case 'HOMETP-TIME':
+          updateQuery = 'UPDATE home_teleport_configs SET cooldown_minutes = ? WHERE server_id = ?';
+          updateParams = [validatedOption, server.id.toString()];
+          console.log(`[SET COMMAND DEBUG] HOMETP-TIME: validatedOption=${validatedOption}`);
           break;
       }
 
@@ -1221,12 +1256,24 @@ module.exports = {
         verifyId = server.id.toString();
         verifyIdField = 'server_id';
         verifyField = 'use_list';
+      } else if (configType === 'HOMETP-USE') {
+        // HOMETP configuration verification
+        verifyTable = 'home_teleport_configs';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        verifyField = 'enabled';
       } else if (configType === 'HOMETP-USELIST') {
         // HOMETP configuration verification
         verifyTable = 'home_teleport_configs';
         verifyId = server.id.toString();
         verifyIdField = 'server_id';
         verifyField = 'use_list';
+      } else if (configType === 'HOMETP-TIME') {
+        // HOMETP configuration verification
+        verifyTable = 'home_teleport_configs';
+        verifyId = server.id.toString();
+        verifyIdField = 'server_id';
+        verifyField = 'cooldown_minutes';
       } else if (configType === 'Prison-System') {
         // Prison System configuration verification
         verifyTable = 'prison_configs';
