@@ -100,7 +100,8 @@ async function checkZoneInBackupMode(zone) {
     // Get online players for this server
     const onlinePlayers = await getOnlinePlayersBackup(zone.ip, zone.port, zone.password);
     if (!onlinePlayers) {
-      console.log(`[ZORP BACKUP] Could not get online players for ${zone.nickname} - skipping`);
+      console.log(`[ZORP BACKUP] ⚠️  Could not get online players for ${zone.nickname} - skipping zone verification`);
+      console.log(`[ZORP BACKUP] This may indicate server connectivity issues or RCON problems`);
       return false;
     }
 
@@ -182,29 +183,58 @@ async function checkZoneInBackupMode(zone) {
 }
 
 async function getOnlinePlayersBackup(ip, port, password) {
-  try {
-    const { sendRconCommand } = require('./src/rcon');
-    const response = await sendRconCommand(ip, port, password, 'playerlist');
-    
-    if (!response || !response.includes('players connected')) {
-      return null;
-    }
-    
-    const players = new Set();
-    const lines = response.split('\n');
-    
-    for (const line of lines) {
-      const match = line.match(/^\s*\d+\.\s+"([^"]+)"\s+/);
-      if (match) {
-        players.add(match[1]);
+  const maxRetries = 3;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      const { sendRconCommand } = require('./src/rcon');
+      const response = await sendRconCommand(ip, port, password, 'users');
+      
+      if (!response) {
+        console.log(`[ZORP BACKUP] No response from 'users' command (attempt ${retryCount + 1}/${maxRetries})`);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          continue;
+        }
+        return null;
+      }
+      
+      if (!response.includes('players connected')) {
+        console.log(`[ZORP BACKUP] Invalid response from 'users' command (attempt ${retryCount + 1}/${maxRetries}): ${response.substring(0, 100)}...`);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          continue;
+        }
+        return null;
+      }
+      
+      const players = new Set();
+      const lines = response.split('\n');
+      
+      for (const line of lines) {
+        const match = line.match(/^\s*\d+\.\s+"([^"]+)"\s+/);
+        if (match) {
+          players.add(match[1]);
+        }
+      }
+      
+      console.log(`[ZORP BACKUP] Successfully got ${players.size} online players via 'users' command`);
+      return players;
+      
+    } catch (error) {
+      console.error(`[ZORP BACKUP] Error getting online players with "users" command (attempt ${retryCount + 1}/${maxRetries}):`, error.message);
+      retryCount++;
+      if (retryCount < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
       }
     }
-    
-    return players;
-  } catch (error) {
-    console.error('[ZORP BACKUP] Error getting online players:', error);
-    return null;
   }
+  
+  console.error(`[ZORP BACKUP] Failed to get online players after ${maxRetries} attempts`);
+  return null;
 }
 
 async function setZoneToGreenBackup(ip, port, password, playerName) {
