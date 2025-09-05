@@ -4,6 +4,28 @@ const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/pe
 const { sendRconCommand } = require('../../rcon');
 const pool = require('../../db');
 
+// Helper function to get server number based on creation order
+async function getServerNumber(guildId, serverName) {
+  try {
+    // Get all servers for this guild ordered by creation (id is timestamp-based)
+    const [servers] = await pool.query(
+      `SELECT rs.nickname, rs.id 
+       FROM rust_servers rs 
+       JOIN guilds g ON rs.guild_id = g.id 
+       WHERE g.discord_id = ? 
+       ORDER BY rs.id ASC`,
+      [guildId]
+    );
+
+    // Find the index of the current server (1-based numbering)
+    const serverIndex = servers.findIndex(server => server.nickname === serverName);
+    return serverIndex >= 0 ? serverIndex + 1 : '?';
+  } catch (error) {
+    console.error('Error getting server number:', error);
+    return '?';
+  }
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('wipe-zorps')
@@ -133,9 +155,12 @@ module.exports = {
           const channel = await interaction.client.channels.fetch(channelId);
           
           if (channel) {
+            // Get server number for this guild
+            const serverNumber = await getServerNumber(interaction.guild.id, server.nickname);
+
             const feedEmbed = new EmbedBuilder()
               .setColor(0xFF8C00)
-              .setTitle(`Zorp Feed - ${server.nickname}`)
+              .setTitle(`Zorpfeed Feed - (Server: ${serverNumber})`)
               .setDescription(`[ZORP WIPE] All zorp zones deleted from ${server.nickname} (${deletedCount} zones)`)
               .setTimestamp();
 

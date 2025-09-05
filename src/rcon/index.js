@@ -2452,8 +2452,6 @@ async function sendRconCommandWithResponse(ip, port, password, command) {
 
 async function sendFeedEmbed(client, guildId, serverName, channelType, message) {
   try {
-
-    
     // Get the channel ID from database
     const [result] = await pool.query(
       `SELECT cs.channel_id 
@@ -2477,10 +2475,13 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
       return;
     }
 
-    // Create embed
+    // Get server number for this guild
+    const serverNumber = await getServerNumber(guildId, serverName);
+
+    // Create embed with improved formatting
     const embed = new EmbedBuilder()
       .setColor(0xFF8C00) // Orange color
-      .setTitle(`${channelType.charAt(0).toUpperCase() + channelType.slice(1)} - ${serverName}`)
+      .setTitle(`Zorpfeed Feed - (Server: ${serverNumber})`)
       .setDescription(message)
       .setTimestamp();
 
@@ -2488,6 +2489,28 @@ async function sendFeedEmbed(client, guildId, serverName, channelType, message) 
     Logger.adminFeed(`Sent to ${serverName}: ${message}`);
   } catch (error) {
     Logger.error('Error sending feed embed:', error);
+  }
+}
+
+// Helper function to get server number based on creation order
+async function getServerNumber(guildId, serverName) {
+  try {
+    // Get all servers for this guild ordered by creation (id is timestamp-based)
+    const [servers] = await pool.query(
+      `SELECT rs.nickname, rs.id 
+       FROM rust_servers rs 
+       JOIN guilds g ON rs.guild_id = g.id 
+       WHERE g.discord_id = ? 
+       ORDER BY rs.id ASC`,
+      [guildId]
+    );
+
+    // Find the index of the current server (1-based numbering)
+    const serverIndex = servers.findIndex(server => server.nickname === serverName);
+    return serverIndex >= 0 ? serverIndex + 1 : '?';
+  } catch (error) {
+    console.error('Error getting server number:', error);
+    return '?';
   }
 }
 
@@ -3467,7 +3490,7 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
         await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${player}</color> <color=white>Zorp successfully deleted!</color>`);
 
         // Log to zorp feed
-        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${player} Zorp deleted`);
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${player} zone deleted`);
       } else {
         // Debug logging removed for production
       }
@@ -3753,7 +3776,7 @@ async function handleZorpZoneStatus(client, guildId, serverName, msg, ip, port, 
       
       if (deleteResult.affectedRows > 0) {
         // Send to zorp feed
-        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${zoneName} deleted`);
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${zoneName} zone deleted`);
       }
     }
   } catch (error) {
@@ -3815,7 +3838,7 @@ async function setZoneToGreen(ip, port, password, playerName) {
   }
 }
 
-async function setZoneToYellow(ip, port, password, playerName) {
+async function setZoneToYellow(ip, port, password, playerName, client = null, guildId = null, serverName = null) {
   try {
     console.log(`[ZORP YELLOW DEBUG] ===== STARTING setZoneToYellow FOR ${playerName} =====`);
     
@@ -3859,7 +3882,7 @@ async function setZoneToYellow(ip, port, password, playerName) {
       
       await safeSetTransitionTimer(zone.name, async () => {
         console.log(`[ZORP YELLOW DEBUG] Timer fired - calling setZoneToRed for ${playerName}`);
-        await setZoneToRed(ip, port, password, playerName);
+        await setZoneToRed(ip, port, password, playerName, client, guildId, serverName);
       }, delayMs);
       
       console.log(`[ZORP YELLOW DEBUG] Timer set successfully for zone ${zone.name}`);
@@ -3873,7 +3896,7 @@ async function setZoneToYellow(ip, port, password, playerName) {
   }
 }
 
-async function setZoneToRed(ip, port, password, playerName) {
+async function setZoneToRed(ip, port, password, playerName, client = null, guildId = null, serverName = null) {
   try {
     // Get zone name from database
     const [zoneResult] = await pool.query(
@@ -3899,12 +3922,19 @@ async function setZoneToRed(ip, port, password, playerName) {
         ['red', zone.id]
       );
       
-                    // Start expire countdown timer (this is the timer that counts down the expire time when offline)
+      // Start expire countdown timer (this is the timer that counts down the expire time when offline)
       console.log(`[ZORP DEBUG] Starting expire countdown timer for ${playerName} (${zone.name}) with expire time: ${zone.expire} seconds`);
       await startExpireCountdownTimer(ip, port, password, playerName, zone.name, zone.expire);
       
       // Update in-memory state
       zorpZoneStates.set(zone.name, 'red');
+      
+      // Send red transition message to zorp feed if we have the required parameters
+      if (client && guildId && serverName) {
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zone=red (All team offline, delay expired)`);
+      }
+      
+      console.log(`[ZORP DEBUG] Successfully set zone ${zone.name} to red for player ${playerName}`);
     }
   } catch (error) {
     console.error('Error setting zone to red:', error);
@@ -3994,7 +4024,7 @@ async function handleOfflineExpiration(ip, port, password, playerName, zoneName)
       zorpZoneStates.delete(zoneName);
       
       // Send to zorp feed
-      await sendFeedEmbed(client, server.discord_id, server.nickname, 'zorpfeed', `[ZORP] ${playerName} Zorp deleted (offline expiration)`);
+      await sendFeedEmbed(client, server.discord_id, server.nickname, 'zorpfeed', `[ZORP] ${playerName} zone deleted (offline expiration)`);
       
       console.log(`[ZORP OFFLINE TIMER] Successfully deleted expired Zorp for ${playerName}`);
     }
@@ -4083,7 +4113,7 @@ async function handleExpireCountdown(ip, port, password, playerName, zoneName) {
       zorpZoneStates.delete(zoneName);
       
       // Send to zorp feed
-      await sendFeedEmbed(client, server.discord_id, server.nickname, 'zorpfeed', `[ZORP] ${playerName} Zorp deleted (expire countdown reached)`);
+      await sendFeedEmbed(client, server.discord_id, server.nickname, 'zorpfeed', `[ZORP] ${playerName} zone deleted (expire countdown reached)`);
       
       console.log(`[ZORP EXPIRE TIMER] Successfully deleted expired Zorp for ${playerName}`);
     }
@@ -4158,7 +4188,7 @@ async function handleTeamChanges(client, guildId, serverName, msg, ip, port, pas
     const teamKickedMatch = msg.match(/(.+) kicked (.+) from the team, ID: \[(\d+)\]/);
     const teamDisbandedMatch = msg.match(/(.+) disbanded the team, ID: \[(\d+)\]/);
     
-    // Send team messages to Zorp feed
+    // Send team messages to Zorp feed with improved formatting
     if (teamCreatedMatch) {
       const playerName = teamCreatedMatch[1].trim();
       const teamId = teamCreatedMatch[2];
@@ -4498,7 +4528,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully created.</color>`);
 
     // Log to zorp feed
-    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp created`);
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zone created`);
 
     // Verify zone was created by checking if it exists in the game
     console.log(`[ZORP DEBUG] Verifying zone ${zoneName} was created successfully...`);
@@ -4553,7 +4583,7 @@ async function deleteZorpZone(client, guildId, serverName, ip, port, password, p
     await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>Zorp successfully deleted!</color>`);
 
     // Log to zorp feed
-    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} Zorp deleted`);
+    await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${playerName} zone deleted`);
 
   } catch (error) {
     console.error('Error deleting ZORP zone:', error);
@@ -5015,7 +5045,7 @@ async function deleteExpiredZones(client) {
             zorpZoneStates.delete(zone.name);
             
             // Send to zorp feed
-            await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted (offline expiration)`);
+            await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} zone deleted (offline expiration)`);
             
             console.log(`[ZORP] Deleted offline-expired zone: ${zone.name}`);
           }
@@ -5039,7 +5069,7 @@ async function deleteExpiredZones(client) {
             zorpZoneStates.delete(zone.name);
             
             // Send to zorp feed
-            await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} Zorp deleted (fallback cleanup)`);
+            await sendFeedEmbed(client, zone.guild_id, zone.nickname, 'zorpfeed', `[ZORP] ${zone.owner} zone deleted (fallback cleanup)`);
             
             console.log(`[ZORP] Deleted old zone (fallback): ${zone.name}`);
           }
@@ -5347,7 +5377,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
           console.log(`[ZORP OFFLINE DEBUG] All team members offline - calling setZoneToYellow for ${cleanPlayerName}`);
           
           // Set zone to yellow first (which will start timer for red transition)
-          await setZoneToYellow(ip, port, password, cleanPlayerName);
+          await setZoneToYellow(ip, port, password, cleanPlayerName, client, guildId, serverName);
           
           console.log(`[ZORP OFFLINE DEBUG] setZoneToYellow completed for ${cleanPlayerName}`);
           
@@ -5359,7 +5389,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
           const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
           
           // Send offline message to zorp feed
-          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=yellow (All team offline, ${delayMinutes} min delay)`);
+          await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} zone=yellow (All team offline, ${delayMinutes} min delay)`);
           
           console.log(`[ZORP] Player ${cleanPlayerName} went offline, ALL team members offline, zone set to yellow (${delayMinutes} min delay to red)`);
         } else {
@@ -5390,7 +5420,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
             
             if (allTeamOffline) {
               // Set team owner's zone to yellow
-              await setZoneToYellow(ip, port, password, teamInfo.owner);
+              await setZoneToYellow(ip, port, password, teamInfo.owner, client, guildId, serverName);
               
               // Get zone delay for feed message
               const [zoneInfo] = await pool.query(
@@ -5400,7 +5430,7 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
               const delayMinutes = zoneInfo.length > 0 ? (zoneInfo[0].delay || 5) : 5;
               
               // Send offline message to zorp feed
-              await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} Zorp=yellow (All team offline, ${delayMinutes} min delay)`);
+              await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} zone=yellow (All team offline, ${delayMinutes} min delay)`);
               
               console.log(`[ZORP] Team member ${cleanPlayerName} went offline, ALL team members offline, team owner ${teamInfo.owner}'s zone set to yellow (${delayMinutes} min delay to red)`);
             } else {
@@ -5467,7 +5497,7 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
         await clearExpireCountdownTimer(zone.name);
         
         // Send online message to zorp feed
-        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} Zorp=green (Team member online)`);
+        await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${cleanPlayerName} zone=green (Team member online)`);
         
         console.log(`[ZORP] Player ${cleanPlayerName} came online, zone set to green (was ${currentState}), offline timer cleared`);
       } else {
@@ -5507,7 +5537,7 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
             await clearExpireCountdownTimer(teamZone.name);
             
             // Send online message to zorp feed
-            await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} Zorp=green (Team member ${cleanPlayerName} online)`);
+            await sendFeedEmbed(client, guildId, serverName, 'zorpfeed', `[ZORP] ${teamInfo.owner} zone=green (Team member ${cleanPlayerName} online)`);
             
             console.log(`[ZORP] Team member ${cleanPlayerName} came online, set team owner ${teamInfo.owner}'s zone to green (was ${teamCurrentState}), offline timer cleared`);
           } else {
