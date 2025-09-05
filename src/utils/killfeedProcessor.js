@@ -262,8 +262,9 @@ class KillfeedProcessor {
         const guildId = guildResult[0].guild_id;
         
         // Create player record for unlinked player
+        // Use a placeholder Discord ID (0) instead of NULL to avoid database constraints
         const [insertResult] = await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, is_active) VALUES (?, ?, NULL, ?, 1)',
+          'INSERT INTO players (guild_id, server_id, discord_id, ign, is_active) VALUES (?, ?, 0, ?, 1)',
           [guildId, serverId, sanitizedKiller]
         );
         
@@ -343,8 +344,9 @@ class KillfeedProcessor {
         const guildId = guildResult[0].guild_id;
         
         // Create player record for unlinked victim
+        // Use a placeholder Discord ID (0) instead of NULL to avoid database constraints
         const [insertResult] = await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, is_active) VALUES (?, ?, NULL, ?, 1)',
+          'INSERT INTO players (guild_id, server_id, discord_id, ign, is_active) VALUES (?, ?, 0, ?, 1)',
           [guildId, serverId, victimName]
         );
         
