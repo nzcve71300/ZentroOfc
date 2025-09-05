@@ -9,9 +9,9 @@ async function fixKillfeedDatabaseSchema() {
     console.log('📋 Step 1: Checking current database constraints...');
     const [constraints] = await pool.query(`
       SELECT 
-        CONSTRAINT_NAME,
-        CONSTRAINT_TYPE,
-        CHECK_CLAUSE
+        tc.CONSTRAINT_NAME,
+        tc.CONSTRAINT_TYPE,
+        cc.CHECK_CLAUSE
       FROM information_schema.table_constraints tc
       LEFT JOIN information_schema.check_constraints cc 
         ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
