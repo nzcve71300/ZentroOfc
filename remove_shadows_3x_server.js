@@ -87,33 +87,61 @@ async function removeShadows3xServer() {
       const [linkRequestsResult] = await pool.query('DELETE FROM link_requests WHERE server_id = ?', [server.id]);
       console.log(`   ✅ Removed ${linkRequestsResult.affectedRows} link requests`);
       
-      // Remove killfeed configs
-      const [killfeedResult] = await pool.query('DELETE FROM killfeed_configs WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${killfeedResult.affectedRows} killfeed configs`);
+      // Remove killfeed configs (if table exists and has server_id column)
+      try {
+        const [killfeedResult] = await pool.query('DELETE FROM killfeed_configs WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${killfeedResult.affectedRows} killfeed configs`);
+      } catch (error) {
+        console.log(`   ℹ️  No killfeed_configs table or no server_id column found`);
+      }
       
-      // Remove player stats
-      const [playerStatsResult] = await pool.query('DELETE FROM player_stats WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${playerStatsResult.affectedRows} player stats`);
+      // Remove player stats (if table exists and has server_id column)
+      try {
+        const [playerStatsResult] = await pool.query('DELETE FROM player_stats WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${playerStatsResult.affectedRows} player stats`);
+      } catch (error) {
+        console.log(`   ℹ️  No player_stats table or no server_id column found`);
+      }
       
-      // Remove zorp defaults
-      const [zorpDefaultsResult] = await pool.query('DELETE FROM zorp_defaults WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${zorpDefaultsResult.affectedRows} zorp defaults`);
+      // Remove zorp defaults (if table exists and has server_id column)
+      try {
+        const [zorpDefaultsResult] = await pool.query('DELETE FROM zorp_defaults WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${zorpDefaultsResult.affectedRows} zorp defaults`);
+      } catch (error) {
+        console.log(`   ℹ️  No zorp_defaults table or no server_id column found`);
+      }
       
-      // Remove eco games
-      const [ecoGamesResult] = await pool.query('DELETE FROM eco_games WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${ecoGamesResult.affectedRows} eco games records`);
+      // Remove eco games (if table exists and has server_id column)
+      try {
+        const [ecoGamesResult] = await pool.query('DELETE FROM eco_games WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${ecoGamesResult.affectedRows} eco games records`);
+      } catch (error) {
+        console.log(`   ℹ️  No eco_games table or no server_id column found`);
+      }
       
-      // Remove eco games config
-      const [ecoConfigResult] = await pool.query('DELETE FROM eco_games_config WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${ecoConfigResult.affectedRows} eco games config records`);
+      // Remove eco games config (if table exists and has server_id column)
+      try {
+        const [ecoConfigResult] = await pool.query('DELETE FROM eco_games_config WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${ecoConfigResult.affectedRows} eco games config records`);
+      } catch (error) {
+        console.log(`   ℹ️  No eco_games_config table or no server_id column found`);
+      }
       
-      // Remove autokits
-      const [autokitsResult] = await pool.query('DELETE FROM autokits WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${autokitsResult.affectedRows} autokits`);
+      // Remove autokits (if table exists and has server_id column)
+      try {
+        const [autokitsResult] = await pool.query('DELETE FROM autokits WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${autokitsResult.affectedRows} autokits`);
+      } catch (error) {
+        console.log(`   ℹ️  No autokits table or no server_id column found`);
+      }
       
-      // Remove kit auth
-      const [kitAuthResult] = await pool.query('DELETE FROM kit_auth WHERE server_id = ?', [server.id]);
-      console.log(`   ✅ Removed ${kitAuthResult.affectedRows} kit auth records`);
+      // Remove kit auth (if table exists and has server_id column)
+      try {
+        const [kitAuthResult] = await pool.query('DELETE FROM kit_auth WHERE server_id = ?', [server.id]);
+        console.log(`   ✅ Removed ${kitAuthResult.affectedRows} kit auth records`);
+      } catch (error) {
+        console.log(`   ℹ️  No kit_auth table or no server_id column found`);
+      }
       
       // Remove bounties (if table exists)
       try {
