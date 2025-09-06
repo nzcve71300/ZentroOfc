@@ -3831,6 +3831,23 @@ async function setZoneToGreen(ip, port, password, playerName) {
     if (zoneResult.length > 0) {
       const zone = zoneResult[0];
       
+      // Check if zone exists in game before trying to edit it
+      try {
+        const zoneCheck = await sendRconCommand(ip, port, password, `zones.getcustomzone "${zone.name}"`);
+        if (!zoneCheck || zoneCheck.includes('Could not find zone') || zoneCheck.includes('No zone found')) {
+          console.log(`[ZORP DEBUG] Zone ${zone.name} not found in game, marking as orphaned`);
+          // Mark zone as orphaned in database
+          await pool.query(
+            'UPDATE zorp_zones SET current_state = "orphaned" WHERE id = ?',
+            [zone.id]
+          );
+          return;
+        }
+      } catch (error) {
+        console.log(`[ZORP DEBUG] Error checking zone ${zone.name} existence: ${error.message}`);
+        return;
+      }
+      
       // Clear any existing transition timers
       clearZorpTransitionTimer(zone.name);
       
