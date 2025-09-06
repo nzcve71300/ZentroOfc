@@ -269,10 +269,14 @@ function startRconListeners(client) {
   }, 15000); // Wait 15 seconds after startup
   
   // Initialize backup ZORP monitoring system (5-minute backup to 2-minute primary)
+  // DISABLED: Backup monitoring was causing conflicts with primary monitoring
+  // The primary system (every 2 minutes) is sufficient and reliable
+  /*
   setTimeout(() => {
     console.log('🚀 Initializing backup ZORP monitoring system...');
     startBackupZorpMonitoringRockSolid(client);
   }, 20000); // Wait 20 seconds after startup
+  */
   
   // Initialize health check monitoring (every 10 minutes)
   setTimeout(() => {
@@ -7797,58 +7801,149 @@ async function monitorZorpZonesRockSolid(client, guildId, serverName, ip, port, 
         
         console.log(`[ZORP ROCK SOLID] Zone ${zone.name} (owner: ${zone.owner}, normalized: ${normalizedOwner}) - Online: ${isOnline}`);
         
+        // Get current state with confirmation check
+        const [currentZoneState] = await pool.query(`
+          SELECT desired_state, current_state, last_online_at, last_offline_at, 
+                 TIMESTAMPDIFF(SECOND, last_offline_at, CURRENT_TIMESTAMP) as offline_duration_seconds,
+                 TIMESTAMPDIFF(SECOND, last_online_at, CURRENT_TIMESTAMP) as online_duration_seconds
+          FROM zorp_zones WHERE id = ?
+        `, [zone.id]);
+        
+        const currentState = currentZoneState[0];
+        const offlineDuration = currentState.offline_duration_seconds || 0;
+        const onlineDuration = currentState.online_duration_seconds || 0;
+        
+        // Check if zone has an active state lock
+        const [hasLockResult] = await pool.query(`
+          SELECT has_zorp_state_lock(?) as has_lock
+        `, [zone.id]);
+        
+        const hasActiveLock = hasLockResult[0].has_lock;
+        
+        if (hasActiveLock) {
+          console.log(`[ZORP ROCK SOLID] Zone ${zone.name} has active state lock - skipping transition`);
+          continue; // Skip this zone, it's locked
+        }
+        
+        // State locking logic with confirmation requirements
         if (isOnline) {
           // Player is online - should be green
-          if (zone.desired_state !== 'green') {
-            console.log(`[ZORP ROCK SOLID] Setting zone ${zone.name} to green (player online)`);
-            
-            // Update timestamps - clear last_offline_at, set last_online_at
+          // LOCK: Only transition to green if we have CONFIRMED online status
+          if (currentState.desired_state !== 'green' && currentState.current_state !== 'green') {
+            // Require confirmation: player must be online for at least 30 seconds before transitioning to green
+            if (onlineDuration >= 30 || currentState.last_online_at === null) {
+              console.log(`[ZORP ROCK SOLID] CONFIRMED online - Setting zone ${zone.name} to green (online for ${onlineDuration}s)`);
+              
+              // Acquire state lock for 2 minutes to prevent race conditions
+              const [lockAcquired] = await pool.query(`
+                SELECT acquire_zorp_state_lock(?, ?, 'green', 'PLAYER_ONLINE', 120) as lock_acquired
+              `, [zone.id, currentState.current_state]);
+              
+              if (lockAcquired[0].lock_acquired) {
+                await pool.query(`
+                  UPDATE zorp_zones 
+                  SET desired_state = 'green', 
+                      current_state = 'green',
+                      last_online_at = CURRENT_TIMESTAMP, 
+                      last_offline_at = NULL,
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?
+                `, [zone.id]);
+                
+                await applyZoneStateIdempotent(ip, port, password, zone.server_id, zone.id, zone.name, 'green', zone.owner);
+                
+                // Release lock after successful transition
+                await pool.query(`SELECT release_zorp_state_lock(?)`, [zone.id]);
+              } else {
+                console.log(`[ZORP ROCK SOLID] Could not acquire lock for zone ${zone.name} - skipping transition`);
+              }
+            } else {
+              console.log(`[ZORP ROCK SOLID] Player ${zone.owner} online but not confirmed yet (${onlineDuration}s) - keeping current state`);
+            }
+          } else {
+            // Player is online and zone is already green - just update last_online_at
             await pool.query(`
               UPDATE zorp_zones 
-              SET desired_state = 'green', 
-                  current_state = 'green',
-                  last_online_at = CURRENT_TIMESTAMP, 
-                  last_offline_at = NULL,
+              SET last_online_at = CURRENT_TIMESTAMP,
                   updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
             `, [zone.id]);
-            
-            // Apply green state
-            await applyZoneStateIdempotent(ip, port, password, zone.server_id, zone.id, zone.name, 'green', zone.owner);
           }
         } else {
           // Player is offline - check if we need to transition
-          if (zone.desired_state === 'green') {
-            // Just went offline - set to yellow (ONLY set last_offline_at once)
-            console.log(`[ZORP ROCK SOLID] Player ${zone.owner} went offline, setting zone ${zone.name} to yellow`);
+          // LOCK: Only transition if we have CONFIRMED offline status
+          if (currentState.desired_state === 'green' || currentState.current_state === 'green') {
+            // Require confirmation: player must be offline for at least 60 seconds before transitioning to yellow
+            if (offlineDuration >= 60 || currentState.last_offline_at === null) {
+              console.log(`[ZORP ROCK SOLID] CONFIRMED offline - Player ${zone.owner} went offline, setting zone ${zone.name} to yellow (offline for ${offlineDuration}s)`);
+              
+              // Acquire state lock for 2 minutes
+              const [lockAcquired] = await pool.query(`
+                SELECT acquire_zorp_state_lock(?, 'green', 'yellow', 'PLAYER_OFFLINE', 120) as lock_acquired
+              `, [zone.id]);
+              
+              if (lockAcquired[0].lock_acquired) {
+                await pool.query(`
+                  UPDATE zorp_zones 
+                  SET desired_state = 'yellow', 
+                      current_state = 'yellow',
+                      last_offline_at = COALESCE(last_offline_at, CURRENT_TIMESTAMP),
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?
+                `, [zone.id]);
+                
+                await applyZoneStateIdempotent(ip, port, password, zone.server_id, zone.id, zone.name, 'yellow', zone.owner);
+                
+                // Release lock after successful transition
+                await pool.query(`SELECT release_zorp_state_lock(?)`, [zone.id]);
+              } else {
+                console.log(`[ZORP ROCK SOLID] Could not acquire lock for zone ${zone.name} - skipping transition`);
+              }
+            } else {
+              console.log(`[ZORP ROCK SOLID] Player ${zone.owner} offline but not confirmed yet (${offlineDuration}s) - keeping green state`);
+            }
             
-            await pool.query(`
-              UPDATE zorp_zones 
-              SET desired_state = 'yellow', 
-                  current_state = 'yellow',
-                  last_offline_at = COALESCE(last_offline_at, CURRENT_TIMESTAMP),
-                  updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `, [zone.id]);
-            
-            await applyZoneStateIdempotent(ip, port, password, zone.server_id, zone.id, zone.name, 'yellow', zone.owner);
-            
-          } else if (zone.desired_state === 'yellow') {
+          } else if (currentState.desired_state === 'yellow' || currentState.current_state === 'yellow') {
             // Check if should transition to red based on offline time
             const shouldTransition = await shouldTransitionToRed(zone.id);
             if (shouldTransition) {
-              console.log(`[ZORP ROCK SOLID] Zone ${zone.name} should transition to red (offline for ${zone.delay} minutes)`);
+              console.log(`[ZORP ROCK SOLID] CONFIRMED offline timeout - Zone ${zone.name} should transition to red (offline for ${offlineDuration}s, delay: ${zone.delay} minutes)`);
               
-              await pool.query(`
-                UPDATE zorp_zones 
-                SET desired_state = 'red',
-                    current_state = 'red',
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+              // Acquire state lock for 5 minutes (red state should be more permanent)
+              const [lockAcquired] = await pool.query(`
+                SELECT acquire_zorp_state_lock(?, 'yellow', 'red', 'OFFLINE_TIMEOUT', 300) as lock_acquired
               `, [zone.id]);
               
-              await applyZoneStateIdempotent(ip, port, password, zone.server_id, zone.id, zone.name, 'red', zone.owner);
+              if (lockAcquired[0].lock_acquired) {
+                await pool.query(`
+                  UPDATE zorp_zones 
+                  SET desired_state = 'red',
+                      current_state = 'red',
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?
+                `, [zone.id]);
+                
+                await applyZoneStateIdempotent(ip, port, password, zone.server_id, zone.id, zone.name, 'red', zone.owner);
+                
+                // Release lock after successful transition
+                await pool.query(`SELECT release_zorp_state_lock(?)`, [zone.id]);
+              } else {
+                console.log(`[ZORP ROCK SOLID] Could not acquire lock for zone ${zone.name} - skipping transition`);
+              }
+            } else {
+              console.log(`[ZORP ROCK SOLID] Zone ${zone.name} in yellow state, waiting for offline timeout (${offlineDuration}s / ${zone.delay * 60}s)`);
             }
+          } else if (currentState.desired_state === 'red' || currentState.current_state === 'red') {
+            // Zone is red (offline) - LOCK this state until player comes back online
+            console.log(`[ZORP ROCK SOLID] Zone ${zone.name} is LOCKED in red state (offline for ${offlineDuration}s) - waiting for player to come back online`);
+            
+            // Just update the offline timestamp to keep it current
+            await pool.query(`
+              UPDATE zorp_zones 
+              SET last_offline_at = CURRENT_TIMESTAMP,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `, [zone.id]);
           }
         }
         
