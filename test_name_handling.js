@@ -125,8 +125,7 @@ async function testNameHandling() {
     const [constraintCheck] = await pool.query(`
       SELECT CONSTRAINT_NAME, CHECK_CLAUSE 
       FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'players' 
+      WHERE TABLE_NAME = 'players' 
       AND CONSTRAINT_NAME LIKE '%ign%'
     `);
     
