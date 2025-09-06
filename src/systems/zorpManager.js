@@ -335,71 +335,148 @@ async function createZoneForPlayer(ip, port, password, serverId, serverName, ign
 }
 
 /**
- * Handle Zorp emote creation (adapted from new system)
+ * Handle Zorp emote creation (direct creation without confirmation)
  */
 async function handleZorpEmote(ip, port, password, serverId, serverName, playerName) {
   try {
-    const key = `${serverId}:${playerName}`;
-
-    if (pendingRequests.has(key)) {
-      console.log(`[ZorpManager] Player ${playerName} already has a pending request`);
+    console.log(`[ZORP] Player ${playerName} used Zorp emote on ${serverName}`);
+    
+    // Check if player already has a zone
+    const zones = getServerZones(serverId);
+    if ([...zones.values()].some((z) => z.members.includes(playerName))) {
+      await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>you already have a Zorp zone!</color>`);
       return;
     }
 
-    // Send confirmation message
-    await rceCommandWithRetry(ip, port, password, `say ${playerName}, do you want to create a zone here? Reply Yes or No.`);
+    // Check for team
+    const teamResp = await rceCommandWithRetry(ip, port, password, `relationshipmanager.findplayerteam "${playerName}"`);
+    const teamIdMatch = teamResp.match(/Team\s+(\d+)/i);
+    
+    if (!teamIdMatch) {
+      await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>you must be in a team to create a Zorp!</color>`);
+      return;
+    }
 
-    const timeout = setTimeout(() => {
-      if (pendingRequests.has(key)) {
-        pendingRequests.delete(key);
-        rceCommandWithRetry(ip, port, password, `say ${playerName}, your zone request has expired.`);
+    const { leader, members: teamMembers } = await getTeamLeaderAndMembers(ip, port, password, teamIdMatch[1]);
+    if (playerName !== leader) {
+      await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>only the team leader can create a Zorp!</color>`);
+      return;
+    }
+
+    // Check if team already has a zone
+    if ([...zones.values()].some((z) => z.members.some((m) => teamMembers.includes(m)))) {
+      await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>your team already has a Zorp zone!</color>`);
+      return;
+    }
+
+    // Get player position
+    const response = await rceCommandWithRetry(ip, port, password, `printpos "${playerName}"`);
+    const match = response.match(/-?\d+(\.\d+)?/g);
+    if (!match) {
+      await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>could not get your position!</color>`);
+      return;
+    }
+
+    const [x, y, z] = match.map((n) => Math.round(parseFloat(n)));
+
+    // Check for nearby zones
+    for (const z of zones.values()) {
+      if (distance({ x, y, z }, z.coords) < CHECK_RADIUS) {
+        await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>too close to another Zorp zone!</color>`);
+        return;
       }
-    }, PENDING_TIMEOUT_MS);
+    }
 
-    pendingRequests.set(key, { playerName, serverId, timeout });
-    console.log(`[ZorpManager] Created pending request for ${playerName}`);
+    // Create zone in game
+    await rceCommandWithRetry(
+      ip, port, password,
+      `zones.createcustomzone "${leader}" (${x},${y},${z}) 0 Sphere 45 0 0 0 0 0`
+    );
+
+    const zone = { 
+      zoneName: leader, 
+      coords: { x, y, z }, 
+      members: teamMembers, 
+      status: "pending", 
+      owner: leader,
+      lastSeenUpdate: Date.now() 
+    };
+    
+    zones.set(leader, zone);
+    await saveZoneToDb(zone, serverId, true);
+    await applyZoneState(ip, port, password, leader, desiredZoneState("pending"));
+    
+    await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#00FF00>Zorp successfully created!</color> <color=white>for team ${leader}</color>`);
+    console.log(`[ZORP] Zorp successfully created for ${playerName} (team leader: ${leader})`);
   } catch (error) {
     console.error(`[ZorpManager] Error handling Zorp emote:`, error);
+    await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FF0000>Error creating Zorp zone!</color>`);
   }
 }
 
 /**
- * Handle Yes/No responses (adapted from new system)
+ * Handle Zorp delete emote
  */
-async function handleYesResponse(ip, port, password, serverId, serverName, playerName) {
+async function handleZorpDeleteEmote(ip, port, password, serverId, serverName, playerName) {
   try {
-    const key = `${serverId}:${playerName}`;
+    console.log(`[ZORP] Player ${playerName} used Zorp delete emote on ${serverName}`);
     
-    if (pendingRequests.has(key)) {
-      clearTimeout(pendingRequests.get(key).timeout);
-      pendingRequests.delete(key);
-      
-      const zoneName = await createZoneForPlayer(ip, port, password, serverId, serverName, playerName);
-      if (zoneName) {
-        await rceCommandWithRetry(ip, port, password, `say ${playerName}, your zone has been created!`);
-      } else {
-        await rceCommandWithRetry(ip, port, password, `say ${playerName}, failed to create zone.`);
+    const zones = getServerZones(serverId);
+    
+    // Find the zone owned by this player or their team
+    let zoneToDelete = null;
+    let zoneOwner = null;
+    
+    // First check if player owns a zone directly
+    for (const [zoneName, zone] of zones.entries()) {
+      if (zone.owner === playerName) {
+        zoneToDelete = zone;
+        zoneOwner = playerName;
+        break;
       }
     }
-  } catch (error) {
-    console.error(`[ZorpManager] Error handling Yes response:`, error);
-  }
-}
-
-/**
- * Handle No response (adapted from new system)
- */
-async function handleNoResponse(ip, port, password, serverId, serverName, playerName) {
-  try {
-    const key = `${serverId}:${playerName}`;
     
-    if (pendingRequests.has(key)) {
-      clearTimeout(pendingRequests.get(key).timeout);
-      pendingRequests.delete(key);
-      await rceCommandWithRetry(ip, port, password, `say ${playerName}, your zone request has been cancelled.`);
+    // If not found, check if player is team leader of a zone
+    if (!zoneToDelete) {
+      const teamResp = await rceCommandWithRetry(ip, port, password, `relationshipmanager.findplayerteam "${playerName}"`);
+      const teamIdMatch = teamResp.match(/Team\s+(\d+)/i);
+      
+      if (teamIdMatch) {
+        const { leader } = await getTeamLeaderAndMembers(ip, port, password, teamIdMatch[1]);
+        if (leader === playerName) {
+          for (const [zoneName, zone] of zones.entries()) {
+            if (zone.owner === leader) {
+              zoneToDelete = zone;
+              zoneOwner = leader;
+              break;
+            }
+          }
+        }
+      }
     }
+    
+    if (!zoneToDelete) {
+      await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FFD700>${playerName}</color> <color=white>you don't have a Zorp zone to delete!</color>`);
+      return;
+    }
+    
+    // Delete zone from game
+    await rceCommandWithRetry(ip, port, password, `zones.deletecustomzone "${zoneToDelete.zoneName}"`);
+    
+    // Delete from database
+    await pool.query(
+      'DELETE FROM zorp_zones WHERE name = ? AND server_id = ?', 
+      [zoneToDelete.zoneName, serverId]
+    );
+    
+    // Remove from memory
+    zones.delete(zoneToDelete.zoneName);
+    
+    await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#00FF00>Zorp successfully deleted!</color> <color=white>for ${zoneOwner}</color>`);
+    console.log(`[ZORP] Zorp successfully deleted for ${playerName} (zone owner: ${zoneOwner})`);
   } catch (error) {
-    console.error(`[ZorpManager] Error handling No response:`, error);
+    console.error(`[ZorpManager] Error handling Zorp delete emote:`, error);
+    await rceCommandWithRetry(ip, port, password, `say <color=#FF6B35>[ZORP]</color> <color=#FF0000>Error deleting Zorp zone!</color>`);
   }
 }
 
@@ -551,8 +628,7 @@ module.exports = {
   createZorpZone,
   handlePlayerStatusChange,
   handleZorpEmote,
-  handleYesResponse,
-  handleNoResponse,
+  handleZorpDeleteEmote,
   playerZones,
   zonesByServer,
   pendingRequests,

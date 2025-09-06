@@ -112,9 +112,8 @@ const BOOKARIDE_CHOICES = {
 };
 
 // Zorp constants
-const ZORP_EMOTE = 'd11_quick_chat_questions_slot_0'; // QUESTIONS_CanIBuildAroundHere
-const YES_EMOTE = 'd11_quick_chat_responses_slot_0'; // RESPONSES_Yes
-const NO_EMOTE = 'd11_quick_chat_responses_slot_1'; // RESPONSES_No
+const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1'; // QUESTIONS_CanIBuildAroundHere
+const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6'; // RESPONSES_No
 
 // Home Teleport constants
 const SET_HOME_EMOTE = 'd11_quick_chat_building_slot_3';
@@ -122,7 +121,6 @@ const TELEPORT_HOME_EMOTE = 'd11_quick_chat_combat_slot_1';
 // HOME_CHOICES removed - no longer using yes/no confirmation for home teleport
 
 // ZORP constants
-const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
 const GOODBYE_EMOTE = 'd11_quick_chat_responses_slot_6'; // Alternative name for clarity
 
 // Track online players per server
@@ -3492,8 +3490,8 @@ async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, pa
       }
     }
     
-    // Check for Yes/No responses for Zorp
-    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]'))) {
+    // Check for ZORP DELETE emote in multiple chat types: LOCAL, TEAM, or SERVER
+    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes(ZORP_DELETE_EMOTE)) {
       const player = extractPlayerName(msg);
       if (player) {
         // Get server ID for new Zorp system
@@ -3504,12 +3502,7 @@ async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, pa
         
         if (serverResult.length > 0) {
           const serverId = serverResult[0].id;
-          
-          if (msg.includes(YES_EMOTE)) {
-            await zorpManager.handleYesResponse(ip, port, password, serverId, serverName, player);
-          } else if (msg.includes(NO_EMOTE)) {
-            await zorpManager.handleNoResponse(ip, port, password, serverId, serverName, player);
-          }
+          await zorpManager.handleZorpDeleteEmote(ip, port, password, serverId, serverName, player);
         }
       }
     }
