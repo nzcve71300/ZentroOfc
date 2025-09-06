@@ -4526,15 +4526,31 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
     };
 
     console.log(`[ZORP DEBUG] Inserting zone into database: ${zoneName} for player ${playerName}`);
-    await pool.query(`
-      INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, created_at, updated_at, last_online_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
-    `, [
-      zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
-      JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline, zoneData.color_yellow,
-      zoneData.radiation, zoneData.delay, zoneData.expire, zoneData.min_team, zoneData.max_team, zoneData.current_state, zoneData.last_online_at
-    ]);
-    console.log(`[ZORP DEBUG] Successfully inserted zone ${zoneName} into database`);
+    console.log(`[ZORP DEBUG] Zone data:`, {
+      server_id: zoneData.server_id,
+      name: zoneData.name,
+      owner: zoneData.owner,
+      team: zoneData.team,
+      position: zoneData.position,
+      size: zoneData.size,
+      current_state: zoneData.current_state
+    });
+    
+    try {
+      await pool.query(`
+        INSERT INTO zorp_zones (server_id, name, owner, team, position, size, color_online, color_offline, color_yellow, radiation, delay, expire, min_team, max_team, current_state, desired_state, applied_state, created_at, updated_at, last_online_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
+      `, [
+        zoneData.server_id, zoneData.name, zoneData.owner, JSON.stringify(zoneData.team),
+        JSON.stringify(zoneData.position), zoneData.size, zoneData.color_online, zoneData.color_offline, zoneData.color_yellow,
+        zoneData.radiation, zoneData.delay, zoneData.expire, zoneData.min_team, zoneData.max_team, zoneData.current_state, zoneData.current_state, zoneData.current_state, zoneData.last_online_at
+      ]);
+      console.log(`[ZORP DEBUG] Successfully inserted zone ${zoneName} into database`);
+    } catch (dbError) {
+      console.error(`[ZORP ERROR] Failed to insert zone ${zoneName} into database:`, dbError);
+      console.error(`[ZORP ERROR] Zone data that failed:`, zoneData);
+      throw dbError; // Re-throw to prevent zone creation from continuing
+    }
 
     // Now that the zone is in the database, create the timer with the correct delay
     console.log(`[ZORP DEBUG] About to query delay for zone ${zoneName} (after database insertion)`);
@@ -7775,6 +7791,7 @@ async function monitorZorpZonesRockSolid(client, guildId, serverName, ip, port, 
             await pool.query(`
               UPDATE zorp_zones 
               SET desired_state = 'green', 
+                  current_state = 'green',
                   last_online_at = CURRENT_TIMESTAMP, 
                   last_offline_at = NULL,
                   updated_at = CURRENT_TIMESTAMP
@@ -7793,6 +7810,7 @@ async function monitorZorpZonesRockSolid(client, guildId, serverName, ip, port, 
             await pool.query(`
               UPDATE zorp_zones 
               SET desired_state = 'yellow', 
+                  current_state = 'yellow',
                   last_offline_at = COALESCE(last_offline_at, CURRENT_TIMESTAMP),
                   updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
@@ -7809,6 +7827,7 @@ async function monitorZorpZonesRockSolid(client, guildId, serverName, ip, port, 
               await pool.query(`
                 UPDATE zorp_zones 
                 SET desired_state = 'red',
+                    current_state = 'red',
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
               `, [zone.id]);
