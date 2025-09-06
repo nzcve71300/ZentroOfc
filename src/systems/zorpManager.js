@@ -1,15 +1,14 @@
 const mysql = require('mysql2/promise');
 const pool = require('../db');
 
-// Configuration from the new system
-const UPDATE_INTERVAL_MS = 60 * 1000; // 1 minute
+// Configuration
+const UPDATE_INTERVAL_MS = 30 * 1000; // unified updater every 30s
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const EXPIRE_HOURS = 24;
 const CHECK_RADIUS = 50;
 const LASTSEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const PENDING_TIMEOUT_MS = 30 * 1000; // 30 seconds
 
-// In-memory zone tracking (adapted from new system)
+// In-memory tracking
 const zonesByServer = new Map();
 const pendingRequests = new Map();
 
@@ -22,55 +21,28 @@ function getServerZones(serverId) {
 }
 
 /**
- * Get the desired zone state configuration (from new system)
+ * Desired zone states
  */
 function desiredZoneState(status) {
   switch (status) {
     case "active":
-      return {
-        enabled: 1,
-        color: "(0,255,0)",
-        allowpvpdamage: 1,
-        allownpcdamage: 1,
-        allowbuildingdamage: 1,
-        allowbuilding: 1,
-      };
+      return { enabled: 1, color: "(0,255,0)", allowpvpdamage: 1, allownpcdamage: 1, allowbuildingdamage: 1, allowbuilding: 1 };
     case "offline":
-      return {
-        enabled: 0,
-        color: "(255,0,0)",
-        allowpvpdamage: 0,
-        allownpcdamage: 0,
-        allowbuildingdamage: 0,
-        allowbuilding: 0,
-      };
+      return { enabled: 0, color: "(255,0,0)", allowpvpdamage: 0, allownpcdamage: 0, allowbuildingdamage: 0, allowbuilding: 0 };
     case "expired":
-      return {
-        enabled: 0,
-        color: "(128,128,128)",
-        allowpvpdamage: 0,
-        allownpcdamage: 0,
-        allowbuildingdamage: 0,
-        allowbuilding: 0,
-      };
+      return { enabled: 0, color: "(128,128,128)", allowpvpdamage: 0, allownpcdamage: 0, allowbuildingdamage: 0, allowbuilding: 0 };
+    case "pending":
+      return { enabled: 1, color: "(255,255,0)", allowpvpdamage: 0, allownpcdamage: 0, allowbuildingdamage: 0, allowbuilding: 0 };
     default:
-      return {
-        enabled: 0,
-        color: "(255,255,255)",
-        allowpvpdamage: 0,
-        allownpcdamage: 0,
-        allowbuildingdamage: 0,
-        allowbuilding: 0,
-      };
+      return { enabled: 0, color: "(255,255,255)", allowpvpdamage: 0, allownpcdamage: 0, allowbuildingdamage: 0, allowbuilding: 0 };
   }
 }
 
 /**
- * RCON command with retry logic (from new system)
+ * RCON command with retry
  */
 async function rceCommandWithRetry(ip, port, password, cmd, retries = 3, delay = 1000) {
   const { sendRconCommand } = require('../rcon/index.js');
-  
   for (let i = 0; i < retries; i++) {
     try {
       return await sendRconCommand(ip, port, password, cmd);
@@ -82,12 +54,11 @@ async function rceCommandWithRetry(ip, port, password, cmd, retries = 3, delay =
 }
 
 /**
- * Apply zone state to the game (adapted from new system)
+ * Apply zone state
  */
 async function applyZoneState(ip, port, password, zoneName, state) {
   try {
     for (const [setting, value] of Object.entries(state)) {
-      console.log(`[ZorpManager] Applying state: ${zoneName} -> ${setting}=${value}`);
       await rceCommandWithRetry(ip, port, password, `zones.editcustomzone "${zoneName}" "${setting}" ${value}`);
     }
   } catch (error) {
@@ -96,13 +67,12 @@ async function applyZoneState(ip, port, password, zoneName, state) {
 }
 
 /**
- * Save zone to database (adapted to use existing zorp_zones table)
+ * Save zone to DB
  */
 async function saveZoneToDb(zone, serverId, updateLastSeen = false) {
   try {
     const { zoneName, coords, members, status, owner } = zone;
-    
-    const [result] = await pool.query(
+    await pool.query(
       `INSERT INTO zorp_zones (name, server_id, owner, position, current_state, size, color_online, color_offline, created_at, last_online_at, expire, delay)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ${updateLastSeen ? 'NOW()' : 'NULL'}, ?, ?)
        ON DUPLICATE KEY UPDATE
@@ -110,42 +80,36 @@ async function saveZoneToDb(zone, serverId, updateLastSeen = false) {
          current_state=VALUES(current_state),
          last_online_at=${updateLastSeen ? 'VALUES(last_online_at)' : 'last_online_at'}`,
       [
-        zoneName, 
-        serverId, 
-        owner || members[0], 
-        JSON.stringify(coords), 
-        status, 
-        45, // Default size
-        '0,255,0', // Green
-        '255,0,0', // Red
-        86400, // 24 hours expire
-        5 // 5 minutes delay
+        zoneName,
+        serverId,
+        owner || members[0],
+        JSON.stringify(coords),
+        status,
+        45,
+        '0,255,0',
+        '255,0,0',
+        86400,
+        5
       ]
     );
-    
-    console.log(`[ZorpManager] DB save: ${zoneName} status=${status}, affectedRows=${result?.affectedRows ?? "?"}`);
   } catch (error) {
     console.error(`[ZorpManager] Error saving zone to DB:`, error);
   }
 }
 
 /**
- * Expire zone in database (from new system)
+ * Expire zone in DB
  */
 async function expireZoneInDb(serverId, zoneName) {
   try {
-    await pool.query(
-      `UPDATE zorp_zones SET current_state='expired' WHERE name=? AND server_id=?`, 
-      [zoneName, serverId]
-    );
-    console.log(`[ZorpManager] DB mark expired: ${zoneName}@${serverId}`);
+    await pool.query(`UPDATE zorp_zones SET current_state='expired' WHERE name=? AND server_id=?`, [zoneName, serverId]);
   } catch (error) {
     console.error(`[ZorpManager] Error expiring zone in DB:`, error);
   }
 }
 
 /**
- * Parse users response from RCON (from new system)
+ * Parse "users" response
  */
 function parseUsersResponse(output) {
   return output
@@ -157,41 +121,34 @@ function parseUsersResponse(output) {
 }
 
 /**
- * Calculate distance between two points (from new system)
+ * Distance
  */
 function distance(a, b) {
-  return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2) + Math.pow(a.z - b.z, 2));
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2);
 }
 
 /**
- * Load zones from database on startup (adapted from new system)
+ * Load zones from DB
  */
 async function loadZonesFromDb(serverId, serverName) {
   try {
-    console.log(`[ZorpManager] Loading zones from DB for server ${serverName}`);
-    
     const [rows] = await pool.query(
-      `SELECT name, position, current_state, owner, created_at, last_online_at
+      `SELECT name, position, current_state, owner
        FROM zorp_zones
        WHERE server_id = ? AND current_state != 'expired' AND created_at + INTERVAL expire SECOND > CURRENT_TIMESTAMP`,
       [serverId]
     );
-
     const zones = getServerZones(serverId);
-    
     for (const row of rows) {
       try {
         const position = JSON.parse(row.position || '{"x":0,"y":0,"z":0}');
-        const zone = { 
-          zoneName: row.name, 
-          coords: position, 
-          members: [row.owner], 
+        zones.set(row.name, {
+          zoneName: row.name,
+          coords: position,
+          members: [row.owner],
           status: row.current_state || "offline",
           owner: row.owner
-        };
-        
-        zones.set(zone.zoneName, zone);
-        console.log(`[ZorpManager] Restored zone from DB: ${row.name} status=${zone.status}`);
+        });
       } catch (err) {
         console.error(`[ZorpManager] Failed to restore zone ${row.name}:`, err);
       }
@@ -202,7 +159,7 @@ async function loadZonesFromDb(serverId, serverName) {
 }
 
 /**
- * Refresh zones for a server (from new system)
+ * Refresh zones (core updater)
  */
 async function refreshZonesForServer(ip, port, password, serverId, serverName) {
   try {
@@ -218,7 +175,7 @@ async function refreshZonesForServer(ip, port, password, serverId, serverName) {
         zone.status = newStatus;
         await applyZoneState(ip, port, password, zone.zoneName, desiredZoneState(newStatus));
         await saveZoneToDb(zone, serverId, true);
-        console.log(`[ZorpManager] Zone ${zoneName} status changed: ${zone.status} -> ${newStatus}`);
+        console.log(`[ZorpManager] Zone ${zoneName} updated -> ${newStatus}`);
       } else if (anyOnline) {
         if (!zone.lastSeenUpdate || Date.now() - zone.lastSeenUpdate > LASTSEEN_UPDATE_INTERVAL_MS) {
           await saveZoneToDb(zone, serverId, true);
@@ -232,7 +189,54 @@ async function refreshZonesForServer(ip, port, password, serverId, serverName) {
 }
 
 /**
- * Get team leader and members (from new system)
+ * Unified zone updater (scheduled check + updater)
+ */
+async function runZoneUpdater() {
+  try {
+    const [servers] = await pool.query(`
+      SELECT rs.*, g.discord_id as guild_id
+      FROM rust_servers rs
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE rs.active = 1
+    `);
+    for (const server of servers) {
+      await refreshZonesForServer(server.ip, server.port, server.password, server.id, server.nickname);
+    }
+  } catch (error) {
+    console.error("[ZorpManager] Zone updater error:", error);
+  }
+}
+
+/**
+ * Cleanup expired zones
+ */
+async function runZoneCleanup() {
+  try {
+    const [servers] = await pool.query(`
+      SELECT rs.*, g.discord_id as guild_id
+      FROM rust_servers rs
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE rs.active = 1
+    `);
+    for (const server of servers) {
+      const [rows] = await pool.query(
+        `SELECT name FROM zorp_zones
+         WHERE server_id = ? AND current_state != 'expired' AND last_online_at IS NOT NULL AND TIMESTAMPDIFF(HOUR, last_online_at, NOW()) >= ?`,
+        [server.id, EXPIRE_HOURS]
+      );
+      for (const row of rows) {
+        await rceCommandWithRetry(server.ip, server.port, server.password, `zones.deletecustomzone "${row.name}"`);
+        await expireZoneInDb(server.id, row.name);
+        getServerZones(server.id).delete(row.name);
+      }
+    }
+  } catch (error) {
+    console.error(`[ZorpManager] Error in zone cleanup:`, error);
+  }
+}
+
+/**
+ * Get team leader and members
  */
 async function getTeamLeaderAndMembers(ip, port, password, teamId) {
   try {
@@ -251,86 +255,6 @@ async function getTeamLeaderAndMembers(ip, port, password, teamId) {
   } catch (error) {
     console.error(`[ZorpManager] Error getting team info:`, error);
     return { leader: null, members: [] };
-  }
-}
-
-/**
- * Create zone for player (from new system)
- */
-async function createZoneForPlayer(ip, port, password, serverId, serverName, ign) {
-  try {
-    const zones = getServerZones(serverId);
-
-    // Check if player already has a zone
-    if ([...zones.values()].some((z) => z.members.includes(ign))) {
-      console.log(`[ZorpManager] Player ${ign} already has a zone`);
-      return;
-    }
-
-    // Check for team
-    const teamResp = await rceCommandWithRetry(ip, port, password, `relationshipmanager.findplayerteam "${ign}"`);
-    const teamIdMatch = teamResp.match(/Team\s+(\d+)/i);
-    let zoneName, members;
-
-    if (teamIdMatch) {
-      const { leader, members: teamMembers } = await getTeamLeaderAndMembers(ip, port, password, teamIdMatch[1]);
-      if (ign !== leader) {
-        console.log(`[ZorpManager] Player ${ign} is not team leader, only leader can create zones`);
-        return;
-      }
-      if ([...zones.values()].some((z) => z.members.some((m) => teamMembers.includes(m)))) {
-        console.log(`[ZorpManager] Team already has a zone`);
-        return;
-      }
-      zoneName = leader;
-      members = teamMembers;
-    } else {
-      zoneName = ign;
-      members = [ign];
-    }
-
-    // Get player position
-    const response = await rceCommandWithRetry(ip, port, password, `printpos "${ign}"`);
-    const match = response.match(/-?\d+(\.\d+)?/g);
-    if (!match) {
-      console.log(`[ZorpManager] Could not get position for ${ign}`);
-      return;
-    }
-
-    const [x, y, z] = match.map((n) => Math.round(parseFloat(n)));
-
-    // Check for nearby zones
-    for (const z of zones.values()) {
-      if (distance({ x, y, z }, z.coords) < CHECK_RADIUS) {
-        console.log(`[ZorpManager] Zone too close to existing zone`);
-        return;
-      }
-    }
-
-    // Create zone in game
-    await rceCommandWithRetry(
-      ip, port, password,
-      `zones.createcustomzone "${zoneName}" (${x},${y},${z}) 0 Sphere 45 0 0 0 0 0`
-    );
-
-    const zone = { 
-      zoneName, 
-      coords: { x, y, z }, 
-      members, 
-      status: "pending", 
-      owner: ign,
-      lastSeenUpdate: Date.now() 
-    };
-    
-    zones.set(zoneName, zone);
-    await saveZoneToDb(zone, serverId, true);
-    await applyZoneState(ip, port, password, zoneName, desiredZoneState("pending"));
-    
-    console.log(`[ZorpManager] Created zone for ${ign}: ${zoneName}`);
-    return zoneName;
-  } catch (error) {
-    console.error(`[ZorpManager] Error creating zone for player:`, error);
-    return null;
   }
 }
 
@@ -481,117 +405,7 @@ async function handleZorpDeleteEmote(ip, port, password, serverId, serverName, p
 }
 
 /**
- * Run scheduled zone validation and cleanup (adapted from new system)
- */
-async function runScheduledCheck() {
-  try {
-    console.log("[ZorpManager] Running scheduled zone validation");
-    
-    // Get all active servers
-    const [servers] = await pool.query(`
-      SELECT rs.*, g.discord_id as guild_id
-      FROM rust_servers rs
-      JOIN guilds g ON rs.guild_id = g.id
-      WHERE rs.active = 1
-    `);
-    
-    for (const server of servers) {
-      try {
-        await refreshZonesForServer(server.ip, server.port, server.password, server.id, server.nickname);
-      } catch (err) {
-        console.error(`[ZorpManager] Failed zone check for ${server.nickname}:`, err);
-      }
-    }
-  } catch (error) {
-    console.error(`[ZorpManager] Error in scheduled check:`, error);
-  }
-}
-
-/**
- * Run zone cleanup (expire old zones) (adapted from new system)
- */
-async function runZoneCleanup() {
-  try {
-    console.log("[ZorpManager] Running zone cleanup");
-    
-    const [servers] = await pool.query(`
-      SELECT rs.*, g.discord_id as guild_id
-      FROM rust_servers rs
-      JOIN guilds g ON rs.guild_id = g.id
-      WHERE rs.active = 1
-    `);
-    
-    for (const server of servers) {
-      try {
-        const [rows] = await pool.query(
-          `SELECT name
-           FROM zorp_zones
-           WHERE server_id = ? AND current_state != 'expired' AND last_online_at IS NOT NULL AND TIMESTAMPDIFF(HOUR, last_online_at, NOW()) >= ?`,
-          [server.id, EXPIRE_HOURS]
-        );
-        
-        for (const row of rows) {
-          console.log(`[ZorpManager] Expiring zone ${row.name} (inactive for ${EXPIRE_HOURS}h)`);
-          
-          // Delete from game
-          await rceCommandWithRetry(server.ip, server.port, server.password, `zones.deletecustomzone "${row.name}"`);
-          
-          // Mark as expired in database
-          await expireZoneInDb(server.id, row.name);
-          
-          // Remove from memory
-          getServerZones(server.id).delete(row.name);
-        }
-      } catch (err) {
-        console.error(`[ZorpManager] Cleanup failed for server ${server.nickname}:`, err);
-      }
-    }
-  } catch (error) {
-    console.error(`[ZorpManager] Error in zone cleanup:`, error);
-  }
-}
-
-/**
- * Initialize the Zorp Manager (adapted from new system)
- */
-async function initializeZorpManager() {
-  try {
-    console.log("[ZorpManager] Initializing Zorp Manager...");
-    
-    // Load existing zones from database
-    const [servers] = await pool.query(`
-      SELECT rs.*, g.discord_id as guild_id
-      FROM rust_servers rs
-      JOIN guilds g ON rs.guild_id = g.id
-      WHERE rs.active = 1
-    `);
-    
-    for (const server of servers) {
-      await loadZonesFromDb(server.id, server.nickname);
-    }
-    
-    // Start scheduled checks
-    setInterval(runScheduledCheck, UPDATE_INTERVAL_MS);
-    setInterval(runZoneCleanup, CLEANUP_INTERVAL_MS);
-    
-    console.log("[ZorpManager] Zorp Manager initialized successfully");
-  } catch (error) {
-    console.error("[ZorpManager] Error initializing Zorp Manager:", error);
-  }
-}
-
-// Legacy functions for backward compatibility
-const playerZones = new Map(); // Keep for backward compatibility
-
-/**
- * Create a new Zorp zone (legacy function)
- */
-async function createZorpZone(ip, port, password, playerName, coords, serverId, serverName) {
-  return await createZoneForPlayer(ip, port, password, serverId, serverName, playerName);
-}
-
-/**
- * Handle player online/offline status changes (legacy function)
+ * Handle player status change (legacy compatibility)
  */
 async function handlePlayerStatusChange(ip, port, password, playerName, isOnline, serverId, serverName) {
   try {
@@ -623,20 +437,40 @@ async function handlePlayerStatusChange(ip, port, password, playerName, isOnline
   }
 }
 
+/**
+ * Init
+ */
+async function initializeZorpManager() {
+  try {
+    console.log("[ZorpManager] Initializing Zorp Manager...");
+    const [servers] = await pool.query(`
+      SELECT rs.*, g.discord_id as guild_id
+      FROM rust_servers rs
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE rs.active = 1
+    `);
+    for (const server of servers) {
+      await loadZonesFromDb(server.id, server.nickname);
+    }
+    setInterval(runZoneUpdater, UPDATE_INTERVAL_MS);
+    setInterval(runZoneCleanup, CLEANUP_INTERVAL_MS);
+    console.log("[ZorpManager] Zorp Manager initialized successfully");
+  } catch (error) {
+    console.error("[ZorpManager] Error initializing Zorp Manager:", error);
+  }
+}
+
 module.exports = {
   initializeZorpManager,
-  createZorpZone,
-  handlePlayerStatusChange,
-  handleZorpEmote,
-  handleZorpDeleteEmote,
-  playerZones,
-  zonesByServer,
-  pendingRequests,
   getServerZones,
   desiredZoneState,
   applyZoneState,
-  createZoneForPlayer,
   refreshZonesForServer,
-  runScheduledCheck,
-  runZoneCleanup
+  runZoneUpdater,
+  runZoneCleanup,
+  handleZorpEmote,
+  handleZorpDeleteEmote,
+  handlePlayerStatusChange,
+  zonesByServer,
+  pendingRequests
 };
