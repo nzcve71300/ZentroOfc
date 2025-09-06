@@ -440,12 +440,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         // Start playtime tracking for this player
         try {
           const [playerResult] = await pool.query(
-            'SELECT p.id FROM players p JOIN rust_servers rs ON p.server_id = rs.id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? AND LOWER(p.ign) = LOWER(?)',
+            'SELECT p.id, rs.id as server_id FROM players p JOIN rust_servers rs ON p.server_id = rs.id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? AND LOWER(p.ign) = LOWER(?)',
             [guildId, serverName, player]
           );
           
           if (playerResult.length > 0) {
             const playerId = playerResult[0].id;
+            const serverId = playerResult[0].server_id;
             await playtimeTracker.ensurePlaytimeRecord(playerId);
             await playtimeTracker.startSession(playerId, serverId);
             console.log(`[PLAYTIME] Started session for ${player} (ID: ${playerId})`);
