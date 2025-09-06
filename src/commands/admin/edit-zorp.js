@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('@discordjs/builders');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const pool = require('../../db');
 const { sendRconCommand, sendFeedEmbed } = require('../../rcon');
+const zorpManager = require('../../systems/zorpManager');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -243,38 +244,52 @@ module.exports = {
                 }
               }
 
-              // Update color based on current zone state
+              // Update color based on current zone state using Zorp Manager
               if (colorOnline !== null || colorOffline !== null) {
-                // Get current zone state to determine which color to apply
-                const [stateResult] = await pool.query(
-                  'SELECT current_state, color_online, color_offline, color_yellow FROM zorp_zones WHERE name = ?',
-                  [zone.name]
-                );
+                // Get current zone state from Zorp Manager
+                const zones = zorpManager.getServerZones(serverId);
+                const zoneData = zones.get(zone.name);
                 
-                if (stateResult.length > 0) {
-                  const zoneState = stateResult[0];
-                  let colorToApply;
+                if (zoneData) {
+                  const currentState = zoneData.status;
+                  const desiredState = zorpManager.desiredZoneState(currentState);
                   
-                  // Use the appropriate color based on current state
-                  switch (zoneState.current_state) {
-                    case 'green':
-                      colorToApply = colorOnline || zoneState.color_online;
-                      break;
-                    case 'red':
-                      colorToApply = colorOffline || zoneState.color_offline;
-                      break;
-                    case 'yellow':
-                      colorToApply = zoneState.color_yellow || '255,255,0';
-                      break;
-                    case 'white':
-                      colorToApply = '255,255,255';
-                      break;
-                    default:
-                      colorToApply = colorOnline || zoneState.color_online;
+                  // Apply zone state with custom colors
+                  const customColors = {};
+                  if (colorOnline !== null) customColors.color_online = colorOnline;
+                  if (colorOffline !== null) customColors.color_offline = colorOffline;
+                  
+                  await zorpManager.applyZoneStateWithColors(server.ip, server.port, server.password, zone.name, desiredState, customColors);
+                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} color using Zorp Manager (state: ${currentState})`);
+                } else {
+                  // Fallback to direct RCON if zone not in memory
+                  const [stateResult] = await pool.query(
+                    'SELECT current_state, color_online, color_offline FROM zorp_zones WHERE name = ?',
+                    [zone.name]
+                  );
+                  
+                  if (stateResult.length > 0) {
+                    const zoneState = stateResult[0];
+                    let colorToApply;
+                    
+                    // Use the appropriate color based on current state
+                    switch (zoneState.current_state) {
+                      case 'active':
+                        colorToApply = colorOnline || zoneState.color_online;
+                        break;
+                      case 'offline':
+                        colorToApply = colorOffline || zoneState.color_offline;
+                        break;
+                      case 'pending':
+                        colorToApply = '255,255,0';
+                        break;
+                      default:
+                        colorToApply = colorOnline || zoneState.color_online;
+                    }
+                    
+                    await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
+                    console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to ${colorToApply} (state: ${zoneState.current_state})`);
                   }
-                  
-                  await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
-                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to ${colorToApply} (state: ${zoneState.current_state})`);
                 }
               }
             }
@@ -386,6 +401,19 @@ module.exports = {
       } catch (defaultsError) {
         console.error('Error updating server defaults:', defaultsError);
         // Continue even if defaults update fails
+      }
+
+      // Update Zorp Manager in-memory configuration
+      if (updatedFields.length > 0) {
+        const updates = {};
+        if (size !== null) updates.size = size;
+        if (colorOnline !== null) updates.color_online = colorOnline;
+        if (colorOffline !== null) updates.color_offline = colorOffline;
+        if (delay !== null) updates.delay = delay;
+        if (expire !== null) updates.expire = expire * 3600; // Convert hours to seconds
+        
+        await zorpManager.updateZoneConfiguration(serverId, updates);
+        console.log(`[EDIT-ZORP] Updated Zorp Manager configuration for server ${serverId}`);
       }
 
       // Create success embed

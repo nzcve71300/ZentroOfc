@@ -405,6 +405,62 @@ async function handleZorpDeleteEmote(ip, port, password, serverId, serverName, p
 }
 
 /**
+ * Update zone configuration (for /edit-zorp command)
+ */
+async function updateZoneConfiguration(serverId, updates) {
+  try {
+    const zones = getServerZones(serverId);
+    
+    // Update all zones in memory
+    for (const [zoneName, zone] of zones.entries()) {
+      // Update zone properties if they exist in updates
+      if (updates.size !== undefined) {
+        // Size updates require zone recreation, handled by the command
+      }
+      if (updates.color_online !== undefined) {
+        zone.color_online = updates.color_online;
+      }
+      if (updates.color_offline !== undefined) {
+        zone.color_offline = updates.color_offline;
+      }
+      if (updates.delay !== undefined) {
+        zone.delay = updates.delay;
+      }
+      if (updates.expire !== undefined) {
+        zone.expire = updates.expire;
+      }
+    }
+    
+    console.log(`[ZorpManager] Updated zone configuration for server ${serverId}`);
+  } catch (error) {
+    console.error(`[ZorpManager] Error updating zone configuration:`, error);
+  }
+}
+
+/**
+ * Apply zone state with custom colors (for /edit-zorp command)
+ */
+async function applyZoneStateWithColors(ip, port, password, zoneName, state, customColors = {}) {
+  try {
+    const zoneState = { ...state };
+    
+    // Override colors if custom colors are provided
+    if (customColors.color_online && state.color === "(0,255,0)") {
+      zoneState.color = `(${customColors.color_online})`;
+    }
+    if (customColors.color_offline && state.color === "(255,0,0)") {
+      zoneState.color = `(${customColors.color_offline})`;
+    }
+    
+    for (const [setting, value] of Object.entries(zoneState)) {
+      await rceCommandWithRetry(ip, port, password, `zones.editcustomzone "${zoneName}" "${setting}" ${value}`);
+    }
+  } catch (error) {
+    console.error(`[ZorpManager] Error applying zone state with colors for ${zoneName}:`, error);
+  }
+}
+
+/**
  * Handle player status change (legacy compatibility)
  */
 async function handlePlayerStatusChange(ip, port, password, playerName, isOnline, serverId, serverName) {
@@ -465,6 +521,8 @@ module.exports = {
   getServerZones,
   desiredZoneState,
   applyZoneState,
+  applyZoneStateWithColors,
+  updateZoneConfiguration,
   refreshZonesForServer,
   runZoneUpdater,
   runZoneCleanup,
