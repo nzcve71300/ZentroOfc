@@ -280,6 +280,11 @@ function startRconListeners(client) {
     checkAllServersForNightSkip(client);
   }, 120000); // 2 minutes
   
+  // Check game time every 30 seconds to trigger night skip votes
+  setInterval(() => {
+    checkGameTimeForNightSkip(client);
+  }, 30000); // 30 seconds
+  
   // Check player online status every 5 minutes (300000ms) to reduce log spam and improve performance
   setInterval(() => {
     checkAllPlayerOnlineStatusRockSolid(client);
@@ -667,6 +672,12 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
       if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes("d11_quick_chat_responses_slot_0")) {
         console.log(`[NIGHT SKIP] Vote detected on ${serverName}`);
         await handleNightSkipVote(client, guildId, serverName, msg, ip, port, password);
+      }
+
+      // Handle time response for night skip voting
+      if (msg.includes('env.time:')) {
+        console.log(`[NIGHT SKIP] Time response received from ${serverName}: ${msg}`);
+        await handleTimeResponse(client, guildId, serverName, msg, ip, port, password);
       }
 
       // Check online status every 15 seconds (increased frequency for better Zorp detection)
@@ -3434,6 +3445,141 @@ async function checkTimeAndStartNightSkipVote(client, guildId, serverName, ip, p
 
   } catch (error) {
     console.error(`[NIGHT SKIP] Error checking time on ${serverName}:`, error.message);
+  }
+}
+
+async function handleTimeResponse(client, guildId, serverName, msg, ip, port, password) {
+  try {
+    // Extract time from response (handles format: env.time: "18.0327")
+    const timeMatch = msg.match(/env\.time:\s*"(\d+)\.\d+"/i);
+    if (!timeMatch) {
+      console.log(`[NIGHT SKIP] Could not parse time from response: ${msg}`);
+      return;
+    }
+
+    const currentTime = parseInt(timeMatch[1]);
+    console.log(`[NIGHT SKIP] Current time on ${serverName}: ${currentTime}`);
+
+    // Check if it's 18:00 (6 PM) and start night skip vote
+    if (currentTime === 18) {
+      await startNightSkipVote(client, guildId, serverName, ip, port, password);
+    }
+  } catch (error) {
+    console.error(`[NIGHT SKIP] Error handling time response on ${serverName}:`, error.message);
+  }
+}
+
+async function startNightSkipVote(client, guildId, serverName, ip, port, password) {
+  try {
+    const serverKey = `${guildId}:${serverName}`;
+    
+    // Check if night skip voting is already active
+    if (nightSkipVotes.has(serverKey)) {
+      console.log(`[NIGHT SKIP] Night skip voting already active for ${serverName}`);
+      return;
+    }
+    
+    // Check if we had a recent failed attempt (within the last 5 minutes)
+    const lastFailedAttempt = nightSkipFailedAttempts.get(serverKey);
+    if (lastFailedAttempt && (Date.now() - lastFailedAttempt) < 300000) { // 5 minutes = 300000ms
+      console.log(`[NIGHT SKIP] Skipping night skip vote on ${serverName} - recent failed attempt within 5 minutes`);
+      return;
+    }
+    
+    // Get server ID to fetch settings
+    const [serverResult] = await pool.query(
+      'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+      [guildId, serverName]
+    );
+    
+    if (serverResult.length === 0) {
+      console.log(`[NIGHT SKIP] Server not found in database: ${serverName}`);
+      return;
+    }
+    
+    const serverId = serverResult[0].id;
+    
+    // Get night skip settings from database
+    const [settingsResult] = await pool.query(
+      'SELECT minimum_voters, enabled FROM night_skip_settings WHERE server_id = ?',
+      [serverId]
+    );
+    
+    // Default settings if none exist
+    const settings = settingsResult.length > 0 ? settingsResult[0] : { minimum_voters: 5, enabled: true };
+    
+    // Check if night skip is enabled
+    if (!settings.enabled) {
+      console.log(`[NIGHT SKIP] Night skip voting is disabled for ${serverName}`);
+      return;
+    }
+    
+    console.log(`[NIGHT SKIP] Starting night skip vote on ${serverName}`);
+    
+    // Start voting session
+    nightSkipVotes.set(serverKey, true);
+    nightSkipVoteCounts.set(serverKey, 0);
+
+    // Send vote message in game
+    const voteMessage = `say <color=#FF0000><b>🌙 Bye-Bye Night, Hello Light</b></color><br><color=#00FFFF><b>VOTE TO SKIP NIGHT</b></color><br><color=#FFFF00><b>use the (YES) emote</b></color>`;
+    sendRconCommand(ip, port, password, voteMessage);
+    console.log(`[NIGHT SKIP] Vote message sent to ${serverName}`);
+
+    // Send to admin feed
+    await sendFeedEmbed(client, guildId, serverName, 'adminfeed', `🌙 **Night Skip Vote Started:** Players can now vote to skip night using the YES emote (need ${settings.minimum_voters} votes)`);
+
+    // Set timeout to end voting after 30 seconds
+    setTimeout(async () => {
+      // Check if voting session is still active (might have been cleared by successful vote)
+      if (!nightSkipVotes.has(serverKey)) {
+        console.log(`[NIGHT SKIP] Voting session already ended for ${serverName}, skipping timeout finalization`);
+        return;
+      }
+      const finalVoteCount = nightSkipVoteCounts.get(serverKey) || 0;
+      await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= settings.minimum_voters);
+    }, 30000); // 30 seconds
+
+  } catch (error) {
+    console.error(`[NIGHT SKIP] Error starting night skip vote on ${serverName}:`, error.message);
+  }
+}
+
+async function checkGameTimeForNightSkip(client) {
+  try {
+    const [result] = await pool.execute('SELECT * FROM rust_servers WHERE active = 1');
+    
+    for (const server of result) {
+      // Enhanced validation for server IP/port combinations
+      if (!server.ip || 
+          server.ip === '0.0.0.0' || 
+          server.ip === 'PLACEHOLDER_IP' ||
+          !server.port || 
+          server.port === 0 ||
+          !server.password) {
+        continue;
+      }
+      
+      // Validate IP format
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      if (!ipRegex.test(server.ip)) {
+        continue;
+      }
+      
+      const [guildResult] = await pool.execute('SELECT discord_id FROM guilds WHERE id = ?', [server.guild_id]);
+      if (guildResult.length > 0) {
+        const guildId = guildResult[0].discord_id;
+        
+        // Send time command to get current game time
+        try {
+          await sendRconCommand(server.ip, server.port, server.password, 'time');
+          console.log(`[NIGHT SKIP] Sent time command to ${server.nickname}`);
+        } catch (error) {
+          console.error(`[NIGHT SKIP] Error sending time command to ${server.nickname}:`, error.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[NIGHT SKIP] Error checking game time:', error.message);
   }
 }
 
