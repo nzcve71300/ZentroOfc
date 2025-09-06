@@ -3497,7 +3497,8 @@ async function handleZorpDeleteEmote(client, guildId, serverName, parsed, ip, po
         await clearOfflineExpirationTimer(zoneName);
         
         // Delete zone from database by zone name (more reliable than owner)
-        await pool.query('DELETE FROM zorp_zones WHERE name = ? AND server_id = ?', [zoneName, serverId]);
+        const [deleteResult] = await pool.query('DELETE FROM zorp_zones WHERE name = ? AND server_id = ?', [zoneName, serverId]);
+        console.log(`[ZORP DELETE] Deleted ${deleteResult.affectedRows} zone record(s) from database for ${zoneName}`);
 
         // Send success message
         await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${player}</color> <color=white>Zorp successfully deleted!</color>`);
@@ -4029,7 +4030,8 @@ async function handleOfflineExpiration(ip, port, password, playerName, zoneName)
       await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
       
       // Delete zone from database
-      await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zoneName]);
+      const [deleteResult] = await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zoneName]);
+      console.log(`[ZORP OFFLINE TIMER] Deleted ${deleteResult.affectedRows} zone record(s) from database for ${zoneName}`);
       
       // Clean up timer references
       zorpOfflineTimers.delete(zoneName);
@@ -4117,7 +4119,8 @@ async function handleExpireCountdown(ip, port, password, playerName, zoneName) {
       await sendRconCommand(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
       
       // Delete zone from database
-      await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zoneName]);
+      const [deleteResult] = await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zoneName]);
+      console.log(`[ZORP EXPIRE TIMER] Deleted ${deleteResult.affectedRows} zone record(s) from database for ${zoneName}`);
       
       // Clean up timer references
       zorpOfflineExpireTimers.delete(zoneName);
@@ -5909,6 +5912,103 @@ async function checkIfAllTeamMembersOffline(ip, port, password, playerName) {
     console.error('Error checking team offline status:', error);
     console.log(`[ZORP TEAM DEBUG] ===== ERROR IN TEAM OFFLINE CHECK FOR ${playerName} =====`);
     return false; // Assume someone is online if there's an error
+  }
+}
+
+// ZORP DUPLICATE CLEANUP FUNCTION
+async function cleanupZorpDuplicates() {
+  try {
+    console.log('🧹 [ZORP CLEANUP] Starting ZORP duplicate cleanup...');
+    
+    // Get all servers
+    const [servers] = await pool.query(
+      'SELECT id, nickname, ip, port, password FROM rust_servers'
+    );
+    
+    let totalDuplicatesRemoved = 0;
+    let totalOrphanedRemoved = 0;
+    
+    for (const server of servers) {
+      try {
+        console.log(`🧹 [ZORP CLEANUP] Processing server: ${server.nickname}`);
+        
+        // Get zones from game server
+        const gameZones = await getZonesFromGameServer(server);
+        console.log(`   🎮 Found ${gameZones.length} zones in game`);
+        
+        // Get zones from database
+        const [dbZones] = await pool.query(
+          'SELECT id, name, owner FROM zorp_zones WHERE server_id = ?',
+          [server.id]
+        );
+        console.log(`   📊 Found ${dbZones.length} zones in database`);
+        
+        // Find duplicates in database (same name)
+        const zoneCounts = {};
+        const duplicates = [];
+        
+        for (const zone of dbZones) {
+          if (zoneCounts[zone.name]) {
+            zoneCounts[zone.name].push(zone);
+            if (zoneCounts[zone.name].length === 2) {
+              duplicates.push(zoneCounts[zone.name]);
+            }
+          } else {
+            zoneCounts[zone.name] = [zone];
+          }
+        }
+        
+        console.log(`   🔍 Found ${duplicates.length} duplicate zone names`);
+        
+        // Remove duplicates (keep the most recent one)
+        for (const duplicateGroup of duplicates) {
+          console.log(`   🗑️  Removing duplicates for zone: ${duplicateGroup[0].name}`);
+          
+          // Sort by ID (assuming higher ID = more recent)
+          duplicateGroup.sort((a, b) => a.id - b.id);
+          
+          // Keep the last one, delete the rest
+          const toKeep = duplicateGroup.pop();
+          const toDelete = duplicateGroup;
+          
+          for (const zone of toDelete) {
+            await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+            console.log(`      ❌ Deleted duplicate zone ID: ${zone.id}`);
+            totalDuplicatesRemoved++;
+          }
+          
+          console.log(`      ✅ Kept zone ID: ${toKeep.id}`);
+        }
+        
+        // Remove zones from database that don't exist in game
+        const gameZoneNames = new Set(gameZones);
+        const zonesToRemove = [];
+        
+        for (const zone of dbZones) {
+          if (!gameZoneNames.has(zone.name)) {
+            zonesToRemove.push(zone);
+          }
+        }
+        
+        console.log(`   🧹 Found ${zonesToRemove.length} zones in database but not in game`);
+        
+        for (const zone of zonesToRemove) {
+          await pool.query('DELETE FROM zorp_zones WHERE id = ?', [zone.id]);
+          console.log(`      🗑️  Removed orphaned zone: ${zone.name} (ID: ${zone.id})`);
+          totalOrphanedRemoved++;
+        }
+        
+        console.log(`   ✅ Server ${server.nickname} processed successfully`);
+        
+      } catch (error) {
+        console.error(`   ❌ Error processing server ${server.nickname}:`, error.message);
+      }
+    }
+    
+    console.log(`🧹 [ZORP CLEANUP] Cleanup complete! Removed ${totalDuplicatesRemoved} duplicates and ${totalOrphanedRemoved} orphaned zones`);
+    
+  } catch (error) {
+    console.error('❌ [ZORP CLEANUP] Error in cleanupZorpDuplicates:', error);
   }
 }
 
@@ -7800,5 +7900,6 @@ module.exports = {
   enableTeamActionLogging,
   populateTeamIds,
   checkEventGibs,
-  clearOfflineExpirationTimer
+  clearOfflineExpirationTimer,
+  cleanupZorpDuplicates
 }; 

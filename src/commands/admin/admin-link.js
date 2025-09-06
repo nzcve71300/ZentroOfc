@@ -194,7 +194,7 @@ module.exports = {
 
            // 🔒 CRITICAL: Check if Discord user already has a record on this server
            const [existingDiscordPlayer] = await pool.query(
-             'SELECT id, ign, balance FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ? AND is_active = true',
+             'SELECT p.id, p.ign, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND p.server_id = ? AND p.discord_id = ? AND p.is_active = true',
              [guildId, server.id, discordId]
            );
 
