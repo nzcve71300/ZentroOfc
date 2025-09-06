@@ -189,6 +189,9 @@ function startRconListeners(client) {
   setInterval(() => checkAllEvents(client), EVENT_POLLING_INTERVAL); // Check for events every 30 seconds for better detection
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
   
+  // Clean up orphaned zones every 10 minutes
+  setInterval(() => cleanupOrphanedZones(), 600000);
+  
   // Player feed monitoring - check for actual joins/leaves every 30 seconds
   setInterval(() => {
     monitorAllPlayerFeeds(client);
@@ -5944,6 +5947,47 @@ async function checkIfAllTeamMembersOffline(ip, port, password, playerName) {
     console.error('Error checking team offline status:', error);
     console.log(`[ZORP TEAM DEBUG] ===== ERROR IN TEAM OFFLINE CHECK FOR ${playerName} =====`);
     return false; // Assume someone is online if there's an error
+  }
+}
+
+// ZORP ORPHANED ZONES CLEANUP FUNCTION
+async function cleanupOrphanedZones() {
+  try {
+    console.log('🧹 [ZORP CLEANUP] Starting orphaned zones cleanup...');
+    
+    // Remove zones with unknown owners
+    const [unknownResult] = await pool.query(
+      'DELETE FROM zorp_zones WHERE owner = "Unknown" OR owner IS NULL OR owner = ""'
+    );
+    
+    if (unknownResult.affectedRows > 0) {
+      console.log(`🧹 [ZORP CLEANUP] Removed ${unknownResult.affectedRows} zones with unknown owners`);
+    }
+    
+    // Remove expired zones
+    const [expiredResult] = await pool.query(
+      'DELETE FROM zorp_zones WHERE created_at + INTERVAL expire SECOND < CURRENT_TIMESTAMP'
+    );
+    
+    if (expiredResult.affectedRows > 0) {
+      console.log(`🧹 [ZORP CLEANUP] Removed ${expiredResult.affectedRows} expired zones`);
+    }
+    
+    // Remove zones marked as orphaned
+    const [orphanedResult] = await pool.query(
+      'DELETE FROM zorp_zones WHERE current_state = "orphaned"'
+    );
+    
+    if (orphanedResult.affectedRows > 0) {
+      console.log(`🧹 [ZORP CLEANUP] Removed ${orphanedResult.affectedRows} orphaned zones`);
+    }
+    
+    if (unknownResult.affectedRows === 0 && expiredResult.affectedRows === 0 && orphanedResult.affectedRows === 0) {
+      console.log('🧹 [ZORP CLEANUP] No orphaned zones found');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error in orphaned zones cleanup:', error);
   }
 }
 
