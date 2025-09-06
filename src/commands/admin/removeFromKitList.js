@@ -22,6 +22,7 @@ module.exports = {
         .setDescription('Select which kit list to remove from')
         .setRequired(true)
         .addChoices(
+          { name: 'ALL Kits (All Kit Lists)', value: 'ALL' },
           { name: 'VIP Kits', value: 'VIPkit' },
           { name: 'Elite List 1', value: 'Elite1' },
           { name: 'Elite List 2', value: 'Elite2' },
@@ -126,37 +127,96 @@ module.exports = {
         'Elite10': 'ELITEkit10',
         'Elite11': 'ELITEkit11',
         'Elite12': 'ELITEkit12',
-        'Elite13': 'ELITEkit13'
+        'Elite13': 'ELITEkit13',
+        'Elite14': 'ELITEkit14',
+        'Elite15': 'ELITEkit15',
+        'Elite16': 'ELITEkit16',
+        'Elite17': 'ELITEkit17',
+        'Elite18': 'ELITEkit18',
+        'Elite19': 'ELITEkit19',
+        'Elite20': 'ELITEkit20',
+        'Elite21': 'ELITEkit21'
       };
 
-      const kitName = kitNameMap[kitlist] || kitlist;
+      // Handle ALL option
+      if (kitlist === 'ALL') {
+        // Get all kit names
+        const allKitNames = [
+          'VIPkit',
+          'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5',
+          'ELITEkit6', 'ELITEkit7', 'ELITEkit8', 'ELITEkit9', 'ELITEkit10',
+          'ELITEkit11', 'ELITEkit12', 'ELITEkit13', 'ELITEkit14', 'ELITEkit15',
+          'ELITEkit16', 'ELITEkit17', 'ELITEkit18', 'ELITEkit19', 'ELITEkit20', 'ELITEkit21'
+        ];
 
-      // Check if player is in this kit list
-      const [existingResult] = await pool.query(
-        'SELECT id FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
-        [serverId, kitName, player.ign]
-      );
+        let removedCount = 0;
+        let notInCount = 0;
+        const notInKits = [];
 
-      if (existingResult.length === 0) {
+        // Check each kit and remove if present
+        for (const kitName of allKitNames) {
+          const [existingResult] = await pool.query(
+            'SELECT id FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
+            [serverId, kitName, player.ign]
+          );
+
+          if (existingResult.length > 0) {
+            await pool.query(
+              'DELETE FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
+              [serverId, kitName, player.ign]
+            );
+            removedCount++;
+          } else {
+            notInCount++;
+            const kitDisplayName = kitName === 'VIPkit' ? 'VIP kits' : kitName.replace('ELITEkit', 'Elite List ');
+            notInKits.push(kitDisplayName);
+          }
+        }
+
+        let message = `**Player:** ${player.ign}\n**Server:** ${serverName}\n**Action:** Removed from ALL kit lists\n\n`;
+        message += `✅ **Removed from ${removedCount} kit lists**\n`;
+        
+        if (notInCount > 0) {
+          message += `ℹ️ **Not in ${notInCount} kit lists:** ${notInKits.join(', ')}\n`;
+        }
+
+        await interaction.editReply({
+          embeds: [successEmbed(
+            'Player Removed from All Kit Lists',
+            message
+          )]
+        });
+      } else {
+        // Handle individual kit list
+        const kitName = kitNameMap[kitlist] || kitlist;
+
+        // Check if player is in this kit list
+        const [existingResult] = await pool.query(
+          'SELECT id FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
+          [serverId, kitName, player.ign]
+        );
+
+        if (existingResult.length === 0) {
+          const kitType = kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`;
+          return interaction.editReply({
+            embeds: [errorEmbed('Not in List', `${player.ign} is not authorized for ${kitType} on ${serverName}.`)]
+          });
+        }
+
+        // Remove player from kit list
+        await pool.query(
+          'DELETE FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
+          [serverId, kitName, player.ign]
+        );
+
         const kitType = kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`;
-        return interaction.editReply({
-          embeds: [errorEmbed('Not in List', `${player.ign} is not authorized for ${kitType} on ${serverName}.`)]
+        await interaction.editReply({
+          embeds: [successEmbed(
+            'Player Removed from Kit List',
+            `**Player:** ${player.ign}\n**Server:** ${serverName}\n**Authorization:** ${kitType}\n\nPlayer has been removed from ${kitType} authorization.`
+          )]
         });
       }
-
-      // Remove player from kit list
-      await pool.query(
-        'DELETE FROM kit_auth WHERE server_id = ? AND kit_name = ? AND LOWER(player_name) = LOWER(?)',
-        [serverId, kitName, player.ign]
-      );
-
-      const kitType = kitlist === 'VIPkit' ? 'VIP kits' : `${kitlist} elite kits`;
-      await interaction.editReply({
-        embeds: [successEmbed(
-          'Player Removed from Kit List',
-          `**Player:** ${player.ign}\n**Server:** ${serverName}\n**Authorization:** ${kitType}\n\nPlayer has been removed from ${kitType} authorization.`
-        )]
-      });
 
     } catch (error) {
       console.error('Error removing player from kit list:', error);
