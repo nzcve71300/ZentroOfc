@@ -555,6 +555,7 @@ module.exports = {
   handleNoResponse,
   playerZones,
   zonesByServer,
+  pendingRequests,
   getServerZones,
   desiredZoneState,
   applyZoneState,
