@@ -3248,10 +3248,10 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
     // Check if we reached the minimum votes
     if (newVoteCount >= settings.minimum_voters) {
       console.log(`[NIGHT SKIP] 🎉 VOTE THRESHOLD REACHED for ${serverName}! (${newVoteCount} >= ${settings.minimum_voters}) Finalizing vote with success=true`);
-      // Clear the voting session BEFORE calling finalize to prevent race condition with timeout
+      // Clear the voting session AFTER calling finalize to ensure time command is sent
+      await finalizeNightSkipVote(client, guildId, serverName, newVoteCount, ip, port, password, true);
       nightSkipVotes.delete(serverKey);
       nightSkipVoteCounts.delete(serverKey);
-      await finalizeNightSkipVote(client, guildId, serverName, newVoteCount, ip, port, password, true);
     }
 
   } catch (error) {
@@ -3291,9 +3291,7 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
     // Default settings if none exist
     const settings = settingsResult.length > 0 ? settingsResult[0] : { minimum_voters: 5, enabled: true };
     
-    // Clear the voting session (if not already cleared)
-    nightSkipVotes.delete(serverKey);
-    nightSkipVoteCounts.delete(serverKey);
+    // Note: Voting session clearing is now handled by the calling function
 
     if (success) {
       // Clear failed attempts since we succeeded
@@ -3543,7 +3541,11 @@ async function startNightSkipVote(client, guildId, serverName, ip, port, passwor
         return;
       }
       const finalVoteCount = nightSkipVoteCounts.get(serverKey) || 0;
+      console.log(`[NIGHT SKIP] Timeout reached for ${serverName} with ${finalVoteCount} votes`);
       await finalizeNightSkipVote(client, guildId, serverName, finalVoteCount, ip, port, password, finalVoteCount >= settings.minimum_voters);
+      // Clear the voting session after timeout finalization
+      nightSkipVotes.delete(serverKey);
+      nightSkipVoteCounts.delete(serverKey);
     }, 30000); // 30 seconds
 
   } catch (error) {
