@@ -95,6 +95,15 @@ async function testNameHandling() {
     console.log(`Input: "${testCase.input}"`);
     console.log(`Expected: ${testCase.expected === null ? 'null' : `"${testCase.expected}"`}`);
     console.log(`Got: ${result === null ? 'null' : `"${result}"`}`);
+    
+    // Debug unicode and emoji tests
+    if (testCase.description.includes('unicode') || testCase.description.includes('emoji')) {
+      console.log(`Debug - Input bytes: ${Buffer.from(testCase.input).toString('hex')}`);
+      if (result) {
+        console.log(`Debug - Result bytes: ${Buffer.from(result).toString('hex')}`);
+      }
+    }
+    
     console.log(`Result: ${success ? '✅ PASS' : '❌ FAIL'}`);
     
     if (success) {

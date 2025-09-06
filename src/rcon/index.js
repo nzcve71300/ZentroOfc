@@ -2348,7 +2348,7 @@ function extractPlayerName(logLine) {
   
   // Try direct format but exclude chat server messages
   // Use a more permissive regex that handles unicode and emoji characters
-  match = logLine.match(/^(.+?) :/);
+  match = logLine.match(/^(.+?)\s*:/);
   if (match) {
     let playerName = match[1];
     // Filter out chat server prefixes and system messages
