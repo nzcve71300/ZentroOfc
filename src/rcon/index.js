@@ -6137,14 +6137,29 @@ async function syncAllZonesToDatabase(client) {
             );
             
             if (existingZone.length === 0) {
-              // Add zone to database with 'Unknown' owner
-              console.log(`   ➕ Adding missing zone to database: ${zoneName}`);
-              await pool.query(
-                'INSERT INTO zorp_zones (name, owner, server_id, created_at, expire) VALUES (?, ?, ?, NOW(), 86400)',
-                [zoneName, 'Unknown', server.id]
+              // Check if this is a valid ZORP zone (starts with ZORP_)
+              if (zoneName.startsWith('ZORP_')) {
+                console.log(`   ⚠️  Found orphaned ZORP zone in game: ${zoneName}`);
+                console.log(`   🗑️  Attempting to delete orphaned zone from game...`);
+                
+                try {
+                  // Try to delete the orphaned zone from the game
+                  await sendRconCommand(server.ip, server.port, server.password, `zones.deletecustomzone "${zoneName}"`);
+                  console.log(`   ✅ Deleted orphaned zone from game: ${zoneName}`);
+                } catch (deleteError) {
+                  console.log(`   ⚠️  Could not delete orphaned zone ${zoneName}: ${deleteError.message}`);
+                  // If we can't delete it, mark it as orphaned in database for manual cleanup
+                  console.log(`   🏷️  Marking zone as orphaned in database: ${zoneName}`);
+                  await pool.query(
+                'INSERT INTO zorp_zones (name, owner, server_id, current_state, desired_state, applied_state, created_at, expire) VALUES (?, ?, ?, ?, ?, ?, NOW(), 86400)',
+                [zoneName, 'ORPHANED', server.id, 'orphaned', 'orphaned', 'orphaned']
               );
-              console.log(`   ✅ Added zone: ${zoneName}`);
-              totalZonesAdded++;
+                  console.log(`   ✅ Marked zone as orphaned: ${zoneName}`);
+                  totalZonesAdded++;
+                }
+              } else {
+                console.log(`   ⏭️  Skipping non-ZORP zone: ${zoneName}`);
+              }
             }
           } catch (error) {
             console.log(`   ❌ Failed to add zone ${zoneName}:`, error.message);
