@@ -120,7 +120,6 @@ const TELEPORT_HOME_EMOTE = 'd11_quick_chat_combat_slot_1';
 // HOME_CHOICES removed - no longer using yes/no confirmation for home teleport
 
 // ZORP constants
-const ZORP_EMOTE = 'd11_quick_chat_questions_slot_1';
 const ZORP_DELETE_EMOTE = 'd11_quick_chat_responses_slot_6';
 const GOODBYE_EMOTE = 'd11_quick_chat_responses_slot_6'; // Alternative name for clarity
 
