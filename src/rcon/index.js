@@ -129,6 +129,7 @@ const playerTeamIds = new Map(); // playerName -> teamId
 
 // Add at the top of the file, after the existing imports
 const lastOfflineCall = new Map(); // Track last offline call time per player
+const lastOnlineCall = new Map(); // Track last online call time per player
 
 // Track recent joins to prevent respawn spam
 const recentJoins = new Map(); // playerName -> timestamp
@@ -183,19 +184,19 @@ function startRconListeners(client) {
   setInterval(() => {
     refreshConnections(client);
     pollPlayerCounts(client);
-  }, 60000);
+  }, 120000); // Reduced from 60s to 120s to prevent spam
   setInterval(() => flushJoinLeaveBuffers(client), 60000);
   setInterval(() => flushKillFeedBuffers(client), 10000); // Flush every 10 seconds for high-volume servers
   setInterval(() => checkAllEvents(client), EVENT_POLLING_INTERVAL); // Check for events every 30 seconds for better detection
   setInterval(() => deleteExpiredZones(client), 300000); // Check for expired zones every 5 minutes
   
-  // Clean up orphaned zones every 10 minutes
-  setInterval(() => cleanupOrphanedZones(), 600000);
+  // Clean up orphaned zones every 30 minutes to reduce spam
+  setInterval(() => cleanupOrphanedZones(), 1800000);
   
-  // Player feed monitoring - check for actual joins/leaves every 30 seconds
+  // Player feed monitoring - check for actual joins/leaves every 2 minutes to reduce spam
   setInterval(() => {
     monitorAllPlayerFeeds(client);
-  }, 30000);
+  }, 120000);
   
   // Cleanup old join tracking entries to prevent memory leaks
   setInterval(() => {
@@ -214,6 +215,21 @@ function startRconListeners(client) {
     for (const [key, timestamp] of playerFeedJoinCooldown.entries()) {
       if (timestamp < cutoff) {
         playerFeedJoinCooldown.delete(key);
+        cleanedCount++;
+      }
+    }
+    
+    // Clean up online/offline call tracking entries
+    for (const [key, timestamp] of lastOnlineCall.entries()) {
+      if (timestamp < cutoff) {
+        lastOnlineCall.delete(key);
+        cleanedCount++;
+      }
+    }
+    
+    for (const [key, timestamp] of lastOfflineCall.entries()) {
+      if (timestamp < cutoff) {
+        lastOfflineCall.delete(key);
         cleanedCount++;
       }
     }
@@ -247,10 +263,10 @@ function startRconListeners(client) {
     checkAllServersForNightSkip(client);
   }, 120000); // 2 minutes
   
-  // Check player online status every 2 minutes (120000ms) for better Zorp detection
+  // Check player online status every 5 minutes (300000ms) to reduce log spam and improve performance
   setInterval(() => {
     checkAllPlayerOnlineStatusRockSolid(client);
-  }, 120000);
+  }, 300000);
   
   // Display scheduled messages every 3 minutes
   setInterval(() => {
@@ -5405,12 +5421,12 @@ async function handlePlayerOffline(client, guildId, serverName, playerName, ip, 
     // Clean player name by removing quotes
     const cleanPlayerName = playerName.replace(/^"|"$/g, '');
     
-    // Deduplication: prevent multiple calls for the same player within 15 seconds
+    // Deduplication: prevent multiple calls for the same player within 60 seconds
     const playerKey = `${guildId}_${serverName}_${cleanPlayerName}`;
     const now = Date.now();
     const lastCall = lastOfflineCall.get(playerKey) || 0;
     
-    if (now - lastCall < 30000) { // Increased to 30 seconds for better stability on high-population servers
+    if (now - lastCall < 60000) { // Increased to 60 seconds to prevent spam
       console.log(`[ZORP] Skipping duplicate offline call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
@@ -5528,17 +5544,17 @@ async function handlePlayerOnline(client, guildId, serverName, playerName, ip, p
     // Clean player name by removing quotes
     const cleanPlayerName = playerName.replace(/^"|"$/g, '');
     
-    // Deduplication: prevent multiple calls for the same player within 15 seconds
+    // Deduplication: prevent multiple calls for the same player within 60 seconds
     const playerKey = `${guildId}_${serverName}_${cleanPlayerName}`;
     const now = Date.now();
-    const lastCall = lastOfflineCall.get(playerKey) || 0;
+    const lastCall = lastOnlineCall.get(playerKey) || 0;
     
-    if (now - lastCall < 30000) { // Increased to 30 seconds for better stability on high-population servers
+    if (now - lastCall < 60000) { // Increased to 60 seconds to prevent spam
       console.log(`[ZORP] Skipping duplicate online call for ${cleanPlayerName} (last call was ${Math.round((now - lastCall) / 1000)}s ago)`);
       return;
     }
     
-    lastOfflineCall.set(playerKey, now);
+    lastOnlineCall.set(playerKey, now);
     
     console.log(`[ZORP DEBUG] Processing online for ${cleanPlayerName} on ${serverName}`);
     
