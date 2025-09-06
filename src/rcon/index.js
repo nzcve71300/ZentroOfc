@@ -680,6 +680,13 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         await handleTimeResponse(client, guildId, serverName, msg, ip, port, password);
       }
 
+      // Test command for manual time skip (for debugging)
+      if (msg.includes('[CHAT SERVER]') && msg.includes('!testtimeskip')) {
+        console.log(`[NIGHT SKIP] Test time skip command received from ${serverName}`);
+        sendRconCommand(ip, port, password, 'time 12');
+        sendRconCommand(ip, port, password, 'say <color=#00FF00><b>🧪 TEST: Time set to 12:00</b></color>');
+      }
+
       // Check online status every 15 seconds (increased frequency for better Zorp detection)
       const now = Date.now();
       const lastCheck = onlineStatusChecks.get(key) || 0;
@@ -3240,7 +3247,7 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
 
     // Check if we reached the minimum votes
     if (newVoteCount >= settings.minimum_voters) {
-      console.log(`[NIGHT SKIP] Vote threshold reached for ${serverName}! Finalizing vote with success=true`);
+      console.log(`[NIGHT SKIP] 🎉 VOTE THRESHOLD REACHED for ${serverName}! (${newVoteCount} >= ${settings.minimum_voters}) Finalizing vote with success=true`);
       // Clear the voting session BEFORE calling finalize to prevent race condition with timeout
       nightSkipVotes.delete(serverKey);
       nightSkipVoteCounts.delete(serverKey);
@@ -3303,7 +3310,7 @@ async function finalizeNightSkipVote(client, guildId, serverName, voteCount, ip,
       setTimeout(() => {
         // Set time to noon (12:00)
         sendRconCommand(ip, port, password, 'time 12');
-        console.log(`[NIGHT SKIP] Time command sent to ${serverName}: time 12`);
+        console.log(`[NIGHT SKIP] ✅ TIME COMMAND SENT TO ${serverName}: time 12`);
       }, 2000);
       console.log(`[NIGHT SKIP] Night skip successful on ${serverName} with ${voteCount} votes - time set to 12:00`);
       
@@ -3514,7 +3521,7 @@ async function startNightSkipVote(client, guildId, serverName, ip, port, passwor
       return;
     }
     
-    console.log(`[NIGHT SKIP] Starting night skip vote on ${serverName}`);
+    console.log(`[NIGHT SKIP] 🌙 Starting night skip vote on ${serverName} (need ${settings.minimum_voters} votes)`);
     
     // Start voting session
     nightSkipVotes.set(serverKey, true);
