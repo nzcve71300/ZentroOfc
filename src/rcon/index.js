@@ -870,7 +870,8 @@ async function ensurePlayerExists(guildId, serverName, playerName) {
 
 async function handleKillRewards(guildId, serverName, killer, victim, isScientist) {
   try {
-    // Sanitize player names to remove null bytes and invalid characters
+    // Sanitize player names to remove null bytes but preserve all other characters
+    // Sanitize player names to remove null bytes but preserve all other characters
     const sanitizedKiller = killer.replace(/\0/g, '').trim();
     const sanitizedVictim = victim.replace(/\0/g, '').trim();
     
@@ -958,6 +959,7 @@ async function handleBountySystem(guildId, serverName, killer, victim, ip, port,
     // Only process player kills for bounty system
     if (!killer || !victim) return;
     
+    // Sanitize player names to remove null bytes but preserve all other characters
     const sanitizedKiller = killer.replace(/\0/g, '').trim();
     const sanitizedVictim = victim.replace(/\0/g, '').trim();
     
@@ -2359,8 +2361,19 @@ function extractPlayerName(logLine) {
       }
     }
     
-    // Filter out other system prefixes
-    if (playerName.startsWith('[') || playerName.includes('SERVER') || playerName.length < 2) {
+    // Only filter out obvious system messages, allow all player names including those with brackets
+    // Allow names starting with [ (like [CLAN] PlayerName)
+    // Allow names containing SERVER (as long as it's not the system message)
+    // Only reject if it's clearly a system message or empty
+    if (playerName.length < 1 || 
+        playerName === 'SERVER' || 
+        playerName === '[SERVER]' ||
+        playerName.includes('[CHAT SERVER]') ||
+        playerName.includes('[SAVE]') ||
+        playerName.includes('[LOAD]') ||
+        playerName.includes('[ERROR]') ||
+        playerName.includes('[WARNING]') ||
+        playerName.includes('[INFO]')) {
       return null;
     }
     
