@@ -113,6 +113,8 @@ const BOOKARIDE_CHOICES = {
 
 // Zorp constants
 const ZORP_EMOTE = 'd11_quick_chat_questions_slot_0'; // QUESTIONS_CanIBuildAroundHere
+const YES_EMOTE = 'd11_quick_chat_responses_slot_0'; // RESPONSES_Yes
+const NO_EMOTE = 'd11_quick_chat_responses_slot_1'; // RESPONSES_No
 
 // Home Teleport constants
 const SET_HOME_EMOTE = 'd11_quick_chat_building_slot_3';
@@ -3477,15 +3479,38 @@ async function handleZorpEmote(client, guildId, serverName, parsed, ip, port, pa
     if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes(ZORP_EMOTE)) {
       const player = extractPlayerName(msg);
       if (player) {
-        // Determine chat type for logging
-        let chatType = 'LOCAL';
-        if (msg.includes('[CHAT TEAM]')) chatType = 'TEAM';
-        else if (msg.includes('[CHAT SERVER]')) chatType = 'SERVER';
+        // Get server ID for new Zorp system
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
         
-        // Debug logging removed for production
-        await createZorpZone(client, guildId, serverName, ip, port, password, player);
-      } else {
-        // Debug logging removed for production
+        if (serverResult.length > 0) {
+          const serverId = serverResult[0].id;
+          await zorpManager.handleZorpEmote(ip, port, password, serverId, serverName, player);
+        }
+      }
+    }
+    
+    // Check for Yes/No responses for Zorp
+    if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]'))) {
+      const player = extractPlayerName(msg);
+      if (player) {
+        // Get server ID for new Zorp system
+        const [serverResult] = await pool.query(
+          'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+          [guildId, serverName]
+        );
+        
+        if (serverResult.length > 0) {
+          const serverId = serverResult[0].id;
+          
+          if (msg.includes(YES_EMOTE)) {
+            await zorpManager.handleYesResponse(ip, port, password, serverId, serverName, player);
+          } else if (msg.includes(NO_EMOTE)) {
+            await zorpManager.handleNoResponse(ip, port, password, serverId, serverName, player);
+          }
+        }
       }
     }
   } catch (error) {
@@ -5381,8 +5406,16 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
         );
         
         if (zoneResult.length > 0) {
-          // Only handle offline if player has a Zorp zone
-          await handlePlayerOffline(client, guildId, serverName, player, ip, port, password);
+          // Get server ID for new Zorp system
+          const [serverResult] = await pool.query(
+            'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+            [guildId, serverName]
+          );
+          
+          if (serverResult.length > 0) {
+            const serverId = serverResult[0].id;
+            await zorpManager.handlePlayerStatusChange(ip, port, password, player, false, serverId, serverName);
+          }
         } else {
           console.log(`[ZORP] Player ${player} went offline but has no Zorp zone - skipping Zorp processing`);
         }
@@ -5417,8 +5450,16 @@ async function checkPlayerOnlineStatus(client, guildId, serverName, ip, port, pa
             );
             
             if (teamZoneResult.length > 0) {
-              // Team member came online, handle team owner's zone
-              await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+              // Get server ID for new Zorp system
+              const [serverResult] = await pool.query(
+                'SELECT id FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND nickname = ?',
+                [guildId, serverName]
+              );
+              
+              if (serverResult.length > 0) {
+                const serverId = serverResult[0].id;
+                await zorpManager.handlePlayerStatusChange(ip, port, password, player, true, serverId, serverName);
+              }
             } else {
               console.log(`[ZORP] Player ${player} came online but has no Zorp zone and team has no Zorp - skipping Zorp processing`);
             }
