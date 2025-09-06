@@ -663,8 +663,8 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         await handlePatrolHelicopterEvent(client, guildId, serverName, ip, port, password);
       }
 
-      // Handle night skip voting
-      if (msg.includes("d11_quick_chat_responses_slot_0")) {
+      // Handle night skip voting - listen to all chat types
+      if ((msg.includes('[CHAT LOCAL]') || msg.includes('[CHAT TEAM]') || msg.includes('[CHAT SERVER]')) && msg.includes("d11_quick_chat_responses_slot_0")) {
         console.log(`[NIGHT SKIP] Vote detected on ${serverName}`);
         await handleNightSkipVote(client, guildId, serverName, msg, ip, port, password);
       }
@@ -3175,8 +3175,15 @@ async function handleNightSkipVote(client, guildId, serverName, msg, ip, port, p
       return;
     }
 
-    // Extract player name from the message
-    const playerMatch = msg.match(/\[CHAT LOCAL\] ([^:]+) :/);
+    // Extract player name from the message - handle all chat types
+    let playerMatch = msg.match(/\[CHAT LOCAL\] ([^:]+) :/);
+    if (!playerMatch) {
+      playerMatch = msg.match(/\[CHAT TEAM\] ([^:]+) :/);
+    }
+    if (!playerMatch) {
+      playerMatch = msg.match(/\[CHAT SERVER\] ([^:]+) :/);
+    }
+    
     if (!playerMatch) {
       console.log(`[NIGHT SKIP] Could not extract player name from vote message`);
       return;
