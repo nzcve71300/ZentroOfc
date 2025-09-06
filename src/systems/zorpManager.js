@@ -452,11 +452,35 @@ async function applyZoneStateWithColors(ip, port, password, zoneName, state, cus
       zoneState.color = `(${customColors.color_offline})`;
     }
     
+    // Apply each setting using proper zones.editcustomzone command
     for (const [setting, value] of Object.entries(zoneState)) {
-      await rceCommandWithRetry(ip, port, password, `zones.editcustomzone "${zoneName}" "${setting}" ${value}`);
+      if (setting === 'color') {
+        // Color needs to be in (R,G,B) format
+        await rceCommandWithRetry(ip, port, password, `zones.editcustomzone "${zoneName}" color ${value}`);
+      } else {
+        await rceCommandWithRetry(ip, port, password, `zones.editcustomzone "${zoneName}" ${setting} ${value}`);
+      }
     }
   } catch (error) {
     console.error(`[ZorpManager] Error applying zone state with colors for ${zoneName}:`, error);
+  }
+}
+
+/**
+ * Update zone size by recreating the zone (for /edit-zorp command)
+ */
+async function updateZoneSize(ip, port, password, zoneName, newSize, position) {
+  try {
+    // Delete the old zone
+    await rceCommandWithRetry(ip, port, password, `zones.deletecustomzone "${zoneName}"`);
+    
+    // Create new zone with updated size
+    const createCommand = `zones.createcustomzone "${zoneName}" (${position.x},${position.y},${position.z}) 0 Sphere ${newSize} 0 0 0 0 0`;
+    await rceCommandWithRetry(ip, port, password, createCommand);
+    
+    console.log(`[ZorpManager] Updated zone ${zoneName} size to ${newSize}`);
+  } catch (error) {
+    console.error(`[ZorpManager] Error updating zone size for ${zoneName}:`, error);
   }
 }
 
@@ -522,6 +546,7 @@ module.exports = {
   desiredZoneState,
   applyZoneState,
   applyZoneStateWithColors,
+  updateZoneSize,
   updateZoneConfiguration,
   refreshZonesForServer,
   runZoneUpdater,

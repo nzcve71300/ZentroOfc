@@ -235,16 +235,16 @@ module.exports = {
           // Update in-game if needed
           try {
             if (server.ip && server.port && server.password) {
-              // Update size by recreating zone
+              // Update size by recreating zone using Zorp Manager
               if (size !== null && zone.position) {
                 const position = zone.position;
                 if (position.x !== undefined && position.y !== undefined && position.z !== undefined) {
-                  const newZoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${size} 0 0 0 0 0`;
-                  await sendRconCommand(server.ip, server.port, server.password, newZoneCommand);
+                  await zorpManager.updateZoneSize(server.ip, server.port, server.password, zone.name, size, position);
+                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} size to ${size} using Zorp Manager`);
                 }
               }
 
-              // Update color based on current zone state using Zorp Manager
+              // Update color based on current zone state using proper zone editing
               if (colorOnline !== null || colorOffline !== null) {
                 // Get current zone state from Zorp Manager
                 const zones = zorpManager.getServerZones(serverId);
@@ -252,15 +252,26 @@ module.exports = {
                 
                 if (zoneData) {
                   const currentState = zoneData.status;
-                  const desiredState = zorpManager.desiredZoneState(currentState);
                   
-                  // Apply zone state with custom colors
-                  const customColors = {};
-                  if (colorOnline !== null) customColors.color_online = colorOnline;
-                  if (colorOffline !== null) customColors.color_offline = colorOffline;
+                  // Determine which color to apply based on current state
+                  let colorToApply;
+                  switch (currentState) {
+                    case 'active':
+                      colorToApply = colorOnline || '0,255,0';
+                      break;
+                    case 'offline':
+                      colorToApply = colorOffline || '255,0,0';
+                      break;
+                    case 'pending':
+                      colorToApply = '255,255,0';
+                      break;
+                    default:
+                      colorToApply = colorOnline || '0,255,0';
+                  }
                   
-                  await zorpManager.applyZoneStateWithColors(server.ip, server.port, server.password, zone.name, desiredState, customColors);
-                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} color using Zorp Manager (state: ${currentState})`);
+                  // Apply color using proper zones.editcustomzone command
+                  await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
+                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to (${colorToApply}) (state: ${currentState})`);
                 } else {
                   // Fallback to direct RCON if zone not in memory
                   const [stateResult] = await pool.query(
@@ -288,9 +299,15 @@ module.exports = {
                     }
                     
                     await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
-                    console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to ${colorToApply} (state: ${zoneState.current_state})`);
+                    console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to (${colorToApply}) (state: ${zoneState.current_state})`);
                   }
                 }
+              }
+
+              // Update radiation if specified
+              if (radiation !== null) {
+                await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" radiationdamage ${radiation}`);
+                console.log(`[EDIT-ZORP] Updated zone ${zone.name} radiation to ${radiation}`);
               }
             }
           } catch (rconError) {
