@@ -87,7 +87,7 @@ module.exports = {
         
         await interaction.editReply({
           embeds: [successEmbed('Daily Reward Claimed', 
-            `${currencyName} added to **${players.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} ${currencyName}\n**Servers:** ${uniqueServers.join(', ')}`)]
+            `${currencyName} added to **${playersResult.length} character(s)** across **${uniqueServers.length} server(s)**.\n\n**Total Added:** ${totalAdded} ${currencyName}\n**Servers:** ${uniqueServers.join(', ')}`)]
         });
 
     } catch (err) {

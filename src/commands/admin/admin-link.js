@@ -226,16 +226,39 @@ module.exports = {
            
            console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
            
-           // 🔒 CRITICAL: Create economy record with EXISTING balance if available
+           // 🔒 CRITICAL: Create economy record with EXISTING balance if available, or starting balance if none
            const existingBalance = existingData[server.id]?.balance || 0;
+           
+           // If no existing balance, check for starting balance setting
+           let finalBalance = existingBalance;
+           if (existingBalance === 0) {
+             try {
+               const [startingBalanceResult] = await pool.query(
+                 'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = "starting_balance"',
+                 [server.id]
+               );
+               
+               if (startingBalanceResult.length > 0) {
+                 const startingBalance = parseInt(startingBalanceResult[0].setting_value) || 0;
+                 if (startingBalance > 0) {
+                   finalBalance = startingBalance;
+                   console.log(`🔗 ADMIN-LINK: Applied starting balance ${startingBalance} for "${playerName}" on ${server.nickname}`);
+                 }
+               }
+             } catch (error) {
+               console.log(`🔗 ADMIN-LINK: Could not fetch starting balance for server ${server.id}:`, error.message);
+             }
+           }
            
            await pool.query(
              'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?) ON DUPLICATE KEY UPDATE balance = VALUES(balance)',
-             [playerResult.insertId, playerResult.insertId, existingBalance]
+             [playerResult.insertId, playerResult.insertId, finalBalance]
            );
            
            if (existingBalance > 0) {
              console.log(`🔗 ADMIN-LINK: Restored existing balance ${existingBalance} for "${playerName}" on ${server.nickname}`);
+           } else if (finalBalance > 0) {
+             console.log(`🔗 ADMIN-LINK: Created economy record with starting balance ${finalBalance} for "${playerName}" on ${server.nickname}`);
            } else {
              console.log(`🔗 ADMIN-LINK: Created economy record with 0 balance for "${playerName}" on ${server.nickname}`);
            }
@@ -279,7 +302,7 @@ module.exports = {
        console.log(`🔗 ADMIN-LINK: Building response message...`);
        let responseMessage = `**${discordUser.username}** has been admin-linked to **${playerName}**!\n\n`;
        
-       // 🔒 CRITICAL: Show what data was preserved
+       // 🔒 CRITICAL: Show what data was preserved or starting balance applied
        const totalPreservedBalance = Object.values(existingData).reduce((sum, data) => sum + (data.balance || 0), 0);
        if (totalPreservedBalance > 0) {
          responseMessage += `**💰 Data Preserved:**\n`;
@@ -290,6 +313,33 @@ module.exports = {
            }
          }
          responseMessage += `\n`;
+       } else {
+         // Check if starting balance was applied to any servers
+         let startingBalanceApplied = false;
+         for (const server of servers) {
+           try {
+             const [startingBalanceResult] = await pool.query(
+               'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = "starting_balance"',
+               [server.id]
+             );
+             
+             if (startingBalanceResult.length > 0) {
+               const startingBalance = parseInt(startingBalanceResult[0].setting_value) || 0;
+               if (startingBalance > 0) {
+                 if (!startingBalanceApplied) {
+                   responseMessage += `**💰 Starting Balance Applied:**\n`;
+                   startingBalanceApplied = true;
+                 }
+                 responseMessage += `• ${server.nickname}: ${startingBalance.toLocaleString()} coins\n`;
+               }
+             }
+           } catch (error) {
+             // Ignore errors, just continue
+           }
+         }
+         if (startingBalanceApplied) {
+           responseMessage += `\n`;
+         }
        }
        
        if (warnings.length > 0) {
