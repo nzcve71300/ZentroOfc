@@ -116,7 +116,7 @@ module.exports = {
       // Check if new name already exists (if name is being changed)
       if (newName !== category.name) {
         const [existingResult] = await pool.query(
-          `SELECT id FROM shop_categories sc 
+          `SELECT sc.id FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
            JOIN guilds g ON rs.guild_id = g.id 
            WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ?`,
