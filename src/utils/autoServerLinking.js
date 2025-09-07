@@ -188,6 +188,9 @@ async function isIgnAvailable(guildId, ign, excludeDiscordId = null) {
   try {
     const normalizedIgn = normalizeIGN(ign);
     
+    console.log(`[IGN AVAILABILITY DEBUG] Checking IGN: "${ign}" -> normalized: "${normalizedIgn}"`);
+    console.log(`[IGN AVAILABILITY DEBUG] Guild ID: ${guildId}, Exclude Discord ID: ${excludeDiscordId}`);
+    
     if (!normalizedIgn) {
       return { available: false, error: 'Invalid IGN provided' };
     }
@@ -208,7 +211,12 @@ async function isIgnAvailable(guildId, ign, excludeDiscordId = null) {
       params.push(excludeDiscordId);
     }
     
+    console.log(`[IGN AVAILABILITY DEBUG] Query: ${query}`);
+    console.log(`[IGN AVAILABILITY DEBUG] Params:`, params);
+    
     const [existingPlayers] = await pool.query(query, params);
+    
+    console.log(`[IGN AVAILABILITY DEBUG] Found ${existingPlayers.length} existing players:`, existingPlayers);
     
     if (existingPlayers.length === 0) {
       return { available: true, existingLinks: [] };

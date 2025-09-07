@@ -3045,6 +3045,17 @@ async function handleAdminUnlinkConfirm(interaction) {
       
       await connection.commit();
       
+      // Debug: Check if any records still exist after deletion
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Checking for remaining records after deletion...');
+      const [remainingRecords] = await pool.query(
+        `SELECT p.id, p.discord_id, p.ign, p.normalized_ign, p.is_active, rs.nickname
+         FROM players p
+         JOIN rust_servers rs ON p.server_id = rs.id
+         WHERE p.guild_id = ? AND (p.normalized_ign = ? OR LOWER(p.ign) = LOWER(?))`,
+        [dbGuildId, normalizedIgn, normalizedIgn]
+      );
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Remaining records after deletion:', remainingRecords);
+      
       // Success response
       const displayIgn = players[0].ign;
       const serverList = players.map(p => p.nickname);
