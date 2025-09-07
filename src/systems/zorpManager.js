@@ -197,7 +197,6 @@ async function runZoneUpdater() {
       SELECT rs.*, g.discord_id as guild_id
       FROM rust_servers rs
       JOIN guilds g ON rs.guild_id = g.id
-      WHERE rs.active = 1
     `);
     for (const server of servers) {
       await refreshZonesForServer(server.ip, server.port, server.password, server.id, server.nickname);
@@ -216,7 +215,6 @@ async function runZoneCleanup() {
       SELECT rs.*, g.discord_id as guild_id
       FROM rust_servers rs
       JOIN guilds g ON rs.guild_id = g.id
-      WHERE rs.active = 1
     `);
     for (const server of servers) {
       const [rows] = await pool.query(
@@ -527,7 +525,6 @@ async function initializeZorpManager() {
       SELECT rs.*, g.discord_id as guild_id
       FROM rust_servers rs
       JOIN guilds g ON rs.guild_id = g.id
-      WHERE rs.active = 1
     `);
     for (const server of servers) {
       await loadZonesFromDb(server.id, server.nickname);
