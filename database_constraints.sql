@@ -51,15 +51,15 @@ ALTER TABLE players
 ADD CONSTRAINT valid_guild_id_not_null 
 CHECK (guild_id IS NOT NULL);
 
--- 11. Add unique constraint to prevent duplicate active links per Discord user per guild
+-- 11. Add unique constraint to prevent duplicate active links per Discord user per server
 ALTER TABLE players 
-ADD CONSTRAINT unique_active_discord_link_per_guild 
-UNIQUE (discord_id, guild_id, is_active);
+ADD CONSTRAINT unique_active_discord_link_per_server 
+UNIQUE (discord_id, server_id, is_active);
 
--- 12. Add unique constraint to prevent duplicate active IGN links per guild
+-- 12. Add unique constraint to prevent duplicate active IGN links per server
 ALTER TABLE players 
-ADD CONSTRAINT unique_active_ign_link_per_guild 
-UNIQUE (ign, guild_id, is_active);
+ADD CONSTRAINT unique_active_ign_link_per_server 
+UNIQUE (normalized_ign, server_id, is_active);
 
 -- 13. Add index for better performance on common queries
 CREATE INDEX idx_players_discord_id_guild_active ON players(discord_id, guild_id, is_active);
