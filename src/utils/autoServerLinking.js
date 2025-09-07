@@ -57,7 +57,7 @@ async function ensurePlayerOnAllServers(guildId, discordId, ign, sourceServerId 
       try {
         // ✅ CRITICAL: Scope check by guild_id AND server_id to prevent cross-tenant issues
         const [existingPlayer] = await pool.query(
-          'SELECT id FROM players WHERE guild_id = ? AND server_id = ? AND LOWER(ign) = ?',
+          'SELECT id FROM players WHERE guild_id = ? AND server_id = ? AND normalized_ign = ?',
           [guildId, server.id, normalizedIgn]
         );
         
@@ -70,8 +70,8 @@ async function ensurePlayerOnAllServers(guildId, discordId, ign, sourceServerId 
         
         // ✅ CRITICAL: Use normalized IGN for storage, but preserve original for display
         const [playerResult] = await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
-          [guildId, server.id, discordId, ign] // Store original IGN for display, but query by normalized
+          'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
+          [guildId, server.id, discordId, ign, normalizedIgn] // Store both original and normalized IGN
         );
         
         console.log(`  ✅ Created "${ign}" on ${server.nickname} (ID: ${playerResult.insertId})`);

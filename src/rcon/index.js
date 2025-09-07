@@ -7300,7 +7300,7 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
 
     // Get player info for Discord ID
     const playerResult = await pool.query(
-      'SELECT discord_id FROM players WHERE ign = ? AND server_id = ?',
+      'SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND is_active = TRUE',
       [player, serverId.toString()]
     );
 
