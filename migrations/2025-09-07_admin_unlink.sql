@@ -16,10 +16,10 @@ ADD COLUMN IF NOT EXISTS unlinked_by VARCHAR(32) NULL;
 ALTER TABLE players 
 ADD COLUMN IF NOT EXISTS unlink_reason VARCHAR(255) NULL;
 
--- Create unique index for guild_id + normalized_ign if it doesn't exist
--- This prevents duplicate active links within the same guild
-CREATE UNIQUE INDEX IF NOT EXISTS ux_players_guild_normign 
-ON players (guild_id, normalized_ign);
+-- Create unique index for server_id + normalized_ign if it doesn't exist
+-- This prevents duplicate active links within the same server
+CREATE UNIQUE INDEX IF NOT EXISTS ux_players_server_normign 
+ON players (server_id, normalized_ign);
 
 -- Backfill normalized_ign for existing records
 -- This will be handled by the application code to ensure proper normalization
