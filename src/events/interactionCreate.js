@@ -1413,9 +1413,9 @@ async function handleLinkConfirm(interaction) {
         throw new Error('IGN already taken by another user');
       }
       
-      // Ensure guild exists
+        // Ensure guild exists
       await connection.query(
-        'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
         [interaction.guildId, interaction.guild?.name || 'Unknown Guild']
       );
 
@@ -1472,19 +1472,19 @@ async function handleLinkConfirm(interaction) {
       
       // Handle specific error cases
       if (error.message.includes('IGN already taken')) {
-        return interaction.editReply({
+      return interaction.editReply({
           embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
-          components: []
-        });
-      }
-      
+        components: []
+      });
+    }
+
       if (error.code === 'ER_DUP_ENTRY') {
-        return interaction.editReply({
+      return interaction.editReply({
           embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
-          components: []
-        });
-      }
-      
+        components: []
+      });
+    }
+
       throw error;
     } finally {
       connection.release();

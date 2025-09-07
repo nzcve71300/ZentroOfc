@@ -68,8 +68,8 @@ module.exports = {
       let query, params, queryType;
 
       if (targetDiscordId && normalizedIgn) {
-        // Both provided - must match the same link
-        query = `
+        // Both provided - check if they match, if not, just use Discord ID
+        const [checkMatch] = await pool.query(`
           SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
           FROM players p
           JOIN rust_servers rs ON rs.id = p.server_id
@@ -77,9 +77,34 @@ module.exports = {
             AND p.is_active = TRUE
             AND p.discord_id = ?
             AND p.normalized_ign = ?
-        `;
-        params = [dbGuildId, targetDiscordId, normalizedIgn];
-        queryType = 'both';
+        `, [dbGuildId, targetDiscordId, normalizedIgn]);
+        
+        if (checkMatch.length > 0) {
+          // Perfect match found
+          query = `
+            SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
+            FROM players p
+            JOIN rust_servers rs ON rs.id = p.server_id
+            WHERE p.guild_id = ?
+              AND p.is_active = TRUE
+              AND p.discord_id = ?
+              AND p.normalized_ign = ?
+          `;
+          params = [dbGuildId, targetDiscordId, normalizedIgn];
+          queryType = 'both';
+        } else {
+          // No exact match, just use Discord ID
+          query = `
+            SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
+            FROM players p
+            JOIN rust_servers rs ON rs.id = p.server_id
+            WHERE p.guild_id = ?
+              AND p.is_active = TRUE
+              AND p.discord_id = ?
+          `;
+          params = [dbGuildId, targetDiscordId];
+          queryType = 'discord';
+        }
       } else if (targetDiscordId) {
         // Discord ID only
         query = `
