@@ -100,15 +100,35 @@ async function createOrUpdatePlayerLink(guildId, serverId, identifier, ign = nul
   const discordId = isDiscordId(identifier) ? identifier : null;
   const playerIgn = isDiscordId(identifier) ? ign : identifier;
 
-  const [result] = await dbPool.query(
-    `INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active)
-     VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)
-     ON DUPLICATE KEY UPDATE 
-       ign = VALUES(ign),
-       linked_at = CURRENT_TIMESTAMP,
-       is_active = true`,
-    [guildId, serverId, discordId, playerIgn]
+  // First check if player already exists on this server
+  const [existingPlayer] = await dbPool.query(
+    `SELECT id FROM players 
+     WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+     AND server_id = ? 
+     AND discord_id = ?`,
+    [guildId, serverId, discordId]
   );
+
+  let result;
+  if (existingPlayer.length > 0) {
+    // Update existing player
+    const normalizedIgn = require('./autoServerLinking').normalizeIGN(playerIgn);
+    result = await dbPool.query(
+      `UPDATE players 
+       SET ign = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true
+       WHERE id = ?`,
+      [playerIgn, normalizedIgn, existingPlayer[0].id]
+    );
+    result.insertId = existingPlayer[0].id;
+  } else {
+    // Insert new player
+    const normalizedIgn = require('./autoServerLinking').normalizeIGN(playerIgn);
+    result = await dbPool.query(
+      `INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active)
+       VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, CURRENT_TIMESTAMP, true)`,
+      [guildId, serverId, discordId, playerIgn, normalizedIgn]
+    );
+  }
 
   // Get the inserted/updated player
   const [playerResult] = await dbPool.query(

@@ -172,10 +172,10 @@ module.exports = {
          try {
            console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
 
-           // 🔒 CRITICAL: Check if player already exists on this server
+           // 🔒 CRITICAL: Check if player already exists on this server using normalized IGN
            const [existingPlayer] = await pool.query(
-             'SELECT id, discord_id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND LOWER(ign) = LOWER(?) AND is_active = true',
-             [guildId, server.id, playerName]
+             'SELECT id, discord_id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND normalized_ign = ? AND is_active = true',
+             [guildId, server.id, normalizedPlayerName]
            );
 
            if (existingPlayer.length > 0) {
@@ -183,8 +183,8 @@ module.exports = {
              console.log(`🔗 ADMIN-LINK: Player "${playerName}" already exists on ${server.nickname}, updating Discord ID...`);
              
              await pool.query(
-               'UPDATE players SET discord_id = ?, linked_at = CURRENT_TIMESTAMP WHERE id = ?',
-               [discordId, existingPlayer[0].id]
+               'UPDATE players SET discord_id = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP WHERE id = ?',
+               [discordId, normalizedPlayerName, existingPlayer[0].id]
              );
              
              console.log(`🔗 ADMIN-LINK: Updated Discord ID for existing player "${playerName}" on ${server.nickname}`);
@@ -205,10 +205,10 @@ module.exports = {
              const existingBalance = existingDiscordPlayer[0].balance || 0;
              const existingIgn = existingDiscordPlayer[0].ign;
              
-             // Update the existing record with new IGN
+             // Update the existing record with new IGN and normalized IGN
              await pool.query(
-               'UPDATE players SET ign = ?, linked_at = CURRENT_TIMESTAMP WHERE id = ?',
-               [playerName, existingDiscordPlayer[0].id]
+               'UPDATE players SET ign = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP WHERE id = ?',
+               [playerName, normalizedPlayerName, existingDiscordPlayer[0].id]
              );
              
              console.log(`🔗 ADMIN-LINK: Updated IGN from "${existingIgn}" to "${playerName}" on ${server.nickname}, preserved balance: ${existingBalance}`);
@@ -220,8 +220,8 @@ module.exports = {
            console.log(`🔗 ADMIN-LINK: Creating new player record for "${playerName}" on ${server.nickname}...`);
            
            const [playerResult] = await pool.query(
-             'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-             [guildId, server.id, discordId, playerName]
+             'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
+             [guildId, server.id, discordId, playerName, normalizedPlayerName]
            );
            
            console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
