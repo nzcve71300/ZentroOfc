@@ -133,14 +133,13 @@ module.exports = {
 
       const targetDiscordIdFinal = distinctDiscordIds[0];
 
-      // Create confirmation token
+      // Create confirmation token (ultra-short to fit Discord's 100 char limit)
       const tokenData = {
         g: dbGuildId,
         u: targetDiscordIdFinal,
         n: normalizedIgn,
-        r: reason,
         x: executorId,
-        t: queryType // Store the query type for the button handler
+        t: queryType
       };
 
       const token = Buffer.from(JSON.stringify(tokenData)).toString('base64url');

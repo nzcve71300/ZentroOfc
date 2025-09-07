@@ -2961,7 +2961,8 @@ async function handleAdminUnlinkConfirm(interaction) {
     const token = interaction.customId.split(':')[1];
     const tokenData = JSON.parse(Buffer.from(token, 'base64url').toString());
     
-    const { g: dbGuildId, u: targetDiscordId, n: normalizedIgn, r: reason, x: executorId } = tokenData;
+    const { g: dbGuildId, u: targetDiscordId, n: normalizedIgn, x: executorId } = tokenData;
+    const reason = 'Admin unlink'; // Use default reason since token is too long
     
     // Validate executor is the same (defense-in-depth)
     if (interaction.user.id !== executorId) {
