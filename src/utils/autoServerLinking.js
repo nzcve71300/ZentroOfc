@@ -193,6 +193,7 @@ async function isIgnAvailable(guildId, ign, excludeDiscordId = null) {
     }
     
     // ✅ CRITICAL: Use exact match on normalized_ign column, scope by guild_id only
+    // Note: With per-server constraints, we check across all servers in the guild
     let query = `
       SELECT p.discord_id, rs.nickname 
       FROM players p
