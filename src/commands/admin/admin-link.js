@@ -203,8 +203,8 @@ module.exports = {
 
            // 🔒 CRITICAL: Check if player already exists on this server using normalized IGN (including inactive)
            const [existingPlayer] = await pool.query(
-             'SELECT id, discord_id, is_active FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND normalized_ign = ?',
-             [guildId, server.id, normalizedPlayerName]
+             'SELECT id, discord_id, is_active FROM players WHERE guild_id = ? AND server_id = ? AND normalized_ign = ?',
+             [dbGuildId, server.id, normalizedPlayerName]
            );
 
            if (existingPlayer.length > 0) {
@@ -224,8 +224,8 @@ module.exports = {
 
            // 🔒 CRITICAL: Check if Discord user already has a record on this server
            const [existingDiscordPlayer] = await pool.query(
-             'SELECT p.id, p.ign, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND p.server_id = ? AND p.discord_id = ? AND p.is_active = true',
-             [guildId, server.id, discordId]
+             'SELECT p.id, p.ign, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = ? AND p.server_id = ? AND p.discord_id = ? AND p.is_active = true',
+             [dbGuildId, server.id, discordId]
            );
 
            if (existingDiscordPlayer.length > 0) {
@@ -248,8 +248,8 @@ module.exports = {
 
            // 🔒 CRITICAL: Check if Discord user has ANY record on this server (including inactive)
            const [anyDiscordPlayer] = await pool.query(
-             'SELECT p.id, p.ign, p.is_active, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND p.server_id = ? AND p.discord_id = ?',
-             [guildId, server.id, discordId]
+             'SELECT p.id, p.ign, p.is_active, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = ? AND p.server_id = ? AND p.discord_id = ?',
+             [dbGuildId, server.id, discordId]
            );
 
            if (anyDiscordPlayer.length > 0) {
@@ -274,8 +274,8 @@ module.exports = {
            console.log(`🔗 ADMIN-LINK: Creating new player record for "${playerName}" on ${server.nickname}...`);
            
            const [playerResult] = await pool.query(
-             'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
-             [guildId, server.id, discordId, playerName, normalizedPlayerName]
+             'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
+             [dbGuildId, server.id, discordId, playerName, normalizedPlayerName]
            );
            
            console.log(`🔗 ADMIN-LINK: Created player record with ID ${playerResult.insertId} for server ${server.nickname}`);
