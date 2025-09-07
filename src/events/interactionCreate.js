@@ -1401,11 +1401,13 @@ async function handleLinkConfirm(interaction) {
     
     try {
       // Re-check availability inside transaction (defense in depth)
+      // ✅ CRITICAL: Exclude the current user from the duplicate check
       const [duplicateCheck] = await connection.query(
         `SELECT 1 FROM players 
          WHERE guild_id = ? AND normalized_ign = ? AND is_active = TRUE 
+         AND discord_id != ?
          LIMIT 1`,
-        [dbGuildId, normalizedIgn]
+        [dbGuildId, normalizedIgn, discordId]
       );
       
       if (duplicateCheck.length > 0) {
