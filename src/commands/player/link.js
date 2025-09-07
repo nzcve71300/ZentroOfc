@@ -89,7 +89,9 @@ module.exports = {
       }
 
       // Check if IGN is available in this guild
+      console.log(`[LINK DEBUG] About to check IGN availability for: "${ign}" (normalized: "${normalizedIgn}") in guild ${dbGuildId}`);
       const ignAvailability = await isIgnAvailable(dbGuildId, ign, discordId);
+      console.log(`[LINK DEBUG] IGN availability result:`, ignAvailability);
 
       if (!ignAvailability.available) {
         if (ignAvailability.error) {
