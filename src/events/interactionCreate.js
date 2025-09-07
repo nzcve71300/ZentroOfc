@@ -219,7 +219,7 @@ async function handleShopServerSelect(interaction) {
   try {
     // Get server info and categories
     const result = await pool.query(
-      `SELECT rs.nickname, rs.id as server_id
+      `SELECT rs.nickname, rs.id as server_id, rs.guild_id
        FROM rust_servers rs
        WHERE rs.id = ?`,
       [serverId]
@@ -231,7 +231,7 @@ async function handleShopServerSelect(interaction) {
       });
     }
 
-    const { nickname, server_id } = result[0];
+    const { nickname, server_id, guild_id } = result[0];
 
     // Get categories for this server with role information
     const categoriesResult = await pool.query(
@@ -248,12 +248,12 @@ async function handleShopServerSelect(interaction) {
       });
     }
 
-    // Get player's balance for this server
+    // Get player's balance - look for any active player record in the same guild
     const balanceResult = await pool.query(
       `SELECT e.balance FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = ? AND p.server_id = ?`,
-      [userId, server_id]
+       WHERE p.discord_id = ? AND p.guild_id = ? AND p.is_active = TRUE`,
+      [userId, guild_id]
     );
 
     const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;
@@ -593,7 +593,7 @@ async function handleShopItemSelect(interaction) {
     console.log('[SHOP DEBUG] All servers in database:', allServersResult[0]);
     
     const serverResult = await pool.query(
-      'SELECT id as server_id, nickname FROM rust_servers WHERE id = ?',
+      'SELECT id as server_id, nickname, guild_id FROM rust_servers WHERE id = ?',
       [serverId]
     );
     
@@ -603,7 +603,7 @@ async function handleShopItemSelect(interaction) {
       // Try to find the server by partial match
       console.log('[SHOP DEBUG] Server not found, trying partial match...');
       const partialServerResult = await pool.query(
-        'SELECT id as server_id, nickname FROM rust_servers WHERE id LIKE ?',
+        'SELECT id as server_id, nickname, guild_id FROM rust_servers WHERE id LIKE ?',
         [`%${serverId}%`]
       );
       console.log('[SHOP DEBUG] Partial server query result:', partialServerResult);
@@ -619,16 +619,16 @@ async function handleShopItemSelect(interaction) {
     }
 
     const nickname = serverResult[0][0].nickname;
+    const guildId = serverResult[0][0].guild_id;
 
-    // Now get player balance for the specific server
+    // Get player balance - look for any active player record in the same guild
     const balanceResult = await pool.query(
       `SELECT e.balance, p.id as player_id
        FROM players p
        JOIN economy e ON p.id = e.player_id
-       JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.discord_id = ? AND rs.id = ?
+       WHERE p.discord_id = ? AND p.guild_id = ? AND p.is_active = TRUE
        LIMIT 1`,
-      [userId, serverId]
+      [userId, guildId]
     );
     
     console.log('Balance result:', balanceResult);
