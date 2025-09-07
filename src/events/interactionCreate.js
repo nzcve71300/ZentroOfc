@@ -1509,19 +1509,19 @@ async function handleLinkConfirm(interaction) {
       // Handle specific error cases
       if (error.message.includes('IGN already taken')) {
         console.log('❌ [LINK CONFIRM] IGN already taken error, returning error response');
-        return interaction.editReply({
+      return interaction.editReply({
           embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
-          components: []
-        });
-      }
+        components: []
+      });
+    }
 
       if (error.code === 'ER_DUP_ENTRY') {
         console.log('❌ [LINK CONFIRM] Duplicate entry error, returning error response');
-        return interaction.editReply({
+      return interaction.editReply({
           embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
-          components: []
-        });
-      }
+        components: []
+      });
+    }
 
       console.log('❌ [LINK CONFIRM] Unhandled error, re-throwing');
       throw error;
