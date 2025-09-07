@@ -8,14 +8,10 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('admin-unlink')
     .setDescription('Unlink a Discord account from an in-game name (Admin only)')
-    .addUserOption(option =>
-      option.setName('target_user')
-        .setDescription('Discord user to unlink (optional)')
-        .setRequired(false))
     .addStringOption(option =>
-      option.setName('ign')
-        .setDescription('In-game name to unlink (optional)')
-        .setRequired(false)
+      option.setName('player')
+        .setDescription('Discord user (@mention) or in-game name to unlink')
+        .setRequired(true)
         .setMaxLength(32))
     .addStringOption(option =>
       option.setName('reason')
@@ -50,62 +46,40 @@ module.exports = {
       const dbGuildId = guildResult[0].id;
 
       // Parse inputs
-      const targetUser = interaction.options.getUser('target_user');
-      const rawIgn = interaction.options.getString('ign');
+      const playerInput = interaction.options.getString('player');
       const reason = interaction.options.getString('reason') || 'No reason provided';
 
-      const targetDiscordId = targetUser ? targetUser.id : null;
-      const normalizedIgn = rawIgn ? normalizeIGN(rawIgn.trim()) : null;
+      // Detect if input is a Discord mention or in-game name
+      let targetDiscordId = null;
+      let normalizedIgn = null;
+      let targetUser = null;
 
-      // Validate that at least one identifier is provided
-      if (!targetDiscordId && !normalizedIgn) {
-        return interaction.editReply({
-          embeds: [errorEmbed('Invalid Input', 'You must provide either a target user or an in-game name to unlink.')]
-        });
+      // Check if it's a Discord mention (starts with <@ and ends with >)
+      const mentionMatch = playerInput.match(/^<@!?(\d+)>$/);
+      if (mentionMatch) {
+        // It's a Discord mention
+        targetDiscordId = mentionMatch[1];
+        try {
+          targetUser = await interaction.client.users.fetch(targetDiscordId);
+        } catch (error) {
+          return interaction.editReply({
+            embeds: [errorEmbed('Invalid User', 'Could not find the mentioned Discord user.')]
+          });
+        }
+      } else {
+        // It's an in-game name
+        normalizedIgn = normalizeIGN(playerInput.trim());
+        if (!normalizedIgn) {
+          return interaction.editReply({
+            embeds: [errorEmbed('Invalid Input', 'Invalid in-game name provided.')]
+          });
+        }
       }
 
       // Resolve link scope candidates (active only, this guild only)
       let query, params, queryType;
 
-      if (targetDiscordId && normalizedIgn) {
-        // Both provided - check if they match, if not, just use Discord ID
-        const [checkMatch] = await pool.query(`
-          SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
-          FROM players p
-          JOIN rust_servers rs ON rs.id = p.server_id
-          WHERE p.guild_id = ?
-            AND p.is_active = TRUE
-            AND p.discord_id = ?
-            AND p.normalized_ign = ?
-        `, [dbGuildId, targetDiscordId, normalizedIgn]);
-        
-        if (checkMatch.length > 0) {
-          // Perfect match found
-          query = `
-            SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
-            FROM players p
-            JOIN rust_servers rs ON rs.id = p.server_id
-            WHERE p.guild_id = ?
-              AND p.is_active = TRUE
-              AND p.discord_id = ?
-              AND p.normalized_ign = ?
-          `;
-          params = [dbGuildId, targetDiscordId, normalizedIgn];
-          queryType = 'both';
-        } else {
-          // No exact match, just use Discord ID
-          query = `
-            SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
-            FROM players p
-            JOIN rust_servers rs ON rs.id = p.server_id
-            WHERE p.guild_id = ?
-              AND p.is_active = TRUE
-              AND p.discord_id = ?
-          `;
-          params = [dbGuildId, targetDiscordId];
-          queryType = 'discord';
-        }
-      } else if (targetDiscordId) {
+      if (targetDiscordId) {
         // Discord ID only
         query = `
           SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
@@ -135,9 +109,7 @@ module.exports = {
 
       if (players.length === 0) {
         let errorMessage;
-        if (queryType === 'both') {
-          errorMessage = 'No active link found matching that user + IGN in this guild.';
-        } else if (queryType === 'discord') {
+        if (queryType === 'discord') {
           errorMessage = 'User has no active link in this guild.';
         } else {
           errorMessage = 'IGN not linked in this guild.';
@@ -167,7 +139,8 @@ module.exports = {
         u: targetDiscordIdFinal,
         n: normalizedIgn,
         r: reason,
-        x: executorId
+        x: executorId,
+        t: queryType // Store the query type for the button handler
       };
 
       const token = Buffer.from(JSON.stringify(tokenData)).toString('base64url');
