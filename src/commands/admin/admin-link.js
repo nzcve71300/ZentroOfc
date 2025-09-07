@@ -212,8 +212,15 @@ module.exports = {
              const existing = existingPlayer[0];
              console.log(`🔗 ADMIN-LINK: Player "${playerName}" already exists on ${server.nickname} (active: ${existing.is_active}), updating...`);
              
+             // 🔒 CRITICAL: First deactivate any existing active records for this Discord user on this server
              await pool.query(
-               'UPDATE players SET discord_id = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true WHERE id = ?',
+               'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP, unlinked_by = ?, unlink_reason = ? WHERE guild_id = ? AND server_id = ? AND discord_id = ? AND is_active = true AND id != ?',
+               [interaction.user.id, 'Admin override during admin-link', dbGuildId, server.id, discordId, existing.id]
+             );
+             
+             // Now update the existing record
+             await pool.query(
+               'UPDATE players SET discord_id = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL, unlinked_by = NULL, unlink_reason = NULL WHERE id = ?',
                [discordId, normalizedPlayerName, existing.id]
              );
              
