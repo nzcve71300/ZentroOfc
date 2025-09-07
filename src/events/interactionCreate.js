@@ -3028,23 +3028,20 @@ async function handleAdminUnlinkConfirm(interaction) {
     console.log('[ADMIN-UNLINK CONFIRM DEBUG] Transaction started');
     
     try {
-      // Update all matching player records one by one to avoid constraint violations
+      // Delete all matching player records to avoid constraint violations
+      // Since we're unlinking, we can safely delete the records
       const playerIds = players.map(p => p.id);
       console.log('[ADMIN-UNLINK CONFIRM DEBUG] Player IDs to unlink:', playerIds);
       
-      const updateQuery = `UPDATE players 
-         SET is_active = FALSE,
-             unlinked_at = NOW(),
-             unlinked_by = ?,
-             unlink_reason = ?
-         WHERE id = ?`;
-      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Update query:', updateQuery);
+      // First, delete associated economy records
+      const economyDeleteQuery = `DELETE FROM economy WHERE player_id IN (${playerIds.map(() => '?').join(',')})`;
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Deleting economy records for player IDs:', playerIds);
+      await connection.query(economyDeleteQuery, playerIds);
       
-      // Update each player record individually
-      for (const playerId of playerIds) {
-        console.log('[ADMIN-UNLINK CONFIRM DEBUG] Updating player ID:', playerId);
-        await connection.query(updateQuery, [executorId, reason, playerId]);
-      }
+      // Then delete the player records
+      const playerDeleteQuery = `DELETE FROM players WHERE id IN (${playerIds.map(() => '?').join(',')})`;
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Deleting player records for player IDs:', playerIds);
+      await connection.query(playerDeleteQuery, playerIds);
       
       await connection.commit();
       
