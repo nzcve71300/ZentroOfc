@@ -129,14 +129,8 @@ module.exports = {
         const existingDiscordId = ignAvailability.existingLinks[0].discord_id;
         
         if (existingDiscordId && existingDiscordId !== discordId) {
-          // IGN is linked to a different Discord user - this is an error
-          return await interaction.editReply({
-            embeds: [errorEmbed(
-              'IGN Already Linked', 
-              `The in-game name **${playerName}** is already linked to a different Discord account on: ${serverList}\n\n` +
-              'Please use a different in-game name or contact an admin to unlink the existing account first.'
-            )]
-          });
+          // IGN is linked to a different Discord user - show warning but allow admin override
+          warnings.push(`⚠️ **${playerName}** is already linked to a different Discord account on: ${serverList}. Admin override will unlink the existing account and link to the new one.`);
         } else if (!existingDiscordId) {
           warnings.push(`⚠️ **${playerName}** already has economy records on: ${serverList} (no Discord account linked)`);
         }
@@ -151,6 +145,23 @@ module.exports = {
       
       if (inactiveRecords.length > 0) {
         console.log(`🔗 ADMIN-LINK: Found ${inactiveRecords.length} inactive records with normalized IGN "${normalizedPlayerName}", will reactivate them`);
+      }
+
+      // 🔒 ADMIN OVERRIDE: If IGN is linked to a different Discord user, unlink the existing account first
+      if (!ignAvailability.available && !ignAvailability.error) {
+        const existingDiscordId = ignAvailability.existingLinks[0].discord_id;
+        
+        if (existingDiscordId && existingDiscordId !== discordId) {
+          console.log(`🔗 ADMIN-LINK: Admin override - unlinking existing Discord account ${existingDiscordId} from IGN "${playerName}"`);
+          
+          // Unlink the existing account by setting is_active = false
+          await pool.query(
+            'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP, unlinked_by = ?, unlink_reason = ? WHERE guild_id = ? AND normalized_ign = ? AND discord_id = ? AND is_active = true',
+            [interaction.user.id, 'Admin override during admin-link', dbGuildId, normalizedPlayerName, existingDiscordId]
+          );
+          
+          console.log(`🔗 ADMIN-LINK: Successfully unlinked existing account ${existingDiscordId} from IGN "${playerName}"`);
+        }
       }
 
              // Process each server
