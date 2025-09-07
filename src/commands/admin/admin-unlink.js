@@ -134,14 +134,9 @@ module.exports = {
       const targetDiscordIdFinal = distinctDiscordIds[0];
 
       // Create confirmation token (ultra-short to fit Discord's 100 char limit)
-      const tokenData = {
-        g: dbGuildId,
-        u: targetDiscordIdFinal,
-        n: normalizedIgn,
-        x: executorId
-      };
-
-      const token = Buffer.from(JSON.stringify(tokenData)).toString('base64url');
+      // Use compact format: guildId|discordId|ign|executorId
+      const tokenData = `${dbGuildId}|${targetDiscordIdFinal}|${normalizedIgn || ''}|${executorId}`;
+      const token = Buffer.from(tokenData).toString('base64url');
 
       // Show confirmation embed
       const confirmEmbed = orangeEmbed(

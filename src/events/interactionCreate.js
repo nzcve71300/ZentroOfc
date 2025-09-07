@@ -2959,9 +2959,8 @@ async function handleAdminUnlinkConfirm(interaction) {
   try {
     // Decode token
     const token = interaction.customId.split(':')[1];
-    const tokenData = JSON.parse(Buffer.from(token, 'base64url').toString());
-    
-    const { g: dbGuildId, u: targetDiscordId, n: normalizedIgn, x: executorId } = tokenData;
+    const tokenData = Buffer.from(token, 'base64url').toString();
+    const [dbGuildId, targetDiscordId, normalizedIgn, executorId] = tokenData.split('|');
     const reason = 'Admin unlink'; // Use default reason since token is too long
     const queryType = normalizedIgn ? 'ign' : 'discord'; // Determine query type from token data
     
