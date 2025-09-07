@@ -40,7 +40,7 @@ class TeleportSystem {
         return { success: false, message: 'Teleport system is disabled.' };
       }
 
-      // Get player info
+      // Get player info (optional - player can use teleport without being linked)
       console.log(`[TELEPORT SYSTEM] Looking up player ${playerName} on server ${serverId}`);
       const [players] = await connection.execute(`
         SELECT discord_id, ign FROM players 
@@ -49,13 +49,8 @@ class TeleportSystem {
       
       console.log(`[TELEPORT SYSTEM] Found ${players.length} players`);
 
-      if (players.length === 0) {
-        await connection.end();
-        return { success: false, message: 'Player not found in database.' };
-      }
-
-      const player = players[0];
-      const discordId = player.discord_id;
+      const discordId = players.length > 0 ? players[0].discord_id : null;
+      console.log(`[TELEPORT SYSTEM] Player ${playerName} - Discord ID: ${discordId || 'Not linked'}`);
 
       // Check if player is banned
       if (config.use_list) {
@@ -83,12 +78,13 @@ class TeleportSystem {
         }
       }
 
-      // Check cooldown
+      // Check cooldown - use Discord ID if available, otherwise use IGN for unlinked players
+      const cooldownIdentifier = discordId || playerName;
       const [lastUsage] = await connection.execute(`
         SELECT used_at FROM teleport_usage 
-        WHERE server_id = ? AND teleport_name = ? AND discord_id = ?
+        WHERE server_id = ? AND teleport_name = ? AND (discord_id = ? OR (discord_id IS NULL AND ign = ?))
         ORDER BY used_at DESC LIMIT 1
-      `, [serverId.toString(), teleportName, discordId]);
+      `, [serverId.toString(), teleportName, discordId, playerName]);
 
       if (lastUsage.length > 0) {
         const lastUsed = new Date(lastUsage[0].used_at);

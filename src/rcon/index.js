@@ -7298,20 +7298,14 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
       return;
     }
 
-    // Get player info for Discord ID
+    // Get player info for Discord ID (optional - player can use teleport without being linked)
     const playerResult = await pool.query(
       'SELECT discord_id FROM players WHERE ign = ? AND server_id = ? AND is_active = TRUE',
       [player, serverId.toString()]
     );
 
-    if (playerResult[0].length === 0) {
-      console.log(`[TELEPORT] Player ${player} not found in database`);
-      sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not linked to Discord. Please use /link first</color>`);
-      return;
-    }
-
-    const playerData = playerResult[0][0];
-    const discordId = playerData.discord_id;
+    const discordId = playerResult[0].length > 0 ? playerResult[0][0].discord_id : null;
+    console.log(`[TELEPORT] Player ${player} - Discord ID: ${discordId || 'Not linked'}`);
 
     // Check if player is banned (if use_list is enabled)
     if (Boolean(config.use_list)) {
@@ -7342,7 +7336,9 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
     }
 
     // Check cooldown using in-memory tracking for better performance
-    const cooldownKey = `${serverId}_${teleportName}_${discordId}`;
+    // Use Discord ID if available, otherwise use IGN for unlinked players
+    const cooldownIdentifier = discordId || player;
+    const cooldownKey = `${serverId}_${teleportName}_${cooldownIdentifier}`;
     const now = Date.now();
     const lastTeleport = teleportCooldowns.get(cooldownKey) || 0;
     const cooldownMs = config.cooldown_minutes * 60 * 1000;

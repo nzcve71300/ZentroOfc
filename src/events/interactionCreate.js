@@ -248,12 +248,12 @@ async function handleShopServerSelect(interaction) {
       });
     }
 
-    // Get player's balance - look for any active player record in the same guild
+    // Get player's balance - look for active player record on the specific server
     const balanceResult = await pool.query(
       `SELECT e.balance FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = ? AND p.guild_id = ? AND p.is_active = TRUE`,
-      [userId, guild_id]
+       WHERE p.discord_id = ? AND p.guild_id = ? AND p.server_id = ? AND p.is_active = TRUE`,
+      [userId, guild_id, server_id]
     );
 
     const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;
@@ -621,14 +621,14 @@ async function handleShopItemSelect(interaction) {
     const nickname = serverResult[0][0].nickname;
     const guildId = serverResult[0][0].guild_id;
 
-    // Get player balance - look for any active player record in the same guild
+    // Get player balance - look for active player record on the specific server
     const balanceResult = await pool.query(
       `SELECT e.balance, p.id as player_id
        FROM players p
        JOIN economy e ON p.id = e.player_id
-       WHERE p.discord_id = ? AND p.guild_id = ? AND p.is_active = TRUE
+       WHERE p.discord_id = ? AND p.guild_id = ? AND p.server_id = ? AND p.is_active = TRUE
        LIMIT 1`,
-      [userId, guildId]
+      [userId, guildId, serverId]
     );
     
     console.log('Balance result:', balanceResult);
