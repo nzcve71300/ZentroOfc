@@ -2963,6 +2963,11 @@ async function handleAdminUnlinkConfirm(interaction) {
     console.log('[ADMIN-UNLINK CONFIRM DEBUG] Token data:', tokenData);
     const [dbGuildId, targetDiscordId, normalizedIgn, executorId] = tokenData.split('|');
     console.log('[ADMIN-UNLINK CONFIRM DEBUG] Parsed data:', { dbGuildId, targetDiscordId, normalizedIgn, executorId });
+    
+    // Validate parsed data
+    if (!dbGuildId || !targetDiscordId || !executorId) {
+      throw new Error(`Invalid token data: dbGuildId=${dbGuildId}, targetDiscordId=${targetDiscordId}, executorId=${executorId}`);
+    }
     const reason = 'Admin unlink'; // Use default reason since token is too long
     const queryType = normalizedIgn ? 'ign' : 'discord'; // Determine query type from token data
     
@@ -3018,7 +3023,9 @@ async function handleAdminUnlinkConfirm(interaction) {
     // Start transaction
     console.log('[ADMIN-UNLINK CONFIRM DEBUG] Starting transaction...');
     const connection = await pool.getConnection();
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Got database connection');
     await connection.beginTransaction();
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Transaction started');
     
     try {
       // Update all matching player records
@@ -3064,6 +3071,12 @@ async function handleAdminUnlinkConfirm(interaction) {
     
   } catch (error) {
     console.error('Error in handleAdminUnlinkConfirm:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      customId: interaction.customId
+    });
     await interaction.editReply({
       embeds: [errorEmbed('System Error', 'Failed to process unlink confirmation. Please try again.')],
       components: []
