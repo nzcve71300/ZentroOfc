@@ -227,9 +227,9 @@ async function handleShopServerSelect(interaction) {
 
     const { nickname, server_id } = result[0];
 
-    // Get categories for this server
+    // Get categories for this server with role information
     const categoriesResult = await pool.query(
-      'SELECT id, name, type FROM shop_categories WHERE server_id = ? ORDER BY name',
+      'SELECT id, name, type, role FROM shop_categories WHERE server_id = ? ORDER BY name',
       [server_id]
     );
 
@@ -252,12 +252,19 @@ async function handleShopServerSelect(interaction) {
 
     const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].balance : 0;
 
-    // Create category dropdown
-    const categoryOptions = categoriesResult.rows.map(category => ({
-      label: category.name,
-      description: `${category.type} - Browse ${category.name}`,
-      value: category.id.toString()
-    }));
+    // Create category dropdown with role checking
+    const categoryOptions = [];
+    for (const category of categoriesResult.rows) {
+      const hasRole = !category.role || interaction.member.roles.cache.has(category.role);
+      const lockIcon = category.role && !hasRole ? '🔒 ' : '';
+      
+      categoryOptions.push({
+        label: `${lockIcon}${category.name}`,
+        description: `${category.type} category${category.role && !hasRole ? ' (Role Required)' : ''}`,
+        value: category.id.toString(),
+        disabled: category.role && !hasRole // Disable if role required but user doesn't have it
+      });
+    }
 
     const row = new ActionRowBuilder()
       .addComponents(
