@@ -24,9 +24,9 @@ async function checkEconomyTable() {
     // Check constraints (MariaDB syntax)
     const [constraints] = await connection.execute(`
       SELECT 
-        CONSTRAINT_NAME,
-        CONSTRAINT_TYPE,
-        COLUMN_NAME
+        tc.CONSTRAINT_NAME,
+        tc.CONSTRAINT_TYPE,
+        kcu.COLUMN_NAME
       FROM information_schema.TABLE_CONSTRAINTS tc
       JOIN information_schema.KEY_COLUMN_USAGE kcu 
         ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME 
