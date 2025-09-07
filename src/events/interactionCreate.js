@@ -112,10 +112,14 @@ module.exports = {
         } else if (interaction.customId.startsWith('cancel_purchase_')) {
           console.log('Handling cancel purchase button');
           await handleCancelPurchase(interaction);
-        } else if (interaction.customId.startsWith('link_confirm_')) {
+        } else if (interaction.customId.startsWith('link_confirm:')) {
           await handleLinkConfirm(interaction);
         } else if (interaction.customId === 'link_cancel') {
           await handleLinkCancel(interaction);
+        } else if (interaction.customId.startsWith('admin_unlink_confirm:')) {
+          await handleAdminUnlinkConfirm(interaction);
+        } else if (interaction.customId === 'admin_unlink_cancel') {
+          await handleAdminUnlinkCancel(interaction);
         } else if (interaction.customId.startsWith('scheduler_save_pair_')) {
           console.log('Handling scheduler_save_pair button');
           await handleSchedulerSavePair(interaction);
@@ -192,6 +196,8 @@ module.exports = {
   handleAdjustCartQuantityModal,
   handleLinkConfirm,
   handleLinkCancel,
+  handleAdminUnlinkConfirm,
+  handleAdminUnlinkCancel,
   handleEditItemModal,
   handleEditKitModal,
   handleSchedulerAdd,
@@ -1314,26 +1320,21 @@ async function handleCancelPurchase(interaction) {
 async function handleLinkConfirm(interaction) {
   await interaction.deferUpdate();
   
-  // Parse custom ID: link_confirm_${discordGuildId}_${discordId}_${ign}
-  // IGN might contain underscores, so we need to handle this carefully
-  const parts = interaction.customId.split('_');
-  const discordGuildId = parts[2];
-  const discordId = parts[3];
-  // IGN is everything after the discord ID, joined back together
-  const ign = parts.slice(4).join('_');
-  
-  // 🛡️ FUTURE-PROOF IGN HANDLING: Preserve original case, only trim spaces
-  const normalizedIgn = ign.trim(); // Only trim spaces, preserve case and special characters
-  
-  console.log('🔍 Link Confirm Debug:', { discordGuildId, discordId, ign, normalizedIgn });
-  
   try {
+    // Decode token from custom ID
+    const token = interaction.customId.split(':')[1];
+    const tokenData = JSON.parse(Buffer.from(token, 'base64url').toString());
+    
+    const { g: dbGuildId, u: discordId, n: normalizedIgn, r: rawIgn } = tokenData;
+    
+    console.log('🔍 Link Confirm Debug:', { dbGuildId, discordId, normalizedIgn, rawIgn });
+    
     const pool = require('../db');
     
     // Get all servers for this guild
     const [servers] = await pool.query(
-      'SELECT id, nickname FROM rust_servers WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) ORDER BY nickname',
-      [discordGuildId]
+      'SELECT id, nickname FROM rust_servers WHERE guild_id = ? ORDER BY nickname',
+      [dbGuildId]
     );
     
     if (servers.length === 0) {
@@ -1348,10 +1349,10 @@ async function handleLinkConfirm(interaction) {
       `SELECT p.*, rs.nickname 
        FROM players p
        JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
+       WHERE p.guild_id = ? 
        AND p.discord_id = ? 
        AND p.is_active = true`,
-      [discordGuildId, discordId]
+      [dbGuildId, discordId]
     );
 
     if (activeDiscordLinks.length > 0) {
@@ -1369,10 +1370,10 @@ async function handleLinkConfirm(interaction) {
       `SELECT p.*, rs.nickname 
        FROM players p
        JOIN rust_servers rs ON p.server_id = rs.id
-       WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-       AND LOWER(p.ign) = LOWER(?) 
+       WHERE p.guild_id = ? 
+       AND p.normalized_ign = ? 
        AND p.is_active = true`,
-      [discordGuildId, normalizedIgn]
+      [dbGuildId, normalizedIgn]
     );
 
     if (activeIgnLinks.length > 0) {
@@ -1395,44 +1396,42 @@ async function handleLinkConfirm(interaction) {
       }
     }
 
-    // Confirm link for all servers
-    const linkedServers = [];
-    let errorMessage = null;
+    // ✅ ATOMIC TRANSACTION: Re-check and link atomically
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
     
-    for (const server of servers) {
-      try {
-        // Ensure guild exists
-        await pool.query(
-          'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
-          [discordGuildId, interaction.guild?.name || 'Unknown Guild']
-        );
+    try {
+      // Re-check availability inside transaction (defense in depth)
+      const [duplicateCheck] = await connection.query(
+        `SELECT 1 FROM players 
+         WHERE guild_id = ? AND normalized_ign = ? AND is_active = TRUE 
+         LIMIT 1`,
+        [dbGuildId, normalizedIgn]
+      );
+      
+      if (duplicateCheck.length > 0) {
+        throw new Error('IGN already taken by another user');
+      }
+      
+      // Ensure guild exists
+      await connection.query(
+        'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+        [interaction.guildId, interaction.guild?.name || 'Unknown Guild']
+      );
 
-        // ✅ BULLETPROOF INSERT: Check for existing record first, then insert or update
-        const [existingPlayer] = await pool.query(
-          'SELECT id FROM players WHERE guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND server_id = ? AND discord_id = ?',
-          [discordGuildId, server.id, discordId]
+      const linkedServers = [];
+      
+      for (const server of servers) {
+        // Insert new record with normalized_ign
+        const [insertResult] = await connection.query(
+          'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
+          [dbGuildId, server.id, discordId, rawIgn, normalizedIgn]
         );
         
-        let playerResult;
-        if (existingPlayer.length > 0) {
-          // Update existing record
-          const [updateResult] = await pool.query(
-            'UPDATE players SET ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL WHERE id = ?',
-            [normalizedIgn, existingPlayer[0].id]
-          );
-          playerResult = { insertId: existingPlayer[0].id };
-        } else {
-          // Insert new record
-          const [insertResult] = await pool.query(
-            'INSERT INTO players (guild_id, server_id, discord_id, ign, linked_at, is_active) VALUES ((SELECT id FROM guilds WHERE discord_id = ?), ?, ?, ?, CURRENT_TIMESTAMP, true)',
-            [discordGuildId, server.id, discordId, normalizedIgn]
-          );
-          playerResult = insertResult;
-        }
+        const playerId = insertResult.insertId;
         
         // Create economy record with starting balance
-        // Get starting balance from eco_games_config
-        const [configResult] = await pool.query(
+        const [configResult] = await connection.query(
           'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
           [server.id, 'starting_balance']
         );
@@ -1444,41 +1443,52 @@ async function handleLinkConfirm(interaction) {
         
         console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
         
-        await pool.query(
-          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, (SELECT guild_id FROM players WHERE id = ?), ?) ON DUPLICATE KEY UPDATE balance = balance',
-          [playerResult.insertId, playerResult.insertId, startingBalance]
+        await connection.query(
+          'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE balance = balance',
+          [playerId, dbGuildId, startingBalance]
         );
         
         linkedServers.push(server.nickname);
-      } catch (error) {
-        console.error(`Failed to link to server ${server.nickname}:`, error);
-        
-        // Check for specific database constraint violations
-        if (error.message.includes('Duplicate entry') || error.message.includes('UNIQUE constraint failed')) {
-          errorMessage = `❌ This IGN is already linked to another Discord account on ${server.nickname}. Contact an admin to unlink.`;
-          break;
-        }
-        
-        errorMessage = `❌ Failed to link to ${server.nickname}: ${error.message}`;
-        break;
       }
-    }
-
-    if (errorMessage) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Link Failed', errorMessage)],
+      
+      // Commit transaction
+      await connection.commit();
+      
+      // Success response
+      const successEmbed = successEmbed(
+        'Link Successful',
+        `Successfully linked **${rawIgn}** to your Discord account across **${linkedServers.length} server(s)**!\n\n` +
+        `**Servers:**\n${linkedServers.map(s => `• ${s}`).join('\n')}\n\n` +
+        `**⚠️ Remember:** This is a one-time link per guild. Contact an admin if you need to change your linked name.`
+      );
+      
+      await interaction.editReply({
+        embeds: [successEmbed],
         components: []
       });
+      
+    } catch (error) {
+      await connection.rollback();
+      
+      // Handle specific error cases
+      if (error.message.includes('IGN already taken')) {
+        return interaction.editReply({
+          embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
+          components: []
+        });
+      }
+      
+      if (error.code === 'ER_DUP_ENTRY') {
+        return interaction.editReply({
+          embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
+          components: []
+        });
+      }
+      
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    if (linkedServers.length === 0) {
-      return interaction.editReply({
-        embeds: [errorEmbed('Link Failed', 'Failed to link account to any servers. Please try again.')],
-        components: []
-      });
-    }
-
-    const serverList = linkedServers.join(', ');
     
     // Create ZentroLinked role if it doesn't exist and assign it to the user
     try {
@@ -1511,50 +1521,14 @@ async function handleLinkConfirm(interaction) {
       if (member && member.manageable && interaction.guild.ownerId !== interaction.user.id) {
         // Add a small delay to ensure Discord processes the role assignment first
         await new Promise(resolve => setTimeout(resolve, 500));
-        await member.setNickname(normalizedIgn);
-        console.log(`[NICKNAME] Set nickname for ${member.user.username} to "${normalizedIgn}"`);
+        await member.setNickname(rawIgn);
+        console.log(`[NICKNAME] Set nickname for ${member.user.username} to "${rawIgn}"`);
       }
     } catch (nicknameError) {
       console.log('Could not set nickname:', nicknameError.message);
     }
 
-    const embed = successEmbed(
-      '✅ Account Linked Successfully!',
-      `Your Discord account has been linked to **${normalizedIgn}** on: **${serverList}**\n\nYou can now use:\n• \`/balance\` - Check your balance\n• \`/daily\` - Claim daily rewards\n• \`/shop\` - Buy items and kits\n• \`/blackjack\` - Play blackjack\n\n**⚠️ Remember:** This is a one-time link. Contact an admin if you need to change your linked name.`
-    );
-
-    await interaction.editReply({
-      embeds: [embed],
-      components: []
-    });
-
-    console.log(`[LINK] Successfully linked ${discordId} to ${normalizedIgn} on ${serverList}`);
-    
-    // 🔗 AUTO-SERVER-LINKING: Ensure player exists on ALL servers in this guild
-    try {
-      console.log(`🔗 AUTO-SERVER-LINKING: Starting cross-server player creation for ${normalizedIgn}`);
-      
-      // Get the database guild ID
-      const [guildResult] = await pool.query(
-        'SELECT id FROM guilds WHERE discord_id = ?',
-        [discordGuildId]
-      );
-      
-      if (guildResult.length > 0) {
-        const dbGuildId = guildResult[0].id;
-        
-        // Ensure player exists on all servers
-        const autoLinkResult = await ensurePlayerOnAllServers(dbGuildId, discordId, normalizedIgn);
-        
-        if (autoLinkResult.success) {
-          console.log(`🔗 AUTO-SERVER-LINKING: Successfully ensured ${normalizedIgn} exists on ${autoLinkResult.totalServers} servers (${autoLinkResult.createdCount} created, ${autoLinkResult.existingCount} existing)`);
-        } else {
-          console.log(`⚠️ AUTO-SERVER-LINKING: Failed to ensure ${normalizedIgn} on all servers: ${autoLinkResult.error}`);
-        }
-      }
-    } catch (autoLinkError) {
-      console.log(`⚠️ AUTO-SERVER-LINKING: Error during cross-server linking: ${autoLinkError.message}`);
-    }
+    console.log(`[LINK] Successfully linked ${discordId} to ${rawIgn} (normalized: ${normalizedIgn})`);
 
   } catch (error) {
     console.error('Error in handleLinkConfirm:', error);
@@ -2977,4 +2951,121 @@ async function handleSchedulerCustomMessage(interaction) {
       components: []
     });
   }
+}
+
+async function handleAdminUnlinkConfirm(interaction) {
+  await interaction.deferUpdate();
+  
+  try {
+    // Decode token
+    const token = interaction.customId.split(':')[1];
+    const tokenData = JSON.parse(Buffer.from(token, 'base64url').toString());
+    
+    const { g: dbGuildId, u: targetDiscordId, n: normalizedIgn, r: reason, x: executorId } = tokenData;
+    
+    // Validate executor is the same (defense-in-depth)
+    if (interaction.user.id !== executorId) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Unauthorized', 'You are not authorized to perform this action.')],
+        components: []
+      });
+    }
+    
+    const pool = require('../db');
+    
+    // Re-query inside transaction to ensure current state is still active
+    let query, params;
+    
+    if (normalizedIgn) {
+      query = `
+        SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
+        FROM players p
+        JOIN rust_servers rs ON rs.id = p.server_id
+        WHERE p.guild_id = ?
+          AND p.is_active = TRUE
+          AND p.discord_id = ?
+          AND p.normalized_ign = ?
+      `;
+      params = [dbGuildId, targetDiscordId, normalizedIgn];
+    } else {
+      query = `
+        SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
+        FROM players p
+        JOIN rust_servers rs ON rs.id = p.server_id
+        WHERE p.guild_id = ?
+          AND p.is_active = TRUE
+          AND p.discord_id = ?
+      `;
+      params = [dbGuildId, targetDiscordId];
+    }
+    
+    const [players] = await pool.query(query, params);
+    
+    if (players.length === 0) {
+      return interaction.editReply({
+        embeds: [orangeEmbed('Nothing to Unlink', 'Nothing to unlink (already unlinked).')],
+        components: []
+      });
+    }
+    
+    // Start transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    try {
+      // Update all matching player records
+      const playerIds = players.map(p => p.id);
+      const placeholders = playerIds.map(() => '?').join(',');
+      
+      await connection.query(
+        `UPDATE players 
+         SET is_active = FALSE,
+             unlinked_at = NOW(),
+             unlinked_by = ?,
+             unlink_reason = ?
+         WHERE id IN (${placeholders})`,
+        [executorId, reason, ...playerIds]
+      );
+      
+      await connection.commit();
+      
+      // Success response
+      const displayIgn = players[0].ign;
+      const serverList = players.map(p => p.nickname);
+      
+      const successEmbed = successEmbed(
+        'Unlink Successful',
+        `Unlinked **${displayIgn}** from <@${targetDiscordId}> on **${serverList.length} server(s)**.\n\n` +
+        `**Servers:**\n${serverList.map(s => `• ${s}`).join('\n')}\n\n` +
+        `**Reason:** ${reason}`
+      );
+      
+      await interaction.editReply({
+        embeds: [successEmbed],
+        components: []
+      });
+      
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    
+  } catch (error) {
+    console.error('Error in handleAdminUnlinkConfirm:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('System Error', 'Failed to process unlink confirmation. Please try again.')],
+      components: []
+    });
+  }
+}
+
+async function handleAdminUnlinkCancel(interaction) {
+  await interaction.deferUpdate();
+  
+  await interaction.editReply({
+    embeds: [orangeEmbed('Unlink Cancelled', 'Admin unlink has been cancelled.')],
+    components: []
+  });
 }

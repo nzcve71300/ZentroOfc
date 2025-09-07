@@ -8,8 +8,8 @@ function normalizeIGN(raw) {
   if (!raw || typeof raw !== 'string') return '';
   
   return raw
-    .normalize('NFKC')        // unify unicode forms
-    .replace(/\u200B/g, '')   // strip zero-width chars
+    .normalize('NFC')         // unify unicode forms (NFC is more standard than NFKC)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')   // strip zero-width chars (more comprehensive)
     .trim()
     .replace(/\s+/g, ' ')     // collapse multiple spaces to single space
     .toLowerCase();            // normalize case
@@ -192,12 +192,12 @@ async function isIgnAvailable(guildId, ign, excludeDiscordId = null) {
       return { available: false, error: 'Invalid IGN provided' };
     }
     
-    // ✅ CRITICAL: Scope query by guild_id to prevent cross-tenant issues
+    // ✅ CRITICAL: Use exact match on normalized_ign column, scope by guild_id only
     let query = `
       SELECT p.discord_id, rs.nickname 
       FROM players p
       JOIN rust_servers rs ON p.server_id = rs.id
-      WHERE p.guild_id = ? AND LOWER(p.ign) = ? AND p.is_active = true
+      WHERE p.guild_id = ? AND p.normalized_ign = ? AND p.is_active = true
     `;
     
     let params = [guildId, normalizedIgn];

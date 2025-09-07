@@ -23,7 +23,7 @@ module.exports = {
     // Normalize IGN
     const rawIgn = interaction.options.getString('in-game-name');
     const ign = rawIgn.trim();
-    const normalizedIgn = normalizeIGN(rawIgn);
+    const normalizedIgn = normalizeIGN(ign); // normalize AFTER trim
 
     if (!ign || ign.length < 1 || !normalizedIgn) {
       return await interaction.editReply({
@@ -89,7 +89,7 @@ module.exports = {
       }
 
       // Check if IGN is available in this guild
-      const ignAvailability = await isIgnAvailable(dbGuildId, ign, discordId);
+      const ignAvailability = await isIgnAvailable(dbGuildId, normalizedIgn, discordId);
 
       if (!ignAvailability.available) {
         if (ignAvailability.error) {
@@ -113,10 +113,19 @@ module.exports = {
 
       console.log(`[LINK DEBUG] IGN "${ign}" is available for linking in guild ${dbGuildId}`);
 
+      // Create safe token for button payload
+      const tokenData = {
+        g: dbGuildId,
+        u: discordId,
+        n: normalizedIgn,
+        r: ign // raw IGN for display
+      };
+      const token = Buffer.from(JSON.stringify(tokenData)).toString('base64url');
+
       // Show confirmation
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(`link_confirm_${dbGuildId}_${discordId}_${ign}`)
+          .setCustomId(`link_confirm:${token}`)
           .setLabel('Confirm Link')
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
@@ -129,7 +138,7 @@ module.exports = {
         'Confirm Link',
         `Are you sure you want to link your Discord account to **${ign}**?\n\n` +
         `This will link your account across **${servers.length} server(s)**:\n${servers.map(s => `• ${s.nickname}`).join('\n')}\n\n` +
-        '**⚠️ CRITICAL:** This is a **ONE-TIME LINK PER GUILD**. You cannot change your linked name later without admin help!\n\n' +
+        '**⚠️ REMEMBER:** This is a **ONE-TIME LINK PER GUILD**. You cannot change your linked name later without admin help!\n\n' +
         '**Make sure this is the correct in-game name!**'
       );
 
