@@ -136,7 +136,7 @@ module.exports = {
 
       const confirmEmbed = orangeEmbed(
         'Confirm Link',
-        `Are you sure you want to link your Discord account to **${ign}**?\n\n` +
+        `Are you sure you want to link your Discord account to ** ${ign}**?\n\n` +
         `This will link your account across **${servers.length} server(s)**:\n${servers.map(s => `• ${s.nickname}`).join('\n')}\n\n` +
         '**⚠️ REMEMBER:** This is a **ONE-TIME LINK PER GUILD**. You cannot change your linked name later without admin help!\n\n' +
         '**Make sure this is the correct in-game name!**'
