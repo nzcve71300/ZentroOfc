@@ -92,20 +92,26 @@ module.exports = {
         params = [dbGuildId, targetDiscordId];
         queryType = 'discord';
       } else {
-        // IGN only
+        // IGN only - search both normalized_ign and original ign columns
         query = `
           SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
           FROM players p
           JOIN rust_servers rs ON rs.id = p.server_id
           WHERE p.guild_id = ?
             AND p.is_active = TRUE
-            AND p.normalized_ign = ?
+            AND (p.normalized_ign = ? OR LOWER(p.ign) = LOWER(?))
         `;
-        params = [dbGuildId, normalizedIgn];
+        params = [dbGuildId, normalizedIgn, playerInput.trim()];
         queryType = 'ign';
       }
 
+      console.log(`[ADMIN-UNLINK DEBUG] Searching for ${queryType === 'discord' ? 'Discord ID' : 'IGN'}:`, queryType === 'discord' ? targetDiscordId : `${playerInput.trim()} (normalized: ${normalizedIgn})`);
+      console.log(`[ADMIN-UNLINK DEBUG] Query:`, query);
+      console.log(`[ADMIN-UNLINK DEBUG] Params:`, params);
+      
       const [players] = await pool.query(query, params);
+      
+      console.log(`[ADMIN-UNLINK DEBUG] Found ${players.length} players`);
 
       if (players.length === 0) {
         let errorMessage;
