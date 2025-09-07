@@ -1442,6 +1442,7 @@ async function handleLinkConfirm(interaction) {
       console.log('🚀 [LINK CONFIRM] Guild ensured');
 
       const linkedServers = [];
+      const balanceInfo = [];
       console.log('🚀 [LINK CONFIRM] Starting server linking loop for', servers.length, 'servers');
       
       for (const server of servers) {
@@ -1455,27 +1456,58 @@ async function handleLinkConfirm(interaction) {
         const playerId = insertResult.insertId;
         console.log('🚀 [LINK CONFIRM] Player record created with ID:', playerId);
         
-        // Create economy record with starting balance
+        // Create economy record - check for backup balance first, then starting balance
         console.log('🚀 [LINK CONFIRM] Creating economy record for player:', playerId);
-        const [configResult] = await connection.query(
-          'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
-          [server.id, 'starting_balance']
+        
+        // Check if there's a backup balance for this player
+        const [backupResult] = await connection.query(
+          `SELECT balance FROM player_balance_backup 
+           WHERE guild_id = ? AND server_id = ? AND discord_id = ? AND restored_at IS NULL
+           ORDER BY backed_up_at DESC LIMIT 1`,
+          [dbGuildId, server.id, discordId]
         );
         
-        let startingBalance = 0; // Default starting balance
-        if (configResult.length > 0) {
-          startingBalance = parseInt(configResult[0].setting_value) || 0;
+        let initialBalance = 0;
+        let balanceSource = 'starting';
+        
+        if (backupResult.length > 0) {
+          // Restore from backup
+          initialBalance = backupResult[0].balance;
+          balanceSource = 'backup';
+          console.log(`🚀 [LINK CONFIRM] Restoring backup balance ${initialBalance} for player ${normalizedIgn} (server: ${server.nickname})`);
+          
+          // Mark backup as restored
+          await connection.query(
+            'UPDATE player_balance_backup SET restored_at = CURRENT_TIMESTAMP WHERE guild_id = ? AND server_id = ? AND discord_id = ? AND restored_at IS NULL',
+            [dbGuildId, server.id, discordId]
+          );
+        } else {
+          // Use starting balance for new players
+          const [configResult] = await connection.query(
+            'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+            [server.id, 'starting_balance']
+          );
+          
+          if (configResult.length > 0) {
+            initialBalance = parseInt(configResult[0].setting_value) || 0;
+          }
+          console.log(`🚀 [LINK CONFIRM] Using starting balance ${initialBalance} for new player ${normalizedIgn} (server: ${server.nickname})`);
         }
         
-        console.log(`🚀 [LINK CONFIRM] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
+        console.log(`🚀 [LINK CONFIRM] Creating economy record for player ${normalizedIgn} with ${balanceSource} balance: ${initialBalance} (server: ${server.nickname})`);
         
         await connection.query(
           'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE balance = balance',
-          [playerId, dbGuildId, startingBalance]
+          [playerId, dbGuildId, initialBalance]
         );
         console.log('🚀 [LINK CONFIRM] Economy record created');
         
         linkedServers.push(server.nickname);
+        balanceInfo.push({
+          server: server.nickname,
+          balance: initialBalance,
+          source: balanceSource
+        });
         console.log('🚀 [LINK CONFIRM] Server linked:', server.nickname);
       }
       
@@ -1486,10 +1518,17 @@ async function handleLinkConfirm(interaction) {
       
       // Success response
       console.log('🚀 [LINK CONFIRM] Creating success response...');
+      
+      // Create balance summary
+      const balanceSummary = balanceInfo.map(info => {
+        const sourceText = info.source === 'backup' ? ' (restored)' : ' (starting)';
+        return `• **${info.server}**: ${info.balance} coins${sourceText}`;
+      }).join('\n');
+      
       const linkSuccessEmbed = successEmbed(
         'Link Successful',
         `Successfully linked **${rawIgn}** to your Discord account across **${linkedServers.length} server(s)**!\n\n` +
-        `**Servers:**\n${linkedServers.map(s => `• ${s}`).join('\n')}\n\n` +
+        `**Servers & Balances:**\n${balanceSummary}\n\n` +
         `**⚠️ Remember:** This is a one-time link per guild. Contact an admin if you need to change your linked name.`
       );
       
@@ -3077,7 +3116,28 @@ async function handleAdminUnlinkConfirm(interaction) {
       const playerIds = players.map(p => p.id);
       console.log('[ADMIN-UNLINK CONFIRM DEBUG] Player IDs to unlink:', playerIds);
       
-      // First, delete associated economy records
+      // First, backup player balances before deletion
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Backing up player balances...');
+      for (const player of players) {
+        // Get the player's current balance
+        const [economyResult] = await connection.query(
+          'SELECT balance FROM economy WHERE player_id = ?',
+          [player.id]
+        );
+        
+        const balance = economyResult.length > 0 ? economyResult[0].balance : 0;
+        console.log(`[ADMIN-UNLINK CONFIRM DEBUG] Backing up balance ${balance} for player ${player.ign} (ID: ${player.id})`);
+        
+        // Insert backup record
+        await connection.query(
+          `INSERT INTO player_balance_backup (guild_id, server_id, discord_id, ign, normalized_ign, balance, backed_up_at)
+           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [player.guild_id, player.server_id, player.discord_id, player.ign, player.normalized_ign, balance]
+        );
+      }
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Balance backup completed');
+      
+      // Then, delete associated economy records
       const economyDeleteQuery = `DELETE FROM economy WHERE player_id IN (${playerIds.map(() => '?').join(',')})`;
       console.log('[ADMIN-UNLINK CONFIRM DEBUG] Deleting economy records for player IDs:', playerIds);
       await connection.query(economyDeleteQuery, playerIds);
