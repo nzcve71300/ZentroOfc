@@ -1454,7 +1454,7 @@ async function handleLinkConfirm(interaction) {
       await connection.commit();
       
       // Success response
-      const successEmbed = successEmbed(
+      const linkSuccessEmbed = successEmbed(
         'Link Successful',
         `Successfully linked **${rawIgn}** to your Discord account across **${linkedServers.length} server(s)**!\n\n` +
         `**Servers:**\n${linkedServers.map(s => `• ${s}`).join('\n')}\n\n` +
@@ -1462,7 +1462,7 @@ async function handleLinkConfirm(interaction) {
       );
       
       await interaction.editReply({
-        embeds: [successEmbed],
+        embeds: [linkSuccessEmbed],
         components: []
       });
       
@@ -3043,7 +3043,7 @@ async function handleAdminUnlinkConfirm(interaction) {
       const displayIgn = players[0].ign;
       const serverList = players.map(p => p.nickname);
       
-      const successEmbed = successEmbed(
+      const unlinkSuccessEmbed = successEmbed(
         'Unlink Successful',
         `Unlinked **${displayIgn}** from <@${targetDiscordId}> on **${serverList.length} server(s)**.\n\n` +
         `**Servers:**\n${serverList.map(s => `• ${s}`).join('\n')}\n\n` +
@@ -3051,7 +3051,7 @@ async function handleAdminUnlinkConfirm(interaction) {
       );
       
       await interaction.editReply({
-        embeds: [successEmbed],
+        embeds: [unlinkSuccessEmbed],
         components: []
       });
       
