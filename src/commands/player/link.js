@@ -89,7 +89,7 @@ module.exports = {
       }
 
       // Check if IGN is available in this guild
-      const ignAvailability = await isIgnAvailable(dbGuildId, normalizedIgn, discordId);
+      const ignAvailability = await isIgnAvailable(dbGuildId, ign, discordId);
 
       if (!ignAvailability.available) {
         if (ignAvailability.error) {
