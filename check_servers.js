@@ -1,59 +1,61 @@
-const pool = require('./src/db');
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function checkServers() {
+  let connection;
   try {
-    console.log('🔍 Checking all servers in database...');
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT || 3306
+    });
+
+    console.log('🔍 Checking rust_servers table...');
     
-    // Get all servers with their guild info
-    const [servers] = await pool.query(`
-      SELECT rs.*, g.discord_id as guild_discord_id, g.name as guild_name
-      FROM rust_servers rs
-      LEFT JOIN guilds g ON rs.guild_id = g.id
-      ORDER BY rs.guild_id, rs.nickname
+    // Get all servers
+    const [servers] = await connection.execute(`
+      SELECT id, nickname, guild_id FROM rust_servers ORDER BY guild_id, id
+    `);
+
+    console.log('📋 Available servers:');
+    servers.forEach(server => {
+      console.log(`   ID: ${server.id}, Name: ${server.nickname}, Guild: ${server.guild_id}`);
+    });
+
+    // Check what server IDs are being used in the restoration script
+    console.log('\n🔍 Checking what server IDs the restoration script is trying to use...');
+    
+    // The original script was using server_id = 1 for "Dead-ops", let's see what the actual ID is
+    const [deadOpsServer] = await connection.execute(`
+      SELECT id, nickname, guild_id FROM rust_servers WHERE nickname LIKE '%Dead%' OR nickname LIKE '%dead%'
     `);
     
-    if (servers.length === 0) {
-      console.log('❌ No servers found in database');
-      return;
-    }
-    
-    console.log(`📋 Found ${servers.length} server(s):`);
-    console.log('');
-    
-    servers.forEach((server, index) => {
-      console.log(`${index + 1}. Server: ${server.nickname}`);
-      console.log(`   ID: ${server.id}`);
-      console.log(`   IP: ${server.ip}:${server.port}`);
-      console.log(`   Guild ID: ${server.guild_id}`);
-      console.log(`   Guild Discord ID: ${server.guild_discord_id}`);
-      console.log(`   Guild Name: ${server.guild_name || 'Unknown'}`);
-      console.log(`   Currency: ${server.currency_name || 'coins'}`);
-      console.log('');
+    console.log('📋 Servers with "Dead" in name:');
+    deadOpsServer.forEach(server => {
+      console.log(`   ID: ${server.id}, Name: ${server.nickname}, Guild: ${server.guild_id}`);
     });
+
+    // Check what server IDs are actually being used in the players table
+    const [usedServerIds] = await connection.execute(`
+      SELECT DISTINCT server_id, COUNT(*) as player_count
+      FROM players 
+      WHERE is_active = TRUE
+      GROUP BY server_id
+      ORDER BY server_id
+    `);
     
-    // Check if there are multiple servers in the same guild
-    const guildCounts = {};
-    servers.forEach(server => {
-      const guildId = server.guild_discord_id;
-      if (!guildCounts[guildId]) {
-        guildCounts[guildId] = [];
-      }
-      guildCounts[guildId].push(server);
+    console.log('\n📊 Server IDs currently used in players table:');
+    usedServerIds.forEach(server => {
+      console.log(`   server_id: ${server.server_id}, players: ${server.player_count}`);
     });
-    
-    console.log('📊 Servers per Discord guild:');
-    Object.entries(guildCounts).forEach(([guildId, guildServers]) => {
-      console.log(`   Guild ${guildId}: ${guildServers.length} server(s)`);
-      guildServers.forEach(server => {
-        console.log(`     - ${server.nickname} (${server.ip}:${server.port})`);
-      });
-    });
-    
+
   } catch (error) {
-    console.error('❌ Error checking servers:', error);
+    console.error('❌ Error:', error.message);
   } finally {
-    await pool.end();
+    if (connection) await connection.end();
   }
 }
 
-checkServers(); 
+checkServers();
