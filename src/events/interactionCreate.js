@@ -3028,9 +3028,8 @@ async function handleAdminUnlinkConfirm(interaction) {
     console.log('[ADMIN-UNLINK CONFIRM DEBUG] Transaction started');
     
     try {
-      // Update all matching player records
+      // Update all matching player records one by one to avoid constraint violations
       const playerIds = players.map(p => p.id);
-      const placeholders = playerIds.map(() => '?').join(',');
       console.log('[ADMIN-UNLINK CONFIRM DEBUG] Player IDs to unlink:', playerIds);
       
       const updateQuery = `UPDATE players 
@@ -3038,11 +3037,14 @@ async function handleAdminUnlinkConfirm(interaction) {
              unlinked_at = NOW(),
              unlinked_by = ?,
              unlink_reason = ?
-         WHERE id IN (${placeholders})`;
+         WHERE id = ?`;
       console.log('[ADMIN-UNLINK CONFIRM DEBUG] Update query:', updateQuery);
-      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Update params:', [executorId, reason, ...playerIds]);
       
-      await connection.query(updateQuery, [executorId, reason, ...playerIds]);
+      // Update each player record individually
+      for (const playerId of playerIds) {
+        console.log('[ADMIN-UNLINK CONFIRM DEBUG] Updating player ID:', playerId);
+        await connection.query(updateQuery, [executorId, reason, playerId]);
+      }
       
       await connection.commit();
       
