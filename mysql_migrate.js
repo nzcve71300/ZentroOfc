@@ -54,13 +54,13 @@ async function migrate() {
 
     await addConstraintIfNotExists(
       'players',
-      'players_unique_guild_server_discord',
-      'UNIQUE (guild_id, server_id, discord_id)'
+      'unique_active_discord_link_per_server',
+      'UNIQUE (discord_id, server_id, is_active)'
     );
     await addConstraintIfNotExists(
       'players',
-      'players_unique_guild_server_ign',
-      'UNIQUE (guild_id, server_id, ign(191))'
+      'unique_active_ign_link_per_server',
+      'UNIQUE (normalized_ign, server_id, is_active)'
     );
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_players_guild_discord ON players(guild_id, discord_id)`);
