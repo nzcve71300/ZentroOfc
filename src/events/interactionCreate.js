@@ -1318,7 +1318,9 @@ async function handleCancelPurchase(interaction) {
 }
 
 async function handleLinkConfirm(interaction) {
+  console.log('🚀 [LINK CONFIRM] Starting link confirmation process...');
   await interaction.deferUpdate();
+  console.log('🚀 [LINK CONFIRM] Deferred update completed');
   
   try {
     // Decode token from custom ID
@@ -1327,16 +1329,21 @@ async function handleLinkConfirm(interaction) {
     const [dbGuildId, discordId, normalizedIgn, rawIgn] = tokenData.split('|');
     
     console.log('🔍 Link Confirm Debug:', { dbGuildId, discordId, normalizedIgn, rawIgn });
+    console.log('🚀 [LINK CONFIRM] Token decoded successfully');
     
     const pool = require('../db');
+    console.log('🚀 [LINK CONFIRM] Database pool obtained');
     
     // Get all servers for this guild
+    console.log('🚀 [LINK CONFIRM] Querying servers for guild:', dbGuildId);
     const [servers] = await pool.query(
       'SELECT id, nickname FROM rust_servers WHERE guild_id = ? ORDER BY nickname',
       [dbGuildId]
     );
+    console.log('🚀 [LINK CONFIRM] Found servers:', servers.length);
     
     if (servers.length === 0) {
+      console.log('❌ [LINK CONFIRM] No servers found, returning error');
       return interaction.editReply({
         embeds: [errorEmbed('No Servers', 'No servers found in this guild.')],
         components: []
@@ -1344,6 +1351,7 @@ async function handleLinkConfirm(interaction) {
     }
 
     // ✅ CRITICAL CHECK: Verify THIS SPECIFIC Discord user has no active links in THIS guild
+    console.log('🚀 [LINK CONFIRM] Checking for existing Discord links...');
     const [activeDiscordLinks] = await pool.query(
       `SELECT p.*, rs.nickname 
        FROM players p
@@ -1353,8 +1361,10 @@ async function handleLinkConfirm(interaction) {
        AND p.is_active = true`,
       [dbGuildId, discordId]
     );
+    console.log('🚀 [LINK CONFIRM] Found existing Discord links:', activeDiscordLinks.length);
 
     if (activeDiscordLinks.length > 0) {
+      console.log('❌ [LINK CONFIRM] User already linked, returning error');
       const currentIgn = activeDiscordLinks[0].ign;
       const discordServerList = activeDiscordLinks.map(p => p.nickname).join(', ');
       
@@ -1365,6 +1375,7 @@ async function handleLinkConfirm(interaction) {
     }
 
     // ✅ CRITICAL CHECK: Verify IGN is not actively linked to anyone else
+    console.log('🚀 [LINK CONFIRM] Checking for existing IGN links...');
     const [activeIgnLinks] = await pool.query(
       `SELECT p.*, rs.nickname 
        FROM players p
@@ -1374,16 +1385,18 @@ async function handleLinkConfirm(interaction) {
        AND p.is_active = true`,
       [dbGuildId, normalizedIgn]
     );
+    console.log('🚀 [LINK CONFIRM] Found existing IGN links:', activeIgnLinks.length);
 
     if (activeIgnLinks.length > 0) {
       // Check if it's the same user trying to link the same IGN (should be allowed)
       const sameUserLink = activeIgnLinks.find(link => compareDiscordIds(link.discord_id, discordId));
       
       if (sameUserLink) {
-        console.log(`[LINK DEBUG] Same user trying to link same IGN - allowing update`);
+        console.log(`🚀 [LINK CONFIRM] Same user trying to link same IGN - allowing update`);
         // Allow the user to update their existing link - continue to confirmation
       } else {
         // IGN is actively linked to someone else
+        console.log('❌ [LINK CONFIRM] IGN already linked to another user, returning error');
         const existingDiscordId = activeIgnLinks[0].discord_id;
         const ignServerList = activeIgnLinks.map(p => p.nickname).join(', ');
         
@@ -1396,12 +1409,16 @@ async function handleLinkConfirm(interaction) {
     }
 
     // ✅ ATOMIC TRANSACTION: Re-check and link atomically
+    console.log('🚀 [LINK CONFIRM] Starting database transaction...');
     const connection = await pool.getConnection();
+    console.log('🚀 [LINK CONFIRM] Database connection obtained');
     await connection.beginTransaction();
+    console.log('🚀 [LINK CONFIRM] Transaction started');
     
     try {
       // Re-check availability inside transaction (defense in depth)
       // ✅ CRITICAL: Exclude the current user from the duplicate check
+      console.log('🚀 [LINK CONFIRM] Performing duplicate check inside transaction...');
       const [duplicateCheck] = await connection.query(
         `SELECT 1 FROM players 
          WHERE guild_id = ? AND normalized_ign = ? AND is_active = TRUE 
@@ -1409,20 +1426,26 @@ async function handleLinkConfirm(interaction) {
          LIMIT 1`,
         [dbGuildId, normalizedIgn, discordId]
       );
+      console.log('🚀 [LINK CONFIRM] Duplicate check result:', duplicateCheck.length);
       
       if (duplicateCheck.length > 0) {
+        console.log('❌ [LINK CONFIRM] Duplicate found, throwing error');
         throw new Error('IGN already taken by another user');
       }
       
         // Ensure guild exists
+      console.log('🚀 [LINK CONFIRM] Ensuring guild exists...');
       await connection.query(
           'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
         [interaction.guildId, interaction.guild?.name || 'Unknown Guild']
       );
+      console.log('🚀 [LINK CONFIRM] Guild ensured');
 
       const linkedServers = [];
+      console.log('🚀 [LINK CONFIRM] Starting server linking loop for', servers.length, 'servers');
       
       for (const server of servers) {
+        console.log('🚀 [LINK CONFIRM] Linking to server:', server.nickname, '(ID:', server.id, ')');
         // Insert new record with normalized_ign
         const [insertResult] = await connection.query(
           'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
@@ -1430,8 +1453,10 @@ async function handleLinkConfirm(interaction) {
         );
         
         const playerId = insertResult.insertId;
+        console.log('🚀 [LINK CONFIRM] Player record created with ID:', playerId);
         
         // Create economy record with starting balance
+        console.log('🚀 [LINK CONFIRM] Creating economy record for player:', playerId);
         const [configResult] = await connection.query(
           'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
           [server.id, 'starting_balance']
@@ -1442,20 +1467,25 @@ async function handleLinkConfirm(interaction) {
           startingBalance = parseInt(configResult[0].setting_value) || 0;
         }
         
-        console.log(`[LINK] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
+        console.log(`🚀 [LINK CONFIRM] Creating economy record for player ${normalizedIgn} with starting balance: ${startingBalance} (server: ${server.nickname})`);
         
         await connection.query(
           'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE balance = balance',
           [playerId, dbGuildId, startingBalance]
         );
+        console.log('🚀 [LINK CONFIRM] Economy record created');
         
         linkedServers.push(server.nickname);
+        console.log('🚀 [LINK CONFIRM] Server linked:', server.nickname);
       }
       
       // Commit transaction
+      console.log('🚀 [LINK CONFIRM] Committing transaction...');
       await connection.commit();
+      console.log('🚀 [LINK CONFIRM] Transaction committed successfully');
       
       // Success response
+      console.log('🚀 [LINK CONFIRM] Creating success response...');
       const linkSuccessEmbed = successEmbed(
         'Link Successful',
         `Successfully linked **${rawIgn}** to your Discord account across **${linkedServers.length} server(s)**!\n\n` +
@@ -1463,38 +1493,49 @@ async function handleLinkConfirm(interaction) {
         `**⚠️ Remember:** This is a one-time link per guild. Contact an admin if you need to change your linked name.`
       );
       
+      console.log('🚀 [LINK CONFIRM] Sending success response...');
       await interaction.editReply({
         embeds: [linkSuccessEmbed],
         components: []
       });
+      console.log('🚀 [LINK CONFIRM] Success response sent');
       
     } catch (error) {
+      console.log('❌ [LINK CONFIRM] Error occurred:', error.message);
+      console.log('❌ [LINK CONFIRM] Error stack:', error.stack);
       await connection.rollback();
+      console.log('❌ [LINK CONFIRM] Transaction rolled back');
       
       // Handle specific error cases
       if (error.message.includes('IGN already taken')) {
-      return interaction.editReply({
+        console.log('❌ [LINK CONFIRM] IGN already taken error, returning error response');
+        return interaction.editReply({
           embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
-        components: []
-      });
-    }
+          components: []
+        });
+      }
 
       if (error.code === 'ER_DUP_ENTRY') {
-      return interaction.editReply({
+        console.log('❌ [LINK CONFIRM] Duplicate entry error, returning error response');
+        return interaction.editReply({
           embeds: [errorEmbed('Link Failed', 'This IGN is already linked to another Discord account. Please use a different name or contact an admin.')],
-        components: []
-      });
-    }
+          components: []
+        });
+      }
 
+      console.log('❌ [LINK CONFIRM] Unhandled error, re-throwing');
       throw error;
     } finally {
+      console.log('🚀 [LINK CONFIRM] Releasing database connection');
       connection.release();
     }
     
     // Create ZentroLinked role if it doesn't exist and assign it to the user
+    console.log('🚀 [LINK CONFIRM] Starting role creation process...');
     try {
       const guild = interaction.guild;
       let zentroLinkedRole = guild.roles.cache.find(role => role.name === 'ZentroLinked');
+      console.log('🚀 [LINK CONFIRM] Looking for ZentroLinked role...');
       
       if (!zentroLinkedRole) {
         console.log(`[ROLE] Creating ZentroLinked role for guild: ${guild.name}`);
@@ -1532,7 +1573,8 @@ async function handleLinkConfirm(interaction) {
     console.log(`[LINK] Successfully linked ${discordId} to ${rawIgn} (normalized: ${normalizedIgn})`);
 
   } catch (error) {
-    console.error('Error in handleLinkConfirm:', error);
+    console.error('❌ [LINK CONFIRM] Fatal error in handleLinkConfirm:', error);
+    console.error('❌ [LINK CONFIRM] Error stack:', error.stack);
     await interaction.editReply({
       embeds: [errorEmbed('Link Failed', 'An unexpected error occurred. Please try again or contact an admin.')],
       components: []
