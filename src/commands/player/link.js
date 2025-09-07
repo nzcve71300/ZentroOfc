@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
 const pool = require('../../db');
-const { normalizeIGN } = require('../../utils/discordUtils');
+const { normalizeIGN } = require('../../utils/autoServerLinking');
 const { isIgnAvailable } = require('../../utils/autoServerLinking');
 
 module.exports = {
