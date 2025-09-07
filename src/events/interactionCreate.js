@@ -2978,17 +2978,18 @@ async function handleAdminUnlinkConfirm(interaction) {
     let query, params;
     
     if (normalizedIgn) {
+      // IGN search - use same logic as main command
       query = `
         SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
         FROM players p
         JOIN rust_servers rs ON rs.id = p.server_id
         WHERE p.guild_id = ?
           AND p.is_active = TRUE
-          AND p.discord_id = ?
-          AND p.normalized_ign = ?
+          AND (p.normalized_ign = ? OR LOWER(p.ign) = LOWER(?))
       `;
-      params = [dbGuildId, targetDiscordId, normalizedIgn];
+      params = [dbGuildId, normalizedIgn, normalizedIgn];
     } else {
+      // Discord ID search
       query = `
         SELECT p.id, p.discord_id, p.ign, p.normalized_ign, rs.nickname
         FROM players p
