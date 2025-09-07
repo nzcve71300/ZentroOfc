@@ -113,14 +113,10 @@ module.exports = {
 
       console.log(`[LINK DEBUG] IGN "${ign}" is available for linking in guild ${dbGuildId}`);
 
-      // Create safe token for button payload
-      const tokenData = {
-        g: dbGuildId,
-        u: discordId,
-        n: normalizedIgn,
-        r: ign // raw IGN for display
-      };
-      const token = Buffer.from(JSON.stringify(tokenData)).toString('base64url');
+      // Create safe token for button payload (ultra-short to fit Discord's 100 char limit)
+      // Use compact format: guildId|discordId|normalizedIgn|rawIgn
+      const tokenData = `${dbGuildId}|${discordId}|${normalizedIgn}|${ign}`;
+      const token = Buffer.from(tokenData).toString('base64url');
 
       // Show confirmation
       const row = new ActionRowBuilder().addComponents(

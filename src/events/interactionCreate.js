@@ -1323,9 +1323,8 @@ async function handleLinkConfirm(interaction) {
   try {
     // Decode token from custom ID
     const token = interaction.customId.split(':')[1];
-    const tokenData = JSON.parse(Buffer.from(token, 'base64url').toString());
-    
-    const { g: dbGuildId, u: discordId, n: normalizedIgn, r: rawIgn } = tokenData;
+    const tokenData = Buffer.from(token, 'base64url').toString();
+    const [dbGuildId, discordId, normalizedIgn, rawIgn] = tokenData.split('|');
     
     console.log('🔍 Link Confirm Debug:', { dbGuildId, discordId, normalizedIgn, rawIgn });
     
