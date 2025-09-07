@@ -2959,8 +2959,11 @@ async function handleAdminUnlinkConfirm(interaction) {
   try {
     // Decode token
     const token = interaction.customId.split(':')[1];
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Token:', token);
     const tokenData = Buffer.from(token, 'base64url').toString();
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Token data:', tokenData);
     const [dbGuildId, targetDiscordId, normalizedIgn, executorId] = tokenData.split('|');
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Parsed data:', { dbGuildId, targetDiscordId, normalizedIgn, executorId });
     const reason = 'Admin unlink'; // Use default reason since token is too long
     const queryType = normalizedIgn ? 'ign' : 'discord'; // Determine query type from token data
     
@@ -3001,7 +3004,10 @@ async function handleAdminUnlinkConfirm(interaction) {
       params = [dbGuildId, targetDiscordId];
     }
     
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Query:', query);
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Params:', params);
     const [players] = await pool.query(query, params);
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Found players:', players.length);
     
     if (players.length === 0) {
       return interaction.editReply({
@@ -3011,6 +3017,7 @@ async function handleAdminUnlinkConfirm(interaction) {
     }
     
     // Start transaction
+    console.log('[ADMIN-UNLINK CONFIRM DEBUG] Starting transaction...');
     const connection = await pool.getConnection();
     await connection.beginTransaction();
     
@@ -3018,16 +3025,18 @@ async function handleAdminUnlinkConfirm(interaction) {
       // Update all matching player records
       const playerIds = players.map(p => p.id);
       const placeholders = playerIds.map(() => '?').join(',');
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Player IDs to unlink:', playerIds);
       
-      await connection.query(
-        `UPDATE players 
+      const updateQuery = `UPDATE players 
          SET is_active = FALSE,
              unlinked_at = NOW(),
              unlinked_by = ?,
              unlink_reason = ?
-         WHERE id IN (${placeholders})`,
-        [executorId, reason, ...playerIds]
-      );
+         WHERE id IN (${placeholders})`;
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Update query:', updateQuery);
+      console.log('[ADMIN-UNLINK CONFIRM DEBUG] Update params:', [executorId, reason, ...playerIds]);
+      
+      await connection.query(updateQuery, [executorId, reason, ...playerIds]);
       
       await connection.commit();
       
