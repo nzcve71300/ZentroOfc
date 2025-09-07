@@ -138,8 +138,7 @@ module.exports = {
         g: dbGuildId,
         u: targetDiscordIdFinal,
         n: normalizedIgn,
-        x: executorId,
-        t: queryType
+        x: executorId
       };
 
       const token = Buffer.from(JSON.stringify(tokenData)).toString('base64url');

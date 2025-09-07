@@ -2963,6 +2963,7 @@ async function handleAdminUnlinkConfirm(interaction) {
     
     const { g: dbGuildId, u: targetDiscordId, n: normalizedIgn, x: executorId } = tokenData;
     const reason = 'Admin unlink'; // Use default reason since token is too long
+    const queryType = normalizedIgn ? 'ign' : 'discord'; // Determine query type from token data
     
     // Validate executor is the same (defense-in-depth)
     if (interaction.user.id !== executorId) {
