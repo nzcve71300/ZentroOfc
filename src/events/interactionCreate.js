@@ -1422,7 +1422,7 @@ async function handleLinkConfirm(interaction) {
       const [duplicateCheck] = await connection.query(
         `SELECT 1 FROM players 
          WHERE guild_id = ? AND normalized_ign = ? AND is_active = TRUE 
-         AND discord_id != ?
+         AND discord_id IS NOT NULL AND discord_id != ?
          LIMIT 1`,
         [dbGuildId, normalizedIgn, discordId]
       );
@@ -1484,11 +1484,11 @@ async function handleLinkConfirm(interaction) {
         } else {
           // Use starting balance for new players
           const [configResult] = await connection.query(
-            'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
-            [server.id, 'starting_balance']
-          );
-          
-          if (configResult.length > 0) {
+          'SELECT setting_value FROM eco_games_config WHERE server_id = ? AND setting_name = ?',
+          [server.id, 'starting_balance']
+        );
+        
+        if (configResult.length > 0) {
             initialBalance = parseInt(configResult[0].setting_value) || 0;
           }
           console.log(`🚀 [LINK CONFIRM] Using starting balance ${initialBalance} for new player ${normalizedIgn} (server: ${server.nickname})`);

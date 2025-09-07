@@ -196,12 +196,13 @@ async function isIgnAvailable(guildId, ign, excludeDiscordId = null) {
     }
     
     // ✅ CRITICAL: Use exact match on normalized_ign column, scope by guild_id only
+    // ✅ CRITICAL: Only consider records that are actually linked (have discord_id)
     // Note: With per-server constraints, we check across all servers in the guild
     let query = `
       SELECT p.discord_id, rs.nickname 
       FROM players p
       JOIN rust_servers rs ON p.server_id = rs.id
-      WHERE p.guild_id = ? AND p.normalized_ign = ? AND p.is_active = true
+      WHERE p.guild_id = ? AND p.normalized_ign = ? AND p.is_active = true AND p.discord_id IS NOT NULL
     `;
     
     let params = [guildId, normalizedIgn];
