@@ -246,6 +246,30 @@ module.exports = {
              continue;
            }
 
+           // 🔒 CRITICAL: Check if Discord user has ANY record on this server (including inactive)
+           const [anyDiscordPlayer] = await pool.query(
+             'SELECT p.id, p.ign, p.is_active, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND p.server_id = ? AND p.discord_id = ?',
+             [guildId, server.id, discordId]
+           );
+
+           if (anyDiscordPlayer.length > 0) {
+             // Discord user has an inactive record on this server - reactivate and update
+             console.log(`🔗 ADMIN-LINK: Discord user has inactive record on ${server.nickname}, reactivating and updating...`);
+             
+             const existingBalance = anyDiscordPlayer[0].balance || 0;
+             const existingIgn = anyDiscordPlayer[0].ign;
+             
+             // Reactivate and update the existing record
+             await pool.query(
+               'UPDATE players SET ign = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL, unlinked_by = NULL, unlink_reason = NULL WHERE id = ?',
+               [playerName, normalizedPlayerName, anyDiscordPlayer[0].id]
+             );
+             
+             console.log(`🔗 ADMIN-LINK: Reactivated and updated IGN from "${existingIgn}" to "${playerName}" on ${server.nickname}, preserved balance: ${existingBalance}`);
+             linkedServers.push(server.nickname);
+             continue;
+           }
+
            // 🔒 CRITICAL: Create new player record and restore existing data if available
            console.log(`🔗 ADMIN-LINK: Creating new player record for "${playerName}" on ${server.nickname}...`);
            
