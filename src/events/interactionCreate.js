@@ -1447,14 +1447,37 @@ async function handleLinkConfirm(interaction) {
       
       for (const server of servers) {
         console.log('🚀 [LINK CONFIRM] Linking to server:', server.nickname, '(ID:', server.id, ')');
-        // Insert new record with normalized_ign
-        const [insertResult] = await connection.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
-          [dbGuildId, server.id, discordId, rawIgn, normalizedIgn]
+        
+        // 🔒 CRITICAL FIX: Check if this Discord user already has a record on this server
+        const [existingPlayer] = await connection.query(
+          'SELECT id, ign, is_active FROM players WHERE guild_id = ? AND server_id = ? AND discord_id = ?',
+          [dbGuildId, server.id, discordId]
         );
         
-        const playerId = insertResult.insertId;
-        console.log('🚀 [LINK CONFIRM] Player record created with ID:', playerId);
+        let playerId;
+        
+        if (existingPlayer.length > 0) {
+          // User already has a record on this server - update it instead of creating duplicate
+          const existing = existingPlayer[0];
+          console.log('🚀 [LINK CONFIRM] User already has record on this server, updating existing record ID:', existing.id);
+          
+          await connection.query(
+            'UPDATE players SET ign = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL, unlinked_by = NULL, unlink_reason = NULL WHERE id = ?',
+            [rawIgn, normalizedIgn, existing.id]
+          );
+          
+          playerId = existing.id;
+          console.log('🚀 [LINK CONFIRM] Updated existing player record with ID:', playerId);
+        } else {
+          // Create new record
+          const [insertResult] = await connection.query(
+            'INSERT INTO players (guild_id, server_id, discord_id, ign, normalized_ign, linked_at, is_active) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, true)',
+            [dbGuildId, server.id, discordId, rawIgn, normalizedIgn]
+          );
+          
+          playerId = insertResult.insertId;
+          console.log('🚀 [LINK CONFIRM] Player record created with ID:', playerId);
+        }
         
         // Create economy record - check for backup balance first, then starting balance
         console.log('🚀 [LINK CONFIRM] Creating economy record for player:', playerId);

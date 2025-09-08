@@ -164,6 +164,28 @@ module.exports = {
         }
       }
 
+      // 🔒 CRITICAL: Also unlink any existing records for this Discord user to prevent duplicates
+      console.log(`🔗 ADMIN-LINK: Checking for existing records for Discord user ${discordId}...`);
+      const [existingDiscordRecords] = await pool.query(
+        'SELECT id, ign, server_id FROM players WHERE guild_id = ? AND discord_id = ? AND is_active = true',
+        [dbGuildId, discordId]
+      );
+      
+      if (existingDiscordRecords.length > 0) {
+        console.log(`🔗 ADMIN-LINK: Found ${existingDiscordRecords.length} existing active records for Discord user ${discordId}, unlinking them...`);
+        
+        for (const record of existingDiscordRecords) {
+          console.log(`🔗 ADMIN-LINK: Unlinking existing record ID ${record.id} (IGN: "${record.ign}", Server ID: ${record.server_id})`);
+          
+          await pool.query(
+            'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP, unlinked_by = ?, unlink_reason = ? WHERE id = ?',
+            [interaction.user.id, 'Admin override - replaced with new link', record.id]
+          );
+        }
+        
+        console.log(`🔗 ADMIN-LINK: Successfully unlinked ${existingDiscordRecords.length} existing records for Discord user ${discordId}`);
+      }
+
              // Process each server
        console.log(`🔗 ADMIN-LINK: Processing ${servers.length} servers...`);
        
