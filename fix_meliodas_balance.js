@@ -8,8 +8,8 @@ async function fixMeliodasBalance() {
   try {
     console.log('🔍 Fixing Meliodas balance issue...\n');
     
-    const correctDiscordId = 1170856076569223200;
-    const wrongDiscordId = 22115433549209050;
+    const correctDiscordId = '1170856076569223200';
+    const wrongDiscordId = '22115433549209050';
     
     // Find the current state
     console.log('📋 Current state:');
@@ -32,7 +32,7 @@ async function fixMeliodasBalance() {
       FROM players p
       LEFT JOIN economy e ON p.id = e.player_id
       LEFT JOIN rust_servers rs ON p.server_id = rs.id
-      WHERE p.discord_id = ?
+      WHERE CAST(p.discord_id AS CHAR) = ?
     `, [correctDiscordId]);
     
     if (correctPlayer.length === 0) {
@@ -51,7 +51,7 @@ async function fixMeliodasBalance() {
       FROM players p
       LEFT JOIN economy e ON p.id = e.player_id
       LEFT JOIN rust_servers rs ON p.server_id = rs.id
-      WHERE p.discord_id = ? AND p.is_active = true
+      WHERE CAST(p.discord_id AS CHAR) = ? AND p.is_active = true
     `, [wrongDiscordId]);
     
     if (wrongPlayer.length === 0) {
