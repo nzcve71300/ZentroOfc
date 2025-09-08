@@ -8,8 +8,8 @@ async function fixMeliodasBalance() {
   try {
     console.log('🔍 Fixing Meliodas balance issue...\n');
     
-    const correctDiscordId = '1170856076569223200';
-    const wrongDiscordId = '22115433549209050';
+    const correctDiscordId = 1170856076569223200;
+    const wrongDiscordId = 22115433549209050;
     
     // Find the current state
     console.log('📋 Current state:');
