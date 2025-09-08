@@ -3914,14 +3914,15 @@ async function processKitDelivery(client, guildId, serverName, ip, port, passwor
     
     const serverId = serverResult[0].id;
     
-    // Get player ID
+    // Get player ID - use case-insensitive search
     const [playerResult] = await pool.query(
-      'SELECT id FROM players WHERE server_id = ? AND ign = ?',
+      'SELECT id FROM players WHERE server_id = ? AND LOWER(ign) = LOWER(?)',
       [serverId, player]
     );
     
     if (playerResult.length === 0) {
       console.log(`[KIT DELIVERY] Player not found: ${player} on server ${serverId}`);
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>player not found in database - please link your Discord account</color>`);
       return;
     }
     
@@ -3934,9 +3935,21 @@ async function processKitDelivery(client, guildId, serverName, ip, port, passwor
     );
     
     if (queueResult.length === 0) {
-      console.log(`[KIT DELIVERY] No pending deliveries for ${player}`);
-      // Send message to player
-      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>you have no pending kit deliveries</color>`);
+      console.log(`[KIT DELIVERY] No pending deliveries for ${player} (player_id: ${playerId}, server_id: ${serverId})`);
+      
+      // Check if there are any deliveries at all for this player (for debugging)
+      const [allDeliveries] = await pool.query(
+        'SELECT * FROM kit_delivery_queue WHERE player_id = ? AND server_id = ?',
+        [playerId, serverId]
+      );
+      
+      if (allDeliveries.length > 0) {
+        console.log(`[KIT DELIVERY] Found ${allDeliveries.length} total deliveries for ${player}, but all are completed`);
+        await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>all your kit deliveries have been completed</color>`);
+      } else {
+        console.log(`[KIT DELIVERY] No deliveries found at all for ${player}`);
+        await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>you have no pending kit deliveries - purchase kits from the Discord shop first</color>`);
+      }
       return;
     }
     
@@ -3958,10 +3971,16 @@ async function processKitDelivery(client, guildId, serverName, ip, port, passwor
     
     console.log(`[KIT DELIVERY] Delivering kit ${queueEntry.kit_name} to ${player}`);
     
-    // Send the kit via RCON
-    const kitCommand = `kit givetoplayer ${queueEntry.kit_name} ${player}`;
-    await sendRconCommand(ip, port, password, kitCommand);
-    console.log(`[KIT DELIVERY] Kit command sent: ${kitCommand}`);
+    // Send the kit via RCON - use the exact player name from the queue entry
+    const kitCommand = `kit givetoplayer ${queueEntry.kit_name} "${player}"`;
+    try {
+      const result = await sendRconCommand(ip, port, password, kitCommand);
+      console.log(`[KIT DELIVERY] Kit command sent: ${kitCommand}, result: ${result}`);
+    } catch (error) {
+      console.error(`[KIT DELIVERY] Failed to send kit command: ${error.message}`);
+      await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>failed to deliver kit - please contact an admin</color>`);
+      return;
+    }
     
     // Update the queue entry
     const newRemainingQuantity = queueEntry.remaining_quantity - 1;

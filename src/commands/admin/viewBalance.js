@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getActivePlayerByIgn, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
+const { getActivePlayerByIgn, getPlayerBalance, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -76,6 +76,9 @@ module.exports = {
         });
       }
 
+      // Ensure economy record exists
+      await ensureEconomyRecord(player.id, player.guild_id);
+      
       // Get player balance
       const balance = await getPlayerBalance(player.id);
 

@@ -302,10 +302,43 @@ async function getPlayerBalance(playerId) {
 }
 
 /**
+ * Ensure economy record exists for a player
+ */
+async function ensureEconomyRecord(playerId, guildId) {
+  const dbPool = ensurePool();
+  const [economyCheck] = await dbPool.query(
+    'SELECT id FROM economy WHERE player_id = ?',
+    [playerId]
+  );
+  
+  if (economyCheck.length === 0) {
+    // Create missing economy record
+    await dbPool.query(
+      'INSERT INTO economy (player_id, guild_id, balance) VALUES (?, ?, 0)',
+      [playerId, guildId]
+    );
+    console.log(`[ECONOMY] Created missing economy record for player ${playerId}`);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Update player balance
  */
 async function updatePlayerBalance(playerId, amount) {
   const dbPool = ensurePool();
+  
+  // Ensure economy record exists first
+  const [playerResult] = await dbPool.query(
+    'SELECT guild_id FROM players WHERE id = ?',
+    [playerId]
+  );
+  
+  if (playerResult.length > 0) {
+    await ensureEconomyRecord(playerId, playerResult[0].guild_id);
+  }
+  
   const [result] = await dbPool.query(
     `UPDATE economy 
      SET balance = GREATEST(0, balance + ?) 
@@ -374,5 +407,6 @@ module.exports = {
   recordTransaction,
   getServersForGuild,
   getServerByNickname,
-  isDiscordId
+  isDiscordId,
+  ensureEconomyRecord
 };

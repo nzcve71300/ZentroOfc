@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
-const { getAllActivePlayersByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
+const { getAllActivePlayersByDiscordId, getPlayerBalance, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -35,6 +35,9 @@ module.exports = {
         // Get currency name for this server
         const { getCurrencyName } = require('../../utils/economy');
         const currencyName = await getCurrencyName(player.server_id);
+        
+        // Ensure economy record exists
+        await ensureEconomyRecord(player.id, player.guild_id);
         
         embed.addFields({ name: serverName, value: `${balance} ${currencyName}`, inline: true });
       }

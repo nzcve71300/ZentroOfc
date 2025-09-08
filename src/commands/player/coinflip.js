@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed } = require('../../embeds/format');
-const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance } = require('../../utils/unifiedPlayerSystem');
+const { getServerByNickname, getActivePlayerByDiscordId, getPlayerBalance, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 const { createCanvas, loadImage } = require('canvas');
 const path = require('path');
@@ -94,6 +94,9 @@ module.exports = {
         });
       }
 
+      // Ensure economy record exists
+      await ensureEconomyRecord(player.id, player.guild_id);
+      
       // Get balance
       const balance = await getPlayerBalance(player.id);
 

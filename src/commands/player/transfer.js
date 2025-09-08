@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { getServerByNickname, getServersForGuild, getActivePlayerByDiscordId, getPlayerBalance, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
+const { getServerByNickname, getServersForGuild, getActivePlayerByDiscordId, getPlayerBalance, updatePlayerBalance, recordTransaction, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const { errorEmbed, successEmbed } = require('../../embeds/format');
 
 module.exports = {
@@ -81,6 +81,10 @@ module.exports = {
           )]
         });
       }
+
+      // Ensure economy records exist for both players
+      await ensureEconomyRecord(senderPlayer.id, senderPlayer.guild_id);
+      await ensureEconomyRecord(targetPlayer.id, targetPlayer.guild_id);
 
       // Check sender balance
       const senderBalance = await getPlayerBalance(senderPlayer.id);

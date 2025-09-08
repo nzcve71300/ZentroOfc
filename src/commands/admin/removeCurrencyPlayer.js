@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
 const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
-const { getServerByNickname, getActivePlayerByIgn, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
+const { getServerByNickname, getActivePlayerByIgn, updatePlayerBalance, recordTransaction, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -64,6 +64,9 @@ module.exports = {
       if (!player) {
         return interaction.editReply({ embeds: [errorEmbed('Player Not Found', `No player named **${playerName}** found on **${serverName}**.`)] });
       }
+
+      // Ensure economy record exists
+      await ensureEconomyRecord(player.id, player.guild_id);
 
       const newBalance = await updatePlayerBalance(player.id, -amount);
       await recordTransaction(player.id, -amount, 'admin_remove');

@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format');
-const { getAllActivePlayersByDiscordId, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
+const { getAllActivePlayersByDiscordId, updatePlayerBalance, recordTransaction, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const pool = require('../../db');
 
 module.exports = {
@@ -70,6 +70,9 @@ module.exports = {
       }
 
       for (const player of playersResult) {
+        // Ensure economy record exists
+        await ensureEconomyRecord(player.id, player.guild_id);
+        
         // Use config value if present, else default to 100
         const dailyAmount = perServerAmounts[player.server_id] || 100;
         // Update balance using unified system

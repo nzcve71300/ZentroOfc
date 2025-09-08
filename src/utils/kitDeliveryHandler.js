@@ -66,15 +66,15 @@ async function handleKitDelivery(reaction, user) {
     
     console.log(`[KIT DELIVERY] Delivering kit ${queueEntry.kit_name} to ${queueEntry.ign} on ${queueEntry.nickname}`);
     
-    // Send the kit via RCON
-    const kitCommand = `kit givetoplayer ${queueEntry.kit_name} ${queueEntry.ign}`;
+    // Send the kit via RCON - use quotes around player name for safety
+    const kitCommand = `kit givetoplayer ${queueEntry.kit_name} "${queueEntry.ign}"`;
     try {
-      sendRconCommand(queueEntry.ip, queueEntry.port, queueEntry.password, kitCommand);
-      console.log(`[KIT DELIVERY] Kit command sent: ${kitCommand}`);
+      const result = await sendRconCommand(queueEntry.ip, queueEntry.port, queueEntry.password, kitCommand);
+      console.log(`[KIT DELIVERY] Kit command sent: ${kitCommand}, result: ${result}`);
       
       // Send confirmation message in-game
       const confirmMessage = `say <color=#00FF00>[KIT DELIVERY]</color> <color=#FFD700>${queueEntry.ign}</color> <color=#00FF00>received</color> <color=#FFD700>${queueEntry.display_name}</color> <color=#00FF00>- ${queueEntry.remaining_quantity - 1} remaining</color>`;
-      sendRconCommand(queueEntry.ip, queueEntry.port, queueEntry.password, confirmMessage);
+      await sendRconCommand(queueEntry.ip, queueEntry.port, queueEntry.password, confirmMessage);
       
     } catch (error) {
       console.error(`[KIT DELIVERY] Failed to send kit command: ${error.message}`);
@@ -82,7 +82,7 @@ async function handleKitDelivery(reaction, user) {
       // Send error message in-game
       const errorMessage = `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${queueEntry.ign}</color> <color=#FF6B35>delivery failed - please contact an admin</color>`;
       try {
-        sendRconCommand(queueEntry.ip, queueEntry.port, queueEntry.password, errorMessage);
+        await sendRconCommand(queueEntry.ip, queueEntry.port, queueEntry.password, errorMessage);
       } catch (msgError) {
         console.error(`[KIT DELIVERY] Failed to send error message: ${msgError.message}`);
       }

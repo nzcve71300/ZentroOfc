@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { getServerByNickname, getServersForGuild, getActivePlayerByDiscordId, getPlayerBalance, updatePlayerBalance, recordTransaction } = require('../../utils/unifiedPlayerSystem');
+const { getServerByNickname, getServersForGuild, getActivePlayerByDiscordId, getPlayerBalance, updatePlayerBalance, recordTransaction, ensureEconomyRecord } = require('../../utils/unifiedPlayerSystem');
 const { errorEmbed } = require('../../embeds/format');
 
 module.exports = {
@@ -196,6 +196,10 @@ module.exports = {
           try {
             // Get source player and balance
             const sourcePlayer = await getActivePlayerByDiscordId(guildId, selectedSource, userId);
+            
+            // Ensure economy record exists for source player
+            await ensureEconomyRecord(sourcePlayer.id, sourcePlayer.guild_id);
+            
             const sourceBalance = await getPlayerBalance(sourcePlayer.id);
 
             if (sourceBalance <= 0) {
@@ -212,6 +216,9 @@ module.exports = {
               const { createOrUpdatePlayerLink } = require('../../utils/unifiedPlayerSystem');
               destinationPlayer = await createOrUpdatePlayerLink(guildId, selectedDestination, userId, sourcePlayer.ign);
             }
+
+            // Ensure economy record exists for destination player
+            await ensureEconomyRecord(destinationPlayer.id, destinationPlayer.guild_id);
 
             // Get server names for display
             const sourceServer = servers.find(s => s.id === selectedSource);
