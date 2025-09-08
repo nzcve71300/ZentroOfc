@@ -28,21 +28,21 @@ async function fixMeliodasBalance() {
     
     // Find the correct player record (the one that should be active)
     const [correctPlayer] = await pool.query(`
-      SELECT p.id, p.ign, p.discord_id, p.server_id, e.balance, rs.nickname
+      SELECT p.id, p.ign, p.discord_id, p.server_id, e.balance, rs.nickname, p.is_active
       FROM players p
       LEFT JOIN economy e ON p.id = e.player_id
       LEFT JOIN rust_servers rs ON p.server_id = rs.id
-      WHERE p.discord_id = ? AND p.is_active = true
+      WHERE p.discord_id = ?
     `, [correctDiscordId]);
     
     if (correctPlayer.length === 0) {
-      console.log('❌ No active player found for the correct Discord ID');
+      console.log('❌ No player found for the correct Discord ID');
       return;
     }
     
-    console.log(`\n✅ Found correct player record:`);
+    console.log(`\n✅ Found correct player record(s):`);
     for (const player of correctPlayer) {
-      console.log(`  ID=${player.id}, IGN="${player.ign}", Server=${player.nickname}, Balance=${player.balance || 0}`);
+      console.log(`  ID=${player.id}, IGN="${player.ign}", Server=${player.nickname}, Active=${player.is_active}, Balance=${player.balance || 0}`);
     }
     
     // Find the wrong player record (the one that was incorrectly kept)
@@ -82,8 +82,17 @@ async function fixMeliodasBalance() {
       
       console.log(`  📍 Server: ${wrongRecord.nickname}`);
       console.log(`    Wrong record: ID=${wrongRecord.id}, Balance=${wrongBalance}`);
-      console.log(`    Correct record: ID=${correctRecord.id}, Balance=${correctBalance}`);
+      console.log(`    Correct record: ID=${correctRecord.id}, Balance=${correctBalance}, Active=${correctRecord.is_active}`);
       console.log(`    Transferring ${wrongBalance} to correct record...`);
+      
+      // First, reactivate the correct record if it's inactive
+      if (!correctRecord.is_active) {
+        console.log(`    🔄 Reactivating correct record...`);
+        await pool.query(
+          'UPDATE players SET is_active = true, linked_at = CURRENT_TIMESTAMP, unlinked_at = NULL, unlink_reason = NULL WHERE id = ?',
+          [correctRecord.id]
+        );
+      }
       
       // Update the correct record with the total balance
       await pool.query('UPDATE economy SET balance = ? WHERE player_id = ?', [totalBalance, correctRecord.id]);
