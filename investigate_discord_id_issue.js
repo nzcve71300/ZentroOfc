@@ -1,155 +1,175 @@
 const pool = require('./src/db');
 
-async function investigateDiscordIdIssue() {
-  console.log('🔍 Investigating Discord ID Issue');
-  console.log('==================================\n');
+/**
+ * Investigate why Discord ID updates are not working
+ */
 
+async function investigateDiscordIdIssue() {
+  console.log('🔍 INVESTIGATING DISCORD ID UPDATE ISSUE');
+  console.log('=========================================');
+  
   try {
     // Step 1: Check for triggers
-    console.log('📋 Step 1: Checking for triggers on players table...');
+    console.log('\n📊 Step 1: Checking for triggers...');
+    
     const [triggers] = await pool.query(`
-      SELECT 
-        TRIGGER_NAME,
-        EVENT_MANIPULATION,
-        ACTION_TIMING,
-        ACTION_STATEMENT
-      FROM information_schema.triggers 
+      SELECT TRIGGER_NAME, EVENT_MANIPULATION, ACTION_STATEMENT, ACTION_TIMING
+      FROM INFORMATION_SCHEMA.TRIGGERS 
       WHERE EVENT_OBJECT_TABLE = 'players'
     `);
     
-    console.log(`Found ${triggers.length} triggers on players table:`);
-    triggers.forEach(trigger => {
-      console.log(`   - ${trigger.TRIGGER_NAME}: ${trigger.EVENT_MANIPULATION} ${trigger.ACTION_TIMING}`);
-      console.log(`     Statement: ${trigger.ACTION_STATEMENT}`);
-    });
-
-    // Step 2: Check for all constraints (including foreign keys)
-    console.log('\n📋 Step 2: Checking for ALL constraints on players table...');
-    const [allConstraints] = await pool.query(`
-      SELECT 
-        tc.CONSTRAINT_NAME,
-        tc.CONSTRAINT_TYPE,
-        tc.TABLE_NAME,
-        kcu.COLUMN_NAME,
-        kcu.REFERENCED_TABLE_NAME,
-        kcu.REFERENCED_COLUMN_NAME
-      FROM information_schema.table_constraints tc
-      LEFT JOIN information_schema.key_column_usage kcu 
-        ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
-      WHERE tc.TABLE_NAME = 'players'
-      ORDER BY tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME
-    `);
-    
-    console.log(`Found ${allConstraints.length} constraints on players table:`);
-    allConstraints.forEach(constraint => {
-      console.log(`   - ${constraint.CONSTRAINT_NAME} (${constraint.CONSTRAINT_TYPE})`);
-      if (constraint.COLUMN_NAME) {
-        console.log(`     Column: ${constraint.COLUMN_NAME}`);
+    if (triggers.length > 0) {
+      console.log('Found triggers on players table:');
+      for (const trigger of triggers) {
+        console.log(`  ${trigger.TRIGGER_NAME}: ${trigger.EVENT_MANIPULATION} ${trigger.ACTION_TIMING}`);
+        console.log(`    Statement: ${trigger.ACTION_STATEMENT}`);
       }
-      if (constraint.REFERENCED_TABLE_NAME) {
-        console.log(`     References: ${constraint.REFERENCED_TABLE_NAME}.${constraint.REFERENCED_COLUMN_NAME}`);
-      }
-    });
-
-    // Step 3: Check for check constraints specifically
-    console.log('\n📋 Step 3: Checking for remaining check constraints...');
-    const [checkConstraints] = await pool.query(`
-      SELECT 
-        tc.CONSTRAINT_NAME,
-        cc.CHECK_CLAUSE
-      FROM information_schema.table_constraints tc
-      LEFT JOIN information_schema.check_constraints cc 
-        ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
-      WHERE tc.TABLE_NAME = 'players' 
-      AND tc.CONSTRAINT_TYPE = 'CHECK'
-    `);
-    
-    console.log(`Found ${checkConstraints.length} check constraints:`);
-    checkConstraints.forEach(constraint => {
-      console.log(`   - ${constraint.CONSTRAINT_NAME}: ${constraint.CHECK_CLAUSE}`);
-    });
-
-    // Step 4: Try a different approach - check if there's a default value issue
-    console.log('\n📋 Step 4: Checking column definition details...');
-    const [columnDetails] = await pool.query(`
-      SELECT 
-        COLUMN_NAME,
-        DATA_TYPE,
-        IS_NULLABLE,
-        COLUMN_DEFAULT,
-        COLUMN_TYPE,
-        EXTRA
-      FROM information_schema.columns 
-      WHERE TABLE_NAME = 'players' 
-      AND COLUMN_NAME = 'discord_id'
-    `);
-    
-    if (columnDetails.length > 0) {
-      const column = columnDetails[0];
-      console.log(`📋 Discord ID column details:`);
-      console.log(`   Column: ${column.COLUMN_NAME}`);
-      console.log(`   Type: ${column.DATA_TYPE}`);
-      console.log(`   Nullable: ${column.IS_NULLABLE}`);
-      console.log(`   Default: ${column.COLUMN_DEFAULT}`);
-      console.log(`   Column Type: ${column.COLUMN_TYPE}`);
-      console.log(`   Extra: ${column.EXTRA}`);
+    } else {
+      console.log('✅ No triggers found on players table');
     }
-
-    // Step 5: Try to insert with explicit NULL
-    console.log('\n📋 Step 5: Testing direct NULL insertion...');
-    try {
-      const [testGuild] = await pool.query('SELECT id FROM guilds LIMIT 1');
-      const [testServer] = await pool.query('SELECT id FROM rust_servers LIMIT 1');
+    
+    // Step 2: Check for stored procedures
+    console.log('\n📊 Step 2: Checking for stored procedures...');
+    
+    const [procedures] = await pool.query(`
+      SELECT ROUTINE_NAME, ROUTINE_DEFINITION
+      FROM INFORMATION_SCHEMA.ROUTINES 
+      WHERE ROUTINE_SCHEMA = DATABASE()
+      AND ROUTINE_TYPE = 'PROCEDURE'
+    `);
+    
+    if (procedures.length > 0) {
+      console.log('Found stored procedures:');
+      for (const proc of procedures) {
+        console.log(`  ${proc.ROUTINE_NAME}`);
+      }
+    } else {
+      console.log('✅ No stored procedures found');
+    }
+    
+    // Step 3: Test the exact values
+    console.log('\n📊 Step 3: Testing exact values...');
+    
+    const targetDiscordId = 899414980355571712;
+    const currentDiscordId = 899414980355571700;
+    
+    console.log(`Target Discord ID: ${targetDiscordId}`);
+    console.log(`Current Discord ID: ${currentDiscordId}`);
+    console.log(`Difference: ${targetDiscordId - currentDiscordId}`);
+    console.log(`Target as string: "${String(targetDiscordId)}"`);
+    console.log(`Current as string: "${String(currentDiscordId)}"`);
+    
+    // Step 4: Try a simple test update
+    console.log('\n📊 Step 4: Testing simple update...');
+    
+    // First, let's try updating to a completely different value to see if updates work at all
+    const testDiscordId = 999999999999999999;
+    
+    console.log(`Testing update to: ${testDiscordId}`);
+    
+    const testUpdateResult = await pool.query(`
+      UPDATE players 
+      SET discord_id = ?
+      WHERE id = 18508
+    `, [testDiscordId]);
+    
+    console.log(`Test update result: ${testUpdateResult[0].affectedRows} rows affected`);
+    
+    // Check if the test update worked
+    const [testRecord] = await pool.query(`
+      SELECT discord_id FROM players WHERE id = 18508
+    `);
+    
+    console.log(`After test update, discord_id is: ${testRecord[0].discord_id}`);
+    
+    if (testRecord[0].discord_id == testDiscordId) {
+      console.log('✅ Test update worked - updates are possible');
       
-      if (testGuild.length > 0 && testServer.length > 0) {
-        const testGuildId = testGuild[0].id;
-        const testServerId = testServer[0].id;
-        const testPlayerName = 'TestDirectNull_' + Date.now();
+      // Now try the actual target value
+      console.log('\n📊 Step 5: Trying actual target value...');
+      
+      const actualUpdateResult = await pool.query(`
+        UPDATE players 
+        SET discord_id = ?
+        WHERE id = 18508
+      `, [targetDiscordId]);
+      
+      console.log(`Actual update result: ${actualUpdateResult[0].affectedRows} rows affected`);
+      
+      // Check the result
+      const [actualRecord] = await pool.query(`
+        SELECT discord_id FROM players WHERE id = 18508
+      `);
+      
+      console.log(`After actual update, discord_id is: ${actualRecord[0].discord_id}`);
+      
+      if (actualRecord[0].discord_id == targetDiscordId) {
+        console.log('🎉 SUCCESS: Discord ID updated to target value!');
+      } else {
+        console.log('❌ ISSUE: Discord ID was not updated to target value');
+        console.log(`Expected: ${targetDiscordId}`);
+        console.log(`Actual: ${actualRecord[0].discord_id}`);
         
-        console.log(`Testing direct NULL insertion...`);
-        
-        // Try with explicit NULL
-        const [testResult] = await pool.query(
-          'INSERT INTO players (guild_id, server_id, discord_id, ign, is_active) VALUES (?, ?, ?, ?, 1)',
-          [testGuildId, testServerId, null, testPlayerName]
-        );
-        
-        console.log(`✅ Successfully created test player record with ID: ${testResult.insertId}`);
-        
-        // Clean up test record
-        await pool.query('DELETE FROM players WHERE id = ?', [testResult.insertId]);
-        console.log('✅ Cleaned up test record');
+        // Check if it reverted to the original value
+        if (actualRecord[0].discord_id == currentDiscordId) {
+          console.log('⚠️ Discord ID reverted to original value - there may be a trigger or constraint');
+        }
       }
-    } catch (error) {
-      console.error('❌ Direct NULL test failed:', error.message);
-      console.error('Full error:', error);
+      
+    } else {
+      console.log('❌ Test update failed - there may be a fundamental issue');
     }
-
-    // Step 6: Check if there are any application-level constraints
-    console.log('\n📋 Step 6: Checking for application-level issues...');
     
-    // Check if there's a unique constraint that might be causing issues
-    const [uniqueConstraints] = await pool.query(`
+    // Step 6: Check for any foreign key constraints
+    console.log('\n📊 Step 6: Checking for foreign key constraints...');
+    
+    const [foreignKeys] = await pool.query(`
       SELECT 
-        tc.CONSTRAINT_NAME,
-        kcu.COLUMN_NAME
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu 
-        ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
-      WHERE tc.TABLE_NAME = 'players' 
-      AND tc.CONSTRAINT_TYPE = 'UNIQUE'
-      AND kcu.COLUMN_NAME = 'discord_id'
+        CONSTRAINT_NAME,
+        COLUMN_NAME,
+        REFERENCED_TABLE_NAME,
+        REFERENCED_COLUMN_NAME
+      FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+      WHERE TABLE_NAME = 'players' 
+      AND REFERENCED_TABLE_NAME IS NOT NULL
     `);
     
-    console.log(`Found ${uniqueConstraints.length} unique constraints on discord_id:`);
-    uniqueConstraints.forEach(constraint => {
-      console.log(`   - ${constraint.CONSTRAINT_NAME} on ${constraint.COLUMN_NAME}`);
-    });
-
-    console.log('\n📋 Investigation completed!');
-
+    if (foreignKeys.length > 0) {
+      console.log('Found foreign key constraints:');
+      for (const fk of foreignKeys) {
+        console.log(`  ${fk.CONSTRAINT_NAME}: ${fk.COLUMN_NAME} -> ${fk.REFERENCED_TABLE_NAME}.${fk.REFERENCED_COLUMN_NAME}`);
+      }
+    } else {
+      console.log('✅ No foreign key constraints found');
+    }
+    
+    // Step 7: Final status
+    console.log('\n📊 Step 7: Final status...');
+    
+    const [finalRecord] = await pool.query(`
+      SELECT p.id, p.ign, p.discord_id, p.is_active, e.balance, rs.nickname
+      FROM players p
+      LEFT JOIN economy e ON p.id = e.player_id
+      LEFT JOIN rust_servers rs ON p.server_id = rs.id
+      WHERE p.id = 18508
+    `);
+    
+    if (finalRecord.length > 0) {
+      const record = finalRecord[0];
+      console.log('Final Clap2000777 record:');
+      console.log(`  ID: ${record.id}`);
+      console.log(`  IGN: "${record.ign}"`);
+      console.log(`  Discord ID: ${record.discord_id}`);
+      console.log(`  Active: ${record.is_active}`);
+      console.log(`  Balance: ${record.balance || 0}`);
+      console.log(`  Server: ${record.nickname || 'Unknown'}`);
+    }
+    
   } catch (error) {
-    console.error('❌ Investigation failed:', error);
+    console.error('❌ Error during investigation:', error);
+    throw error;
+  } finally {
+    await pool.end();
   }
 }
 
@@ -157,7 +177,7 @@ async function investigateDiscordIdIssue() {
 if (require.main === module) {
   investigateDiscordIdIssue()
     .then(() => {
-      console.log('\n🎉 Investigation completed!');
+      console.log('\n✅ Investigation completed!');
       process.exit(0);
     })
     .catch((error) => {
