@@ -201,35 +201,7 @@ module.exports = {
          try {
            console.log(`🔗 ADMIN-LINK: Processing server ${server.nickname} (ID: ${server.id})`);
 
-           // 🔒 CRITICAL: Check if player already exists on this server using normalized IGN (including inactive)
-           const [existingPlayer] = await pool.query(
-             'SELECT id, discord_id, is_active FROM players WHERE guild_id = ? AND server_id = ? AND normalized_ign = ?',
-             [dbGuildId, server.id, normalizedPlayerName]
-           );
-
-           if (existingPlayer.length > 0) {
-             // Player with this IGN already exists - update the record
-             const existing = existingPlayer[0];
-             console.log(`🔗 ADMIN-LINK: Player "${playerName}" already exists on ${server.nickname} (active: ${existing.is_active}), updating...`);
-             
-             // 🔒 CRITICAL: First deactivate any existing active records for this Discord user on this server
-             await pool.query(
-               'UPDATE players SET is_active = false, unlinked_at = CURRENT_TIMESTAMP, unlinked_by = ?, unlink_reason = ? WHERE guild_id = ? AND server_id = ? AND discord_id = ? AND is_active = true AND id != ?',
-               [interaction.user.id, 'Admin override during admin-link', dbGuildId, server.id, discordId, existing.id]
-             );
-             
-             // Now update the existing record
-             await pool.query(
-               'UPDATE players SET discord_id = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL, unlinked_by = NULL, unlink_reason = NULL WHERE id = ?',
-               [discordId, normalizedPlayerName, existing.id]
-             );
-             
-             console.log(`🔗 ADMIN-LINK: Updated existing player "${playerName}" on ${server.nickname}`);
-             linkedServers.push(server.nickname);
-             continue;
-           }
-
-           // 🔒 CRITICAL: Check if Discord user already has a record on this server
+           // 🔒 CRITICAL: FIRST check if Discord user already has a record on this server (PRIORITY)
            const [existingDiscordPlayer] = await pool.query(
              'SELECT p.id, p.ign, e.balance FROM players p LEFT JOIN economy e ON p.id = e.player_id WHERE p.guild_id = ? AND p.server_id = ? AND p.discord_id = ? AND p.is_active = true',
              [dbGuildId, server.id, discordId]
@@ -273,6 +245,28 @@ module.exports = {
              );
              
              console.log(`🔗 ADMIN-LINK: Reactivated and updated IGN from "${existingIgn}" to "${playerName}" on ${server.nickname}, preserved balance: ${existingBalance}`);
+             linkedServers.push(server.nickname);
+             continue;
+           }
+
+           // 🔒 CRITICAL: Check if player already exists on this server using normalized IGN (including inactive)
+           const [existingPlayer] = await pool.query(
+             'SELECT id, discord_id, is_active FROM players WHERE guild_id = ? AND server_id = ? AND normalized_ign = ?',
+             [dbGuildId, server.id, normalizedPlayerName]
+           );
+
+           if (existingPlayer.length > 0) {
+             // Player with this IGN already exists - update the record
+             const existing = existingPlayer[0];
+             console.log(`🔗 ADMIN-LINK: Player "${playerName}" already exists on ${server.nickname} (active: ${existing.is_active}), updating...`);
+             
+             // Now update the existing record
+             await pool.query(
+               'UPDATE players SET discord_id = ?, normalized_ign = ?, linked_at = CURRENT_TIMESTAMP, is_active = true, unlinked_at = NULL, unlinked_by = NULL, unlink_reason = NULL WHERE id = ?',
+               [discordId, normalizedPlayerName, existing.id]
+             );
+             
+             console.log(`🔗 ADMIN-LINK: Updated existing player "${playerName}" on ${server.nickname}`);
              linkedServers.push(server.nickname);
              continue;
            }
