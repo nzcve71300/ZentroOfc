@@ -51,11 +51,13 @@ async function fixArtemisDuplicates() {
     
     let usaCorrectId;
     if (usaCorrectCheck.length === 0) {
-      // Create new record
+      // Create new record - need to get guild_id from existing record
       const [usaServer] = await pool.query('SELECT id FROM rust_servers WHERE nickname = ?', ['USA-DeadOps']);
+      const [existingRecord] = await pool.query('SELECT guild_id FROM players WHERE id = ?', [8867]); // Get guild_id from existing record
+      
       const [result] = await pool.query(
-        'INSERT INTO players (ign, discord_id, server_id, is_active, linked_at) VALUES (?, ?, ?, true, CURRENT_TIMESTAMP)',
-        ['Artemis2689', correctDiscordId, usaServer[0].id]
+        'INSERT INTO players (ign, discord_id, server_id, guild_id, is_active, linked_at) VALUES (?, ?, ?, ?, true, CURRENT_TIMESTAMP)',
+        ['Artemis2689', correctDiscordId, usaServer[0].id, existingRecord[0].guild_id]
       );
       usaCorrectId = result.insertId;
       console.log(`  ✅ Created new USA-DeadOps record: ID=${usaCorrectId}`);
