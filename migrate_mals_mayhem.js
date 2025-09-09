@@ -150,69 +150,77 @@ async function executeMigration() {
     // Start transaction
     await pool.query('START TRANSACTION');
     
-    // Step 1: Update child records first (to avoid foreign key constraints)
-    console.log('📝 Step 1: Updating player homes...');
+    // Step 1: Create new guild record first
+    console.log('📝 Step 1: Creating new guild record...');
+    const [newGuild] = await pool.query(
+      'INSERT INTO guilds (id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+      [newDiscordId, 'New Discord Server']
+    );
+    console.log(`✅ Created/updated guild record for ${newDiscordId}`);
+    
+    // Step 2: Update child records (to avoid foreign key constraints)
+    console.log('\n📝 Step 2: Updating player homes...');
     const [homeUpdate] = await pool.query(
       'UPDATE player_homes SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${homeUpdate.affectedRows} player home(s)`);
     
-    // Step 2: Update whitelist records
-    console.log('\n📝 Step 2: Updating whitelist records...');
+    // Step 3: Update whitelist records
+    console.log('\n📝 Step 3: Updating whitelist records...');
     const [whitelistUpdate] = await pool.query(
       'UPDATE player_whitelists SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${whitelistUpdate.affectedRows} whitelist record(s)`);
     
-    // Step 3: Update player records
-    console.log('\n📝 Step 3: Updating player records...');
+    // Step 4: Update player records
+    console.log('\n📝 Step 4: Updating player records...');
     const [playerUpdate] = await pool.query(
       'UPDATE players SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${playerUpdate.affectedRows} player record(s)`);
     
-    // Step 4: Update economy game records
-    console.log('\n📝 Step 4: Updating economy game records...');
+    // Step 5: Update economy game records
+    console.log('\n📝 Step 5: Updating economy game records...');
     const [ecoUpdate] = await pool.query(
       'UPDATE eco_games SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${ecoUpdate.affectedRows} economy game record(s)`);
     
-    // Step 5: Update leaderboard settings
-    console.log('\n📝 Step 5: Updating leaderboard settings...');
+    // Step 6: Update leaderboard settings
+    console.log('\n📝 Step 6: Updating leaderboard settings...');
     const [leaderUpdate] = await pool.query(
       'UPDATE leaderboard_settings SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${leaderUpdate.affectedRows} leaderboard setting(s)`);
     
-    // Step 6: Update subscriptions
-    console.log('\n📝 Step 6: Updating subscriptions...');
+    // Step 7: Update subscriptions
+    console.log('\n📝 Step 7: Updating subscriptions...');
     const [subUpdate] = await pool.query(
       'UPDATE subscriptions SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${subUpdate.affectedRows} subscription(s)`);
     
-    // Step 7: Update server records
-    console.log('\n📝 Step 7: Updating server records...');
+    // Step 8: Update server records
+    console.log('\n📝 Step 8: Updating server records...');
     const [serverUpdate] = await pool.query(
       'UPDATE rust_servers SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
     console.log(`✅ Updated ${serverUpdate.affectedRows} server record(s)`);
     
-    // Step 8: Update guild record last (after all child records are updated)
-    console.log('\n📝 Step 8: Updating guild record...');
-    const [guildUpdate] = await pool.query(
-      'UPDATE guilds SET id = ? WHERE id = ?',
-      [newDiscordId, oldDiscordId]
+    // Step 9: Delete old guild record (after all child records are updated)
+    console.log('\n📝 Step 9: Deleting old guild record...');
+    const [guildDelete] = await pool.query(
+      'DELETE FROM guilds WHERE id = ?',
+      [oldDiscordId]
     );
-    console.log(`✅ Updated ${guildUpdate.affectedRows} guild record(s)`);
+    console.log(`✅ Deleted ${guildDelete.affectedRows} old guild record(s)`);
     
     // Commit transaction
     await pool.query('COMMIT');
