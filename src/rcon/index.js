@@ -505,6 +505,9 @@ function connectRcon(client, guildId, serverName, ip, port, password) {
         
         // Handle Zorp zone online immediately (only for reliable join messages)
         await handlePlayerOnline(client, guildId, serverName, player, ip, port, password);
+        
+        // Send welcome message if enabled
+        await handleWelcomeMessage(guildId, serverName, player, ip, port, password);
       }
       
       // Note: We removed unreliable disconnect message detection for Zorp
@@ -8397,6 +8400,54 @@ async function startBackupZorpMonitoringRockSolid(client) {
       console.error('❌ [ZORP BACKUP ROCK SOLID] Error in backup monitoring:', error);
     }
   }, 5 * 60 * 1000); // 5 minutes
+}
+
+/**
+ * Handle welcome message for new players
+ */
+async function handleWelcomeMessage(guildId, serverName, playerName, ip, port, password) {
+  try {
+    // Get welcome message configuration for this server
+    const [configResult] = await pool.query(`
+      SELECT rc.welcome_message_enabled, rc.welcome_message_text, rs.nickname
+      FROM rider_config rc
+      JOIN rust_servers rs ON rc.server_id = rs.id
+      JOIN guilds g ON rs.guild_id = g.id
+      WHERE g.discord_id = ? AND rs.nickname = ?
+    `, [guildId, serverName]);
+    
+    if (configResult.length === 0) {
+      console.log(`[WELCOME] No configuration found for server ${serverName}`);
+      return;
+    }
+    
+    const config = configResult[0];
+    
+    // Check if welcome messages are enabled
+    if (!config.welcome_message_enabled) {
+      console.log(`[WELCOME] Welcome messages disabled for ${serverName}`);
+      return;
+    }
+    
+    // Get the welcome message text
+    let messageText = config.welcome_message_text;
+    if (!messageText) {
+      // Use default message if none is set
+      messageText = '<b><size=45><color=#00ffff>WELCOME TO {SERVER} {PLAYER}</color></size></b>';
+    }
+    
+    // Replace placeholders
+    messageText = messageText
+      .replace(/{SERVER}/g, config.nickname)
+      .replace(/{PLAYER}/g, playerName);
+    
+    // Send the welcome message to the server
+    console.log(`[WELCOME] Sending welcome message to ${playerName} on ${serverName}: ${messageText}`);
+    await sendRconCommand(ip, port, password, `say "${messageText}"`);
+    
+  } catch (error) {
+    console.error(`[WELCOME] Error sending welcome message for ${playerName} on ${serverName}:`, error);
+  }
 }
 
 // Export functions for use in commands
