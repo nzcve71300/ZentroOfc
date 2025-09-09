@@ -14,9 +14,10 @@ module.exports = {
         .setAutocomplete(true))
     .addStringOption(option =>
       option.setName('setup')
-        .setDescription('Select a kit to configure')
+        .setDescription('Select a kit to configure or bulk operation')
         .setRequired(true)
         .addChoices(
+          { name: '🔄 Turn All Kits On/Off', value: 'ALL_KITS' },
           { name: 'FREEkit1', value: 'FREEkit1' },
           { name: 'FREEkit2', value: 'FREEkit2' },
           { name: 'VIPkit', value: 'VIPkit' },
@@ -49,11 +50,12 @@ module.exports = {
         .addChoices(
           { name: 'Toggle On/Off', value: 'toggle' },
           { name: 'Set Cooldown (minutes)', value: 'cooldown' },
-          { name: 'Set Kit Name', value: 'name' }
+          { name: 'Set Kit Name', value: 'name' },
+          { name: '🔄 Turn All Kits On/Off', value: 'bulk_toggle' }
         ))
     .addStringOption(option =>
       option.setName('value')
-        .setDescription('Value for the option (on/off, minutes, or kit name)')
+        .setDescription('Value for the option (on/off, minutes, kit name, or on/off for bulk operations)')
         .setRequired(true)),
 
   async autocomplete(interaction) {
@@ -118,6 +120,70 @@ module.exports = {
 
       const serverId = serverResult[0].id;
       const serverName = serverResult[0].nickname;
+
+      // Handle bulk operations
+      if (setup === 'ALL_KITS' && option === 'bulk_toggle') {
+        const enabled = value.toLowerCase() === 'on' || value.toLowerCase() === 'true' || value === '1';
+        
+        // Get all existing autokits for this server
+        const [allKitsResult] = await pool.query(
+          'SELECT kit_name FROM autokits WHERE server_id = ?',
+          [serverId]
+        );
+        
+        const existingKits = allKitsResult.map(row => row.kit_name);
+        
+        // Define all possible kit names
+        const allKitNames = [
+          'FREEkit1', 'FREEkit2', 'VIPkit',
+          'ELITEkit1', 'ELITEkit2', 'ELITEkit3', 'ELITEkit4', 'ELITEkit5',
+          'ELITEkit6', 'ELITEkit7', 'ELITEkit8', 'ELITEkit9', 'ELITEkit10',
+          'ELITEkit11', 'ELITEkit12', 'ELITEkit13', 'ELITEkit14', 'ELITEkit15',
+          'ELITEkit16', 'ELITEkit17', 'ELITEkit18', 'ELITEkit19', 'ELITEkit20', 'ELITEkit21'
+        ];
+        
+        // Create missing autokits and update all
+        let updatedCount = 0;
+        for (const kitName of allKitNames) {
+          if (!existingKits.includes(kitName)) {
+            // Create new autokit
+            await pool.query(
+              'INSERT INTO autokits (server_id, kit_name, enabled, cooldown, game_name) VALUES (?, ?, ?, 60, ?)',
+              [serverId, kitName, enabled, kitName]
+            );
+            updatedCount++;
+          } else {
+            // Update existing autokit
+            await pool.query(
+              'UPDATE autokits SET enabled = ? WHERE server_id = ? AND kit_name = ?',
+              [enabled, serverId, kitName]
+            );
+            updatedCount++;
+          }
+        }
+        
+        const embed = successEmbed(
+          'All Kits Updated',
+          `**All ${updatedCount} kits** have been **${enabled ? 'enabled' : 'disabled'}** on **${serverName}**.`
+        );
+        
+        embed.addFields({
+          name: '📋 Bulk Operation Summary',
+          value: `**Status:** ${enabled ? '🟢 All Enabled' : '🔴 All Disabled'}\n**Kits Updated:** ${updatedCount}\n**Server:** ${serverName}`,
+          inline: false
+        });
+        
+        return await interaction.editReply({
+          embeds: [embed]
+        });
+      }
+
+      // Handle individual kit operations
+      if (setup === 'ALL_KITS' && option !== 'bulk_toggle') {
+        return interaction.editReply({
+          embeds: [errorEmbed('Invalid Operation', 'When selecting "Turn All Kits On/Off", you must use the "Turn All Kits On/Off" option.')]
+        });
+      }
 
       // Check if autokit exists
       let [autokitResult] = await pool.query(

@@ -6737,20 +6737,28 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
 
     // Check home teleport configuration
     const [configResult] = await pool.query(
-      'SELECT use_list, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+      'SELECT enabled, use_list, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
       [serverId]
     );
 
     let config = {
+      enabled: true,
       use_list: false,
       cooldown_minutes: 5
     };
 
     if (configResult.length > 0) {
       config = {
+        enabled: configResult[0].enabled !== 0,
         use_list: configResult[0].use_list !== 0,
         cooldown_minutes: configResult[0].cooldown_minutes || 5
       };
+    }
+
+    // Check if home teleport system is enabled
+    if (!config.enabled) {
+      console.log(`[HOME TELEPORT] Home teleport system is disabled for ${serverName}`);
+      return;
     }
 
     // Check if player is banned from home teleport
@@ -6854,20 +6862,28 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
 
     // Check home teleport configuration
     const [configResult] = await pool.query(
-      'SELECT use_list, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+      'SELECT enabled, use_list, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
       [serverId]
     );
 
     let config = {
+      enabled: true,
       use_list: false,
       cooldown_minutes: 5
     };
 
     if (configResult.length > 0) {
       config = {
+        enabled: configResult[0].enabled !== 0,
         use_list: configResult[0].use_list !== 0,
         cooldown_minutes: configResult[0].cooldown_minutes || 5
       };
+    }
+
+    // Check if home teleport system is enabled
+    if (!config.enabled) {
+      console.log(`[HOME TELEPORT] Home teleport system is disabled for ${serverName}`);
+      return;
     }
 
     // Check if player is banned from home teleport
