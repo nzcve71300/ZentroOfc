@@ -256,14 +256,26 @@ async function removeServerCompletely(guildId) {
         console.log(`   • Deleted ${clanResult.affectedRows} clans from ${server.nickname}`);
       }
       
-      // 19. Delete clan members
+      // 19. Delete clan members (via clan_id)
       console.log('\n🗑️ Deleting clan members...');
       for (const server of serversResult) {
-        const [memberResult] = await pool.query(
-          'DELETE FROM clan_members WHERE server_id = ?',
+        // First get all clan IDs for this server
+        const [clanIds] = await pool.query(
+          'SELECT id FROM clans WHERE server_id = ?',
           [server.id]
         );
-        console.log(`   • Deleted ${memberResult.affectedRows} clan members from ${server.nickname}`);
+        
+        if (clanIds.length > 0) {
+          const clanIdList = clanIds.map(clan => clan.id);
+          const placeholders = clanIdList.map(() => '?').join(',');
+          const [memberResult] = await pool.query(
+            `DELETE FROM clan_members WHERE clan_id IN (${placeholders})`,
+            clanIdList
+          );
+          console.log(`   • Deleted ${memberResult.affectedRows} clan members from ${server.nickname}`);
+        } else {
+          console.log(`   • Deleted 0 clan members from ${server.nickname} (no clans found)`);
+        }
       }
       
       // 20. Delete economy data
