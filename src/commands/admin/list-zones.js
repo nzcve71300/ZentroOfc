@@ -52,7 +52,7 @@ module.exports = {
         FROM zorp_zones z
         JOIN rust_servers rs ON z.server_id = rs.id
         JOIN guilds g ON rs.guild_id = g.id
-        WHERE g.discord_id = ? AND rs.nickname = ?
+        WHERE g.discord_id = ? AND rs.nickname = ? AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
         ORDER BY z.created_at DESC
       `, [interaction.guildId, serverName]);
 
@@ -122,6 +122,12 @@ module.exports = {
 
     } catch (error) {
       console.error('Error listing zones:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        guildId: interaction.guildId,
+        serverName: interaction.options.getString('server')
+      });
       await interaction.editReply({
         embeds: [errorEmbed('Error', 'Failed to fetch ZORP zones. Please try again later.')]
       });

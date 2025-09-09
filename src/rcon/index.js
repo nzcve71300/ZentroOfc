@@ -1626,7 +1626,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
 
     // Get server ID and check if Book-a-Ride is enabled
     const [serverResult] = await pool.query(
-      'SELECT rs.id, rc.enabled, rc.cooldown, rc.horse_enabled, rc.rhib_enabled, rc.mini_enabled, rc.car_enabled, rc.fuel_amount FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
+      'SELECT rs.id, rc.enabled, rc.cooldown, rc.horse_enabled, rc.rhib_enabled, rc.mini_enabled, rc.car_enabled, rc.fuel_amount, rc.use_list FROM rust_servers rs LEFT JOIN rider_config rc ON rs.id = rc.server_id WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ?',
       [guildId, serverName]
     );
 
@@ -1641,6 +1641,7 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
     const miniEnabled = serverResult[0].mini_enabled !== 0; // Default to disabled
     const carEnabled = serverResult[0].car_enabled !== 0; // Default to disabled
     const fuelAmount = serverResult[0].fuel_amount || 100; // Default 100 fuel
+    const useList = serverResult[0].use_list !== 0; // Default to false (no whitelist)
 
     if (!isEnabled) return;
 
@@ -1650,6 +1651,46 @@ async function handleBookARide(client, guildId, serverName, parsed, ip, port, pa
       const player = extractPlayerName(msg);
       console.log(`[BOOK-A-RIDE DEBUG] Extracted player: ${player}`);
       if (!player) return;
+
+      // Check BAR whitelist restrictions
+      if (useList) {
+        console.log(`[BOOK-A-RIDE DEBUG] Whitelist is enabled, checking player: ${player}`);
+        
+        // Check if player is banned first (highest priority)
+        const [bannedResult] = await pool.query(
+          'SELECT id FROM bar_banned_users WHERE server_id = ? AND (LOWER(ign) = LOWER(?) OR ign = ?)',
+          [serverId, player, player]
+        );
+        
+        if (bannedResult.length > 0) {
+          console.log(`[BOOK-A-RIDE DEBUG] Player ${player} is banned from BAR`);
+          return; // Silent rejection for banned players
+        }
+        
+        // Check if player is in allowed list
+        const [allowedResult] = await pool.query(
+          'SELECT id FROM bar_allowed_users WHERE server_id = ? AND (LOWER(ign) = LOWER(?) OR ign = ?)',
+          [serverId, player, player]
+        );
+        
+        if (allowedResult.length === 0) {
+          console.log(`[BOOK-A-RIDE DEBUG] Player ${player} is not in BAR whitelist`);
+          return; // Silent rejection for non-whitelisted players
+        }
+        
+        console.log(`[BOOK-A-RIDE DEBUG] Player ${player} is allowed to use BAR`);
+      } else {
+        // Even if whitelist is disabled, check ban list
+        const [bannedResult] = await pool.query(
+          'SELECT id FROM bar_banned_users WHERE server_id = ? AND (LOWER(ign) = LOWER(?) OR ign = ?)',
+          [serverId, player, player]
+        );
+        
+        if (bannedResult.length > 0) {
+          console.log(`[BOOK-A-RIDE DEBUG] Player ${player} is banned from BAR`);
+          return; // Silent rejection for banned players
+        }
+      }
 
       Logger.info(`Ride requested: ${player} on ${serverName}`);
 

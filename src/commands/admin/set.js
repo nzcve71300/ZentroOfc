@@ -59,6 +59,7 @@ module.exports = {
         // Generate BAR (Book-a-Ride) configuration options
         const barConfigTypes = [
           { name: 'USE (On/Off)', value: 'USE' },
+          { name: 'USELIST (On/Off)', value: 'USELIST' },
           { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' },
           { name: 'HORSE (On/Off)', value: 'HORSE' },
           { name: 'RHIB (On/Off)', value: 'RHIB' },
@@ -425,8 +426,8 @@ module.exports = {
 
         if (existingBarConfig.length === 0) {
           await connection.execute(`
-            INSERT INTO rider_config (server_id, enabled, cooldown, horse_enabled, rhib_enabled, mini_enabled, car_enabled, fuel_amount) 
-            VALUES (?, 1, 300, 1, 1, 0, 0, 100)
+            INSERT INTO rider_config (server_id, enabled, cooldown, horse_enabled, rhib_enabled, mini_enabled, car_enabled, fuel_amount, use_list) 
+            VALUES (?, 1, 300, 1, 1, 0, 0, 100, 0)
           `, [server.id.toString()]);
         }
       }
@@ -947,6 +948,12 @@ module.exports = {
           } else {
             updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          }
+          break;
+        case 'USELIST':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET use_list = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
           }
           break;
         case 'ENABLE':

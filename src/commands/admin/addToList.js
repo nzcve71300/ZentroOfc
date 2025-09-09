@@ -77,6 +77,16 @@ module.exports = {
           value: 'HOMETP-BANLIST'
         });
         
+        // Add BAR list options
+        allOptions.push({
+          name: 'BAR-LIST (Book-a-Ride Allowed Users)',
+          value: 'BAR-LIST'
+        });
+        allOptions.push({
+          name: 'BAR-BANLIST (Book-a-Ride Banned Users)',
+          value: 'BAR-BANLIST'
+        });
+        
         // Add Home teleport option
         allOptions.push({
           name: 'Home teleport (Home Teleport Allowed Users)',
@@ -118,6 +128,10 @@ module.exports = {
       // Check if it's a HOMETP list
       const isHometpList = listName === 'HOMETP-LIST';
       const isHometpBanList = listName === 'HOMETP-BANLIST';
+      
+      // Check if it's a BAR list
+      const isBarList = listName === 'BAR-LIST';
+      const isBarBanList = listName === 'BAR-BANLIST';
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -240,6 +254,34 @@ module.exports = {
 
         await interaction.reply({
           content: `✅ **${playerName}** added to **HOMETP-BANLIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isBarList) {
+        await connection.execute(`
+          INSERT INTO bar_allowed_users (server_id, discord_id, ign, added_by)
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+          discord_id = VALUES(discord_id),
+          ign = VALUES(ign),
+          added_by = VALUES(added_by)
+        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** added to **BAR-LIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isBarBanList) {
+        await connection.execute(`
+          INSERT INTO bar_banned_users (server_id, discord_id, ign, banned_by)
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+          discord_id = VALUES(discord_id),
+          ign = VALUES(ign),
+          banned_by = VALUES(banned_by)
+        `, [server.id.toString(), discordId, ign, interaction.user.id]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** added to **BAR-BANLIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-LIST')) {

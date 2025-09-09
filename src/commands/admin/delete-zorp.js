@@ -109,8 +109,8 @@ module.exports = {
           SELECT z.*, rs.ip, rs.port, rs.password, rs.nickname
           FROM zorp_zones z
           JOIN rust_servers rs ON z.server_id = rs.id
-          WHERE z.server_id = ? AND LOWER(z.owner) = LOWER(?)
-        `, [server.id, trimmedPlayerName]);
+          WHERE z.server_id = ? AND (LOWER(z.owner) = LOWER(?) OR z.owner = ?)
+        `, [server.id, trimmedPlayerName, trimmedPlayerName]);
         
         console.log(`[DELETE-ZORP] Database query returned ${zoneResult.length} results`);
         if (zoneResult.length > 0) {
@@ -128,11 +128,13 @@ module.exports = {
         
         // Get all active Zorps on this specific server to show what's available
         const [availableZorps] = await pool.query(`
-          SELECT z.owner
+          SELECT z.owner, z.name, z.created_at, z.expire
           FROM zorp_zones z
           WHERE z.server_id = ? AND z.created_at + INTERVAL z.expire SECOND > CURRENT_TIMESTAMP
           ORDER BY z.owner
         `, [server.id]);
+        
+        console.log(`[DELETE-ZORP] Available Zorps on server ${server.id}:`, availableZorps);
         
         let errorMessage = `No Zorp found for player "${trimmedPlayerName}" on server "${trimmedServer}".`;
         

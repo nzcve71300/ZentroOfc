@@ -77,6 +77,16 @@ module.exports = {
           value: 'HOMETP-BANLIST'
         });
         
+        // Add BAR list options
+        allOptions.push({
+          name: 'BAR-LIST (Book-a-Ride Allowed Users)',
+          value: 'BAR-LIST'
+        });
+        allOptions.push({
+          name: 'BAR-BANLIST (Book-a-Ride Banned Users)',
+          value: 'BAR-BANLIST'
+        });
+        
         // Add Home teleport option
         allOptions.push({
           name: 'Home teleport (Home Teleport Allowed Users)',
@@ -118,6 +128,10 @@ module.exports = {
       // Check if it's a HOMETP list
       const isHometpList = listName === 'HOMETP-LIST';
       const isHometpBanList = listName === 'HOMETP-BANLIST';
+      
+      // Check if it's a BAR list
+      const isBarList = listName === 'BAR-LIST';
+      const isBarBanList = listName === 'BAR-BANLIST';
 
       // Get server using shared helper
       const server = await getServerByNickname(guildId, serverOption);
@@ -290,6 +304,54 @@ module.exports = {
 
         await interaction.reply({
           content: `✅ **${playerName}** removed from **HOMETP-BANLIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isBarList) {
+        // Check if player is in BAR allowed list
+        const [existing] = await connection.execute(`
+          SELECT * FROM bar_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **BAR-LIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
+        await connection.execute(`
+          DELETE FROM bar_allowed_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** removed from **BAR-LIST** on **${server.nickname}**`,
+          ephemeral: true
+        });
+      } else if (isBarBanList) {
+        // Check if player is in BAR banned list
+        const [existing] = await connection.execute(`
+          SELECT * FROM bar_banned_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        if (existing.length === 0) {
+          await connection.end();
+          return await interaction.reply({
+            content: `❌ **${playerName}** is not in the **BAR-BANLIST** on **${server.nickname}**`,
+            ephemeral: true
+          });
+        }
+
+        await connection.execute(`
+          DELETE FROM bar_banned_users 
+          WHERE server_id = ? AND (discord_id = ? OR ign = ?)
+        `, [server.id.toString(), discordId, ign]);
+
+        await interaction.reply({
+          content: `✅ **${playerName}** removed from **BAR-BANLIST** on **${server.nickname}**`,
           ephemeral: true
         });
       } else if (listName.endsWith('-LIST')) {
