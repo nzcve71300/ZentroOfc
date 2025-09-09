@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const mysql = require('mysql2/promise');
 const { getServerByNickname, getServersForGuild } = require('../../utils/unifiedPlayerSystem');
+const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 require('dotenv').config();
 
 module.exports = {
@@ -258,6 +259,18 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Check admin permissions
+    if (!interaction.member) {
+      return interaction.reply({
+        content: '❌ Unable to verify permissions. Please try again.',
+        ephemeral: true
+      });
+    }
+    
+    if (!hasAdminPermissions(interaction.member)) {
+      return sendAccessDeniedMessage(interaction);
+    }
+
     try {
       console.log(`[SET COMMAND DEBUG] Command executed with options:`, {
         config: interaction.options.getString('config'),

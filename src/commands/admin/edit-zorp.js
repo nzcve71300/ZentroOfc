@@ -3,6 +3,7 @@ const { orangeEmbed, errorEmbed, successEmbed } = require('../../embeds/format')
 const pool = require('../../db');
 const { sendRconCommand, sendFeedEmbed } = require('../../rcon');
 const zorpManager = require('../../systems/zorpManager');
+const { hasAdminPermissions, sendAccessDeniedMessage } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -77,6 +78,18 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Check admin permissions
+    if (!interaction.member) {
+      return interaction.reply({
+        content: '❌ Unable to verify permissions. Please try again.',
+        ephemeral: true
+      });
+    }
+    
+    if (!hasAdminPermissions(interaction.member)) {
+      return sendAccessDeniedMessage(interaction);
+    }
+
     await interaction.deferReply({ flags: 64 });
 
     try {

@@ -38,6 +38,18 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Check admin permissions
+    if (!interaction.member) {
+      return interaction.reply({
+        content: '❌ Unable to verify permissions. Please try again.',
+        ephemeral: true
+      });
+    }
+    
+    if (!hasAdminPermissions(interaction.member)) {
+      return sendAccessDeniedMessage(interaction);
+    }
+
     await interaction.deferReply({ flags: 64 });
 
     const userId = interaction.user.id;
@@ -46,11 +58,6 @@ module.exports = {
     const commandInput = interaction.options.getString('input');
 
     try {
-      // Check if user has admin permissions (Administrator OR ZentroAdmin role)
-      const member = await interaction.guild.members.fetch(userId);
-      if (!hasAdminPermissions(member)) {
-        return sendAccessDeniedMessage(interaction, false);
-      }
 
       // Get server
       const server = await getServerByNickname(guildId, serverOption);
