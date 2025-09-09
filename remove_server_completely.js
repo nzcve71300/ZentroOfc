@@ -286,14 +286,26 @@ async function removeServerCompletely(guildId) {
       );
       console.log(`   • Deleted ${economyResult.affectedRows} economy records from guild ${guildId}`);
       
-      // 21. Delete shop items
+      // 21. Delete shop items (via categories)
       console.log('\n🗑️ Deleting shop items...');
       for (const server of serversResult) {
-        const [shopResult] = await pool.query(
-          'DELETE FROM shop_items WHERE server_id = ?',
+        // First get all category IDs for this server
+        const [categoryIds] = await pool.query(
+          'SELECT id FROM shop_categories WHERE server_id = ?',
           [server.id]
         );
-        console.log(`   • Deleted ${shopResult.affectedRows} shop items from ${server.nickname}`);
+        
+        if (categoryIds.length > 0) {
+          const categoryIdList = categoryIds.map(cat => cat.id);
+          const placeholders = categoryIdList.map(() => '?').join(',');
+          const [shopResult] = await pool.query(
+            `DELETE FROM shop_items WHERE category_id IN (${placeholders})`,
+            categoryIdList
+          );
+          console.log(`   • Deleted ${shopResult.affectedRows} shop items from ${server.nickname}`);
+        } else {
+          console.log(`   • Deleted 0 shop items from ${server.nickname} (no categories found)`);
+        }
       }
       
       // 22. Delete kit delivery queue
@@ -304,26 +316,6 @@ async function removeServerCompletely(guildId) {
           [server.id]
         );
         console.log(`   • Deleted ${kitResult.affectedRows} kit delivery records from ${server.nickname}`);
-      }
-      
-      // 23. Delete bounty data
-      console.log('\n🗑️ Deleting bounty data...');
-      for (const server of serversResult) {
-        const [bountyResult] = await pool.query(
-          'DELETE FROM bounty_data WHERE server_id = ?',
-          [server.id]
-        );
-        console.log(`   • Deleted ${bountyResult.affectedRows} bounty records from ${server.nickname}`);
-      }
-      
-      // 24. Delete leaderboard data
-      console.log('\n🗑️ Deleting leaderboard data...');
-      for (const server of serversResult) {
-        const [leaderboardResult] = await pool.query(
-          'DELETE FROM leaderboard WHERE server_id = ?',
-          [server.id]
-        );
-        console.log(`   • Deleted ${leaderboardResult.affectedRows} leaderboard records from ${server.nickname}`);
       }
       
       // 25. Delete channel settings
