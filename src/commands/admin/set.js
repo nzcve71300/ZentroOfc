@@ -66,6 +66,8 @@ module.exports = {
           { name: 'RHIB (On/Off)', value: 'RHIB' },
           { name: 'MINI (On/Off)', value: 'MINI' },
           { name: 'CAR (On/Off)', value: 'CAR' },
+          { name: 'WELCOME-MESSAGE (On/Off)', value: 'WELCOME-MESSAGE' },
+          { name: 'WELCOME-MSG-TEXT (Message Text)', value: 'WELCOME-MSG-TEXT' },
           { name: 'FUEL-AMOUNT (Value)', value: 'FUEL-AMOUNT' }
         ];
         
@@ -826,6 +828,7 @@ module.exports = {
         case 'RHIB':
         case 'MINI':
         case 'CAR':
+        case 'WELCOME-MESSAGE':
         case 'RECYCLER-USE':
         case 'RECYCLER-USELIST':
         case 'ZORP-USELIST':
@@ -967,6 +970,18 @@ module.exports = {
           if (isBarConfig) {
             updateQuery = 'UPDATE rider_config SET use_list = ? WHERE server_id = ?';
             updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          }
+          break;
+        case 'WELCOME-MESSAGE':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET welcome_message_enabled = ? WHERE server_id = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString()];
+          }
+          break;
+        case 'WELCOME-MSG-TEXT':
+          if (isBarConfig) {
+            updateQuery = 'UPDATE rider_config SET welcome_message_text = ? WHERE server_id = ?';
+            updateParams = [validatedOption, server.id.toString()];
           }
           break;
         case 'ENABLE':
