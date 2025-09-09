@@ -278,15 +278,13 @@ async function removeServerCompletely(guildId) {
         }
       }
       
-      // 20. Delete economy data
+      // 20. Delete economy data (by guild_id)
       console.log('\n🗑️ Deleting economy data...');
-      for (const server of serversResult) {
-        const [economyResult] = await pool.query(
-          'DELETE FROM economy WHERE server_id = ?',
-          [server.id]
-        );
-        console.log(`   • Deleted ${economyResult.affectedRows} economy records from ${server.nickname}`);
-      }
+      const [economyResult] = await pool.query(
+        'DELETE FROM economy WHERE guild_id = ?',
+        [guildId]
+      );
+      console.log(`   • Deleted ${economyResult.affectedRows} economy records from guild ${guildId}`);
       
       // 21. Delete shop items
       console.log('\n🗑️ Deleting shop items...');
