@@ -8,7 +8,7 @@ async function migrateMalsMayhemFresh() {
     console.log('🔄 Starting FRESH Mals Mayhem migration...');
     console.log(`📤 Source Discord: ${oldDiscordId} (Mals Mayhem)`);
     console.log(`📥 Target Discord: ${newDiscordId}`);
-    console.log('🗑️  All player data will be WIPED - only server config will be moved\n`);
+    console.log('🗑️  All player data will be WIPED - only server config will be moved\n');
     
     // Step 1: Find the server data for the old Discord ID
     console.log('🔍 Step 1: Finding server data...');
