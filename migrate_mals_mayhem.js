@@ -153,16 +153,24 @@ async function executeMigration() {
     // Step 1: Create new guild record first
     console.log('📝 Step 1: Creating new guild record...');
     const [newGuild] = await pool.query(
-      'INSERT INTO guilds (id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+      'INSERT INTO guilds (discord_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
       [newDiscordId, 'New Discord Server']
     );
     console.log(`✅ Created/updated guild record for ${newDiscordId}`);
+    
+    // Get the new guild's ID
+    const [newGuildData] = await pool.query(
+      'SELECT id FROM guilds WHERE discord_id = ?',
+      [newDiscordId]
+    );
+    const newGuildId = newGuildData[0].id;
+    console.log(`✅ New guild ID: ${newGuildId}`);
     
     // Step 2: Update child records (to avoid foreign key constraints)
     console.log('\n📝 Step 2: Updating player homes...');
     const [homeUpdate] = await pool.query(
       'UPDATE player_homes SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${homeUpdate.affectedRows} player home(s)`);
     
@@ -170,7 +178,7 @@ async function executeMigration() {
     console.log('\n📝 Step 3: Updating whitelist records...');
     const [whitelistUpdate] = await pool.query(
       'UPDATE player_whitelists SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${whitelistUpdate.affectedRows} whitelist record(s)`);
     
@@ -178,7 +186,7 @@ async function executeMigration() {
     console.log('\n📝 Step 4: Updating player records...');
     const [playerUpdate] = await pool.query(
       'UPDATE players SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${playerUpdate.affectedRows} player record(s)`);
     
@@ -186,7 +194,7 @@ async function executeMigration() {
     console.log('\n📝 Step 5: Updating economy game records...');
     const [ecoUpdate] = await pool.query(
       'UPDATE eco_games SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${ecoUpdate.affectedRows} economy game record(s)`);
     
@@ -194,7 +202,7 @@ async function executeMigration() {
     console.log('\n📝 Step 6: Updating leaderboard settings...');
     const [leaderUpdate] = await pool.query(
       'UPDATE leaderboard_settings SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${leaderUpdate.affectedRows} leaderboard setting(s)`);
     
@@ -202,7 +210,7 @@ async function executeMigration() {
     console.log('\n📝 Step 7: Updating subscriptions...');
     const [subUpdate] = await pool.query(
       'UPDATE subscriptions SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${subUpdate.affectedRows} subscription(s)`);
     
@@ -210,7 +218,7 @@ async function executeMigration() {
     console.log('\n📝 Step 8: Updating server records...');
     const [serverUpdate] = await pool.query(
       'UPDATE rust_servers SET guild_id = ? WHERE guild_id = ?',
-      [newDiscordId, oldDiscordId]
+      [newGuildId, oldDiscordId]
     );
     console.log(`✅ Updated ${serverUpdate.affectedRows} server record(s)`);
     
