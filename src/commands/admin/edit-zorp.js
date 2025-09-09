@@ -244,6 +244,7 @@ module.exports = {
               SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
             `, values);
+            console.log(`[EDIT-ZORP] Updated zone ${zone.name} in database with new settings`);
           } catch (dbUpdateError) {
             console.error('Database error updating zone:', dbUpdateError);
             rconErrors.push(`Failed to update zone ${zone.name} in database`);
@@ -255,30 +256,51 @@ module.exports = {
             if (server.ip && server.port && server.password) {
               console.log(`[EDIT-ZORP] Applying changes to existing zone ${zone.name} in-game`);
               
-              // Update size by recreating zone with new size
-              if (size !== null && zone.position) {
-                const position = zone.position;
-                if (position.x !== undefined && position.y !== undefined && position.z !== undefined) {
-                  // Delete old zone
-                  await sendRconCommand(server.ip, server.port, server.password, `zones.deletecustomzone "${zone.name}"`);
-                  
-                  // Create new zone with updated size
-                  // Convert size from diameter to radius (divide by 2) since zones.createcustomzone uses radius
-                  const radius = size / 2;
-                  const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${radius} 1 0 0 1 1`;
-                  await sendRconCommand(server.ip, server.port, server.password, zoneCommand);
-                  
-                  // Reapply zone settings
-                  await reapplyZoneSettings(server.ip, server.port, server.password, zone.name, zone.current_state, colorOnline, colorOffline);
-                  
-                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} size to ${size}`);
-                }
+              // Update size using zones.editcustomzone command
+              if (size !== null) {
+                // Convert size from diameter to radius (divide by 2) since zones.editcustomzone uses radius
+                const radius = size / 2;
+                await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" size ${radius}`);
+                console.log(`[EDIT-ZORP] Updated zone ${zone.name} size to ${size} (radius: ${radius})`);
               }
 
-              // Update colors without recreating zone
-              if ((colorOnline !== null || colorOffline !== null) && size === null) {
-                await reapplyZoneSettings(server.ip, server.port, server.password, zone.name, zone.current_state, colorOnline, colorOffline);
-                console.log(`[EDIT-ZORP] Updated zone ${zone.name} colors`);
+              // Update colors using zones.editcustomzone command
+              if (colorOnline !== null || colorOffline !== null) {
+                // Get current zone state to determine which color to apply
+                const [stateResult] = await pool.query(
+                  'SELECT current_state FROM zorp_zones WHERE name = ?',
+                  [zone.name]
+                );
+                
+                if (stateResult.length > 0) {
+                  const currentState = stateResult[0].current_state;
+                  let colorToApply;
+                  
+                  // Determine which color to apply based on current state
+                  switch (currentState) {
+                    case 'green':
+                    case 'active':
+                      colorToApply = colorOnline || '0,255,0';
+                      break;
+                    case 'red':
+                    case 'offline':
+                      colorToApply = colorOffline || '255,0,0';
+                      break;
+                    case 'yellow':
+                    case 'pending':
+                      colorToApply = '255,255,0';
+                      break;
+                    case 'white':
+                      colorToApply = '255,255,255';
+                      break;
+                    default:
+                      colorToApply = colorOnline || '0,255,0';
+                  }
+                  
+                  // Apply the color using zones.editcustomzone
+                  await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
+                  console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to (${colorToApply}) (state: ${currentState})`);
+                }
               }
             }
           } catch (rconError) {
@@ -443,74 +465,3 @@ module.exports = {
   },
 };
 
-/**
- * Reapply zone settings to an existing zone in-game
- */
-async function reapplyZoneSettings(ip, port, password, zoneName, currentState, colorOnline, colorOffline) {
-  try {
-    // Reapply enter/leave messages
-    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" showchatmessage 1`);
-    
-    // Get owner name from zone name (extract from database if needed)
-    const [zoneResult] = await pool.query('SELECT owner FROM zorp_zones WHERE name = ?', [zoneName]);
-    if (zoneResult.length > 0) {
-      const owner = zoneResult[0].owner;
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" entermessage "You entered ${owner} Zorp"`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" leavemessage "You left ${owner} Zorp"`);
-    }
-    
-    // Apply appropriate color based on current state
-    let colorToApply;
-    switch (currentState) {
-      case 'green':
-      case 'active':
-        colorToApply = colorOnline || '0,255,0';
-        break;
-      case 'red':
-      case 'offline':
-        colorToApply = colorOffline || '255,0,0';
-        break;
-      case 'yellow':
-      case 'pending':
-        colorToApply = '255,255,0';
-        break;
-      case 'white':
-        colorToApply = '255,255,255';
-        break;
-      default:
-        colorToApply = colorOnline || '0,255,0';
-    }
-    
-    // Apply the color
-    await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" color (${colorToApply})`);
-    
-    // Reapply zone permissions based on state
-    if (currentState === 'green' || currentState === 'active') {
-      // Green zone: allow building and PvP
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuilding 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuildingdamage 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowpvpdamage 1`);
-    } else if (currentState === 'red' || currentState === 'offline') {
-      // Red zone: no building, no PvP
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuilding 0`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuildingdamage 0`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowpvpdamage 0`);
-    } else if (currentState === 'yellow' || currentState === 'pending') {
-      // Yellow zone: allow building, no PvP
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuilding 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuildingdamage 1`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowpvpdamage 0`);
-    } else if (currentState === 'white') {
-      // White zone: no building, no PvP (transition state)
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuilding 0`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowbuildingdamage 0`);
-      await sendRconCommand(ip, port, password, `zones.editcustomzone "${zoneName}" allowpvpdamage 0`);
-    }
-    
-    console.log(`[EDIT-ZORP] Reapplied settings to zone ${zoneName} (state: ${currentState}, color: ${colorToApply})`);
-    
-  } catch (error) {
-    console.error(`[EDIT-ZORP] Error reapplying settings to zone ${zoneName}:`, error);
-    throw error;
-  }
-}
