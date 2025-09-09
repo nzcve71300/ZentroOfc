@@ -370,12 +370,6 @@ async function refreshConnections(client) {
 function connectRcon(client, guildId, serverName, ip, port, password) {
   const key = `${guildId}_${serverName}`;
   
-  // TEMPORARY: Skip connection to specific server
-  if (ip === "149.102.128.81" && port === 31616) {
-    console.log("🚫 TEMPORARILY SKIPPING connection to 149.102.128.81:31616");
-    return;
-  }
-  
   // Enhanced validation for connection parameters
   if (!ip || 
       ip === '0.0.0.0' || 
