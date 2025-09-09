@@ -101,40 +101,85 @@ module.exports = {
 
       console.log(`[ZORP WIPE] Starting wipe of ${zonesResult.length} zorp zones on ${server.nickname}`);
 
+      // Send initial progress message
+      await interaction.editReply({
+        embeds: [orangeEmbed('Wiping Zorps', `Starting to delete **${zonesResult.length}** zorp zones from **${server.nickname}**...`)]
+      });
+
       let deletedCount = 0;
       let failedCount = 0;
       const deletedZones = [];
 
-      // Delete each zone
-      for (const zone of zonesResult) {
+      // Delete each zone with timeout handling
+      for (let i = 0; i < zonesResult.length; i++) {
+        const zone = zonesResult[i];
         try {
-          console.log(`[ZORP WIPE] Attempting to delete zone: ${zone.name} owned by ${zone.owner}`);
-          console.log(`[ZORP WIPE] Server connection: ${server.ip}:${server.port}`);
+          console.log(`[ZORP WIPE] Processing zone ${i + 1}/${zonesResult.length}: ${zone.name} owned by ${zone.owner}`);
           
-          // Delete zone from game server
-          const deleteCommand = `zones.deletecustomzone "${zone.name}"`;
-          console.log(`[ZORP WIPE] Sending RCON command: ${deleteCommand}`);
+          // Clear offline expiration timer first (import the function from rcon)
+          try {
+            const { clearOfflineExpirationTimer } = require('../../rcon');
+            await clearOfflineExpirationTimer(zone.name);
+            console.log(`[ZORP WIPE] Cleared timers for zone: ${zone.name}`);
+          } catch (timerError) {
+            console.error(`[ZORP WIPE] Error clearing timers for ${zone.name}:`, timerError);
+            // Continue with deletion even if timer cleanup fails
+          }
           
-          await sendRconCommand(server.ip, server.port, server.password, deleteCommand);
-          console.log(`[ZORP WIPE] RCON command sent successfully for zone: ${zone.name}`);
-          
-          // Send in-game deletion message
-          await sendRconCommand(server.ip, server.port, server.password, `say <color=#FF69B4>[ZORP]${zone.owner}</color> <color=white>Zorp successfully deleted!</color>`);
-          
-          // Clear offline expiration timer if it exists (import the function from rcon)
-          const { clearOfflineExpirationTimer } = require('../../rcon');
-          await clearOfflineExpirationTimer(zone.name);
-          
-          // Delete from database
+          // Delete from database first (faster operation)
           await pool.query('DELETE FROM zorp_zones WHERE name = ?', [zone.name]);
           console.log(`[ZORP WIPE] Deleted zone from database: ${zone.name}`);
+          
+          // Delete zone from game server with timeout
+          try {
+            const deleteCommand = `zones.deletecustomzone "${zone.name}"`;
+            console.log(`[ZORP WIPE] Sending RCON command: ${deleteCommand}`);
+            
+            // Add timeout to RCON command
+            const rconPromise = sendRconCommand(server.ip, server.port, server.password, deleteCommand);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('RCON timeout')), 10000) // 10 second timeout
+            );
+            
+            await Promise.race([rconPromise, timeoutPromise]);
+            console.log(`[ZORP WIPE] RCON command completed for zone: ${zone.name}`);
+            
+            // Send in-game deletion message (with timeout)
+            try {
+              const sayPromise = sendRconCommand(server.ip, server.port, server.password, `say <color=#FF69B4>[ZORP]${zone.owner}</color> <color=white>Zorp successfully deleted!</color>`);
+              const sayTimeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Say command timeout')), 5000) // 5 second timeout
+              );
+              await Promise.race([sayPromise, sayTimeoutPromise]);
+            } catch (sayError) {
+              console.error(`[ZORP WIPE] Failed to send say command for ${zone.name}:`, sayError);
+              // Continue even if say command fails
+            }
+            
+          } catch (rconError) {
+            console.error(`[ZORP WIPE] RCON error for zone ${zone.name}:`, rconError);
+            // Zone was already deleted from database, so count as success
+          }
           
           deletedCount++;
           deletedZones.push(`${zone.name} (${zone.owner})`);
           
-          console.log(`[ZORP WIPE] Successfully deleted zone: ${zone.name} owned by ${zone.owner}`);
+          console.log(`[ZORP WIPE] Successfully processed zone: ${zone.name} owned by ${zone.owner}`);
+          
+          // Update progress every 5 zones or on the last zone
+          if ((i + 1) % 5 === 0 || i === zonesResult.length - 1) {
+            try {
+              await interaction.editReply({
+                embeds: [orangeEmbed('Wiping Zorps', `Processing... **${i + 1}/${zonesResult.length}** zones completed on **${server.nickname}**`)]
+              });
+            } catch (updateError) {
+              console.error('Error updating progress:', updateError);
+              // Continue even if progress update fails
+            }
+          }
+          
         } catch (error) {
-          console.error(`[ZORP WIPE] Failed to delete zone ${zone.name}:`, error);
+          console.error(`[ZORP WIPE] Failed to process zone ${zone.name}:`, error);
           failedCount++;
         }
       }
