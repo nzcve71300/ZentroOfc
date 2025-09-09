@@ -108,15 +108,29 @@ module.exports = {
         serverZones += `  Size: ${size} | Colors: Online(${colorOnline}) / Offline(${colorOffline})\n\n`;
       }
 
-      // Split into multiple fields if too long
-      const parts = serverZones.match(/[\s\S]{1,1024}/g) || [];
-      parts.forEach((part, i) => {
+      // Split into larger chunks to reduce field count (Discord limit is 25 fields)
+      const maxChunkSize = 2000; // Larger chunks to reduce field count
+      const parts = serverZones.match(new RegExp(`[\\s\\S]{1,${maxChunkSize}}`, 'g')) || [];
+      
+      // Limit to 20 fields to be safe (leaving room for other potential fields)
+      const maxFields = Math.min(parts.length, 20);
+      
+      for (let i = 0; i < maxFields; i++) {
         embed.addFields({
-          name: i === 0 ? 'Zones' : 'Zones (continued)',
-          value: part,
+          name: i === 0 ? 'Zones' : `Zones (continued ${i})`,
+          value: parts[i],
           inline: false
         });
-      });
+      }
+      
+      // If we had to truncate, add a note
+      if (parts.length > 20) {
+        embed.addFields({
+          name: 'Note',
+          value: `Showing first ${maxFields * Math.floor(maxChunkSize / 100)} zones. Total zones: ${zonesResult.length}`,
+          inline: false
+        });
+      }
 
       await interaction.editReply({ embeds: [embed] });
 
