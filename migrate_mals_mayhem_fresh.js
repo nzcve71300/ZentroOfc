@@ -161,8 +161,8 @@ async function executeFreshMigration() {
     // Step 4: Create new server record with same config but new guild
     console.log('\n📝 Step 4: Creating new server record...');
     const [newServer] = await pool.query(`
-      INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password, currency_name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      INSERT INTO rust_servers (id, guild_id, nickname, ip, port, password, currency_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [
       `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate new server ID
       newGuildId,
