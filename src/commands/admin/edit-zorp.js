@@ -48,6 +48,10 @@ module.exports = {
     .addBooleanOption(option =>
       option.setName('zorp')
         .setDescription('Enable or disable ZORP system (default: true)')
+        .setRequired(false))
+    .addBooleanOption(option =>
+      option.setName('zorp_uselist')
+        .setDescription('Enable or disable ZORP whitelist requirement (default: false)')
         .setRequired(false)),
 
   async autocomplete(interaction) {
@@ -86,6 +90,7 @@ module.exports = {
       const minTeam = interaction.options.getInteger('min_team');
       const maxTeam = interaction.options.getInteger('max_team');
       const zorpEnabled = interaction.options.getBoolean('zorp');
+      const zorpUseList = interaction.options.getBoolean('zorp_uselist');
 
       // Validate serverOption
       if (!serverOption || typeof serverOption !== 'string' || serverOption.trim() === '') {
@@ -145,7 +150,7 @@ module.exports = {
       // Check if any parameters were provided
       const hasUpdates = size !== null || colorOnline !== null || colorOffline !== null || 
                         radiation !== null || delay !== null || expire !== null || 
-                        minTeam !== null || maxTeam !== null || zorpEnabled !== null;
+                        minTeam !== null || maxTeam !== null || zorpEnabled !== null || zorpUseList !== null;
 
       if (!hasUpdates) {
         return interaction.editReply({
@@ -389,6 +394,10 @@ module.exports = {
               console.error('Error sending feed message:', feedError);
             }
           }
+        }
+        if (zorpUseList !== null) {
+          defaultsUpdates.push(`use_list = ?`);
+          defaultsValues.push(zorpUseList ? 1 : 0);
         }
 
         if (defaultsUpdates.length > 0) {

@@ -4586,7 +4586,7 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Check ZORP list restrictions
     const [zorpConfig] = await pool.query(
-      'SELECT use_list FROM zorp_configs WHERE server_id = ?',
+      'SELECT use_list FROM zorp_defaults WHERE server_id = ?',
       [serverId]
     );
 
@@ -4603,30 +4603,30 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     if (bannedResult.length > 0) {
       console.log(`[ZORP DEBUG] Player ${playerName} is banned from ZORP`);
-      await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are banned from using ZORP zones.</color>`);
-      return;
+      return; // Silent rejection for banned players
     }
 
-    // If use_list is enabled, check if player is in allowed list
+    // Check ZORP whitelist restrictions
     if (zorpConfig.length > 0 && zorpConfig[0].use_list) {
-      console.log(`[ZORP DEBUG] use_list is enabled, checking allowed list for ${playerName}`);
+      console.log(`[ZORP DEBUG] Whitelist is enabled, checking player: ${playerName}`);
       
+      // Check if player is in allowed list
       const [allowedResult] = await pool.query(
-        'SELECT * FROM zorp_allowed_users WHERE server_id = ? AND (discord_id = ? OR ign = ?)',
+        'SELECT * FROM zorp_allowed_users WHERE server_id = ? AND (LOWER(ign) = LOWER(?) OR ign = ?)',
         [serverId, playerName, playerName]
       );
 
       console.log(`[ZORP DEBUG] Allowed check: ${allowedResult.length} results`);
 
       if (allowedResult.length === 0) {
-        console.log(`[ZORP DEBUG] Player ${playerName} is not in allowed list`);
-        await sendRconCommand(ip, port, password, `say <color=#FF69B4>[ZORP]${playerName}</color> <color=white>You are not allowed to use ZORP zones. Contact an administrator.</color>`);
-        return;
-      } else {
-        console.log(`[ZORP DEBUG] Player ${playerName} is in allowed list`);
+        console.log(`[ZORP DEBUG] Player ${playerName} is not in ZORP whitelist`);
+        return; // Silent rejection for non-whitelisted players
       }
+      
+      console.log(`[ZORP DEBUG] Player ${playerName} is allowed to use ZORP`);
     } else {
-      console.log(`[ZORP DEBUG] use_list is disabled or not found, allowing all players`);
+      // Even if whitelist is disabled, check ban list
+      console.log(`[ZORP DEBUG] Whitelist is disabled, allowing all players (except banned)`);
     }
 
     // Check if player already has a zone
