@@ -150,21 +150,21 @@ async function executeMigration() {
     // Start transaction
     await pool.query('START TRANSACTION');
     
-    // Step 1: Update guild record
-    console.log('📝 Step 1: Updating guild record...');
-    const [guildUpdate] = await pool.query(
-      'UPDATE guilds SET id = ? WHERE id = ?',
+    // Step 1: Update child records first (to avoid foreign key constraints)
+    console.log('📝 Step 1: Updating player homes...');
+    const [homeUpdate] = await pool.query(
+      'UPDATE player_homes SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
-    console.log(`✅ Updated ${guildUpdate.affectedRows} guild record(s)`);
+    console.log(`✅ Updated ${homeUpdate.affectedRows} player home(s)`);
     
-    // Step 2: Update server records
-    console.log('\n📝 Step 2: Updating server records...');
-    const [serverUpdate] = await pool.query(
-      'UPDATE rust_servers SET guild_id = ? WHERE guild_id = ?',
+    // Step 2: Update whitelist records
+    console.log('\n📝 Step 2: Updating whitelist records...');
+    const [whitelistUpdate] = await pool.query(
+      'UPDATE player_whitelists SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
-    console.log(`✅ Updated ${serverUpdate.affectedRows} server record(s)`);
+    console.log(`✅ Updated ${whitelistUpdate.affectedRows} whitelist record(s)`);
     
     // Step 3: Update player records
     console.log('\n📝 Step 3: Updating player records...');
@@ -198,21 +198,21 @@ async function executeMigration() {
     );
     console.log(`✅ Updated ${subUpdate.affectedRows} subscription(s)`);
     
-    // Step 7: Update player homes
-    console.log('\n📝 Step 7: Updating player homes...');
-    const [homeUpdate] = await pool.query(
-      'UPDATE player_homes SET guild_id = ? WHERE guild_id = ?',
+    // Step 7: Update server records
+    console.log('\n📝 Step 7: Updating server records...');
+    const [serverUpdate] = await pool.query(
+      'UPDATE rust_servers SET guild_id = ? WHERE guild_id = ?',
       [newDiscordId, oldDiscordId]
     );
-    console.log(`✅ Updated ${homeUpdate.affectedRows} player home(s)`);
+    console.log(`✅ Updated ${serverUpdate.affectedRows} server record(s)`);
     
-    // Step 8: Update whitelist records
-    console.log('\n📝 Step 8: Updating whitelist records...');
-    const [whitelistUpdate] = await pool.query(
-      'UPDATE player_whitelists SET guild_id = ? WHERE guild_id = ?',
+    // Step 8: Update guild record last (after all child records are updated)
+    console.log('\n📝 Step 8: Updating guild record...');
+    const [guildUpdate] = await pool.query(
+      'UPDATE guilds SET id = ? WHERE id = ?',
       [newDiscordId, oldDiscordId]
     );
-    console.log(`✅ Updated ${whitelistUpdate.affectedRows} whitelist record(s)`);
+    console.log(`✅ Updated ${guildUpdate.affectedRows} guild record(s)`);
     
     // Commit transaction
     await pool.query('COMMIT');
