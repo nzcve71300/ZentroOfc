@@ -4771,7 +4771,9 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // Create zone in-game using server defaults
     // Green zone settings: allow building (1), allow building damage (1), allow PvP (1)
-    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${defaults.size} 1 0 0 1 1`;
+    // Convert size from diameter to radius (divide by 2) since zones.createcustomzone uses radius
+    const radius = defaults.size / 2;
+    const zoneCommand = `zones.createcustomzone "${zoneName}" (${coords[0]},${coords[1]},${coords[2]}) 0 Sphere ${radius} 1 0 0 1 1`;
     console.log(`[ZORP DEBUG] Creating zone with command: ${zoneCommand}`);
     const createResult = await sendRconCommand(ip, port, password, zoneCommand);
     console.log(`[ZORP DEBUG] Zone creation result: ${createResult}`);
@@ -5254,7 +5256,9 @@ async function restoreZonesOnStartup(client) {
         console.log(`[ZORP DEBUG] Zone position: x=${position.x}, y=${position.y}, z=${position.z}`);
 
         // Recreate zone in-game - NO SPACES in coordinates
-        const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${zone.size} 1 0 0 1 1`;
+        // Convert size from diameter to radius (divide by 2) since zones.createcustomzone uses radius
+        const radius = zone.size / 2;
+        const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${radius} 1 0 0 1 1`;
         console.log(`[ZORP DEBUG] Executing restoration command: ${zoneCommand}`);
         const createResult = await sendRconCommand(zone.ip, zone.port, zone.password, zoneCommand);
         console.log(`[ZORP DEBUG] Restoration result for ${zone.name}:`, createResult);

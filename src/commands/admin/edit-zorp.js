@@ -263,7 +263,9 @@ module.exports = {
                   await sendRconCommand(server.ip, server.port, server.password, `zones.deletecustomzone "${zone.name}"`);
                   
                   // Create new zone with updated size
-                  const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${size} 1 0 0 1 1`;
+                  // Convert size from diameter to radius (divide by 2) since zones.createcustomzone uses radius
+                  const radius = size / 2;
+                  const zoneCommand = `zones.createcustomzone "${zone.name}" (${position.x},${position.y},${position.z}) 0 Sphere ${radius} 1 0 0 1 1`;
                   await sendRconCommand(server.ip, server.port, server.password, zoneCommand);
                   
                   // Reapply zone settings
