@@ -93,19 +93,19 @@ async function createMissingTables() {
     // Create views
     console.log('🔄 Creating views...');
     
-    // Server stats view
+    // Server stats view (using existing rust_servers table for now)
     await connection.execute(`
       CREATE OR REPLACE VIEW server_stats AS
       SELECT 
-        s.id,
-        s.guild_id,
-        s.display_name,
-        s.region,
+        rs.id,
+        rs.guild_id,
+        rs.nickname as display_name,
+        'Unknown' as region,
         COUNT(p.id) as player_count,
-        s.created_at
-      FROM servers s
-      LEFT JOIN players p ON s.id = p.server_id AND p.is_active = TRUE
-      GROUP BY s.id, s.guild_id, s.display_name, s.region, s.created_at
+        rs.created_at
+      FROM rust_servers rs
+      LEFT JOIN players p ON rs.id = p.server_id AND p.is_active = TRUE
+      GROUP BY rs.id, rs.guild_id, rs.nickname, rs.created_at
     `);
     console.log('✅ server_stats view created');
     
