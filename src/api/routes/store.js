@@ -251,22 +251,27 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 
       await connection.commit();
 
-      // Log audit event
-      await audit.logEvent({
-        userId,
-        action: 'PURCHASE_ITEM',
-        resourceType: 'STORE',
-        resourceId: itemId,
-        newValues: {
-          item_name: item.name,
-          quantity: quantity,
-          total_cost: totalCost,
-          player_ign: playerIgn,
-          command: command
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      });
+      // Log audit event (skip if audit service fails)
+      try {
+        await audit.logEvent({
+          userId,
+          guildId: servers[0].guild_id,
+          action: 'PURCHASE_ITEM',
+          resourceType: 'STORE',
+          resourceId: itemId,
+          newValues: {
+            item_name: item.name,
+            quantity: quantity,
+            total_cost: totalCost,
+            player_ign: playerIgn,
+            command: command
+          },
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (auditError) {
+        console.log('⚠️ Audit logging failed (non-critical):', auditError.message);
+      }
 
       res.json({
         success: true,
@@ -282,13 +287,19 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
         }
       });
 
-      // Emit real-time event
-      req.app.emitToGuild(server.guild_id, 'store.purchase', {
-        playerId: player.id,
-        itemName: item.name,
-        quantity: quantity,
-        totalCost: totalCost
-      });
+      // Emit real-time event (skip if not available)
+      try {
+        if (req.app && req.app.emitToGuild) {
+          req.app.emitToGuild(servers[0].guild_id, 'store.purchase', {
+            playerId: player.id,
+            itemName: item.name,
+            quantity: quantity,
+            totalCost: totalCost
+          });
+        }
+      } catch (emitError) {
+        console.log('⚠️ Socket.IO emit failed (non-critical):', emitError.message);
+      }
 
     } catch (error) {
       await connection.rollback();
