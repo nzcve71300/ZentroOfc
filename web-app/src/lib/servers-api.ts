@@ -56,6 +56,29 @@ export const serverService = {
     }
   },
 
+  // Get server details
+  get: async (serverId: string): Promise<Server> => {
+    console.log('🔍 Server Service: Get server called', serverId);
+    
+    try {
+      const response = await fetch(`${API_BASE}/servers/${serverId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const server = await response.json();
+      return server;
+    } catch (error) {
+      console.error('Error fetching server:', error);
+      throw new Error('Failed to fetch server');
+    }
+  },
+
   // Update server configuration
   update: async (serverId: string, config: Partial<ServerConfig>): Promise<Server> => {
     console.log('✏️ Server Service: Update server called', serverId, config);
