@@ -2488,12 +2488,15 @@ function extractPlayerName(logLine) {
 
 function sendRconCommand(ip, port, password, command) {
   return new Promise((resolve, reject) => {
+    console.log(`[RCON DEBUG] Attempting to connect to ws://${ip}:${port}/${password}`);
     const ws = new WebSocket(`ws://${ip}:${port}/${password}`);
     
     let responseReceived = false;
     
     ws.on('open', () => {
+      console.log(`[RCON DEBUG] WebSocket connected to ${ip}:${port}`);
       ws.send(JSON.stringify({ Identifier: 1, Message: command, Name: 'WebRcon' }));
+      console.log(`[RCON DEBUG] Command sent: ${command}`);
     });
     
     ws.on('error', (error) => {
