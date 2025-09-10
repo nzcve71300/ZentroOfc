@@ -89,12 +89,12 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     if (category.type === 'items') {
       const [itemResults] = await pool.query(`
         SELECT 
-          si.id, si.name as display_name, si.short_name, si.price, 
+          si.id, si.display_name, si.short_name, si.price, 
           si.description, si.command, si.icon_url, si.cooldown_minutes,
           si.category_id as categoryId
         FROM shop_items si
         WHERE si.category_id = ?
-        ORDER BY si.name
+        ORDER BY si.display_name
       `, [categoryId]);
       items = itemResults;
     } else if (category.type === 'kits') {
