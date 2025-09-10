@@ -156,14 +156,14 @@ export const storeService = {
     }
   },
 
-  purchaseItem: async (serverId: string, itemId: string, quantity: number = 1): Promise<{ success: boolean; message: string }> => {
+  purchaseItem: async (serverId: string, itemId: string, quantity: number = 1, ign: string): Promise<{ success: boolean; message: string }> => {
     try {
-      console.log('💰 Store Service: Purchase item called', serverId, itemId, quantity);
+      console.log('💰 Store Service: Purchase item called', serverId, itemId, quantity, ign);
       
       const response = await fetch(`${API_BASE}/servers/${serverId}/store/purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId, quantity })
+        body: JSON.stringify({ itemId, quantity, ign })
       });
       
       if (!response.ok) {

@@ -80,7 +80,7 @@ const StoreItemsScreen = () => {
 
     try {
       setPurchasing(true);
-      const result = await storeService.purchaseItem(serverId, item.id, quantity);
+      const result = await storeService.purchaseItem(serverId, item.id, quantity, user?.ign || 'test');
       
       if (result.success) {
         toast({

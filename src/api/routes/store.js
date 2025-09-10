@@ -107,11 +107,15 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
 router.post('/servers/:serverId/store/purchase', async (req, res) => {
   try {
     const { serverId } = req.params;
-    const { itemId, quantity = 1 } = req.body;
+    const { itemId, quantity = 1, ign } = req.body;
     const userId = req.user?.id; // Handle case where user might not be authenticated
 
     if (!itemId) {
       return res.status(400).json({ error: 'Item ID is required' });
+    }
+
+    if (!ign) {
+      return res.status(400).json({ error: 'IGN (In-Game Name) is required' });
     }
 
     if (quantity < 1) {
@@ -147,13 +151,27 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     const item = items[0];
     const totalCost = item.price * quantity;
 
-    // Get player info (temporarily simplified without app_users join)
+    // Get the bot's server key for this guild
+    const [serverKeys] = await pool.query(`
+      SELECT DISTINCT sc.server_id
+      FROM shop_categories sc
+      JOIN servers s ON s.guild_id = ?
+      WHERE s.id = ?
+    `, [servers[0].guild_id, serverId]);
+
+    if (serverKeys.length === 0) {
+      return res.status(404).json({ error: 'Server not found in bot database' });
+    }
+
+    const botServerKey = serverKeys[0].server_id;
+
+    // Get player info by IGN and server key (same as balance endpoint)
     const [players] = await pool.query(`
       SELECT p.*
       FROM players p
-      WHERE p.server_id = ?
+      WHERE p.ign = ? AND p.server_id = ?
       LIMIT 1
-    `, [serverId]);
+    `, [ign, botServerKey]);
 
     if (players.length === 0) {
       return res.status(404).json({ 
