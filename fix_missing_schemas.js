@@ -192,8 +192,8 @@ async function fixMissingSchemas() {
       
       // Insert default zorp config
       await connection.execute(`
-        INSERT IGNORE INTO zorp_configs (server_id, enabled, active, use_list, cooldown_minutes, max_zones_per_player, zone_duration_hours)
-        VALUES (?, TRUE, TRUE, FALSE, 30, 1, 32)
+        INSERT IGNORE INTO zorp_configs (server_id, enabled, active, use_list)
+        VALUES (?, TRUE, TRUE, FALSE)
       `, [server.id]);
       
       // Insert default recycler config
@@ -204,7 +204,7 @@ async function fixMissingSchemas() {
       
       // Insert default prison config
       await connection.execute(`
-        INSERT IGNORE INTO prison_configs (server_id, enabled, active, prison_size)
+        INSERT IGNORE INTO prison_configs (server_id, enabled, active, zone_size)
         VALUES (?, TRUE, TRUE, 50)
       `, [server.id]);
     }
