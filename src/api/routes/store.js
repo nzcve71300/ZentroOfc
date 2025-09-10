@@ -329,11 +329,11 @@ router.get('/servers/:serverId/store/balance', async (req, res) => {
 
     const player = players[0];
 
-    // Get balance
+    // Get balance from economy table (bot's actual economy system)
     const [balances] = await pool.query(`
-      SELECT balance FROM player_balances 
-      WHERE player_id = ? AND server_id = ?
-    `, [player.id, botServerKey]);
+      SELECT balance FROM economy 
+      WHERE player_id = ? AND guild_id = ?
+    `, [player.id, servers[0].guild_id]);
 
     const balance = balances.length > 0 ? balances[0].balance : 0;
 
