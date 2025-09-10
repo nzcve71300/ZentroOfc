@@ -222,6 +222,10 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 
       // Execute the command via the bot's RCON system
       const { sendRconCommand } = require('../../rcon');
+      
+      console.log(`🔧 RCON Debug - Server: ${servers[0].ip}:${servers[0].port}, Command: ${command}`);
+      console.log(`🔧 RCON Debug - Password length: ${servers[0].rcon_password ? servers[0].rcon_password.length : 'undefined'}`);
+      
       const rconResult = await sendRconCommand(servers[0].ip, servers[0].port, servers[0].rcon_password, command);
       
       console.log(`✅ RCON command sent via bot: ${command}`);
