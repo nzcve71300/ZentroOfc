@@ -1,7 +1,7 @@
 // Store Management Service - Real API Integration
 import { Category, StoreItem, CategoryForm } from '../types';
 
-const API_BASE = 'http://35.246.29.212:3001/api';
+const API_BASE = 'http://35.246.29.212:8080/api';
 
 export const storeService = {
   // Categories

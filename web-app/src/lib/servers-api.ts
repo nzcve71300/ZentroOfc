@@ -1,7 +1,7 @@
 // Server Management Service - API Integration
 import { Server, ServerConfig } from '../types';
 
-const API_BASE = 'http://35.246.29.212:3001/api';
+const API_BASE = 'http://35.246.29.212:8080/api';
 
 export const serverService = {
   // List all servers
