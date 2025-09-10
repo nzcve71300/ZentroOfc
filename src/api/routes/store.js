@@ -17,7 +17,7 @@ router.get('/servers/:serverId/store/categories', async (req, res) => {
     const [servers] = await pool.query(`
       SELECT s.*, rs.id as rust_server_id
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
@@ -57,7 +57,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     const [servers] = await pool.query(`
       SELECT s.*, rs.id as rust_server_id
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
@@ -617,7 +617,7 @@ router.post('/servers/:serverId/store/categories', async (req, res) => {
     const [servers] = await pool.query(`
       SELECT s.*, rs.id as rust_server_id
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
