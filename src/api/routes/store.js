@@ -89,11 +89,11 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
 
     const [items] = await pool.query(`
       SELECT 
-        si.id, si.name, si.short_name as shortName, si.price, si.icon_url as iconUrl,
-        si.category_id as categoryId, si.description, si.command, si.cooldown_minutes
+        si.id, si.display_name as name, si.short_name as shortName, si.price, 
+        si.category_id as categoryId, si.quantity, si.timer as cooldown_minutes
       FROM shop_items si
       WHERE si.category_id = ? AND si.server_id = ?
-      ORDER BY si.name
+      ORDER BY si.display_name
     `, [categoryId, botServerKey]);
 
     res.json(items);
