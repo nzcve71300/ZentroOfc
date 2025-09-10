@@ -31,7 +31,7 @@ router.get('/', async (req, res) => {
       canManage: false // No created_by column, so no one can manage for now
     }));
 
-    res.json({ servers: serversWithOwnership });
+    res.json(serversWithOwnership);
   } catch (error) {
     console.error('Error fetching servers:', error);
     res.status(500).json({ error: 'Failed to fetch servers' });
