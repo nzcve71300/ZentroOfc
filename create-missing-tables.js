@@ -1,16 +1,10 @@
-const mysql = require('mysql2/promise');
-require('dotenv').config();
+const pool = require('./src/db/index');
 
 async function createMissingTables() {
   let connection;
   
   try {
-    connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'zentro_bot'
-    });
+    connection = await pool.getConnection();
     
     console.log('✅ Connected to database');
     
@@ -141,8 +135,8 @@ async function createMissingTables() {
     throw error;
   } finally {
     if (connection) {
-      await connection.end();
-      console.log('✅ Disconnected from database');
+      connection.release();
+      console.log('✅ Connection released');
     }
   }
 }
