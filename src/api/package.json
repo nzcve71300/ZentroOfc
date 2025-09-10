@@ -1,0 +1,37 @@
+{
+  "name": "zentro-unified-api",
+  "version": "1.0.0",
+  "description": "Unified API for Zentro Discord Bot and Web App",
+  "main": "unified-api.js",
+  "scripts": {
+    "start": "node unified-api.js",
+    "dev": "nodemon unified-api.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^7.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.6.5",
+    "socket.io": "^4.8.1",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "api",
+    "rust",
+    "rcon",
+    "gaming"
+  ],
+  "author": "Zentro Team",
+  "license": "MIT"
+}
