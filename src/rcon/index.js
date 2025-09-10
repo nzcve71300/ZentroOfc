@@ -3599,7 +3599,7 @@ async function startNightSkipVote(client, guildId, serverName, ip, port, passwor
 
 async function checkGameTimeForNightSkip(client) {
   try {
-    const [result] = await pool.execute('SELECT * FROM rust_servers WHERE active = 1');
+    const [result] = await pool.execute('SELECT * FROM rust_servers');
     
     for (const server of result) {
       // Enhanced validation for server IP/port combinations
