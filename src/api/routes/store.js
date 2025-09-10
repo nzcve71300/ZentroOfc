@@ -137,8 +137,8 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       SELECT si.*, sc.name as category_name
       FROM shop_items si
       JOIN shop_categories sc ON si.category_id = sc.id
-      WHERE si.id = ? AND si.server_id = ?
-    `, [itemId, serverId]);
+      WHERE si.id = ?
+    `, [itemId]);
 
     if (items.length === 0) {
       return res.status(404).json({ error: 'Item not found' });
@@ -164,11 +164,11 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     const player = players[0];
     const playerIgn = player.ign;
 
-    // Get player balance
+    // Get player balance from economy table
     const [balances] = await pool.query(`
-      SELECT balance FROM player_balances 
-      WHERE player_id = ? AND server_id = ?
-    `, [player.id, serverId]);
+      SELECT balance FROM economy 
+      WHERE player_id = ? AND guild_id = ?
+    `, [player.id, servers[0].guild_id]);
 
     const currentBalance = balances.length > 0 ? balances[0].balance : 0;
 
@@ -186,26 +186,23 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     await connection.beginTransaction();
 
     try {
-      // Deduct balance
+      // Deduct balance from economy table
       await connection.query(`
-        INSERT INTO player_balances (player_id, server_id, balance, total_spent, last_transaction_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE
-          balance = balance - ?,
-          total_spent = total_spent + ?,
-          last_transaction_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-      `, [player.id, serverId, currentBalance - totalCost, totalCost, totalCost, totalCost]);
+        UPDATE economy 
+        SET balance = balance - ?
+        WHERE player_id = ? AND guild_id = ?
+      `, [totalCost, player.id, servers[0].guild_id]);
 
       // Execute RCON command to deliver item
-      let command = item.command;
+      // For now, use a simple give command since shop_items doesn't have command column
+      let command = `give {player} {item} {quantity}`;
       
       // Replace placeholders in command
       command = command.replace(/{player}/g, playerIgn);
       command = command.replace(/{quantity}/g, quantity);
-      command = command.replace(/{item}/g, item.short_name);
+      command = command.replace(/{item}/g, item.shortName);
 
-      // Execute the command
+      // Execute the command via RCON
       const rconResult = await rcon.sendCommand(serverId, command);
 
       // Log the purchase
