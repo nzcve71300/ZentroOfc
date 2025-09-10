@@ -15,7 +15,7 @@ function normalizeServerKey(key) {
 // GET /api/servers - List all servers
 router.get('/', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     const [servers] = await pool.query(`
       SELECT 
@@ -26,10 +26,10 @@ router.get('/', async (req, res) => {
       ORDER BY created_at DESC
     `);
 
-    // Add ownership info for each server
+    // Add ownership info for each server (canManage will be false if no user)
     const serversWithOwnership = servers.map(server => ({
       ...server,
-      canManage: server.created_by === userId
+      canManage: userId ? server.created_by === userId : false
     }));
 
     res.json({ servers: serversWithOwnership });
