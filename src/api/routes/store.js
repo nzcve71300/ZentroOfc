@@ -161,6 +161,15 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     }
 
     const server = servers[0];
+    const rustServerId = server.rust_server_id;
+
+    if (!rustServerId) {
+      return res.status(400).json({ 
+        error: 'Server not properly configured in bot database' 
+      });
+    }
+
+    console.log(`🔍 Debug - Purchase: Server ID ${serverId}, Rust Server ID ${rustServerId}, Item ID ${itemId}`);
 
     // Get item/kit/vehicle details - need to check all three tables
     let item = null;
@@ -172,7 +181,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       FROM shop_items si
       JOIN shop_categories sc ON si.category_id = sc.id
       WHERE si.id = ? AND sc.server_id = ?
-    `, [itemId, serverId]);
+    `, [itemId, rustServerId]);
 
     if (items.length > 0) {
       item = items[0];
@@ -184,7 +193,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
         FROM shop_kits sk
         JOIN shop_categories sc ON sk.category_id = sc.id
         WHERE sk.id = ? AND sc.server_id = ?
-      `, [itemId, serverId]);
+      `, [itemId, rustServerId]);
 
       if (kits.length > 0) {
         item = kits[0];
@@ -196,7 +205,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
           FROM shop_vehicles sv
           JOIN shop_categories sc ON sv.category_id = sc.id
           WHERE sv.id = ? AND sc.server_id = ?
-        `, [itemId, serverId]);
+        `, [itemId, rustServerId]);
 
         if (vehicles.length > 0) {
           item = vehicles[0];
@@ -210,27 +219,13 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     }
     const totalCost = item.price * quantity;
 
-    // Get the bot's server key for this guild
-    const [serverKeys] = await pool.query(`
-      SELECT DISTINCT sc.server_id
-      FROM shop_categories sc
-      JOIN servers s ON s.guild_id = ?
-      WHERE s.id = ?
-    `, [servers[0].guild_id, serverId]);
-
-    if (serverKeys.length === 0) {
-      return res.status(404).json({ error: 'Server not found in bot database' });
-    }
-
-    const botServerKey = serverKeys[0].server_id;
-
-    // Get player info by IGN and server key (same as balance endpoint)
+    // Get player info by IGN and server key (use rustServerId directly)
     const [players] = await pool.query(`
       SELECT p.*
       FROM players p
       WHERE p.ign = ? AND p.server_id = ?
       LIMIT 1
-    `, [ign, botServerKey]);
+    `, [ign, rustServerId]);
 
     if (players.length === 0) {
       return res.status(404).json({ 
