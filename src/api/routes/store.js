@@ -13,32 +13,28 @@ router.get('/servers/:serverId/store/categories', async (req, res) => {
     const { serverId } = req.params;
     const userId = req.user?.id; // Handle case where user might not be authenticated
 
-    // Verify server exists and get the corresponding rust_servers entry
-    const [servers] = await pool.query(`
-      SELECT s.*, rs.id as rust_server_id
-      FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
+    // Get the rust_servers entry directly (same as bot does)
+    const [rustServers] = await pool.query(`
+      SELECT rs.id, rs.nickname, rs.guild_id
+      FROM rust_servers rs
+      JOIN servers s ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
-    if (servers.length === 0) {
+    if (rustServers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const server = servers[0];
-    const rustServerId = server.rust_server_id;
+    const rustServer = rustServers[0];
+    console.log(`🔍 Debug - Categories: Using rust_server_id ${rustServer.id} for server ${serverId}`);
 
-    if (!rustServerId) {
-      return res.json([]); // No rust_servers entry, so no categories
-    }
-
-    // Get shop categories for this server using rust_servers id
+    // Get shop categories for this server using rust_servers id (same as bot)
     const [categories] = await pool.query(`
       SELECT sc.id, sc.name, sc.type, sc.role
       FROM shop_categories sc
       WHERE sc.server_id = ?
       ORDER BY sc.name
-    `, [rustServerId]);
+    `, [rustServer.id]);
 
     res.json(categories);
   } catch (error) {
@@ -53,29 +49,25 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     const { serverId, categoryId } = req.params;
     const userId = req.user?.id; // Handle case where user might not be authenticated
 
-    // Verify server exists and get the corresponding rust_servers entry
-    const [servers] = await pool.query(`
-      SELECT s.*, rs.id as rust_server_id
-      FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
+    // Get the rust_servers entry directly (same as bot does)
+    const [rustServers] = await pool.query(`
+      SELECT rs.id, rs.nickname, rs.guild_id
+      FROM rust_servers rs
+      JOIN servers s ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
-    if (servers.length === 0) {
+    if (rustServers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const server = servers[0];
-    const rustServerId = server.rust_server_id;
+    const rustServer = rustServers[0];
+    console.log(`🔍 Debug - Items: Using rust_server_id ${rustServer.id} for server ${serverId}`);
 
-    if (!rustServerId) {
-      return res.json([]); // No rust_servers entry, so no items
-    }
-
-    // Get category info to determine type
+    // Get category info to determine type (same as bot)
     const [categories] = await pool.query(
       'SELECT * FROM shop_categories WHERE id = ? AND server_id = ?',
-      [categoryId, rustServerId]
+      [categoryId, rustServer.id]
     );
 
     if (categories.length === 0) {
@@ -148,28 +140,20 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       return res.status(400).json({ error: 'Quantity must be at least 1' });
     }
 
-    // Get server info
-    const [servers] = await pool.query(`
-      SELECT s.*, rs.nickname, rs.ip, rs.port, rs.rcon_password
-      FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
+    // Get the rust_servers entry directly (same as bot does)
+    const [rustServers] = await pool.query(`
+      SELECT rs.id, rs.nickname, rs.guild_id, rs.ip, rs.port, rs.rcon_password
+      FROM rust_servers rs
+      JOIN servers s ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
-    if (servers.length === 0) {
+    if (rustServers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const server = servers[0];
-    const rustServerId = server.rust_server_id;
-
-    if (!rustServerId) {
-      return res.status(400).json({ 
-        error: 'Server not properly configured in bot database' 
-      });
-    }
-
-    console.log(`🔍 Debug - Purchase: Server ID ${serverId}, Rust Server ID ${rustServerId}, Item ID ${itemId}`);
+    const rustServer = rustServers[0];
+    console.log(`🔍 Debug - Purchase: Server ID ${serverId}, Rust Server ID ${rustServer.id}, Item ID ${itemId}`);
 
     // Get item/kit/vehicle details - need to check all three tables
     let item = null;
@@ -181,7 +165,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       FROM shop_items si
       JOIN shop_categories sc ON si.category_id = sc.id
       WHERE si.id = ? AND sc.server_id = ?
-    `, [itemId, rustServerId]);
+    `, [itemId, rustServer.id]);
 
     if (items.length > 0) {
       item = items[0];
@@ -193,7 +177,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
         FROM shop_kits sk
         JOIN shop_categories sc ON sk.category_id = sc.id
         WHERE sk.id = ? AND sc.server_id = ?
-      `, [itemId, rustServerId]);
+      `, [itemId, rustServer.id]);
 
       if (kits.length > 0) {
         item = kits[0];
@@ -205,7 +189,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
           FROM shop_vehicles sv
           JOIN shop_categories sc ON sv.category_id = sc.id
           WHERE sv.id = ? AND sc.server_id = ?
-        `, [itemId, rustServerId]);
+        `, [itemId, rustServer.id]);
 
         if (vehicles.length > 0) {
           item = vehicles[0];
@@ -219,13 +203,13 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     }
     const totalCost = item.price * quantity;
 
-    // Get player info by IGN and server key (use rustServerId directly)
+    // Get player info by IGN and server key (use rustServer.id directly)
     const [players] = await pool.query(`
       SELECT p.*
       FROM players p
       WHERE p.ign = ? AND p.server_id = ?
       LIMIT 1
-    `, [ign, rustServerId]);
+    `, [ign, rustServer.id]);
 
     if (players.length === 0) {
       return res.status(404).json({ 
@@ -240,7 +224,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     const [balances] = await pool.query(`
       SELECT balance FROM economy 
       WHERE player_id = ? AND guild_id = ?
-    `, [player.id, servers[0].guild_id]);
+    `, [player.id, rustServer.guild_id]);
 
     const currentBalance = balances.length > 0 ? balances[0].balance : 0;
 
@@ -263,7 +247,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
         UPDATE economy 
         SET balance = balance - ?
         WHERE player_id = ? AND guild_id = ?
-      `, [totalCost, player.id, servers[0].guild_id]);
+      `, [totalCost, player.id, rustServer.guild_id]);
 
       // Execute RCON command to deliver item/kit/vehicle
       let command;
@@ -295,10 +279,10 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       // Execute the command via the bot's RCON system
       const { sendRconCommand } = require('../../rcon');
       
-      console.log(`🔧 RCON Debug - Server: ${servers[0].ip}:${servers[0].port}, Command: ${command}`);
-      console.log(`🔧 RCON Debug - Password length: ${servers[0].rcon_password ? servers[0].rcon_password.length : 'undefined'}`);
+      console.log(`🔧 RCON Debug - Server: ${rustServer.ip}:${rustServer.port}, Command: ${command}`);
+      console.log(`🔧 RCON Debug - Password length: ${rustServer.rcon_password ? rustServer.rcon_password.length : 'undefined'}`);
       
-      const rconResult = await sendRconCommand(servers[0].ip, servers[0].port, servers[0].rcon_password, command);
+      const rconResult = await sendRconCommand(rustServer.ip, rustServer.port, rustServer.rcon_password, command);
       
       console.log(`✅ RCON command sent via bot: ${command}`);
       
