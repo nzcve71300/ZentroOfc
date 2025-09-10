@@ -11,6 +11,7 @@ import ServerHubScreen from "./screens/ServerHubScreen";
 import GamblingScreen from "./screens/GamblingScreen";
 import StoreCategoriesScreen from "./screens/StoreCategoriesScreen";
 import StoreItemsScreen from "./screens/StoreItemsScreen";
+import AdminStoreScreen from "./screens/AdminStoreScreen";
 import LeaderboardScreen from "./screens/LeaderboardScreen";
 import AddServerScreen from "./screens/AddServerScreen";
 import PayPalCheckoutScreen from "./screens/PayPalCheckoutScreen";
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/server/:serverId/gambling" element={<GamblingScreen />} />
           <Route path="/server/:serverId/store" element={<StoreCategoriesScreen />} />
           <Route path="/server/:serverId/store/:categoryId" element={<StoreItemsScreen />} />
+          <Route path="/admin/store" element={<AdminStoreScreen />} />
           <Route path="/server/:serverId/leaderboard" element={<LeaderboardScreen />} />
           <Route path="/add-server" element={<AddServerScreen />} />
           <Route path="/checkout/:planId" element={<PayPalCheckoutScreen />} />

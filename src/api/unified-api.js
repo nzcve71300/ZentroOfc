@@ -100,8 +100,16 @@ class UnifiedAPI {
 
     // Webhook endpoint for Discord bot
     this.app.post('/api/webhook/discord', this.authenticateWebhook.bind(this), (req, res) => {
-      const { event, data } = req.body;
-      this.io.emit(event, data);
+      const { event, data, guildId } = req.body;
+      
+      if (guildId) {
+        // Emit to specific guild
+        this.app.emitToGuild(guildId, event, data);
+      } else {
+        // Emit to all connected clients
+        this.io.emit(event, data);
+      }
+      
       res.json({ success: true });
     });
   }
@@ -119,6 +127,12 @@ class UnifiedAPI {
         console.log(`Client disconnected: ${socket.id}`);
       });
     });
+
+    // Add emitToGuild method to app for use in routes
+    this.app.emitToGuild = (guildId, event, data) => {
+      this.io.to(`guild-${guildId}`).emit(event, data);
+      console.log(`📡 Emitted ${event} to guild ${guildId}:`, data);
+    };
   }
 
   setupErrorHandling() {
