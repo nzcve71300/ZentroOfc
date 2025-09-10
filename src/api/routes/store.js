@@ -231,7 +231,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       console.log(`✅ RCON command sent via bot: ${command}`);
       
       // Send confirmation message to player in-game
-      const confirmMessage = `say <color=#00FF00>[WEB SHOP]</color> <color=#FFD700>${ign}</color> <color=#00FF00>Successfully delivered</color> <color=#FFD700>${item.name} x${quantity}</color>`;
+      const confirmMessage = `say <color=#00FF00>[WEB SHOP]</color> <color=#FFD700>${ign}</color> <color=#00FF00>Successfully delivered</color> <color=#FFD700>${item.display_name} x${quantity}</color>`;
       await sendRconCommand(servers[0].ip, servers[0].port, servers[0].rcon_password, confirmMessage);
 
       // Log the purchase
@@ -275,9 +275,9 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 
       res.json({
         success: true,
-        message: `Successfully purchased ${quantity}x ${item.name} for ${totalCost} coins!`,
+        message: `Successfully purchased ${quantity}x ${item.display_name} for ${totalCost} coins!`,
         item: {
-          name: item.name,
+          name: item.display_name,
           quantity: quantity,
           totalCost: totalCost
         },
@@ -292,7 +292,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
         if (req.app && req.app.emitToGuild) {
           req.app.emitToGuild(servers[0].guild_id, 'store.purchase', {
             playerId: player.id,
-            itemName: item.name,
+            itemName: item.display_name,
             quantity: quantity,
             totalCost: totalCost
           });
