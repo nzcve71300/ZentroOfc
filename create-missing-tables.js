@@ -102,10 +102,10 @@ async function createMissingTables() {
         rs.nickname as display_name,
         'Unknown' as region,
         COUNT(p.id) as player_count,
-        rs.created_at
+        NOW() as created_at
       FROM rust_servers rs
       LEFT JOIN players p ON rs.id = p.server_id AND p.is_active = TRUE
-      GROUP BY rs.id, rs.guild_id, rs.nickname, rs.created_at
+      GROUP BY rs.id, rs.guild_id, rs.nickname
     `);
     console.log('✅ server_stats view created');
     
