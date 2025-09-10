@@ -218,7 +218,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       // Replace placeholders in command
       command = command.replace(/{player}/g, playerIgn);
       command = command.replace(/{quantity}/g, quantity);
-      command = command.replace(/{item}/g, item.shortName);
+      command = command.replace(/{item}/g, item.short_name);
 
       // Execute the command via the bot's RCON system
       const { sendRconCommand } = require('../../rcon');
