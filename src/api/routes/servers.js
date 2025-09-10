@@ -19,9 +19,8 @@ router.get('/', async (req, res) => {
 
     const [servers] = await pool.query(`
       SELECT 
-        id, guild_id, server_key, display_name, region,
-        web_rcon_host, web_rcon_port, secret_ref,
-        created_by, created_at, updated_at
+        id, guild_id, name as display_name, ip as web_rcon_host, port as web_rcon_port,
+        password, created_at, updated_at
       FROM servers 
       ORDER BY created_at DESC
     `);
@@ -29,7 +28,7 @@ router.get('/', async (req, res) => {
     // Add ownership info for each server (canManage will be false if no user)
     const serversWithOwnership = servers.map(server => ({
       ...server,
-      canManage: userId ? server.created_by === userId : false
+      canManage: false // No created_by column, so no one can manage for now
     }));
 
     res.json({ servers: serversWithOwnership });
