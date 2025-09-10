@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit, Trash2, Package, Car, Wrench } from 'lucide-react';
-import { serversApi } from '@/lib/servers-api';
+import { serverService } from '../lib/servers-api';
 import { storeService } from '@/lib/store';
 import { useAuth } from '../state/useAuth';
 
@@ -95,7 +95,7 @@ export default function AdminStoreScreen() {
   const loadServers = async () => {
     try {
       setLoading(true);
-      const serverList = await serversApi.list();
+      const serverList = await serverService.list();
       setServers(serverList);
       if (serverList.length > 0) {
         setSelectedServer(serverList[0].id);
