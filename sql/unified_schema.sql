@@ -411,7 +411,7 @@ FROM players p
 LEFT JOIN player_balances pb ON p.id = pb.player_id AND p.server_id = pb.server_id;
 
 -- ==============================================
--- STORED PROCEDURES
+-- STORED PROCEDURES (MariaDB Compatible)
 -- ==============================================
 
 -- Procedure to transfer balance between players
@@ -424,8 +424,8 @@ CREATE PROCEDURE IF NOT EXISTS TransferBalance(
     IN transfer_reason VARCHAR(255)
 )
 BEGIN
-    DECLARE from_balance DECIMAL(15,2);
-    DECLARE to_balance DECIMAL(15,2);
+    DECLARE from_balance DECIMAL(15,2) DEFAULT 0;
+    DECLARE to_balance DECIMAL(15,2) DEFAULT 0;
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
