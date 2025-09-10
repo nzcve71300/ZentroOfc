@@ -117,12 +117,12 @@ async function createMissingTables() {
         p.server_id,
         p.discord_id,
         p.ign,
-        p.steam_id,
+        NULL as steam_id,
         COALESCE(pb.balance, 0) as balance,
         pb.total_spent,
         pb.last_transaction_at,
         p.is_active,
-        p.created_at
+        p.linked_at as created_at
       FROM players p
       LEFT JOIN player_balances pb ON p.id = pb.player_id AND p.server_id = pb.server_id
     `);
