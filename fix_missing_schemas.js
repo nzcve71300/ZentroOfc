@@ -186,8 +186,8 @@ async function fixMissingSchemas() {
       
       // Insert default home teleport config
       await connection.execute(`
-        INSERT IGNORE INTO home_teleport_configs (server_id, enabled, active, use_list, cooldown_minutes)
-        VALUES (?, TRUE, TRUE, FALSE, 5)
+        INSERT IGNORE INTO home_teleport_configs (server_id, whitelist_enabled, active, use_list, cooldown_minutes, enabled)
+        VALUES (?, FALSE, TRUE, FALSE, 5, TRUE)
       `, [server.id]);
       
       // Insert default zorp config
