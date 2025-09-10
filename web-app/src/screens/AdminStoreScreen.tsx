@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit, Trash2, Package, Car, Wrench } from 'lucide-react';
 import { serversApi } from '@/lib/servers-api';
 import { storeService } from '@/lib/store';
-import { useAuth } from '@/lib/auth';
+import { useAuth } from '../state/useAuth';
 
 interface Category {
   id: number;
