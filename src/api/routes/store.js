@@ -89,8 +89,8 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     if (category.type === 'items') {
       const [itemResults] = await pool.query(`
         SELECT 
-          si.id, si.display_name, si.short_name, si.price, 
-          si.description, si.command, si.icon_url, si.cooldown_minutes,
+          si.id, si.display_name as name, si.short_name as shortName, si.price, 
+          si.description, si.command, si.icon_url as iconUrl, si.cooldown_minutes,
           si.category_id as categoryId
         FROM shop_items si
         WHERE si.category_id = ?
@@ -100,7 +100,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     } else if (category.type === 'kits') {
       const [kitResults] = await pool.query(`
         SELECT 
-          sk.id, sk.display_name, sk.kit_name as short_name, sk.price, 
+          sk.id, sk.display_name as name, sk.kit_name as shortName, sk.price, 
           sk.quantity, sk.timer as cooldown_minutes,
           sk.category_id as categoryId
         FROM shop_kits sk
@@ -111,7 +111,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     } else if (category.type === 'vehicles') {
       const [vehicleResults] = await pool.query(`
         SELECT 
-          sv.id, sv.display_name, sv.short_name, sv.price, 
+          sv.id, sv.display_name as name, sv.short_name as shortName, sv.price, 
           sv.timer as cooldown_minutes,
           sv.category_id as categoryId
         FROM shop_vehicles sv
@@ -121,6 +121,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
       items = vehicleResults;
     }
 
+    console.log(`🔍 Debug - Returning ${items.length} items for category ${categoryId}:`, items);
     res.json(items);
   } catch (error) {
     console.error('Error fetching store items:', error);
