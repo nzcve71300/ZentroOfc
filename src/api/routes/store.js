@@ -212,13 +212,16 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       `, [totalCost, player.id, servers[0].guild_id]);
 
       // Execute RCON command to deliver item
-      // Try inventory.give command which is more reliable in Rust
-      let command = `inventory.give {player} {item} {quantity}`;
+      // Try a simple test command first to verify RCON is working
+      // Let's try giving wood first, then the actual item
+      const testCommand = `inventory.give ${playerIgn} wood 100`;
+      const actualCommand = `inventory.give ${playerIgn} ${item.short_name} ${quantity}`;
       
-      // Replace placeholders in command
-      command = command.replace(/{player}/g, playerIgn);
-      command = command.replace(/{quantity}/g, quantity);
-      command = command.replace(/{item}/g, item.short_name);
+      console.log(`🔧 RCON Debug - Test command: ${testCommand}`);
+      console.log(`🔧 RCON Debug - Actual command: ${actualCommand}`);
+      
+      // Use the actual command for now
+      let command = actualCommand;
       
       console.log(`🔧 RCON Debug - Item details:`, {
         display_name: item.display_name,
