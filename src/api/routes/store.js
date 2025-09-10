@@ -13,20 +13,32 @@ router.get('/servers/:serverId/store/categories', async (req, res) => {
     const { serverId } = req.params;
     const userId = req.user?.id; // Handle case where user might not be authenticated
 
-    // Verify server exists
-    const [servers] = await pool.query('SELECT * FROM servers WHERE id = ?', [serverId]);
+    // Verify server exists and get the corresponding rust_servers entry
+    const [servers] = await pool.query(`
+      SELECT s.*, rs.id as rust_server_id
+      FROM servers s
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    // Get shop categories for this server
+    const server = servers[0];
+    const rustServerId = server.rust_server_id;
+
+    if (!rustServerId) {
+      return res.json([]); // No rust_servers entry, so no categories
+    }
+
+    // Get shop categories for this server using rust_servers id
     const [categories] = await pool.query(`
       SELECT sc.id, sc.name, sc.type, sc.role
       FROM shop_categories sc
       WHERE sc.server_id = ?
       ORDER BY sc.name
-    `, [serverId]);
+    `, [rustServerId]);
 
     res.json(categories);
   } catch (error) {
@@ -41,17 +53,29 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     const { serverId, categoryId } = req.params;
     const userId = req.user?.id; // Handle case where user might not be authenticated
 
-    // Verify server exists
-    const [servers] = await pool.query('SELECT * FROM servers WHERE id = ?', [serverId]);
+    // Verify server exists and get the corresponding rust_servers entry
+    const [servers] = await pool.query(`
+      SELECT s.*, rs.id as rust_server_id
+      FROM servers s
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
+    const server = servers[0];
+    const rustServerId = server.rust_server_id;
+
+    if (!rustServerId) {
+      return res.json([]); // No rust_servers entry, so no items
+    }
+
     // Get category info to determine type
     const [categories] = await pool.query(
       'SELECT * FROM shop_categories WHERE id = ? AND server_id = ?',
-      [categoryId, serverId]
+      [categoryId, rustServerId]
     );
 
     if (categories.length === 0) {
@@ -589,26 +613,39 @@ router.post('/servers/:serverId/store/categories', async (req, res) => {
       return res.status(400).json({ error: 'Type must be item, kit, or vehicle' });
     }
 
-    // Verify server exists
-    const [servers] = await pool.query('SELECT * FROM servers WHERE id = ?', [serverId]);
+    // Verify server exists and get the corresponding rust_servers entry
+    const [servers] = await pool.query(`
+      SELECT s.*, rs.id as rust_server_id
+      FROM servers s
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      WHERE s.id = ?
+    `, [serverId]);
+
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
+    }
+
+    const server = servers[0];
+    const rustServerId = server.rust_server_id;
+
+    if (!rustServerId) {
+      return res.status(400).json({ error: 'Server not properly configured in bot database' });
     }
 
     // Check if category name already exists for this server
     const [existing] = await pool.query(
       'SELECT id FROM shop_categories WHERE server_id = ? AND name = ?',
-      [serverId, name]
+      [rustServerId, name]
     );
 
     if (existing.length > 0) {
       return res.status(409).json({ error: 'Category name already exists' });
     }
 
-    // Create category
+    // Create category using rust_servers id
     const [result] = await pool.query(
       'INSERT INTO shop_categories (server_id, name, type, role) VALUES (?, ?, ?, ?)',
-      [serverId, name, type, role || null]
+      [rustServerId, name, type, role || null]
     );
 
     const categoryId = result.insertId;
