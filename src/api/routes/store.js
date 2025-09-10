@@ -637,6 +637,8 @@ router.post('/servers/:serverId/store/categories', async (req, res) => {
       });
     }
 
+    console.log(`🔍 Debug - About to create category with rust_server_id: ${rustServerId}`);
+
     // Check if category name already exists for this server
     const [existing] = await pool.query(
       'SELECT id FROM shop_categories WHERE server_id = ? AND name = ?',
