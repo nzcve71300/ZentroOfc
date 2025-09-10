@@ -86,7 +86,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     let items = [];
 
     // Get items based on category type
-    if (category.type === 'item') {
+    if (category.type === 'items') {
       const [itemResults] = await pool.query(`
         SELECT 
           si.id, si.name as display_name, si.short_name, si.price, 
@@ -97,7 +97,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
         ORDER BY si.name
       `, [categoryId]);
       items = itemResults;
-    } else if (category.type === 'kit') {
+    } else if (category.type === 'kits') {
       const [kitResults] = await pool.query(`
         SELECT 
           sk.id, sk.display_name, sk.kit_name as short_name, sk.price, 
@@ -108,7 +108,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
         ORDER BY sk.display_name
       `, [categoryId]);
       items = kitResults;
-    } else if (category.type === 'vehicle') {
+    } else if (category.type === 'vehicles') {
       const [vehicleResults] = await pool.query(`
         SELECT 
           sv.id, sv.display_name, sv.short_name, sv.price, 
