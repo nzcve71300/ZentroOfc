@@ -338,14 +338,14 @@ router.get('/servers/:serverId/store/balance', async (req, res) => {
     const balance = balances.length > 0 ? balances[0].balance : 0;
 
     // Get currency name
-    const [servers] = await pool.query(`
+    const [currencyData] = await pool.query(`
       SELECT rs.currency_name
       FROM servers s
       LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
-    const currencyName = servers.length > 0 ? servers[0].currency_name : 'coins';
+    const currencyName = currencyData.length > 0 ? currencyData[0].currency_name : 'coins';
 
     res.json({
       balance: balance,
