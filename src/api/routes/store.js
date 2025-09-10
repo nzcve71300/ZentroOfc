@@ -26,12 +26,26 @@ router.get('/servers/:serverId/store/categories', async (req, res) => {
     }
 
     // Get shop categories from the existing bot database
+    // First, get the bot's server key for this guild
+    const [serverKeys] = await pool.query(`
+      SELECT DISTINCT sc.server_id
+      FROM shop_categories sc
+      JOIN servers s ON s.guild_id = ?
+      WHERE s.id = ?
+    `, [servers[0].guild_id, serverId]);
+
+    if (serverKeys.length === 0) {
+      return res.json([]); // No categories found for this server
+    }
+
+    const botServerKey = serverKeys[0].server_id;
+
     const [categories] = await pool.query(`
       SELECT sc.id, sc.name, sc.type, sc.role
       FROM shop_categories sc
       WHERE sc.server_id = ?
       ORDER BY sc.name
-    `, [serverId]);
+    `, [botServerKey]);
 
     res.json(categories);
   } catch (error) {
@@ -59,6 +73,20 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     }
 
     // Get items from the existing bot database
+    // First, get the bot's server key for this guild
+    const [serverKeys] = await pool.query(`
+      SELECT DISTINCT sc.server_id
+      FROM shop_categories sc
+      JOIN servers s ON s.guild_id = ?
+      WHERE s.id = ?
+    `, [servers[0].guild_id, serverId]);
+
+    if (serverKeys.length === 0) {
+      return res.json([]); // No items found for this server
+    }
+
+    const botServerKey = serverKeys[0].server_id;
+
     const [items] = await pool.query(`
       SELECT 
         si.id, si.name, si.short_name as shortName, si.price, si.icon_url as iconUrl,
@@ -66,7 +94,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
       FROM shop_items si
       WHERE si.category_id = ? AND si.server_id = ?
       ORDER BY si.name
-    `, [categoryId, serverId]);
+    `, [categoryId, botServerKey]);
 
     res.json(items);
   } catch (error) {
