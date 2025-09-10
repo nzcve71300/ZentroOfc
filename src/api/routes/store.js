@@ -124,7 +124,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 
     // Get server info
     const [servers] = await pool.query(`
-      SELECT s.*, rs.nickname, rs.ip, rs.port, rs.password
+      SELECT s.*, rs.nickname, rs.ip, rs.port, rs.rcon_password
       FROM servers s
       LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
@@ -222,13 +222,13 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 
       // Execute the command via the bot's RCON system
       const { sendRconCommand } = require('../../rcon');
-      const rconResult = await sendRconCommand(servers[0].web_rcon_host, servers[0].web_rcon_port, servers[0].password, command);
+      const rconResult = await sendRconCommand(servers[0].ip, servers[0].port, servers[0].rcon_password, command);
       
       console.log(`✅ RCON command sent via bot: ${command}`);
       
       // Send confirmation message to player in-game
       const confirmMessage = `say <color=#00FF00>[WEB SHOP]</color> <color=#FFD700>${ign}</color> <color=#00FF00>Successfully delivered</color> <color=#FFD700>${item.name} x${quantity}</color>`;
-      await sendRconCommand(servers[0].web_rcon_host, servers[0].web_rcon_port, servers[0].password, confirmMessage);
+      await sendRconCommand(servers[0].ip, servers[0].port, servers[0].rcon_password, confirmMessage);
 
       // Log the purchase
       await connection.query(`
