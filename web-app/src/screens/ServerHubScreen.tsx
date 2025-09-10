@@ -22,7 +22,7 @@ const ServerHubScreen = () => {
       
       try {
         setLoading(true);
-        const server = await serverService.getById(serverId);
+        const server = await serverService.get(serverId);
         
         if (!server) {
           toast({
