@@ -52,7 +52,12 @@ class UnifiedAPI {
     
     // CORS configuration
     this.app.use(cors({
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'],
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || [
+        'http://localhost:3000', 
+        'http://localhost:5173',
+        'http://35.246.29.212:4173',
+        'http://localhost:4173'
+      ],
       credentials: true
     }));
 
