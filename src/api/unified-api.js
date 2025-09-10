@@ -188,10 +188,11 @@ class UnifiedAPI {
       await pool.query('SELECT 1');
       console.log('✅ Database connection verified');
 
-      this.server.listen(this.port, () => {
+      this.server.listen(this.port, '0.0.0.0', () => {
         console.log(`🚀 Unified API Server running on port ${this.port}`);
         console.log(`📡 WebSocket server ready for real-time updates`);
         console.log(`🔗 Health check: http://localhost:${this.port}/health`);
+        console.log(`🌐 External access: http://0.0.0.0:${this.port}`);
       });
     } catch (error) {
       console.error('❌ Failed to start API server:', error);
