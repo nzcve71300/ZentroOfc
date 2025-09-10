@@ -28,11 +28,17 @@ router.get('/', async (req, res) => {
         web_rcon_host, web_rcon_port, secret_ref,
         created_by, created_at, updated_at
       FROM servers 
-      WHERE guild_id = ? AND created_by = ?
+      WHERE guild_id = ?
       ORDER BY created_at DESC
-    `, [guildId, userId]);
+    `, [guildId]);
 
-    res.json({ servers });
+    // Add ownership info for each server
+    const serversWithOwnership = servers.map(server => ({
+      ...server,
+      canManage: server.created_by === userId
+    }));
+
+    res.json({ servers: serversWithOwnership });
   } catch (error) {
     console.error('Error fetching servers:', error);
     res.status(500).json({ error: 'Failed to fetch servers' });
@@ -51,14 +57,20 @@ router.get('/:id', async (req, res) => {
         web_rcon_host, web_rcon_port, secret_ref,
         created_by, created_at, updated_at
       FROM servers 
-      WHERE id = ? AND created_by = ?
-    `, [id, userId]);
+      WHERE id = ?
+    `, [id]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    res.json({ server: servers[0] });
+    const server = servers[0];
+    const serverWithOwnership = {
+      ...server,
+      canManage: server.created_by === userId
+    };
+
+    res.json({ server: serverWithOwnership });
   } catch (error) {
     console.error('Error fetching server:', error);
     res.status(500).json({ error: 'Failed to fetch server' });
