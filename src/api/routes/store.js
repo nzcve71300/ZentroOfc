@@ -220,8 +220,15 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       command = command.replace(/{quantity}/g, quantity);
       command = command.replace(/{item}/g, item.shortName);
 
-      // Execute the command via RCON
-      const rconResult = await rcon.sendCommand(serverId, command);
+      // Execute the command via the bot's RCON system
+      const { sendRconCommand } = require('../../rcon');
+      const rconResult = await sendRconCommand(servers[0].web_rcon_host, servers[0].web_rcon_port, servers[0].password, command);
+      
+      console.log(`✅ RCON command sent via bot: ${command}`);
+      
+      // Send confirmation message to player in-game
+      const confirmMessage = `say <color=#00FF00>[WEB SHOP]</color> <color=#FFD700>${ign}</color> <color=#00FF00>Successfully delivered</color> <color=#FFD700>${item.name} x${quantity}</color>`;
+      await sendRconCommand(servers[0].web_rcon_host, servers[0].web_rcon_port, servers[0].password, confirmMessage);
 
       // Log the purchase
       await connection.query(`
