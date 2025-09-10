@@ -4,12 +4,12 @@ import { Server, ServerConfig } from '../types';
 const API_BASE = 'http://35.246.29.212:3002/api';
 
 export const serverService = {
-  // List servers for a guild
-  list: async (guildId: string): Promise<Server[]> => {
-    console.log('🖥️ Server Service: List servers called for guild', guildId);
+  // List all servers
+  list: async (): Promise<Server[]> => {
+    console.log('🖥️ Server Service: List all servers called');
     
     try {
-      const response = await fetch(`${API_BASE}/servers?guildId=${guildId}`, {
+      const response = await fetch(`${API_BASE}/servers`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

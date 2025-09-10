@@ -20,9 +20,8 @@ const HomeScreen = () => {
   const loadServers = async () => {
     try {
       setLoading(true);
-      // For now, use a default guild ID - in production this would come from user context
-      const guildId = '1342235198175182921'; // Default guild ID
-      const serverList = await serverService.list(guildId);
+      // Load all servers from the database
+      const serverList = await serverService.list();
       setServers(serverList);
     } catch (error) {
       toast({

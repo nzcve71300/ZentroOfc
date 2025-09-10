@@ -12,15 +12,10 @@ function normalizeServerKey(key) {
   return key.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
 }
 
-// GET /api/servers - List servers for a guild
+// GET /api/servers - List all servers
 router.get('/', async (req, res) => {
   try {
-    const { guildId } = req.query;
     const userId = req.user.id;
-
-    if (!guildId) {
-      return res.status(400).json({ error: 'Guild ID is required' });
-    }
 
     const [servers] = await pool.query(`
       SELECT 
@@ -28,9 +23,8 @@ router.get('/', async (req, res) => {
         web_rcon_host, web_rcon_port, secret_ref,
         created_by, created_at, updated_at
       FROM servers 
-      WHERE guild_id = ?
       ORDER BY created_at DESC
-    `, [guildId]);
+    `);
 
     // Add ownership info for each server
     const serversWithOwnership = servers.map(server => ({
