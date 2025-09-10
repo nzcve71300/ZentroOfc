@@ -51,12 +51,11 @@ class AuditService {
     try {
       await pool.query(`
         INSERT INTO audit_logs (
-          user_id, guild_id, action, resource_type, resource_id,
+          user_id, action, resource_type, resource_id,
           old_values, new_values, ip_address, user_agent
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         userId,
-        guildId,
         action,
         resourceType,
         resourceId,
