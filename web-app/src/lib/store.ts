@@ -183,11 +183,11 @@ export const storeService = {
   },
 
   // Get player balance for store
-  getBalance: async (serverId: string): Promise<{ balance: number; currency: string }> => {
+  getBalance: async (serverId: string, ign: string): Promise<{ balance: number; currency: string }> => {
     try {
-      console.log('💰 Store Service: Get balance called', serverId);
+      console.log('💰 Store Service: Get balance called', serverId, ign);
       
-      const response = await fetch(`${API_BASE}/servers/${serverId}/store/balance`);
+      const response = await fetch(`${API_BASE}/servers/${serverId}/store/balance?ign=${encodeURIComponent(ign)}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

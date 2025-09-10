@@ -10,11 +10,13 @@ import { ArrowLeft, ShoppingCart, Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { storeService } from '../lib/store';
 import { StoreItem, BalanceSummary } from '../types';
+import { useAuth } from '../state/useAuth';
 
 const StoreItemsScreen = () => {
   const { serverId, categoryId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [items, setItems] = useState<StoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState(0);
@@ -33,7 +35,7 @@ const StoreItemsScreen = () => {
         // Load items and balance in parallel
         const [itemList, balanceData] = await Promise.all([
           storeService.getItemsByCategory(serverId, categoryId),
-          storeService.getBalance(serverId)
+          storeService.getBalance(serverId, user?.ign || 'test')
         ]);
         
         setItems(itemList);
@@ -87,7 +89,7 @@ const StoreItemsScreen = () => {
         });
         
         // Refresh balance after successful purchase
-        const balanceData = await storeService.getBalance(serverId);
+        const balanceData = await storeService.getBalance(serverId, user?.ign || 'test');
         setBalance(balanceData.balance);
         
         setSelectedItem(null);

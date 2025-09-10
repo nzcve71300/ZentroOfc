@@ -7,11 +7,13 @@ import { ArrowLeft, Store, Package, Truck, Wrench } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { storeService } from '../lib/store';
 import { Category } from '../types';
+import { useAuth } from '../state/useAuth';
 
 const StoreCategoriesScreen = () => {
   const { serverId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState(0);
@@ -27,7 +29,7 @@ const StoreCategoriesScreen = () => {
         // Load categories and balance in parallel
         const [categoryList, balanceData] = await Promise.all([
           storeService.getCategories(serverId),
-          storeService.getBalance(serverId)
+          storeService.getBalance(serverId, user?.ign || 'test')
         ]);
         
         setCategories(categoryList);
