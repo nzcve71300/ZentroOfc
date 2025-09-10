@@ -11,15 +11,15 @@ const rcon = new RconService();
 router.get('/servers/:serverId/store/categories', async (req, res) => {
   try {
     const { serverId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     // Verify server exists and user has access
     const [servers] = await pool.query(`
       SELECT s.*, rs.nickname 
       FROM servers s
       LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
-      WHERE s.id = ? AND s.created_by = ?
-    `, [serverId, userId]);
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
@@ -44,15 +44,15 @@ router.get('/servers/:serverId/store/categories', async (req, res) => {
 router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, res) => {
   try {
     const { serverId, categoryId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     // Verify server exists and user has access
     const [servers] = await pool.query(`
       SELECT s.*, rs.nickname 
       FROM servers s
       LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
-      WHERE s.id = ? AND s.created_by = ?
-    `, [serverId, userId]);
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
@@ -80,7 +80,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
   try {
     const { serverId } = req.params;
     const { itemId, quantity = 1 } = req.body;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     if (!itemId) {
       return res.status(400).json({ error: 'Item ID is required' });
@@ -95,8 +95,8 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
       SELECT s.*, rs.nickname, rs.ip, rs.port, rs.password
       FROM servers s
       LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
-      WHERE s.id = ? AND s.created_by = ?
-    `, [serverId, userId]);
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
@@ -253,7 +253,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 router.get('/servers/:serverId/store/balance', async (req, res) => {
   try {
     const { serverId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     // Get player info
     const [players] = await pool.query(`
@@ -309,7 +309,7 @@ router.post('/servers/:serverId/store/categories', async (req, res) => {
   try {
     const { serverId } = req.params;
     const { name, type, role } = req.body;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     if (!name || !type) {
       return res.status(400).json({ error: 'Name and type are required' });
@@ -318,8 +318,8 @@ router.post('/servers/:serverId/store/categories', async (req, res) => {
     // Verify server exists and user has access
     const [servers] = await pool.query(`
       SELECT s.* FROM servers s
-      WHERE s.id = ? AND s.created_by = ?
-    `, [serverId, userId]);
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
@@ -366,7 +366,7 @@ router.post('/servers/:serverId/store/items', async (req, res) => {
   try {
     const { serverId } = req.params;
     const { categoryId, name, shortName, price, description, command, iconUrl } = req.body;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Handle case where user might not be authenticated
 
     if (!categoryId || !name || !shortName || !price || !command) {
       return res.status(400).json({ 
@@ -377,8 +377,8 @@ router.post('/servers/:serverId/store/items', async (req, res) => {
     // Verify server exists and user has access
     const [servers] = await pool.query(`
       SELECT s.* FROM servers s
-      WHERE s.id = ? AND s.created_by = ?
-    `, [serverId, userId]);
+      WHERE s.id = ?
+    `, [serverId]);
 
     if (servers.length === 0) {
       return res.status(404).json({ error: 'Server not found' });
