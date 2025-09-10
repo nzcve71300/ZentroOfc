@@ -628,8 +628,13 @@ router.post('/servers/:serverId/store/categories', async (req, res) => {
     const server = servers[0];
     const rustServerId = server.rust_server_id;
 
+    console.log(`🔍 Debug - Server ID: ${serverId}, Rust Server ID: ${rustServerId}`);
+    console.log(`🔍 Debug - Server data:`, server);
+
     if (!rustServerId) {
-      return res.status(400).json({ error: 'Server not properly configured in bot database' });
+      return res.status(400).json({ 
+        error: 'Server not properly configured in bot database. Please ensure the server exists in both the unified servers table and the rust_servers table.' 
+      });
     }
 
     // Check if category name already exists for this server
