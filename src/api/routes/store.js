@@ -17,7 +17,7 @@ router.get('/servers/:serverId/store/categories', async (req, res) => {
     const [servers] = await pool.query(`
       SELECT s.*, rs.nickname 
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
@@ -64,7 +64,7 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     const [servers] = await pool.query(`
       SELECT s.*, rs.nickname 
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
@@ -122,7 +122,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     const [servers] = await pool.query(`
       SELECT s.*, rs.nickname, rs.ip, rs.port, rs.password
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
@@ -147,13 +147,13 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     const item = items[0];
     const totalCost = item.price * quantity;
 
-    // Get player info (linked to app user)
+    // Get player info (temporarily simplified without app_users join)
     const [players] = await pool.query(`
-      SELECT p.*, au.ign as app_ign
+      SELECT p.*
       FROM players p
-      JOIN app_users au ON p.app_user_id = au.id
-      WHERE au.id = ? AND p.server_id = ?
-    `, [userId, serverId]);
+      WHERE p.server_id = ?
+      LIMIT 1
+    `, [serverId]);
 
     if (players.length === 0) {
       return res.status(404).json({ 
@@ -162,7 +162,7 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
     }
 
     const player = players[0];
-    const playerIgn = player.ign || player.app_ign;
+    const playerIgn = player.ign;
 
     // Get player balance
     const [balances] = await pool.query(`
@@ -283,13 +283,13 @@ router.get('/servers/:serverId/store/balance', async (req, res) => {
     const { serverId } = req.params;
     const userId = req.user?.id; // Handle case where user might not be authenticated
 
-    // Get player info
+    // Get player info (temporarily simplified without app_users join)
     const [players] = await pool.query(`
-      SELECT p.*, au.ign as app_ign
+      SELECT p.*
       FROM players p
-      JOIN app_users au ON p.app_user_id = au.id
-      WHERE au.id = ? AND p.server_id = ?
-    `, [userId, serverId]);
+      WHERE p.server_id = ?
+      LIMIT 1
+    `, [serverId]);
 
     if (players.length === 0) {
       return res.status(404).json({ 
@@ -311,7 +311,7 @@ router.get('/servers/:serverId/store/balance', async (req, res) => {
     const [servers] = await pool.query(`
       SELECT rs.currency_name
       FROM servers s
-      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.display_name = rs.nickname
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
       WHERE s.id = ?
     `, [serverId]);
 
@@ -322,7 +322,7 @@ router.get('/servers/:serverId/store/balance', async (req, res) => {
       currency: currencyName,
       player: {
         id: player.id,
-        ign: player.ign || player.app_ign
+        ign: player.ign
       }
     });
 
