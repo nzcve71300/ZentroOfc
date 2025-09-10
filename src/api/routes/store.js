@@ -92,9 +92,9 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
         si.id, si.display_name as name, si.short_name as shortName, si.price, 
         si.category_id as categoryId, si.quantity, si.timer as cooldown_minutes
       FROM shop_items si
-      WHERE si.category_id = ? AND si.server_id = ?
+      WHERE si.category_id = ?
       ORDER BY si.display_name
-    `, [categoryId, botServerKey]);
+    `, [categoryId]);
 
     res.json(items);
   } catch (error) {
