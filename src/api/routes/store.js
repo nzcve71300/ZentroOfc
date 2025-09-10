@@ -281,15 +281,45 @@ router.post('/servers/:serverId/store/purchase', async (req, res) => {
 router.get('/servers/:serverId/store/balance', async (req, res) => {
   try {
     const { serverId } = req.params;
-    const userId = req.user?.id; // Handle case where user might not be authenticated
+    const { ign } = req.query; // Get IGN from query parameter
 
-    // Get player info (temporarily simplified without app_users join)
+    if (!ign) {
+      return res.status(400).json({ error: 'IGN (In-Game Name) is required' });
+    }
+
+    // Get the bot's server key for this guild
+    const [servers] = await pool.query(`
+      SELECT s.*, rs.nickname 
+      FROM servers s
+      LEFT JOIN rust_servers rs ON s.guild_id = rs.guild_id AND s.name = rs.nickname
+      WHERE s.id = ?
+    `, [serverId]);
+
+    if (servers.length === 0) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    // Get the bot's server key
+    const [serverKeys] = await pool.query(`
+      SELECT DISTINCT sc.server_id
+      FROM shop_categories sc
+      JOIN servers s ON s.guild_id = ?
+      WHERE s.id = ?
+    `, [servers[0].guild_id, serverId]);
+
+    if (serverKeys.length === 0) {
+      return res.status(404).json({ error: 'Server not found in bot database' });
+    }
+
+    const botServerKey = serverKeys[0].server_id;
+
+    // Get player info by IGN and server key
     const [players] = await pool.query(`
       SELECT p.*
       FROM players p
-      WHERE p.server_id = ?
+      WHERE p.ign = ? AND p.server_id = ?
       LIMIT 1
-    `, [serverId]);
+    `, [ign, botServerKey]);
 
     if (players.length === 0) {
       return res.status(404).json({ 
@@ -303,7 +333,7 @@ router.get('/servers/:serverId/store/balance', async (req, res) => {
     const [balances] = await pool.query(`
       SELECT balance FROM player_balances 
       WHERE player_id = ? AND server_id = ?
-    `, [player.id, serverId]);
+    `, [player.id, botServerKey]);
 
     const balance = balances.length > 0 ? balances[0].balance : 0;
 
