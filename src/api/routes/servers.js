@@ -25,9 +25,14 @@ router.get('/', async (req, res) => {
       ORDER BY created_at DESC
     `);
 
-    // Add ownership info for each server (canManage will be false if no user)
+    // Add ownership info for each server and map to expected format
     const serversWithOwnership = servers.map(server => ({
-      ...server,
+      id: server.id.toString(),
+      name: server.display_name,
+      ip: '***.***.***.***', // Hide IP address
+      rconPort: 0, // Hide port
+      hasActiveSub: true, // Default to true for now
+      connectionStatus: 'connected', // Default to connected
       canManage: false // No created_by column, so no one can manage for now
     }));
 
