@@ -1,17 +1,9 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
+const fetch = require('node-fetch');
 const router = express.Router();
 
-// Create connection pool
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+// Import shared database connection
+const pool = require('../../db/index');
 
 // Get all configurations for a server
 router.get('/:serverId/configs', async (req, res) => {

@@ -18,6 +18,7 @@ const economyRoutes = require('./routes/economy');
 const authRoutes = require('./routes/auth');
 const auditRoutes = require('./routes/audit');
 const storeRoutes = require('./routes/store');
+const configsRoutes = require('./routes/configs');
 
 // Import services
 const EncryptionService = require('./services/encryption');
@@ -97,6 +98,7 @@ class UnifiedAPI {
     this.app.use('/api/economy', this.authenticateToken.bind(this), economyRoutes);
     this.app.use('/api/audit', this.authenticateToken.bind(this), auditRoutes);
     this.app.use('/api', storeRoutes); // Temporarily remove auth for testing
+    this.app.use('/api/servers', configsRoutes); // Configs routes
 
     // Webhook endpoint for Discord bot
     this.app.post('/api/webhook/discord', this.authenticateWebhook.bind(this), (req, res) => {
