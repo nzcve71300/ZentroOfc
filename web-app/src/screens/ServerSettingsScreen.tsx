@@ -1124,13 +1124,25 @@ const ServerSettingsScreen = () => {
                                         onBlur={(e) => updateConfiguration('teleports', `${tp}-TIME`, e.target.value)}
                                       />
                                       <Input
+                                        placeholder="Delay (seconds)"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.teleports?.[tp.toLowerCase()]?.delay || ''}
+                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-DELAYTIME`, e.target.value)}
+                                      />
+                                      <Input
+                                        placeholder="Kit Name"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.teleports?.[tp.toLowerCase()]?.kitName || ''}
+                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-KITNAME`, e.target.value)}
+                                      />
+                                      <Input
                                         placeholder="Coordinates (x,y,z)"
                                         className="bg-gray-600 border-gray-500 text-white text-sm"
                                         defaultValue={configs.teleports?.[tp.toLowerCase()]?.coordinates || ''}
                                         onBlur={(e) => updateConfiguration('teleports', `${tp}-COORDINATES`, e.target.value)}
                                       />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-3 gap-2">
                                       <div className="flex items-center space-x-2">
                                         <input
                                           type="checkbox"
@@ -1140,6 +1152,16 @@ const ServerSettingsScreen = () => {
                                           onChange={(e) => updateConfiguration('teleports', `${tp}-USELIST`, e.target.checked ? 'on' : 'off')}
                                         />
                                         <Label htmlFor={`${tp.toLowerCase()}-uselist`} className="text-white text-xs">Use List</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`${tp.toLowerCase()}-usedelay`}
+                                          className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                          defaultChecked={configs.teleports?.[tp.toLowerCase()]?.useDelay}
+                                          onChange={(e) => updateConfiguration('teleports', `${tp}-USE-DELAY`, e.target.checked ? 'on' : 'off')}
+                                        />
+                                        <Label htmlFor={`${tp.toLowerCase()}-usedelay`} className="text-white text-xs">Use Delay</Label>
                                       </div>
                                       <div className="flex items-center space-x-2">
                                         <input
@@ -1251,15 +1273,27 @@ const ServerSettingsScreen = () => {
                                       onBlur={(e) => updateConfiguration('systems', 'BAR-WELCOME-MSG-TEXT', e.target.value)}
                                     />
                                   </div>
-                                  <div className="flex items-center space-x-2">
-                                    <input
-                                      type="checkbox"
-                                      id="bar-welcome-message"
-                                      className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
-                                      defaultChecked={configs.systems?.bar?.welcomeMessage}
-                                      onChange={(e) => updateConfiguration('systems', 'BAR-WELCOME-MESSAGE', e.target.checked ? 'on' : 'off')}
-                                    />
-                                    <Label htmlFor="bar-welcome-message" className="text-white text-xs">Welcome Message</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id="bar-uselist"
+                                        className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.systems?.bar?.useList}
+                                        onChange={(e) => updateConfiguration('systems', 'BAR-USELIST', e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor="bar-uselist" className="text-white text-xs">Use List</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id="bar-welcome-message"
+                                        className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.systems?.bar?.welcomeMessage}
+                                        onChange={(e) => updateConfiguration('systems', 'BAR-WELCOME-MESSAGE', e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor="bar-welcome-message" className="text-white text-xs">Welcome Message</Label>
+                                    </div>
                                   </div>
                                   <div className="grid grid-cols-2 gap-2">
                                     {['HORSE', 'RHIB', 'MINI', 'CAR'].map((vehicle) => (

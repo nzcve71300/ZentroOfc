@@ -156,8 +156,8 @@ const LeaderboardScreen = () => {
                       <div className="mb-4">
                         <Medal className="w-8 h-8 text-gray-300 mx-auto" />
                       </div>
-                      <h3 className="font-semibold text-lg">{topPlayers[1].ign}</h3>
-                      <div className="text-2xl font-bold text-primary mt-2">{topPlayers[1].kills}</div>
+                      <h3 className="font-semibold text-sm sm:text-lg break-words px-2">{topPlayers[1].ign}</h3>
+                      <div className="text-xl sm:text-2xl font-bold text-primary mt-2">{topPlayers[1].kills}</div>
                       <div className="text-xs text-muted-foreground">KILLS</div>
                     </CardContent>
                   </Card>
@@ -168,8 +168,8 @@ const LeaderboardScreen = () => {
                       <div className="mb-4">
                         <Trophy className="w-10 h-10 text-yellow-400 mx-auto" />
                       </div>
-                      <h3 className="font-semibold text-xl">{topPlayers[0].ign}</h3>
-                      <div className="text-3xl font-bold text-yellow-400 mt-2">{topPlayers[0].kills}</div>
+                      <h3 className="font-semibold text-base sm:text-xl break-words px-2">{topPlayers[0].ign}</h3>
+                      <div className="text-2xl sm:text-3xl font-bold text-yellow-400 mt-2">{topPlayers[0].kills}</div>
                       <div className="text-xs text-muted-foreground">KILLS</div>
                     </CardContent>
                   </Card>
@@ -180,8 +180,8 @@ const LeaderboardScreen = () => {
                       <div className="mb-4">
                         <Medal className="w-8 h-8 text-amber-600 mx-auto" />
                       </div>
-                      <h3 className="font-semibold text-lg">{topPlayers[2].ign}</h3>
-                      <div className="text-2xl font-bold text-primary mt-2">{topPlayers[2].kills}</div>
+                      <h3 className="font-semibold text-sm sm:text-lg break-words px-2">{topPlayers[2].ign}</h3>
+                      <div className="text-xl sm:text-2xl font-bold text-primary mt-2">{topPlayers[2].kills}</div>
                       <div className="text-xs text-muted-foreground">KILLS</div>
                     </CardContent>
                   </Card>
