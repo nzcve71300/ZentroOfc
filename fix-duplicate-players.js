@@ -47,7 +47,7 @@ async function fixDuplicatePlayers() {
         FROM players p
         LEFT JOIN player_balances pb ON p.id = pb.player_id
         WHERE p.discord_id = ? OR p.ign = ?
-        ORDER BY p.created_at ASC
+        ORDER BY p.id ASC
       `, [player.discord_id, player.name]);
       
       console.log(`   Found ${playerEntries.length} entries`);
@@ -67,13 +67,13 @@ async function fixDuplicatePlayers() {
         return (entry.balance || 0) > (max.balance || 0) ? entry : max;
       });
       
-      // Find the oldest entry (most likely the original)
+      // Find the oldest entry (most likely the original) - use ID as proxy for age
       const oldestEntry = playerEntries.reduce((oldest, entry) => {
-        return new Date(entry.created_at) < new Date(oldest.created_at) ? entry : oldest;
+        return entry.id < oldest.id ? entry : oldest;
       });
       
       console.log(`   📊 Highest balance entry: ID=${entryWithHighestBalance.id}, Balance=${entryWithHighestBalance.balance || 0}`);
-      console.log(`   📅 Oldest entry: ID=${oldestEntry.id}, Created=${oldestEntry.created_at}`);
+      console.log(`   📅 Oldest entry: ID=${oldestEntry.id}`);
       
       // Use the entry with highest balance as the primary one
       const primaryEntry = entryWithHighestBalance;
