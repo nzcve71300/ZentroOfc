@@ -77,40 +77,57 @@ router.get('/servers/:serverId/store/categories/:categoryId/items', async (req, 
     const category = categories[0];
     let items = [];
 
-    // Get items based on category type
+    // Get items based on category type - use EXACT same queries as bot, then map to web app format
     if (category.type === 'items') {
       const [itemResults] = await pool.query(`
-        SELECT 
-          si.id, si.display_name as name, si.short_name as shortName, si.price, 
-          si.description, si.command, si.icon_url as iconUrl, si.cooldown_minutes,
-          si.category_id as categoryId
-        FROM shop_items si
-        WHERE si.category_id = ?
-        ORDER BY si.display_name
+        SELECT id, display_name, short_name, price, quantity, timer
+        FROM shop_items 
+        WHERE category_id = ? 
+        ORDER BY display_name
       `, [categoryId]);
-      items = itemResults;
+      // Map bot fields to web app format
+      items = itemResults.map(item => ({
+        id: item.id,
+        categoryId: categoryId,
+        name: item.display_name,
+        shortName: item.short_name,
+        price: item.price,
+        quantity: item.quantity,
+        cooldown_minutes: item.timer
+      }));
     } else if (category.type === 'kits') {
       const [kitResults] = await pool.query(`
-        SELECT 
-          sk.id, sk.display_name as name, sk.kit_name as shortName, sk.price, 
-          sk.quantity, sk.timer as cooldown_minutes,
-          sk.category_id as categoryId
-        FROM shop_kits sk
-        WHERE sk.category_id = ?
-        ORDER BY sk.display_name
+        SELECT id, display_name, kit_name, price, quantity, timer
+        FROM shop_kits 
+        WHERE category_id = ? 
+        ORDER BY display_name
       `, [categoryId]);
-      items = kitResults;
+      // Map bot fields to web app format
+      items = kitResults.map(kit => ({
+        id: kit.id,
+        categoryId: categoryId,
+        name: kit.display_name,
+        shortName: kit.kit_name,
+        price: kit.price,
+        quantity: kit.quantity,
+        cooldown_minutes: kit.timer
+      }));
     } else if (category.type === 'vehicles') {
       const [vehicleResults] = await pool.query(`
-        SELECT 
-          sv.id, sv.display_name as name, sv.short_name as shortName, sv.price, 
-          sv.timer as cooldown_minutes,
-          sv.category_id as categoryId
-        FROM shop_vehicles sv
-        WHERE sv.category_id = ?
-        ORDER BY sv.display_name
+        SELECT id, display_name, short_name, price, timer
+        FROM shop_vehicles 
+        WHERE category_id = ? 
+        ORDER BY display_name
       `, [categoryId]);
-      items = vehicleResults;
+      // Map bot fields to web app format
+      items = vehicleResults.map(vehicle => ({
+        id: vehicle.id,
+        categoryId: categoryId,
+        name: vehicle.display_name,
+        shortName: vehicle.short_name,
+        price: vehicle.price,
+        cooldown_minutes: vehicle.timer
+      }));
     }
 
     console.log(`🔍 Debug - Returning ${items.length} items for category ${categoryId}:`, items);
