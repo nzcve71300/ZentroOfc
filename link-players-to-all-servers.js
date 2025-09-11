@@ -106,13 +106,12 @@ async function linkPlayersToAllServers() {
           
           // Insert new player entry
           const [insertResult] = await pool.query(`
-            INSERT INTO players (server_id, discord_id, ign, steam_id, is_active)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO players (server_id, discord_id, ign, is_active)
+            VALUES (?, ?, ?, ?)
           `, [
             missingServer.id,
             player.discord_id,
             player.name,
-            templatePlayer.steam_id || null,
             true
           ]);
           
