@@ -85,7 +85,7 @@ async function fixDuplicatePlayers() {
       // Update the primary entry to ensure it has the correct data
       await pool.query(`
         UPDATE players 
-        SET ign = ?, discord_id = ?, updated_at = NOW()
+        SET ign = ?, discord_id = ?
         WHERE id = ?
       `, [player.name, player.discord_id, primaryEntry.id]);
       
