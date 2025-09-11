@@ -1582,7 +1582,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
         }
 
         // Execute teleport
-        const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "0"`;
+        const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
         sendRconCommand(ip, port, password, teleportCommand);
         
         // Send success message
@@ -1598,7 +1598,7 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
       return; // CRITICAL FIX: Prevent execution of immediate teleport code
     } else {
       // Execute teleport immediately
-      const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "0"`;
+      const teleportCommand = `global.teleportposrot "${coords.x_pos},${coords.y_pos},${coords.z_pos}" "${player}" "1"`;
       // Debug logging removed for production
       sendRconCommand(ip, port, password, teleportCommand);
       
@@ -6944,7 +6944,7 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
     const home = homeResult[0];
 
     // Teleport player to home
-    sendRconCommand(ip, port, password, `global.teleportposrot "${home.x_pos},${home.y_pos},${home.z_pos}" "${player}" "0"`);
+    sendRconCommand(ip, port, password, `global.teleportposrot "${home.x_pos},${home.y_pos},${home.z_pos}" "${player}" "1"`);
     
     // Send success message
     sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleported home successfully!</color>`);
@@ -7486,7 +7486,7 @@ async function performTeleport(ip, port, password, player, config, displayName, 
     });
 
     // Execute teleport
-    const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${player}" "0"`;
+    const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${player}" "1"`;
     sendRconCommand(ip, port, password, teleportCommand);
     console.log(`[TELEPORT] Executed teleport command: ${teleportCommand}`);
 

@@ -118,7 +118,7 @@ class TeleportSystem {
       }
 
       // Teleport command
-      const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${playerName}" "0"`;
+      const teleportCommand = `global.teleportposrot "${config.position_x},${config.position_y},${config.position_z}" "${playerName}" "1"`;
       commands.push(teleportCommand);
       console.log(`[TELEPORT SYSTEM] Generated teleport command: ${teleportCommand}`);
 
