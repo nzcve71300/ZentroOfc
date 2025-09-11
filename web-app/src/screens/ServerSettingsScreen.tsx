@@ -902,28 +902,28 @@ const ServerSettingsScreen = () => {
                 {isConfigsExpanded && (
                   <CardContent className="bg-gray-900">
                     <Tabs defaultValue="economy" className="space-y-6">
-                      <TabsList className="grid w-full grid-cols-6 gaming-card bg-gray-800">
-                        <TabsTrigger value="economy" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                      <TabsList className="flex w-full overflow-x-auto gaming-card bg-gray-800">
+                        <TabsTrigger value="economy" className="flex-shrink-0 text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
                           <Gamepad2 className="w-4 h-4 mr-1" />
                           Economy
                         </TabsTrigger>
-                        <TabsTrigger value="teleports" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                        <TabsTrigger value="teleports" className="flex-shrink-0 text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
                           <Target className="w-4 h-4 mr-1" />
                           Teleports
                         </TabsTrigger>
-                        <TabsTrigger value="events" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                        <TabsTrigger value="events" className="flex-shrink-0 text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
                           <Zap className="w-4 h-4 mr-1" />
                           Events
                         </TabsTrigger>
-                        <TabsTrigger value="systems" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                        <TabsTrigger value="systems" className="flex-shrink-0 text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
                           <Wrench className="w-4 h-4 mr-1" />
                           Systems
                         </TabsTrigger>
-                        <TabsTrigger value="positions" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                        <TabsTrigger value="positions" className="flex-shrink-0 text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
                           <Shield className="w-4 h-4 mr-1" />
                           Positions
                         </TabsTrigger>
-                        <TabsTrigger value="misc" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                        <TabsTrigger value="misc" className="flex-shrink-0 text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
                           <Users className="w-4 h-4 mr-1" />
                           Misc
                         </TabsTrigger>
@@ -939,7 +939,7 @@ const ServerSettingsScreen = () => {
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                               <div className="space-y-2">
                                 <Label>Daily Reward Amount</Label>
                                 <div className="flex gap-2">
@@ -1029,7 +1029,7 @@ const ServerSettingsScreen = () => {
                                 </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                            <div className="grid grid-cols-2 gap-4 mt-6">
                               <div className="flex items-center space-x-2">
                                 <input
                                   type="checkbox"
@@ -1095,7 +1095,7 @@ const ServerSettingsScreen = () => {
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                               {['TPN', 'TPNE', 'TPE', 'TPSE', 'TPS', 'TPSW', 'TPW', 'TPNW'].map((tp) => (
                                 <div key={tp} className="space-y-2 p-4 bg-gray-700 rounded-lg">
                                   <Label className="text-white font-semibold">{tp} Teleport</Label>

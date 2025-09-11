@@ -135,11 +135,11 @@ const LeaderboardScreen = () => {
         <div className="max-w-6xl mx-auto">
 
           <Tabs defaultValue="leaderboard" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-2 gaming-card">
-              <TabsTrigger value="leaderboard" className="data-[state=active]:btn-gaming">
+            <TabsList className="flex w-full gaming-card">
+              <TabsTrigger value="leaderboard" className="flex-1 data-[state=active]:btn-gaming">
                 Top 20 Players
               </TabsTrigger>
-              <TabsTrigger value="mystats" className="data-[state=active]:btn-gaming">
+              <TabsTrigger value="mystats" className="flex-1 data-[state=active]:btn-gaming">
                 My Stats
               </TabsTrigger>
             </TabsList>
@@ -149,7 +149,7 @@ const LeaderboardScreen = () => {
               
               {/* Top 3 Podium */}
               {!loading && topPlayers.length >= 3 && (
-                <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-8">
                   {/* 2nd Place */}
                   <Card className="gaming-card text-center pt-8">
                     <CardContent>
@@ -232,7 +232,7 @@ const LeaderboardScreen = () => {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center text-xs sm:text-sm">
                             <div>
                               <div className="font-semibold text-green-400">{player.kills}</div>
                               <div className="text-xs text-muted-foreground">Kills</div>
@@ -270,7 +270,7 @@ const LeaderboardScreen = () => {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <StatCard
                           icon={Target}
                           label="Kills"
