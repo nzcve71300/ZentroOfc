@@ -42,7 +42,7 @@ module.exports = {
 
         await interaction.respond(choices);
       } else if (focusedOption.name === 'category') {
-        // Category autocomplete - only show vehicle categories
+        // Category autocomplete - show all categories (like remove-shop-item)
         const serverNickname = interaction.options.getString('server');
         
         if (!serverNickname) {
@@ -50,12 +50,13 @@ module.exports = {
           return;
         }
 
-        // Get vehicle categories for the selected server
+        // Get all categories for the selected server (not just vehicle categories)
         const [result] = await pool.query(
           `SELECT sc.name FROM shop_categories sc 
            JOIN rust_servers rs ON sc.server_id = rs.id 
-           WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) AND rs.nickname = ? 
-           AND sc.type = 'vehicles' AND sc.name LIKE ? LIMIT 25`,
+           JOIN guilds g ON rs.guild_id = g.id 
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name LIKE ? 
+           LIMIT 25`,
           [guildId, serverNickname, `%${focusedOption.value}%`]
         );
 
@@ -66,7 +67,7 @@ module.exports = {
 
         await interaction.respond(choices);
       } else if (focusedOption.name === 'vehicle') {
-        // Vehicle autocomplete
+        // Vehicle autocomplete (like remove-shop-item)
         const serverNickname = interaction.options.getString('server');
         const categoryName = interaction.options.getString('category');
         
@@ -77,20 +78,18 @@ module.exports = {
 
         // Get vehicles for the selected category
         const [result] = await pool.query(
-          `SELECT sv.id, sv.display_name, sv.short_name, sv.price 
-           FROM shop_vehicles sv
-           JOIN shop_categories sc ON sv.category_id = sc.id
-           JOIN rust_servers rs ON sc.server_id = rs.id
-           WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-           AND rs.nickname = ? AND sc.name = ? 
-           AND sv.display_name LIKE ? 
-           ORDER BY sv.display_name LIMIT 25`,
+          `SELECT sv.display_name FROM shop_vehicles sv 
+           JOIN shop_categories sc ON sv.category_id = sc.id 
+           JOIN rust_servers rs ON sc.server_id = rs.id 
+           JOIN guilds g ON rs.guild_id = g.id 
+           WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ? AND sv.display_name LIKE ? 
+           LIMIT 25`,
           [guildId, serverNickname, categoryName, `%${focusedOption.value}%`]
         );
 
         const choices = result.map(row => ({
-          name: `${row.display_name} - ${row.price} coins`,
-          value: row.id.toString()
+          name: row.display_name,
+          value: row.display_name
         }));
 
         await interaction.respond(choices);
@@ -115,19 +114,19 @@ module.exports = {
 
     const serverNickname = interaction.options.getString('server');
     const categoryName = interaction.options.getString('category');
-    const vehicleId = interaction.options.getString('vehicle');
+    const vehicleName = interaction.options.getString('vehicle');
     const guildId = interaction.guildId;
 
     try {
-      // Get vehicle details
+      // Get vehicle details (like remove-shop-item)
       const [result] = await pool.query(
         `SELECT sv.id, sv.display_name, sv.short_name, sv.price, rs.nickname as server_name
          FROM shop_vehicles sv
          JOIN shop_categories sc ON sv.category_id = sc.id
          JOIN rust_servers rs ON sc.server_id = rs.id
-         WHERE rs.guild_id = (SELECT id FROM guilds WHERE discord_id = ?) 
-         AND rs.nickname = ? AND sc.name = ? AND sv.id = ?`,
-        [guildId, serverNickname, categoryName, vehicleId]
+         JOIN guilds g ON rs.guild_id = g.id
+         WHERE g.discord_id = ? AND rs.nickname = ? AND sc.name = ? AND sv.display_name = ?`,
+        [guildId, serverNickname, categoryName, vehicleName]
       );
 
       if (result.length === 0) {
@@ -141,7 +140,7 @@ module.exports = {
       // Remove the vehicle
       await pool.query(
         'DELETE FROM shop_vehicles WHERE id = ?',
-        [vehicleId]
+        [vehicle.id]
       );
 
       await interaction.editReply({
