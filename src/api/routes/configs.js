@@ -11,29 +11,56 @@ router.get('/:serverId/configs', async (req, res) => {
     
     console.log(`🔍 Loading configurations for server: ${serverId}`);
     
+    // Test database connection first
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connection is working');
+    } catch (dbError) {
+      console.error('❌ Database connection failed:', dbError);
+      return res.status(500).json({ error: 'Database connection failed', details: dbError.message });
+    }
+    
     // Get server info
-    const [serverResult] = await pool.query(
-      'SELECT * FROM unified_servers WHERE id = ?',
-      [serverId]
-    );
+    let serverResult;
+    try {
+      [serverResult] = await pool.query(
+        'SELECT * FROM unified_servers WHERE id = ?',
+        [serverId]
+      );
+      console.log(`📊 Server query result:`, serverResult.length, 'rows found');
+    } catch (queryError) {
+      console.error('❌ Error querying unified_servers:', queryError);
+      return res.status(500).json({ error: 'Database query failed', details: queryError.message });
+    }
     
     if (serverResult.length === 0) {
+      console.log(`❌ No server found with ID: ${serverId}`);
       return res.status(404).json({ error: 'Server not found' });
     }
     
     const server = serverResult[0];
+    console.log(`📋 Found server:`, server.name, server.nickname);
     
     // Get rust server ID
-    const [rustServerResult] = await pool.query(
-      'SELECT id FROM rust_servers WHERE server_nickname = ? OR server_name = ?',
-      [server.nickname, server.name]
-    );
+    let rustServerResult;
+    try {
+      [rustServerResult] = await pool.query(
+        'SELECT id FROM rust_servers WHERE server_nickname = ? OR server_name = ?',
+        [server.nickname, server.name]
+      );
+      console.log(`📊 Rust server query result:`, rustServerResult.length, 'rows found');
+    } catch (queryError) {
+      console.error('❌ Error querying rust_servers:', queryError);
+      return res.status(500).json({ error: 'Rust server query failed', details: queryError.message });
+    }
     
     if (rustServerResult.length === 0) {
+      console.log(`❌ No rust server found for:`, server.nickname, server.name);
       return res.status(404).json({ error: 'Rust server not found' });
     }
     
     const rustServerId = rustServerResult[0].id;
+    console.log(`🎯 Using rust server ID: ${rustServerId}`);
     
     const configs = {
       economy: {},
@@ -46,10 +73,12 @@ router.get('/:serverId/configs', async (req, res) => {
     
     // Load economy configurations
     try {
+      console.log(`📊 Loading economy configs for rust server ID: ${rustServerId}`);
       const [economyResult] = await pool.query(
         'SELECT setting_name, setting_value FROM eco_games_config WHERE server_id = ?',
         [rustServerId]
       );
+      console.log(`📊 Economy configs found:`, economyResult.length);
       
       economyResult.forEach(row => {
         const key = row.setting_name.replace(/-/g, '').toLowerCase();
@@ -62,7 +91,7 @@ router.get('/:serverId/configs', async (req, res) => {
         }
       });
     } catch (error) {
-      console.log('No economy configs found');
+      console.log('⚠️ No economy configs found or error loading:', error.message);
     }
     
     // Load teleport configurations
@@ -212,11 +241,26 @@ router.get('/:serverId/configs', async (req, res) => {
       console.log('No misc configs found');
     }
     
+    console.log(`✅ Successfully loaded configurations for server ${serverId}`);
+    console.log(`📊 Config summary:`, {
+      economy: Object.keys(configs.economy).length,
+      teleports: Object.keys(configs.teleports).length,
+      events: Object.keys(configs.events).length,
+      systems: Object.keys(configs.systems).length,
+      positions: Object.keys(configs.positions).length,
+      misc: Object.keys(configs.misc).length
+    });
+    
     res.json(configs);
     
   } catch (error) {
-    console.error('Error loading configurations:', error);
-    res.status(500).json({ error: 'Failed to load configurations' });
+    console.error('❌ Error loading configurations:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to load configurations', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
