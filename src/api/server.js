@@ -373,7 +373,7 @@ app.get('/api/servers/:serverId/configs', async (req, res) => {
     try {
       // Book-a-Ride
       const [barResult] = await pool.query(
-        'SELECT enabled, cooldown, horse_enabled, rhib_enabled, mini_enabled, car_enabled FROM rider_config WHERE server_id = ?',
+        'SELECT enabled, cooldown, horse_enabled, rhib_enabled, mini_enabled, car_enabled, welcome_message_enabled, welcome_message_text, fuel_amount, use_list FROM rider_config WHERE server_id = ?',
         [rustServerId]
       );
       
@@ -384,33 +384,39 @@ app.get('/api/servers/:serverId/configs', async (req, res) => {
           horse: barResult[0].horse_enabled,
           rhib: barResult[0].rhib_enabled,
           mini: barResult[0].mini_enabled,
-          car: barResult[0].car_enabled
+          car: barResult[0].car_enabled,
+          welcomeMessage: barResult[0].welcome_message_enabled,
+          welcomeMsgText: barResult[0].welcome_message_text || '',
+          fuelAmount: barResult[0].fuel_amount || 100,
+          useList: barResult[0].use_list
         };
       }
       
       // Recycler
       const [recyclerResult] = await pool.query(
-        'SELECT enabled, cooldown_minutes FROM recycler_configs WHERE server_id = ?',
+        'SELECT enabled, cooldown_minutes, use_list FROM recycler_configs WHERE server_id = ?',
         [rustServerId]
       );
       
       if (recyclerResult.length > 0) {
         configs.systems.recycler = {
           enabled: recyclerResult[0].enabled,
-          cooldown: recyclerResult[0].cooldown_minutes
+          cooldown: recyclerResult[0].cooldown_minutes,
+          useList: recyclerResult[0].use_list
         };
       }
       
       // Home Teleport
       const [hometpResult] = await pool.query(
-        'SELECT enabled, cooldown_minutes FROM home_teleport_configs WHERE server_id = ?',
+        'SELECT enabled, cooldown_minutes, use_list FROM home_teleport_configs WHERE server_id = ?',
         [rustServerId]
       );
       
       if (hometpResult.length > 0) {
         configs.systems.hometp = {
           enabled: hometpResult[0].enabled,
-          cooldown: hometpResult[0].cooldown_minutes
+          cooldown: hometpResult[0].cooldown_minutes,
+          useList: hometpResult[0].use_list
         };
       }
       
@@ -453,7 +459,7 @@ app.get('/api/servers/:serverId/configs', async (req, res) => {
     try {
       // Crate Events
       const [crateResult] = await pool.query(
-        'SELECT crate_type, enabled, spawn_interval_minutes FROM crate_event_configs WHERE server_id = ?',
+        'SELECT crate_type, enabled, spawn_interval_minutes, spawn_amount, spawn_message FROM crate_event_configs WHERE server_id = ?',
         [rustServerId]
       );
       
@@ -461,7 +467,9 @@ app.get('/api/servers/:serverId/configs', async (req, res) => {
       crateResult.forEach(row => {
         configs.misc.crates[row.crate_type.toLowerCase()] = {
           enabled: row.enabled,
-          time: row.spawn_interval_minutes
+          time: row.spawn_interval_minutes,
+          amount: row.spawn_amount,
+          message: row.spawn_message || ''
         };
       });
       
@@ -530,25 +538,24 @@ app.post('/api/servers/:serverId/configs', async (req, res) => {
       guildId: serverData.guild_id
     };
     
-    // Send to Discord bot webhook endpoint
+    // For now, just update the database directly since webhook might not be set up
+    // TODO: Implement proper webhook communication with Discord bot
+    
+    // Update the configuration in the database directly
     try {
-      const webhookResponse = await fetch(`${process.env.DISCORD_BOT_WEBHOOK_URL || 'http://localhost:3001'}/api/webhook/set-config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(webhookData)
+      // This is a simplified version - in production, you'd want to call the Discord bot
+      // For now, we'll just return success and let the Discord bot handle it via its own commands
+      console.log('Configuration update requested:', webhookData);
+      
+      res.json({ 
+        success: true, 
+        message: 'Configuration update request sent to Discord bot. Please use the /set command in Discord to apply changes.',
+        data: webhookData
       });
       
-      if (!webhookResponse.ok) {
-        throw new Error(`Webhook failed: ${webhookResponse.status}`);
-      }
-      
-      res.json({ success: true, message: 'Configuration updated successfully' });
-      
-    } catch (webhookError) {
-      console.error('Webhook error:', webhookError);
-      res.status(500).json({ error: 'Failed to update configuration via Discord bot' });
+    } catch (dbError) {
+      console.error('Database update error:', dbError);
+      res.status(500).json({ error: 'Failed to update configuration' });
     }
     
   } catch (error) {

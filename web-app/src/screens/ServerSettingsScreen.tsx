@@ -340,13 +340,15 @@ const ServerSettingsScreen = () => {
       });
 
       if (response.ok) {
+        const result = await response.json();
         toast({
-          title: "Configuration Updated",
-          description: `${configName} has been updated successfully`
+          title: "Configuration Update Requested",
+          description: result.message || `${configName} update has been sent to Discord bot`
         });
         loadConfigurations(selectedServer.id);
       } else {
-        throw new Error('Failed to update configuration');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update configuration');
       }
     } catch (error) {
       toast({
@@ -1004,6 +1006,28 @@ const ServerSettingsScreen = () => {
                                   />
                                 </div>
                               </div>
+                              <div className="space-y-2">
+                                <Label>Bounty Rewards Amount</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="100"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.bountyRewards || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'BOUNTY-REWARDS', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Killfeed Format</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="{Killer} ☠️ {Victim}"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.killfeedSetup || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'KILLFEED-SETUP', e.target.value)}
+                                  />
+                                </div>
+                              </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
                               <div className="flex items-center space-x-2">
@@ -1046,6 +1070,16 @@ const ServerSettingsScreen = () => {
                                 />
                                 <Label htmlFor="killfeed-toggle" className="text-white">Killfeed</Label>
                               </div>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="killfeed-randomizer"
+                                  className="w-4 h-4 text-orange-500 bg-gray-700 border-gray-600 rounded focus:ring-orange-500"
+                                  defaultChecked={configs.economy?.killfeedRandomizer}
+                                  onChange={(e) => updateConfiguration('economy', 'KILLFEED-RANDOMIZER', e.target.checked ? 'on' : 'off')}
+                                />
+                                <Label htmlFor="killfeed-randomizer" className="text-white">Killfeed Randomizer</Label>
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
@@ -1076,13 +1110,47 @@ const ServerSettingsScreen = () => {
                                       />
                                       <Label htmlFor={`${tp.toLowerCase()}-use`} className="text-white text-sm">Enable</Label>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="space-y-1">
+                                      <Input
+                                        placeholder="Display Name"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.teleports?.[tp.toLowerCase()]?.displayName || ''}
+                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-NAME`, e.target.value)}
+                                      />
                                       <Input
                                         placeholder="Cooldown (minutes)"
                                         className="bg-gray-600 border-gray-500 text-white text-sm"
                                         defaultValue={configs.teleports?.[tp.toLowerCase()]?.cooldown || ''}
-                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-COOLDOWN`, e.target.value)}
+                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-TIME`, e.target.value)}
                                       />
+                                      <Input
+                                        placeholder="Coordinates (x,y,z)"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.teleports?.[tp.toLowerCase()]?.coordinates || ''}
+                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-COORDINATES`, e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`${tp.toLowerCase()}-uselist`}
+                                          className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                          defaultChecked={configs.teleports?.[tp.toLowerCase()]?.useList}
+                                          onChange={(e) => updateConfiguration('teleports', `${tp}-USELIST`, e.target.checked ? 'on' : 'off')}
+                                        />
+                                        <Label htmlFor={`${tp.toLowerCase()}-uselist`} className="text-white text-xs">Use List</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`${tp.toLowerCase()}-usekit`}
+                                          className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                          defaultChecked={configs.teleports?.[tp.toLowerCase()]?.useKit}
+                                          onChange={(e) => updateConfiguration('teleports', `${tp}-USE-KIT`, e.target.checked ? 'on' : 'off')}
+                                        />
+                                        <Label htmlFor={`${tp.toLowerCase()}-usekit`} className="text-white text-xs">Use Kit</Label>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -1163,13 +1231,35 @@ const ServerSettingsScreen = () => {
                                     />
                                     <Label htmlFor="bar-use" className="text-white text-sm">Enable</Label>
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="space-y-1">
                                     <Input
                                       placeholder="Cooldown (minutes)"
                                       className="bg-gray-600 border-gray-500 text-white text-sm"
                                       defaultValue={configs.systems?.bar?.cooldown || ''}
                                       onBlur={(e) => updateConfiguration('systems', 'BAR-COOLDOWN', e.target.value)}
                                     />
+                                    <Input
+                                      placeholder="Fuel Amount"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.bar?.fuelAmount || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'BAR-FUEL-AMOUNT', e.target.value)}
+                                    />
+                                    <Input
+                                      placeholder="Welcome Message Text"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.bar?.welcomeMsgText || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'BAR-WELCOME-MSG-TEXT', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="bar-welcome-message"
+                                      className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                      defaultChecked={configs.systems?.bar?.welcomeMessage}
+                                      onChange={(e) => updateConfiguration('systems', 'BAR-WELCOME-MESSAGE', e.target.checked ? 'on' : 'off')}
+                                    />
+                                    <Label htmlFor="bar-welcome-message" className="text-white text-xs">Welcome Message</Label>
                                   </div>
                                   <div className="grid grid-cols-2 gap-2">
                                     {['HORSE', 'RHIB', 'MINI', 'CAR'].map((vehicle) => (
@@ -1200,7 +1290,17 @@ const ServerSettingsScreen = () => {
                                     />
                                     <Label htmlFor="recycler-use" className="text-white text-sm">Enable</Label>
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id="recycler-uselist"
+                                        className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.systems?.recycler?.useList}
+                                        onChange={(e) => updateConfiguration('systems', 'RECYCLER-USELIST', e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor="recycler-uselist" className="text-white text-xs">Use List</Label>
+                                    </div>
                                     <Input
                                       placeholder="Cooldown (minutes)"
                                       className="bg-gray-600 border-gray-500 text-white text-sm"
@@ -1223,7 +1323,17 @@ const ServerSettingsScreen = () => {
                                     />
                                     <Label htmlFor="hometp-use" className="text-white text-sm">Enable</Label>
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id="hometp-uselist"
+                                        className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.systems?.hometp?.useList}
+                                        onChange={(e) => updateConfiguration('systems', 'HOMETP-USELIST', e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor="hometp-uselist" className="text-white text-xs">Use List</Label>
+                                    </div>
                                     <Input
                                       placeholder="Cooldown (minutes)"
                                       className="bg-gray-600 border-gray-500 text-white text-sm"
@@ -1329,23 +1439,37 @@ const ServerSettingsScreen = () => {
                                 <Label className="text-white font-semibold">Crate Events</Label>
                                 <div className="space-y-2">
                                   {['CRATE-1', 'CRATE-2', 'CRATE-3', 'CRATE-4'].map((crate) => (
-                                    <div key={crate} className="flex items-center justify-between">
-                                      <span className="text-white text-sm">{crate}</span>
-                                      <div className="flex gap-2">
+                                    <div key={crate} className="space-y-2 p-3 bg-gray-600 rounded">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-white text-sm font-semibold">{crate}</span>
                                         <input
                                           type="checkbox"
                                           id={`${crate.toLowerCase()}-enable`}
-                                          className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                          className="w-4 h-4 text-orange-500 bg-gray-500 border-gray-400 rounded focus:ring-orange-500"
                                           defaultChecked={configs.misc?.crates?.[crate.toLowerCase()]?.enabled}
                                           onChange={(e) => updateConfiguration('misc', `${crate}-ON/OFF`, e.target.checked ? 'on' : 'off')}
                                         />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
                                         <Input
                                           placeholder="Time (min)"
-                                          className="bg-gray-600 border-gray-500 text-white text-xs w-16"
+                                          className="bg-gray-500 border-gray-400 text-white text-xs"
                                           defaultValue={configs.misc?.crates?.[crate.toLowerCase()]?.time || ''}
                                           onBlur={(e) => updateConfiguration('misc', `${crate}-TIME`, e.target.value)}
                                         />
+                                        <Input
+                                          placeholder="Amount (max 2)"
+                                          className="bg-gray-500 border-gray-400 text-white text-xs"
+                                          defaultValue={configs.misc?.crates?.[crate.toLowerCase()]?.amount || ''}
+                                          onBlur={(e) => updateConfiguration('misc', `${crate}-AMOUNT`, e.target.value)}
+                                        />
                                       </div>
+                                      <Input
+                                        placeholder="Spawn Message"
+                                        className="bg-gray-500 border-gray-400 text-white text-xs"
+                                        defaultValue={configs.misc?.crates?.[crate.toLowerCase()]?.message || ''}
+                                        onBlur={(e) => updateConfiguration('misc', `${crate}-MSG`, e.target.value)}
+                                      />
                                     </div>
                                   ))}
                                 </div>
