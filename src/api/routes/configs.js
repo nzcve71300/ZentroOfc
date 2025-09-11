@@ -1,5 +1,4 @@
 const express = require('express');
-const fetch = require('node-fetch');
 const router = express.Router();
 
 // Import shared database connection
@@ -263,25 +262,20 @@ router.post('/:serverId/configs', async (req, res) => {
       guildId: serverData.guild_id
     };
     
-    // Send to Discord bot webhook endpoint
+    // For now, just log the configuration update request
+    // TODO: Implement proper webhook communication with Discord bot
     try {
-      const webhookResponse = await fetch(`${process.env.DISCORD_BOT_WEBHOOK_URL || 'http://localhost:3001'}/api/webhook/set-config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(webhookData)
+      console.log('Configuration update requested:', webhookData);
+      
+      res.json({ 
+        success: true, 
+        message: 'Configuration update request logged. Please use the /set command in Discord to apply changes.',
+        data: webhookData
       });
       
-      if (!webhookResponse.ok) {
-        throw new Error(`Webhook failed: ${webhookResponse.status}`);
-      }
-      
-      res.json({ success: true, message: 'Configuration updated successfully' });
-      
-    } catch (webhookError) {
-      console.error('Webhook error:', webhookError);
-      res.status(500).json({ error: 'Failed to update configuration via Discord bot' });
+    } catch (error) {
+      console.error('Error processing configuration update:', error);
+      res.status(500).json({ error: 'Failed to process configuration update request' });
     }
     
   } catch (error) {
