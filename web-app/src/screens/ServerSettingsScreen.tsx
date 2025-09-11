@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, Plus, Trash2, Edit, Lock, Server as ServerIcon, Store, Package, Clock, DollarSign, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Settings, Plus, Trash2, Edit, Lock, Server as ServerIcon, Store, Package, Clock, DollarSign, ChevronDown, ChevronRight, Wrench, Gamepad2, Target, Zap, Shield, Users, Home } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { serverService } from '../lib/servers-api';
 import { storeService } from '../lib/store';
@@ -39,6 +39,9 @@ const ServerSettingsScreen = () => {
   });
   const [editingItem, setEditingItem] = useState<StoreItem | null>(null);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
+  const [isConfigsExpanded, setIsConfigsExpanded] = useState(false);
+  const [configs, setConfigs] = useState<any>({});
+  const [configsLoading, setConfigsLoading] = useState(false);
 
   useEffect(() => {
     if (servers.length === 1) {
@@ -294,6 +297,64 @@ const ServerSettingsScreen = () => {
   const startEditCategory = (category: Category) => {
     setEditingCategory(category);
     setCategoryForm({ name: category.name, type: category.type });
+  };
+
+  // Load server configurations
+  const loadConfigurations = async (serverId: string) => {
+    if (!serverId) return;
+    
+    try {
+      setConfigsLoading(true);
+      const response = await fetch(`/api/servers/${serverId}/configs`);
+      if (response.ok) {
+        const data = await response.json();
+        setConfigs(data);
+      }
+    } catch (error) {
+      console.error('Failed to load configurations:', error);
+      toast({
+        title: "Failed to load configurations",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    } finally {
+      setConfigsLoading(false);
+    }
+  };
+
+  // Update configuration
+  const updateConfiguration = async (configType: string, configName: string, value: string) => {
+    if (!selectedServer) return;
+
+    try {
+      const response = await fetch(`/api/servers/${selectedServer.id}/configs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          config: configName,
+          option: value,
+          server: selectedServer.name
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Configuration Updated",
+          description: `${configName} has been updated successfully`
+        });
+        loadConfigurations(selectedServer.id);
+      } else {
+        throw new Error('Failed to update configuration');
+      }
+    } catch (error) {
+      toast({
+        title: "Failed to update configuration",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    }
   };
 
   // Show locked state if no servers
@@ -805,6 +866,506 @@ const ServerSettingsScreen = () => {
                                 )}
                               </div>
                             )}
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Set Configs Card */}
+              <Card className="gaming-card border-orange-500">
+                <CardHeader 
+                  className="cursor-pointer hover:bg-gray-900 transition-colors"
+                  onClick={() => {
+                    setIsConfigsExpanded(!isConfigsExpanded);
+                    if (!isConfigsExpanded && selectedServer) {
+                      loadConfigurations(selectedServer.id);
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-orange-500 flex items-center">
+                      {isConfigsExpanded ? (
+                        <ChevronDown className="w-5 h-5 mr-2" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 mr-2" />
+                      )}
+                      Set Configs
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                
+                {isConfigsExpanded && (
+                  <CardContent className="bg-gray-900">
+                    <Tabs defaultValue="economy" className="space-y-6">
+                      <TabsList className="grid w-full grid-cols-6 gaming-card bg-gray-800">
+                        <TabsTrigger value="economy" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          <Gamepad2 className="w-4 h-4 mr-1" />
+                          Economy
+                        </TabsTrigger>
+                        <TabsTrigger value="teleports" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          <Target className="w-4 h-4 mr-1" />
+                          Teleports
+                        </TabsTrigger>
+                        <TabsTrigger value="events" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          <Zap className="w-4 h-4 mr-1" />
+                          Events
+                        </TabsTrigger>
+                        <TabsTrigger value="systems" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          <Wrench className="w-4 h-4 mr-1" />
+                          Systems
+                        </TabsTrigger>
+                        <TabsTrigger value="positions" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          <Shield className="w-4 h-4 mr-1" />
+                          Positions
+                        </TabsTrigger>
+                        <TabsTrigger value="misc" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          <Users className="w-4 h-4 mr-1" />
+                          Misc
+                        </TabsTrigger>
+                      </TabsList>
+
+                      {/* Economy Configs */}
+                      <TabsContent value="economy" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500 flex items-center">
+                              <Gamepad2 className="w-5 h-5 mr-2" />
+                              Economy Settings
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Daily Reward Amount</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="100"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.dailyAmount || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'DAILY-AMOUNT', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Starting Balance</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="1000"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.startingBalance || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'STARTING-BALANCE', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Player Kill Reward</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="50"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.playerKillsAmount || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'PLAYERKILLS-AMOUNT', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Misc Kill Reward</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="25"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.miscKillsAmount || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'MISCKILLS-AMOUNT', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Blackjack Min Bet</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="10"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.blackjackMin || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'BLACKJACK-MIN', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Blackjack Max Bet</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="1000"
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                    defaultValue={configs.economy?.blackjackMax || ''}
+                                    onBlur={(e) => updateConfiguration('economy', 'BLACKJACK-MAX', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="blackjack-toggle"
+                                  className="w-4 h-4 text-orange-500 bg-gray-700 border-gray-600 rounded focus:ring-orange-500"
+                                  defaultChecked={configs.economy?.blackjackToggle}
+                                  onChange={(e) => updateConfiguration('economy', 'BLACKJACK-TOGGLE', e.target.checked ? 'on' : 'off')}
+                                />
+                                <Label htmlFor="blackjack-toggle" className="text-white">Blackjack</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="coinflip-toggle"
+                                  className="w-4 h-4 text-orange-500 bg-gray-700 border-gray-600 rounded focus:ring-orange-500"
+                                  defaultChecked={configs.economy?.coinflipToggle}
+                                  onChange={(e) => updateConfiguration('economy', 'COINFLIP-TOGGLE', e.target.checked ? 'on' : 'off')}
+                                />
+                                <Label htmlFor="coinflip-toggle" className="text-white">Coinflip</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="bounty-toggle"
+                                  className="w-4 h-4 text-orange-500 bg-gray-700 border-gray-600 rounded focus:ring-orange-500"
+                                  defaultChecked={configs.economy?.bountyToggle}
+                                  onChange={(e) => updateConfiguration('economy', 'BOUNTY-TOGGLE', e.target.checked ? 'on' : 'off')}
+                                />
+                                <Label htmlFor="bounty-toggle" className="text-white">Bounty System</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="killfeed-toggle"
+                                  className="w-4 h-4 text-orange-500 bg-gray-700 border-gray-600 rounded focus:ring-orange-500"
+                                  defaultChecked={configs.economy?.killfeedToggle}
+                                  onChange={(e) => updateConfiguration('economy', 'KILLFEEDGAME', e.target.checked ? 'on' : 'off')}
+                                />
+                                <Label htmlFor="killfeed-toggle" className="text-white">Killfeed</Label>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Teleports Configs */}
+                      <TabsContent value="teleports" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500 flex items-center">
+                              <Target className="w-5 h-5 mr-2" />
+                              Teleport Settings
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {['TPN', 'TPNE', 'TPE', 'TPSE', 'TPS', 'TPSW', 'TPW', 'TPNW'].map((tp) => (
+                                <div key={tp} className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                  <Label className="text-white font-semibold">{tp} Teleport</Label>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`${tp.toLowerCase()}-use`}
+                                        className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.teleports?.[tp.toLowerCase()]?.enabled}
+                                        onChange={(e) => updateConfiguration('teleports', `${tp}-USE`, e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor={`${tp.toLowerCase()}-use`} className="text-white text-sm">Enable</Label>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Input
+                                        placeholder="Cooldown (minutes)"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.teleports?.[tp.toLowerCase()]?.cooldown || ''}
+                                        onBlur={(e) => updateConfiguration('teleports', `${tp}-COOLDOWN`, e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Events Configs */}
+                      <TabsContent value="events" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500 flex items-center">
+                              <Zap className="w-5 h-5 mr-2" />
+                              Event Settings
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {['BRADLEY', 'HELICOPTER'].map((event) => (
+                                <div key={event} className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                  <Label className="text-white font-semibold">{event} Event</Label>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`${event.toLowerCase()}-scout`}
+                                        className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.events?.[event.toLowerCase()]?.scout}
+                                        onChange={(e) => updateConfiguration('events', `${event}-SCOUT`, e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor={`${event.toLowerCase()}-scout`} className="text-white text-sm">Scout</Label>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Input
+                                        placeholder="Kill Message"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.events?.[event.toLowerCase()]?.killMsg || ''}
+                                        onBlur={(e) => updateConfiguration('events', `${event}-KILLMSG`, e.target.value)}
+                                      />
+                                      <Input
+                                        placeholder="Respawn Message"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.events?.[event.toLowerCase()]?.respawnMsg || ''}
+                                        onBlur={(e) => updateConfiguration('events', `${event}-RESPAWNMSG`, e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Systems Configs */}
+                      <TabsContent value="systems" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500 flex items-center">
+                              <Wrench className="w-5 h-5 mr-2" />
+                              System Settings
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                <Label className="text-white font-semibold">Book-a-Ride (BAR)</Label>
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="bar-use"
+                                      className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                      defaultChecked={configs.systems?.bar?.enabled}
+                                      onChange={(e) => updateConfiguration('systems', 'BAR-USE', e.target.checked ? 'on' : 'off')}
+                                    />
+                                    <Label htmlFor="bar-use" className="text-white text-sm">Enable</Label>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      placeholder="Cooldown (minutes)"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.bar?.cooldown || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'BAR-COOLDOWN', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {['HORSE', 'RHIB', 'MINI', 'CAR'].map((vehicle) => (
+                                      <div key={vehicle} className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`bar-${vehicle.toLowerCase()}`}
+                                          className="w-3 h-3 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                          defaultChecked={configs.systems?.bar?.[vehicle.toLowerCase()]}
+                                          onChange={(e) => updateConfiguration('systems', `BAR-${vehicle}`, e.target.checked ? 'on' : 'off')}
+                                        />
+                                        <Label htmlFor={`bar-${vehicle.toLowerCase()}`} className="text-white text-xs">{vehicle}</Label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                <Label className="text-white font-semibold">Recycler</Label>
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="recycler-use"
+                                      className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                      defaultChecked={configs.systems?.recycler?.enabled}
+                                      onChange={(e) => updateConfiguration('systems', 'RECYCLER-USE', e.target.checked ? 'on' : 'off')}
+                                    />
+                                    <Label htmlFor="recycler-use" className="text-white text-sm">Enable</Label>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      placeholder="Cooldown (minutes)"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.recycler?.cooldown || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'RECYCLER-TIME', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                <Label className="text-white font-semibold">Home Teleport</Label>
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="hometp-use"
+                                      className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                      defaultChecked={configs.systems?.hometp?.enabled}
+                                      onChange={(e) => updateConfiguration('systems', 'HOMETP-USE', e.target.checked ? 'on' : 'off')}
+                                    />
+                                    <Label htmlFor="hometp-use" className="text-white text-sm">Enable</Label>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      placeholder="Cooldown (minutes)"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.hometp?.cooldown || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'HOMETP-TIME', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                <Label className="text-white font-semibold">Prison System</Label>
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="prison-system"
+                                      className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                      defaultChecked={configs.systems?.prison?.enabled}
+                                      onChange={(e) => updateConfiguration('systems', 'Prison-System', e.target.checked ? 'on' : 'off')}
+                                    />
+                                    <Label htmlFor="prison-system" className="text-white text-sm">Enable</Label>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Input
+                                      placeholder="Zone Size"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.prison?.zoneSize || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'Prison-Z-Size', e.target.value)}
+                                    />
+                                    <Input
+                                      placeholder="Zone Color"
+                                      className="bg-gray-600 border-gray-500 text-white text-sm"
+                                      defaultValue={configs.systems?.prison?.zoneColor || ''}
+                                      onBlur={(e) => updateConfiguration('systems', 'Prison-Z-Color', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Positions Configs */}
+                      <TabsContent value="positions" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500 flex items-center">
+                              <Shield className="w-5 h-5 mr-2" />
+                              Position Settings
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {['OUTPOST', 'BANDIT'].map((position) => (
+                                <div key={position} className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                  <Label className="text-white font-semibold">{position}</Label>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`${position.toLowerCase()}-enable`}
+                                        className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                        defaultChecked={configs.positions?.[position.toLowerCase()]?.enabled}
+                                        onChange={(e) => updateConfiguration('positions', `${position}-ENABLE`, e.target.checked ? 'on' : 'off')}
+                                      />
+                                      <Label htmlFor={`${position.toLowerCase()}-enable`} className="text-white text-sm">Enable</Label>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Input
+                                        placeholder="Delay (seconds)"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.positions?.[position.toLowerCase()]?.delay || ''}
+                                        onBlur={(e) => updateConfiguration('positions', `${position}-DELAY`, e.target.value)}
+                                      />
+                                      <Input
+                                        placeholder="Cooldown (minutes)"
+                                        className="bg-gray-600 border-gray-500 text-white text-sm"
+                                        defaultValue={configs.positions?.[position.toLowerCase()]?.cooldown || ''}
+                                        onBlur={(e) => updateConfiguration('positions', `${position}-COOLDOWN`, e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Misc Configs */}
+                      <TabsContent value="misc" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500 flex items-center">
+                              <Users className="w-5 h-5 mr-2" />
+                              Miscellaneous Settings
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                <Label className="text-white font-semibold">Crate Events</Label>
+                                <div className="space-y-2">
+                                  {['CRATE-1', 'CRATE-2', 'CRATE-3', 'CRATE-4'].map((crate) => (
+                                    <div key={crate} className="flex items-center justify-between">
+                                      <span className="text-white text-sm">{crate}</span>
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`${crate.toLowerCase()}-enable`}
+                                          className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                          defaultChecked={configs.misc?.crates?.[crate.toLowerCase()]?.enabled}
+                                          onChange={(e) => updateConfiguration('misc', `${crate}-ON/OFF`, e.target.checked ? 'on' : 'off')}
+                                        />
+                                        <Input
+                                          placeholder="Time (min)"
+                                          className="bg-gray-600 border-gray-500 text-white text-xs w-16"
+                                          defaultValue={configs.misc?.crates?.[crate.toLowerCase()]?.time || ''}
+                                          onBlur={(e) => updateConfiguration('misc', `${crate}-TIME`, e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="space-y-2 p-4 bg-gray-700 rounded-lg">
+                                <Label className="text-white font-semibold">Zorp System</Label>
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="zorp-uselist"
+                                      className="w-4 h-4 text-orange-500 bg-gray-600 border-gray-500 rounded focus:ring-orange-500"
+                                      defaultChecked={configs.misc?.zorp?.useList}
+                                      onChange={(e) => updateConfiguration('misc', 'ZORP-USELIST', e.target.checked ? 'on' : 'off')}
+                                    />
+                                    <Label htmlFor="zorp-uselist" className="text-white text-sm">Use List</Label>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </CardContent>
                         </Card>
                       </TabsContent>
