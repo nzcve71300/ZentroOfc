@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, Plus, Trash2, Edit, Lock, Server as ServerIcon, Store, Package, Clock, DollarSign } from 'lucide-react';
+import { ArrowLeft, Settings, Plus, Trash2, Edit, Lock, Server as ServerIcon, Store, Package, Clock, DollarSign, ChevronDown, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { serverService } from '../lib/servers-api';
 import { storeService } from '../lib/store';
@@ -38,6 +38,7 @@ const ServerSettingsScreen = () => {
     timerMinutes: 0
   });
   const [editingItem, setEditingItem] = useState<StoreItem | null>(null);
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
 
   useEffect(() => {
     if (servers.length === 1) {
@@ -413,15 +414,414 @@ const ServerSettingsScreen = () => {
           </Card>
 
           {selectedServer && (
-            <Tabs defaultValue="store" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2 gaming-card">
-                <TabsTrigger value="details" className="data-[state=active]:btn-gaming">
-                  Server Details
-                </TabsTrigger>
-                <TabsTrigger value="store" className="data-[state=active]:btn-gaming">
-                  Store Configuration
-                </TabsTrigger>
-              </TabsList>
+            <div className="space-y-6">
+              {/* Collapsible Categories and Items Section */}
+              <Card className="gaming-card border-orange-500">
+                <CardHeader 
+                  className="cursor-pointer hover:bg-gray-900 transition-colors"
+                  onClick={() => setIsCategoriesExpanded(!isCategoriesExpanded)}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-orange-500 flex items-center">
+                      {isCategoriesExpanded ? (
+                        <ChevronDown className="w-5 h-5 mr-2" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 mr-2" />
+                      )}
+                      Categories and Items
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                
+                {isCategoriesExpanded && (
+                  <CardContent className="bg-gray-900">
+                    <Tabs defaultValue="categories" className="space-y-6">
+                      <TabsList className="grid w-full grid-cols-2 gaming-card bg-gray-800">
+                        <TabsTrigger value="categories" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          Categories
+                        </TabsTrigger>
+                        <TabsTrigger value="items" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">
+                          Items
+                        </TabsTrigger>
+                      </TabsList>
+
+                      {/* Categories Tab */}
+                      <TabsContent value="categories" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500">Categories</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            
+                            {/* Add Category Form */}
+                            <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
+                              <h4 className="font-semibold">Add New Category</h4>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="categoryName">Category Name</Label>
+                                  <Input
+                                    id="categoryName"
+                                    placeholder="e.g., Weapons"
+                                    value={categoryForm.name}
+                                    onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                                    className="bg-gray-700 border-gray-600 text-white"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>Category Type</Label>
+                                  <Select 
+                                    value={categoryForm.type} 
+                                    onValueChange={(value: 'item' | 'kit' | 'vehicle') => 
+                                      setCategoryForm(prev => ({ ...prev, type: value }))
+                                    }
+                                  >
+                                    <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-gray-800 border-gray-600">
+                                      <SelectItem value="item" className="text-white hover:bg-gray-700">Item Type</SelectItem>
+                                      <SelectItem value="kit" className="text-white hover:bg-gray-700">Kit Type</SelectItem>
+                                      <SelectItem value="vehicle" className="text-white hover:bg-gray-700">Vehicle Type</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="flex items-end">
+                                  <Button 
+                                    onClick={editingCategory ? handleEditCategory : handleAddCategory}
+                                    className="bg-orange-500 hover:bg-orange-600 text-black w-full"
+                                  >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    {editingCategory ? 'Update Category' : 'Add Category'}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {editingCategory && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingCategory(null);
+                                    setCategoryForm({ name: '', type: 'item' });
+                                  }}
+                                  className="border-gray-600 text-white hover:bg-gray-700"
+                                >
+                                  Cancel Edit
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Categories List */}
+                            <div className="space-y-3">
+                              {loading ? (
+                                <div className="text-center py-4">
+                                  <div className="loading-spinner w-6 h-6 mx-auto"></div>
+                                </div>
+                              ) : categories.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  <Store className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                  <p>No categories configured yet</p>
+                                </div>
+                              ) : (
+                                categories.map(category => (
+                                  <div
+                                    key={category.id} 
+                                    className="flex items-center justify-between p-3 bg-muted/10 rounded-lg border border-gray-600 bg-gray-700"
+                                  >
+                                    <div>
+                                      <div className="font-medium text-white">{category.name}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        Type: {category.type.charAt(0).toUpperCase() + category.type.slice(1)}
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => startEditCategory(category)}
+                                        className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-black"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
+                                      
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <Button variant="destructive" size="sm" className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white">
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="gaming-card border-0">
+                                          <DialogHeader>
+                                            <DialogTitle>Remove Category</DialogTitle>
+                                            <DialogDescription>
+                                              Are you sure you want to remove "{category.name}"? 
+                                              This will also remove all items in this category.
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <DialogFooter>
+                                            <Button variant="outline" className="btn-gaming-secondary">
+                                              Cancel
+                                            </Button>
+                                            <Button 
+                                              variant="destructive"
+                                              onClick={() => handleRemoveCategory(category)}
+                                            >
+                                              Remove Category
+                                            </Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      </Dialog>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      {/* Items Tab */}
+                      <TabsContent value="items" className="space-y-4">
+                        <Card className="bg-gray-800 border-gray-700">
+                          <CardHeader>
+                            <CardTitle className="text-orange-500">Items</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            
+                            {/* Category Selection */}
+                            <div className="space-y-4">
+                              <Label>Select Category</Label>
+                              <Select value={selectedCategory} onValueChange={handleCategorySelect}>
+                                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                                  <SelectValue placeholder="Choose a category to manage items" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-gray-800 border-gray-600">
+                                  {categories.map((category) => (
+                                    <SelectItem key={category.id} value={category.id} className="text-white hover:bg-gray-700">
+                                      {category.name} ({category.type})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Item Form */}
+                            {selectedCategory && (
+                              <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
+                                <h4 className="font-semibold">
+                                  {editingItem ? 'Edit Item' : 'Add New Item'}
+                                </h4>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="displayName">Display Name *</Label>
+                                    <Input
+                                      id="displayName"
+                                      placeholder="e.g., Assault Rifle"
+                                      value={itemForm.displayName}
+                                      onChange={(e) => setItemForm(prev => ({ ...prev, displayName: e.target.value }))}
+                                      className="bg-gray-700 border-gray-600 text-white"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="shortName">Short Name *</Label>
+                                    <Input
+                                      id="shortName"
+                                      placeholder="e.g., rifle.ak"
+                                      value={itemForm.shortName}
+                                      onChange={(e) => setItemForm(prev => ({ ...prev, shortName: e.target.value }))}
+                                      className="bg-gray-700 border-gray-600 text-white"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Exact item name for in-game delivery
+                                    </p>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="price">Price (Coins) *</Label>
+                                    <Input
+                                      id="price"
+                                      type="number"
+                                      placeholder="150.00"
+                                      value={itemForm.price}
+                                      onChange={(e) => setItemForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                                      className="bg-gray-700 border-gray-600 text-white"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="quantity">Quantity</Label>
+                                    <Input
+                                      id="quantity"
+                                      type="number"
+                                      placeholder="1"
+                                      value={itemForm.quantity}
+                                      onChange={(e) => setItemForm(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                                      className="bg-gray-700 border-gray-600 text-white"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="timerMinutes">Cooldown (Minutes)</Label>
+                                    <Input
+                                      id="timerMinutes"
+                                      type="number"
+                                      placeholder="60"
+                                      value={itemForm.timerMinutes}
+                                      onChange={(e) => setItemForm(prev => ({ ...prev, timerMinutes: parseInt(e.target.value) || 0 }))}
+                                      className="bg-gray-700 border-gray-600 text-white"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Time before player can purchase again
+                                    </p>
+                                  </div>
+
+                                  <div className="flex items-end">
+                                    <Button 
+                                      onClick={editingItem ? handleEditItem : handleAddItem}
+                                      className="bg-orange-500 hover:bg-orange-600 text-black w-full"
+                                      disabled={loading}
+                                    >
+                                      <Plus className="w-4 h-4 mr-2" />
+                                      {editingItem ? 'Update Item' : 'Add Item'}
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                {editingItem && (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingItem(null);
+                                      setItemForm({ displayName: '', shortName: '', price: 0, quantity: 1, timerMinutes: 0 });
+                                    }}
+                                    className="border-gray-600 text-white hover:bg-gray-700"
+                                  >
+                                    Cancel Edit
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Items List */}
+                            {selectedCategory && (
+                              <div className="space-y-3">
+                                <h4 className="font-semibold">Items in Category</h4>
+                                
+                                {itemsLoading ? (
+                                  <div className="text-center py-4">
+                                    <div className="loading-spinner w-6 h-6 mx-auto"></div>
+                                  </div>
+                                ) : items.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                    <p>No items in this category yet</p>
+                                    <p className="text-sm">Add your first item above</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {items.map((item) => (
+                                      <div
+                                        key={item.id}
+                                        className="flex items-center justify-between p-4 bg-muted/10 rounded-lg border border-gray-600 bg-gray-700"
+                                      >
+                                        <div className="flex-1">
+                                          <div className="font-medium text-white">{item.name}</div>
+                                          <div className="text-sm text-muted-foreground space-y-1">
+                                            <div>Short Name: <code className="bg-muted px-1 rounded">{item.shortName}</code></div>
+                                            <div className="flex items-center gap-4">
+                                              <span className="flex items-center gap-1">
+                                                <DollarSign className="w-3 h-3" />
+                                                {item.price} coins
+                                              </span>
+                                              <span className="flex items-center gap-1">
+                                                <Package className="w-3 h-3" />
+                                                Qty: {item.quantity}
+                                              </span>
+                                              {item.timerMinutes > 0 && (
+                                                <span className="flex items-center gap-1">
+                                                  <Clock className="w-3 h-3" />
+                                                  {item.timerMinutes}min cooldown
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              setEditingItem(item);
+                                              setItemForm({
+                                                displayName: item.name,
+                                                shortName: item.shortName,
+                                                price: item.price,
+                                                quantity: item.quantity,
+                                                timerMinutes: item.timerMinutes
+                                              });
+                                            }}
+                                            className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-black"
+                                          >
+                                            <Edit className="w-4 h-4" />
+                                          </Button>
+                                          
+                                          <Dialog>
+                                            <DialogTrigger asChild>
+                                              <Button variant="destructive" size="sm" className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white">
+                                                <Trash2 className="w-4 h-4" />
+                                              </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="gaming-card border-0">
+                                              <DialogHeader>
+                                                <DialogTitle>Remove Item</DialogTitle>
+                                                <DialogDescription>
+                                                  Are you sure you want to remove "{item.name}"? 
+                                                  This action cannot be undone.
+                                                </DialogDescription>
+                                              </DialogHeader>
+                                              <DialogFooter>
+                                                <Button variant="outline" className="btn-gaming-secondary">
+                                                  Cancel
+                                                </Button>
+                                                <Button 
+                                                  variant="destructive"
+                                                  onClick={() => handleDeleteItem(item.id)}
+                                                >
+                                                  Remove Item
+                                                </Button>
+                                              </DialogFooter>
+                                            </DialogContent>
+                                          </Dialog>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                )}
+              </Card>
+
+              <Tabs defaultValue="details" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-2 gaming-card">
+                  <TabsTrigger value="details" className="data-[state=active]:btn-gaming">
+                    Server Details
+                  </TabsTrigger>
+                  <TabsTrigger value="store" className="data-[state=active]:btn-gaming">
+                    Store Configuration
+                  </TabsTrigger>
+                </TabsList>
 
               {/* Server Details Tab */}
               <TabsContent value="details">
@@ -458,382 +858,8 @@ const ServerSettingsScreen = () => {
                 </Card>
               </TabsContent>
 
-              {/* Store Configuration Tab */}
-              <TabsContent value="store" className="space-y-6">
-                
-                {/* Add Category */}
-                <Card className="gaming-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Store className="w-5 h-5" />
-                      Store Categories
-                    </CardTitle>
-                    <CardDescription>
-                      Manage store categories for your server
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    
-                    {/* Add Category Form */}
-                    <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-                      <h4 className="font-semibold">Add New Category</h4>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="categoryName">Category Name</Label>
-                          <Input
-                            id="categoryName"
-                            placeholder="e.g., Weapons"
-                            value={categoryForm.name}
-                            onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
-                            className="gaming-input"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Category Type</Label>
-                          <Select 
-                            value={categoryForm.type} 
-                            onValueChange={(value: 'item' | 'kit' | 'vehicle') => 
-                              setCategoryForm(prev => ({ ...prev, type: value }))
-                            }
-                          >
-                            <SelectTrigger className="gaming-input">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="item">Item Type</SelectItem>
-                              <SelectItem value="kit">Kit Type</SelectItem>
-                              <SelectItem value="vehicle">Vehicle Type</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-end">
-                          <Button 
-                            onClick={editingCategory ? handleEditCategory : handleAddCategory}
-                            className="btn-gaming w-full"
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            {editingCategory ? 'Update Category' : 'Add Category'}
-                          </Button>
-                        </div>
-                      </div>
-
-                      {editingCategory && (
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setEditingCategory(null);
-                            setCategoryForm({ name: '', type: 'item' });
-                          }}
-                          className="btn-gaming-secondary"
-                        >
-                          Cancel Edit
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Categories List */}
-                    <div className="space-y-3">
-                      {loading ? (
-                        <div className="text-center py-4">
-                          <div className="loading-spinner w-6 h-6 mx-auto"></div>
-                        </div>
-                      ) : categories.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Store className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                          <p>No categories configured yet</p>
-                        </div>
-                      ) : (
-                        categories.map(category => (
-                          <div
-                            key={category.id} 
-                            className="flex items-center justify-between p-3 bg-muted/10 rounded-lg border border-border"
-                          >
-                            <div>
-                              <div className="font-medium">{category.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                Type: {category.type.charAt(0).toUpperCase() + category.type.slice(1)}
-                              </div>
-                            </div>
-                            
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => startEditCategory(category)}
-                                className="btn-gaming-secondary"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="destructive" size="sm">
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="gaming-card border-0">
-                                  <DialogHeader>
-                                    <DialogTitle>Remove Category</DialogTitle>
-                                    <DialogDescription>
-                                      Are you sure you want to remove "{category.name}"? 
-                                      This will also remove all items in this category.
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <DialogFooter>
-                                    <Button variant="outline" className="btn-gaming-secondary">
-                                      Cancel
-                                    </Button>
-                                    <Button 
-                                      variant="destructive"
-                                      onClick={() => handleRemoveCategory(category)}
-                                    >
-                                      Remove Category
-                                    </Button>
-                                  </DialogFooter>
-                                </DialogContent>
-                              </Dialog>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Item Management */}
-                <Card className="gaming-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Package className="w-5 h-5" />
-                      Store Items Management
-                    </CardTitle>
-                    <CardDescription>
-                      Select a category to manage items
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    
-                    {/* Category Selection */}
-                    <div className="space-y-4">
-                      <Label>Select Category</Label>
-                      <Select value={selectedCategory} onValueChange={handleCategorySelect}>
-                        <SelectTrigger className="gaming-input">
-                          <SelectValue placeholder="Choose a category to manage items" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name} ({category.type})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Item Form */}
-                    {selectedCategory && (
-                      <div className="space-y-4 p-4 bg-muted/20 rounded-lg">
-                        <h4 className="font-semibold">
-                          {editingItem ? 'Edit Item' : 'Add New Item'}
-                        </h4>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="displayName">Display Name *</Label>
-                            <Input
-                              id="displayName"
-                              placeholder="e.g., Assault Rifle"
-                              value={itemForm.displayName}
-                              onChange={(e) => setItemForm(prev => ({ ...prev, displayName: e.target.value }))}
-                              className="gaming-input"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="shortName">Short Name *</Label>
-                            <Input
-                              id="shortName"
-                              placeholder="e.g., rifle.ak"
-                              value={itemForm.shortName}
-                              onChange={(e) => setItemForm(prev => ({ ...prev, shortName: e.target.value }))}
-                              className="gaming-input"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Exact item name for in-game delivery
-                            </p>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="price">Price (Coins) *</Label>
-                            <Input
-                              id="price"
-                              type="number"
-                              placeholder="150.00"
-                              value={itemForm.price}
-                              onChange={(e) => setItemForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                              className="gaming-input"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="quantity">Quantity</Label>
-                            <Input
-                              id="quantity"
-                              type="number"
-                              placeholder="1"
-                              value={itemForm.quantity}
-                              onChange={(e) => setItemForm(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                              className="gaming-input"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="timerMinutes">Cooldown (Minutes)</Label>
-                            <Input
-                              id="timerMinutes"
-                              type="number"
-                              placeholder="60"
-                              value={itemForm.timerMinutes}
-                              onChange={(e) => setItemForm(prev => ({ ...prev, timerMinutes: parseInt(e.target.value) || 0 }))}
-                              className="gaming-input"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Time before player can purchase again
-                            </p>
-                          </div>
-
-                          <div className="flex items-end">
-                            <Button 
-                              onClick={editingItem ? handleEditItem : handleAddItem}
-                              className="btn-gaming w-full"
-                              disabled={loading}
-                            >
-                              <Plus className="w-4 h-4 mr-2" />
-                              {editingItem ? 'Update Item' : 'Add Item'}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {editingItem && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingItem(null);
-                              setItemForm({ displayName: '', shortName: '', price: 0, quantity: 1, timerMinutes: 0 });
-                            }}
-                            className="btn-gaming-secondary"
-                          >
-                            Cancel Edit
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Items List */}
-                    {selectedCategory && (
-                      <div className="space-y-3">
-                        <h4 className="font-semibold">Items in Category</h4>
-                        
-                        {itemsLoading ? (
-                          <div className="text-center py-4">
-                            <div className="loading-spinner w-6 h-6 mx-auto"></div>
-                          </div>
-                        ) : items.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                            <p>No items in this category yet</p>
-                            <p className="text-sm">Add your first item above</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {items.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center justify-between p-4 bg-muted/10 rounded-lg border border-border"
-                              >
-                                <div className="flex-1">
-                                  <div className="font-medium">{item.name}</div>
-                                  <div className="text-sm text-muted-foreground space-y-1">
-                                    <div>Short Name: <code className="bg-muted px-1 rounded">{item.shortName}</code></div>
-                                    <div className="flex items-center gap-4">
-                                      <span className="flex items-center gap-1">
-                                        <DollarSign className="w-3 h-3" />
-                                        {item.price} coins
-                                      </span>
-                                      <span className="flex items-center gap-1">
-                                        <Package className="w-3 h-3" />
-                                        Qty: {item.quantity}
-                                      </span>
-                                      {item.timerMinutes > 0 && (
-                                        <span className="flex items-center gap-1">
-                                          <Clock className="w-3 h-3" />
-                                          {item.timerMinutes}min cooldown
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingItem(item);
-                                      setItemForm({
-                                        displayName: item.name,
-                                        shortName: item.shortName,
-                                        price: item.price,
-                                        quantity: item.quantity,
-                                        timerMinutes: item.timerMinutes
-                                      });
-                                    }}
-                                    className="btn-gaming-secondary"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                  
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="destructive" size="sm">
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="gaming-card border-0">
-                                      <DialogHeader>
-                                        <DialogTitle>Remove Item</DialogTitle>
-                                        <DialogDescription>
-                                          Are you sure you want to remove "{item.name}"? 
-                                          This action cannot be undone.
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      <DialogFooter>
-                                        <Button variant="outline" className="btn-gaming-secondary">
-                                          Cancel
-                                        </Button>
-                                        <Button 
-                                          variant="destructive"
-                                          onClick={() => handleDeleteItem(item.id)}
-                                        >
-                                          Remove Item
-                                        </Button>
-                                      </DialogFooter>
-                                    </DialogContent>
-                                  </Dialog>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+              </Tabs>
+            </div>
           )}
         </div>
       </main>
