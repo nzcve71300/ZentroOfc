@@ -113,7 +113,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Category Removed',
-          `**${category.name}** has been removed from the shop on **${category.server_name}**.\n\n**Category Details:**\n• **Type:** ${category.type}\n• **Items:** ${category.item_count}\n• **Kits:** ${category.kit_count}\n• **Vehicles:** ${category.vehicle_count}`
+          `**${category.name}** has been removed from the shop on **${category.server_name}**.\n\n**Category Details:**\n• **Type:** ${category.type}\n• **Items:** ${category.item_count}\n• **Kits:** ${category.kit_count}\n• **Vehicles:** ${category.vehicle_count}\n\n💡 **To see the updated shop, use:** \`/shop server:${serverOption}\``
         )]
       });
 

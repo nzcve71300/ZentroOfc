@@ -127,7 +127,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Item Removed',
-          `**${item.display_name}** has been removed from the shop on **${item.server_name}**.\n\n**Item Details:**\n• **Short Name:** ${item.short_name}\n• **Price:** ${item.price} coins`
+          `**${item.display_name}** has been removed from the shop on **${item.server_name}**.\n\n**Item Details:**\n• **Short Name:** ${item.short_name}\n• **Price:** ${item.price} coins\n\n💡 **To see the updated shop, use:** \`/shop server:${serverOption}\``
         )]
       });
 

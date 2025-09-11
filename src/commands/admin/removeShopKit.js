@@ -127,7 +127,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Kit Removed',
-          `**${kit.display_name}** has been removed from the shop on **${kit.server_name}**.\n\n**Kit Details:**\n• **Kit Name:** ${kit.kit_name}\n• **Price:** ${kit.price} coins`
+          `**${kit.display_name}** has been removed from the shop on **${kit.server_name}**.\n\n**Kit Details:**\n• **Kit Name:** ${kit.kit_name}\n• **Price:** ${kit.price} coins\n\n💡 **To see the updated shop, use:** \`/shop server:${serverOption}\``
         )]
       });
 

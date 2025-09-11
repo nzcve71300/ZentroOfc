@@ -147,7 +147,7 @@ module.exports = {
       await interaction.editReply({
         embeds: [successEmbed(
           'Vehicle Removed',
-          `**${vehicle.display_name}** has been removed from **${categoryName}** in **${vehicle.server_name}**'s shop.\n\n**Vehicle Details:**\n• **Display Name:** ${vehicle.display_name}\n• **Short Name:** ${vehicle.short_name}\n• **Price:** ${vehicle.price} coins`
+          `**${vehicle.display_name}** has been removed from **${categoryName}** in **${vehicle.server_name}**'s shop.\n\n**Vehicle Details:**\n• **Display Name:** ${vehicle.display_name}\n• **Short Name:** ${vehicle.short_name}\n• **Price:** ${vehicle.price} coins\n\n💡 **To see the updated shop, use:** \`/shop server:${serverNickname}\``
         )]
       });
 
