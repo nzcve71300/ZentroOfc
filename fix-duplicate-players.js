@@ -83,13 +83,28 @@ async function fixDuplicatePlayers() {
       console.log(`   🗑️ Will remove ${entriesToRemove.length} duplicate entries`);
       
       // Update the primary entry to ensure it has the correct data
-      await pool.query(`
-        UPDATE players 
-        SET ign = ?, discord_id = ?
-        WHERE id = ?
-      `, [player.name, player.discord_id, primaryEntry.id]);
-      
-      console.log(`   ✅ Updated primary entry with correct name and Discord ID`);
+      try {
+        await pool.query(`
+          UPDATE players 
+          SET ign = ?, discord_id = ?
+          WHERE id = ?
+        `, [player.name, player.discord_id, primaryEntry.id]);
+        
+        console.log(`   ✅ Updated primary entry with correct name and Discord ID`);
+      } catch (updateError) {
+        if (updateError.code === 'ER_DUP_ENTRY') {
+          console.log(`   ⚠️ Cannot update Discord ID due to unique constraint - keeping existing Discord ID`);
+          // Still update the name if possible
+          await pool.query(`
+            UPDATE players 
+            SET ign = ?
+            WHERE id = ?
+          `, [player.name, primaryEntry.id]);
+          console.log(`   ✅ Updated name only`);
+        } else {
+          throw updateError;
+        }
+      }
       
       // Remove duplicate entries
       for (const duplicateEntry of entriesToRemove) {
