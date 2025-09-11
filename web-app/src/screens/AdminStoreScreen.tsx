@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit, Trash2, Package, Car, Wrench } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Car, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
 import { serverService } from '../lib/servers-api';
 import { storeService } from '@/lib/store';
 import { useAuth } from '../state/useAuth';
@@ -55,6 +55,7 @@ export default function AdminStoreScreen() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
 
   // Category form
   const [categoryForm, setCategoryForm] = useState({
@@ -342,161 +343,200 @@ export default function AdminStoreScreen() {
       </Card>
 
       {selectedServer && (
-        <Tabs defaultValue="categories" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
-            <TabsTrigger value="items">Items</TabsTrigger>
-          </TabsList>
+        <Card className="bg-black border-orange-500">
+          <CardHeader 
+            className="cursor-pointer hover:bg-gray-900 transition-colors"
+            onClick={() => setIsCategoriesExpanded(!isCategoriesExpanded)}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-orange-500 flex items-center">
+                {isCategoriesExpanded ? (
+                  <ChevronDown className="w-5 h-5 mr-2" />
+                ) : (
+                  <ChevronRight className="w-5 h-5 mr-2" />
+                )}
+                Categories and Items
+              </CardTitle>
+            </div>
+          </CardHeader>
+          
+          {isCategoriesExpanded && (
+            <CardContent className="bg-gray-900">
+              <Tabs defaultValue="categories" className="space-y-6">
+                <TabsList className="bg-gray-800">
+                  <TabsTrigger value="categories" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">Categories</TabsTrigger>
+                  <TabsTrigger value="items" className="text-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-black">Items</TabsTrigger>
+                </TabsList>
 
-          <TabsContent value="categories" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Categories</CardTitle>
-                <Button onClick={() => setShowCategoryForm(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Category
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4">
-                  {categories.map((category) => (
-                    <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        {getCategoryIcon(category.type)}
-                        <div>
-                          <h3 className="font-medium">{category.name}</h3>
-                          <Badge className={getCategoryColor(category.type)}>
-                            {category.type}
-                          </Badge>
-                        </div>
+                <TabsContent value="categories" className="space-y-4">
+                  <Card className="bg-gray-800 border-gray-700">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-orange-500">Categories</CardTitle>
+                      <Button 
+                        onClick={() => setShowCategoryForm(true)}
+                        className="bg-orange-500 hover:bg-orange-600 text-black"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Category
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-4">
+                        {categories.map((category) => (
+                          <div key={category.id} className="flex items-center justify-between p-4 border border-gray-600 rounded-lg bg-gray-700">
+                            <div className="flex items-center space-x-3">
+                              {getCategoryIcon(category.type)}
+                              <div>
+                                <h3 className="font-medium text-white">{category.name}</h3>
+                                <Badge className={getCategoryColor(category.type)}>
+                                  {category.type}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-black"
+                                onClick={() => {
+                                  setEditingCategory(category);
+                                  setCategoryForm({
+                                    name: category.name,
+                                    type: category.type,
+                                    role: category.role || ''
+                                  });
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+                                onClick={() => handleDeleteCategory(category.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingCategory(category);
-                            setCategoryForm({
-                              name: category.name,
-                              type: category.type,
-                              role: category.role || ''
-                            });
-                          }}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteCategory(category.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-          <TabsContent value="items" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Items</CardTitle>
-                <div className="flex space-x-2">
-                  <Select value={selectedCategory?.toString()} onValueChange={(value) => setSelectedCategory(parseInt(value))}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={() => setShowItemForm(true)} disabled={!selectedCategory}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Item
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4">
-                  {items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h3 className="font-medium">{item.display_name}</h3>
-                        <p className="text-sm text-gray-600">
-                          {item.short_name} - ${item.price}
-                        </p>
-                      </div>
+                <TabsContent value="items" className="space-y-4">
+                  <Card className="bg-gray-800 border-gray-700">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-orange-500">Items</CardTitle>
                       <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteItem(item.id)}
+                        <Select value={selectedCategory?.toString()} onValueChange={(value) => setSelectedCategory(parseInt(value))}>
+                          <SelectTrigger className="w-48 bg-gray-700 border-gray-600 text-white">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-800 border-gray-600">
+                            {categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id.toString()} className="text-white hover:bg-gray-700">
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button 
+                          onClick={() => setShowItemForm(true)} 
+                          disabled={!selectedCategory}
+                          className="bg-orange-500 hover:bg-orange-600 text-black disabled:bg-gray-600 disabled:text-gray-400"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Item
                         </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-4">
+                        {items.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between p-4 border border-gray-600 rounded-lg bg-gray-700">
+                            <div>
+                              <h3 className="font-medium text-white">{item.display_name}</h3>
+                              <p className="text-sm text-gray-300">
+                                {item.short_name} - ${item.price}
+                              </p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+                                onClick={() => handleDeleteItem(item.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          )}
+        </Card>
       )}
 
       {/* Category Form Modal */}
       {(showCategoryForm || editingCategory) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md bg-gray-800 border-gray-700">
             <CardHeader>
-              <CardTitle>{editingCategory ? 'Edit Category' : 'Add Category'}</CardTitle>
+              <CardTitle className="text-orange-500">{editingCategory ? 'Edit Category' : 'Add Category'}</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory} className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name" className="text-white">Name</Label>
                   <Input
                     id="name"
                     value={categoryForm.name}
                     onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
                     required
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="type">Type</Label>
+                  <Label htmlFor="type" className="text-white">Type</Label>
                   <Select value={categoryForm.type} onValueChange={(value: any) => setCategoryForm({ ...categoryForm, type: value })}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="item">Item</SelectItem>
-                      <SelectItem value="kit">Kit</SelectItem>
-                      <SelectItem value="vehicle">Vehicle</SelectItem>
+                    <SelectContent className="bg-gray-800 border-gray-600">
+                      <SelectItem value="item" className="text-white hover:bg-gray-700">Item</SelectItem>
+                      <SelectItem value="kit" className="text-white hover:bg-gray-700">Kit</SelectItem>
+                      <SelectItem value="vehicle" className="text-white hover:bg-gray-700">Vehicle</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="role">Required Role (optional)</Label>
+                  <Label htmlFor="role" className="text-white">Required Role (optional)</Label>
                   <Input
                     id="role"
                     value={categoryForm.role}
                     onChange={(e) => setCategoryForm({ ...categoryForm, role: e.target.value })}
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div className="flex space-x-2">
-                  <Button type="submit" disabled={loading}>
+                  <Button 
+                    type="submit" 
+                    disabled={loading}
+                    className="bg-orange-500 hover:bg-orange-600 text-black"
+                  >
                     {editingCategory ? 'Update' : 'Create'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
+                    className="border-gray-600 text-white hover:bg-gray-700"
                     onClick={() => {
                       setShowCategoryForm(false);
                       setEditingCategory(null);
@@ -515,32 +555,34 @@ export default function AdminStoreScreen() {
       {/* Item Form Modal */}
       {showItemForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md bg-gray-800 border-gray-700">
             <CardHeader>
-              <CardTitle>Add Item</CardTitle>
+              <CardTitle className="text-orange-500">Add Item</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleCreateItem} className="space-y-4">
                 <div>
-                  <Label htmlFor="itemName">Display Name</Label>
+                  <Label htmlFor="itemName" className="text-white">Display Name</Label>
                   <Input
                     id="itemName"
                     value={itemForm.name}
                     onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
                     required
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="shortName">Short Name</Label>
+                  <Label htmlFor="shortName" className="text-white">Short Name</Label>
                   <Input
                     id="shortName"
                     value={itemForm.shortName}
                     onChange={(e) => setItemForm({ ...itemForm, shortName: e.target.value })}
                     required
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="price">Price</Label>
+                  <Label htmlFor="price" className="text-white">Price</Label>
                   <Input
                     id="price"
                     type="number"
@@ -548,49 +590,59 @@ export default function AdminStoreScreen() {
                     value={itemForm.price}
                     onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
                     required
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description" className="text-white">Description</Label>
                   <Textarea
                     id="description"
                     value={itemForm.description}
                     onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="command">RCON Command</Label>
+                  <Label htmlFor="command" className="text-white">RCON Command</Label>
                   <Input
                     id="command"
                     value={itemForm.command}
                     onChange={(e) => setItemForm({ ...itemForm, command: e.target.value })}
                     required
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="iconUrl">Icon URL</Label>
+                  <Label htmlFor="iconUrl" className="text-white">Icon URL</Label>
                   <Input
                     id="iconUrl"
                     value={itemForm.iconUrl}
                     onChange={(e) => setItemForm({ ...itemForm, iconUrl: e.target.value })}
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="cooldownMinutes">Cooldown (minutes)</Label>
+                  <Label htmlFor="cooldownMinutes" className="text-white">Cooldown (minutes)</Label>
                   <Input
                     id="cooldownMinutes"
                     type="number"
                     value={itemForm.cooldownMinutes}
                     onChange={(e) => setItemForm({ ...itemForm, cooldownMinutes: e.target.value })}
+                    className="bg-gray-700 border-gray-600 text-white"
                   />
                 </div>
                 <div className="flex space-x-2">
-                  <Button type="submit" disabled={loading}>
+                  <Button 
+                    type="submit" 
+                    disabled={loading}
+                    className="bg-orange-500 hover:bg-orange-600 text-black"
+                  >
                     Create
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
+                    className="border-gray-600 text-white hover:bg-gray-700"
                     onClick={() => {
                       setShowItemForm(false);
                       setItemForm({
