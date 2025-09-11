@@ -20,45 +20,45 @@ router.get('/:serverId/configs', async (req, res) => {
       return res.status(500).json({ error: 'Database connection failed', details: dbError.message });
     }
     
-    // Get server info
+    // Get server info from servers table
     let serverResult;
     try {
       [serverResult] = await pool.query(
-        'SELECT * FROM unified_servers WHERE id = ?',
+        'SELECT * FROM servers WHERE id = ?',
         [serverId]
       );
       console.log(`📊 Server query result:`, serverResult.length, 'rows found');
     } catch (queryError) {
-      console.error('❌ Error querying unified_servers:', queryError);
+      console.error('❌ Error querying servers:', queryError);
       return res.status(500).json({ error: 'Database query failed', details: queryError.message });
     }
-    
+
     if (serverResult.length === 0) {
       console.log(`❌ No server found with ID: ${serverId}`);
       return res.status(404).json({ error: 'Server not found' });
     }
-    
+
     const server = serverResult[0];
-    console.log(`📋 Found server:`, server.name, server.nickname);
-    
-    // Get rust server ID
+    console.log(`📋 Found server:`, server.name);
+
+    // Get rust server ID - use the server name to find the rust server
     let rustServerResult;
     try {
       [rustServerResult] = await pool.query(
-        'SELECT id FROM rust_servers WHERE server_nickname = ? OR server_name = ?',
-        [server.nickname, server.name]
+        'SELECT id FROM rust_servers WHERE nickname = ? OR guild_id = ?',
+        [server.name, server.guild_id]
       );
       console.log(`📊 Rust server query result:`, rustServerResult.length, 'rows found');
     } catch (queryError) {
       console.error('❌ Error querying rust_servers:', queryError);
       return res.status(500).json({ error: 'Rust server query failed', details: queryError.message });
     }
-    
+
     if (rustServerResult.length === 0) {
-      console.log(`❌ No rust server found for:`, server.nickname, server.name);
+      console.log(`❌ No rust server found for:`, server.name, server.guild_id);
       return res.status(404).json({ error: 'Rust server not found' });
     }
-    
+
     const rustServerId = rustServerResult[0].id;
     console.log(`🎯 Using rust server ID: ${rustServerId}`);
     
@@ -186,6 +186,47 @@ router.get('/:serverId/configs', async (req, res) => {
           enabled: prisonResult[0].enabled,
           zoneSize: '',
           zoneColor: ''
+        };
+      }
+
+      // Bounty System
+      const [bountyResult] = await pool.query(
+        'SELECT enabled, reward_amount, cooldown_minutes FROM bounty_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (bountyResult.length > 0) {
+        configs.systems.bounty = {
+          enabled: bountyResult[0].enabled,
+          rewardAmount: bountyResult[0].reward_amount,
+          cooldown: bountyResult[0].cooldown_minutes
+        };
+      }
+
+      // Killfeed System
+      const [killfeedResult] = await pool.query(
+        'SELECT enabled, format, randomizer FROM killfeed_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (killfeedResult.length > 0) {
+        configs.systems.killfeed = {
+          enabled: killfeedResult[0].enabled,
+          format: killfeedResult[0].format,
+          randomizer: killfeedResult[0].randomizer
+        };
+      }
+
+      // Night Skip System
+      const [nightSkipResult] = await pool.query(
+        'SELECT enabled, skip_time FROM night_skip_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (nightSkipResult.length > 0) {
+        configs.systems.nightSkip = {
+          enabled: nightSkipResult[0].enabled,
+          skipTime: nightSkipResult[0].skip_time
         };
       }
     } catch (error) {
