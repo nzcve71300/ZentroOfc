@@ -3,7 +3,6 @@ const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 const crypto = require('crypto');
 const cors = require('cors');
-const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
