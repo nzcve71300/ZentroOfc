@@ -55,19 +55,20 @@ module.exports = {
         return interaction.editReply({ embeds: [errorEmbed('Server Not Found', 'This server does not exist.')] });
       }
 
-      // Get all active players on this server
+      // Get all active LINKED players on this server (only those with Discord accounts)
       const [players] = await pool.query(
         `SELECT p.*, e.balance 
          FROM players p
          LEFT JOIN economy e ON p.id = e.player_id
          WHERE p.guild_id = (SELECT id FROM guilds WHERE discord_id = ?)
          AND p.server_id = ?
-         AND p.is_active = true`,
+         AND p.is_active = true
+         AND p.discord_id IS NOT NULL`,
         [guildId, server.id]
       );
 
       if (players.length === 0) {
-        return interaction.editReply({ embeds: [errorEmbed('No Players Found', `No active players found on **${serverName}**.`)] });
+        return interaction.editReply({ embeds: [errorEmbed('No Linked Players Found', `No active linked players found on **${serverName}**. Only players with connected Discord accounts can receive currency.`)] });
       }
 
       // Get currency name for this server
@@ -86,7 +87,7 @@ module.exports = {
 
       const embed = successEmbed(
         'Currency Added to Server', 
-        `Added **${amount} ${currencyName}** to all players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
+        `Added **${amount} ${currencyName}** to all linked players on **${serverName}**.\n\n**Total affected players:** ${affectedPlayers.length}`
       );
 
       // Add player details if there are 10 or fewer players
