@@ -4830,14 +4830,14 @@ async function createZorpZone(client, guildId, serverName, ip, port, password, p
 
     // console.log(`[ZORP DEBUG] Inserting zone into database: ${zoneName} for player ${playerName}`);
     // console.log(`[ZORP DEBUG] Zone data:`, {
-      server_id: zoneData.server_id,
-      name: zoneData.name,
-      owner: zoneData.owner,
-      team: zoneData.team,
-      position: zoneData.position,
-      size: zoneData.size,
-      current_state: zoneData.current_state
-    });
+    //   server_id: zoneData.server_id,
+    //   name: zoneData.name,
+    //   owner: zoneData.owner,
+    //   team: zoneData.team,
+    //   position: zoneData.position,
+    //   size: zoneData.size,
+    //   current_state: zoneData.current_state
+    // });
     
     try {
       await pool.query(`
