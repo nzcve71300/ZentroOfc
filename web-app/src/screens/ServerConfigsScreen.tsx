@@ -632,7 +632,10 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
             <CardContent className="space-y-3 sm:space-y-4">
               {/* Daily Reward */}
               <div className="space-y-1 sm:space-y-2">
-                <Label className="text-white text-xs sm:text-sm">Daily Reward Amount</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm">Daily Reward Amount</Label>
+                  <p className="text-gray-400 text-xs">Amount players receive daily from /daily command</p>
+                </div>
                 <Input
                   placeholder="100"
                   className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
@@ -643,7 +646,10 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Starting Balance */}
               <div className="space-y-1 sm:space-y-2">
-                <Label className="text-white text-xs sm:text-sm">Starting Balance</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm">Starting Balance</Label>
+                  <p className="text-gray-400 text-xs">Initial currency amount for new players</p>
+                </div>
                 <Input
                   placeholder="1000"
                   className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
@@ -654,7 +660,10 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Player Kill Reward */}
               <div className="space-y-1 sm:space-y-2">
-                <Label className="text-white text-xs sm:text-sm">Player Kill Reward</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm">Player Kill Reward</Label>
+                  <p className="text-gray-400 text-xs">Currency reward for killing other players</p>
+                </div>
                 <Input
                   placeholder="50"
                   className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
@@ -665,7 +674,10 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Misc Kill Reward */}
               <div className="space-y-1 sm:space-y-2">
-                <Label className="text-white text-xs sm:text-sm">Misc Kill Reward</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm">Misc Kill Reward</Label>
+                  <p className="text-gray-400 text-xs">Currency reward for killing NPCs and animals</p>
+                </div>
                 <Input
                   placeholder="25"
                   className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
@@ -676,7 +688,10 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Bounty Rewards */}
               <div className="space-y-1 sm:space-y-2">
-                <Label className="text-white text-xs sm:text-sm">Bounty Rewards Amount</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm">Bounty Rewards Amount</Label>
+                  <p className="text-gray-400 text-xs">Currency amount for completing bounty contracts</p>
+                </div>
                 <Input
                   placeholder="100"
                   className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
@@ -687,20 +702,29 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Blackjack Settings */}
               <div className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
-                <Label className="text-white text-xs sm:text-sm font-semibold">Blackjack Settings</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm font-semibold">Blackjack Settings</Label>
+                  <p className="text-gray-400 text-xs">Configure gambling game limits and availability</p>
+                </div>
                 <div className="grid grid-cols-2 gap-1 sm:gap-2">
-                  <Input
-                    placeholder="Min Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
-                    defaultValue={configs.economy?.blackjackMin || ''}
-                    onBlur={(e) => updateConfiguration('economy', 'blackjackMin', e.target.value)}
-                  />
-                  <Input
-                    placeholder="Max Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
-                    defaultValue={configs.economy?.blackjackMax || ''}
-                    onBlur={(e) => updateConfiguration('economy', 'blackjackMax', e.target.value)}
-                  />
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1">Min Bet</p>
+                    <Input
+                      placeholder="Min Bet"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
+                      defaultValue={configs.economy?.blackjackMin || ''}
+                      onBlur={(e) => updateConfiguration('economy', 'blackjackMin', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1">Max Bet</p>
+                    <Input
+                      placeholder="Max Bet"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
+                      defaultValue={configs.economy?.blackjackMax || ''}
+                      onBlur={(e) => updateConfiguration('economy', 'blackjackMax', e.target.value)}
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
@@ -714,20 +738,29 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Coinflip Settings */}
               <div className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
-                <Label className="text-white text-xs sm:text-sm font-semibold">Coinflip Settings</Label>
+                <div>
+                  <Label className="text-white text-xs sm:text-sm font-semibold">Coinflip Settings</Label>
+                  <p className="text-gray-400 text-xs">Configure 50/50 gambling game limits and availability</p>
+                </div>
                 <div className="grid grid-cols-2 gap-1 sm:gap-2">
-                  <Input
-                    placeholder="Min Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
-                    defaultValue={configs.economy?.coinflipMin || ''}
-                    onBlur={(e) => updateConfiguration('economy', 'coinflipMin', e.target.value)}
-                  />
-                  <Input
-                    placeholder="Max Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
-                    defaultValue={configs.economy?.coinflipMax || ''}
-                    onBlur={(e) => updateConfiguration('economy', 'coinflipMax', e.target.value)}
-                  />
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1">Min Bet</p>
+                    <Input
+                      placeholder="Min Bet"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
+                      defaultValue={configs.economy?.coinflipMin || ''}
+                      onBlur={(e) => updateConfiguration('economy', 'coinflipMin', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1">Max Bet</p>
+                    <Input
+                      placeholder="Max Bet"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
+                      defaultValue={configs.economy?.coinflipMax || ''}
+                      onBlur={(e) => updateConfiguration('economy', 'coinflipMax', e.target.value)}
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
@@ -741,13 +774,19 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
               {/* Killfeed Settings */}
               <div className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
-                <Label className="text-white text-xs sm:text-sm font-semibold">Killfeed Settings</Label>
-                <Input
-                  placeholder="{Killer} ☠️ {Victim}"
-                  className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
-                  defaultValue={configs.economy?.killfeedSetup || ''}
-                  onBlur={(e) => updateConfiguration('economy', 'killfeedSetup', e.target.value)}
-                />
+                <div>
+                  <Label className="text-white text-xs sm:text-sm font-semibold">Killfeed Settings</Label>
+                  <p className="text-gray-400 text-xs">Configure kill notification messages and features</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs mb-1">Message Format</p>
+                  <Input
+                    placeholder="{Killer} ☠️ {Victim}"
+                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
+                    defaultValue={configs.economy?.killfeedSetup || ''}
+                    onBlur={(e) => updateConfiguration('economy', 'killfeedSetup', e.target.value)}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-1 sm:gap-2">
                   <div className="flex items-center space-x-1 sm:space-x-2">
                     <Switch
