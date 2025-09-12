@@ -823,6 +823,7 @@ module.exports = {
         case 'USELIST':
         case 'USE-DELAY':
         case 'USE-KIT':
+        case 'CBL':
         case 'SCOUT':
         case 'ENABLE':
         case 'ON':
@@ -885,6 +886,7 @@ module.exports = {
         case 'TIME':
         case 'DELAYTIME':
         case 'COOLDOWN':
+        case 'CBL-TIME':
         case 'HOMETP-TIME':
           const timeValue = parseInt(option);
           if (isNaN(timeValue) || timeValue < 0) {
