@@ -46,6 +46,8 @@ module.exports = {
           { name: 'USE-DELAY (Use Delay)', value: 'USE-DELAY' },
           { name: 'USE-KIT (ON/OFF)', value: 'USE-KIT' },
           { name: 'KITNAME (Kit Name)', value: 'KITNAME' },
+          { name: 'CBL (Combat Lock ON/OFF)', value: 'CBL' },
+          { name: 'CBL-TIME (Combat Lock Time)', value: 'CBL-TIME' },
           { name: 'COORDINATES (Teleport Location)', value: 'COORDINATES' }
         ];
         
@@ -76,7 +78,9 @@ module.exports = {
         const positionConfigTypes = [
           { name: 'ENABLE (On/Off)', value: '' },
           { name: 'DELAY (Value in seconds)', value: 'DELAY' },
-          { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' }
+          { name: 'COOLDOWN (Value in minutes)', value: 'COOLDOWN' },
+          { name: 'CBL (Combat Lock ON/OFF)', value: 'CBL' },
+          { name: 'CBL-TIME (Combat Lock Time)', value: 'CBL-TIME' }
         ];
         
         // Generate Crate Event configuration options
@@ -1071,6 +1075,24 @@ module.exports = {
         case 'KITNAME':
           updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
           updateParams = [validatedOption, server.id.toString(), teleport];
+          break;
+        case 'CBL':
+          if (isPositionConfig) {
+            updateQuery = 'UPDATE position_configs SET combat_lock_enabled = ? WHERE server_id = ? AND position_type = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), positionType];
+          } else {
+            updateQuery = 'UPDATE teleport_configs SET combat_lock_enabled = ? WHERE server_id = ? AND teleport_name = ?';
+            updateParams = [validatedOption === 'on' || validatedOption === 'true', server.id.toString(), teleport];
+          }
+          break;
+        case 'CBL-TIME':
+          if (isPositionConfig) {
+            updateQuery = 'UPDATE position_configs SET combat_lock_time_minutes = ? WHERE server_id = ? AND position_type = ?';
+            updateParams = [validatedOption, server.id.toString(), positionType];
+          } else {
+            updateQuery = 'UPDATE teleport_configs SET combat_lock_time_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+            updateParams = [validatedOption, server.id.toString(), teleport];
+          }
           break;
         case 'COOLDOWN':
           if (isBarConfig) {

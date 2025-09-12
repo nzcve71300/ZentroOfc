@@ -763,6 +763,12 @@ async function handleKillEvent(client, guildId, serverName, msg, ip, port, passw
 
     // Process kill with new killfeed processor
     const killData = await killfeedProcessor.processKill(msg, serverId);
+
+    // Record kill for combat tracking if it's a player kill
+    if (killData && killData.killer && killData.victim) {
+      const { CombatTracker } = require('../utils/combatTracker');
+      await CombatTracker.recordKill(serverId, killData.killer, killData.victim, 5); // Default 5 minutes
+    }
     
     if (killData) {
       // Check if the bot (SCARLETT) killed someone
@@ -1539,6 +1545,18 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
     }
 
     const config = configResult[0][0];
+
+    // Check combat lock
+    const { CombatTracker } = require('../utils/combatTracker');
+    const combatConfig = await CombatTracker.getCombatLockConfig(serverId.toString(), null, positionType);
+    
+    if (combatConfig.enabled) {
+      const combatStatus = await CombatTracker.checkCombatLock(serverId.toString(), player);
+      if (combatStatus.isInCombatLock) {
+        sendRconCommand(ip, port, password, `say <color=#FF0000>[COMBATLOCK]</color> <color=#FF69B4>${player}</color> <color=white>You can't teleport right now please wait</color> <color=#800080>${combatStatus.timeRemaining} minutes</color>`);
+        return;
+      }
+    }
 
     // Check cooldown
     const cooldownKey = `${serverId}_${positionType}_${player}`;
@@ -6790,6 +6808,18 @@ async function handleSetHome(client, guildId, serverName, parsed, ip, port, pass
       }
     }
 
+    // Check combat lock
+    const { CombatTracker } = require('../utils/combatTracker');
+    const combatConfig = await CombatTracker.getCombatLockConfig(serverId.toString(), 'hometp', null);
+    
+    if (combatConfig.enabled) {
+      const combatStatus = await CombatTracker.checkCombatLock(serverId.toString(), player);
+      if (combatStatus.isInCombatLock) {
+        sendRconCommand(ip, port, password, `say <color=#FF0000>[COMBATLOCK]</color> <color=#FF69B4>${player}</color> <color=white>You can't teleport right now please wait</color> <color=#800080>${combatStatus.timeRemaining} minutes</color>`);
+        return;
+      }
+    }
+
     // Check cooldown
     const cooldownKey = `${serverId}_${player}`;
     const now = Date.now();
@@ -6911,6 +6941,18 @@ async function handleTeleportHome(client, guildId, serverName, parsed, ip, port,
       if (allowedResult.length === 0) {
         // Player not in allowed list - don't show any message, just return silently
         console.log(`[HOME TELEPORT] Player ${player} not in allowed list for home teleport on ${serverName}`);
+        return;
+      }
+    }
+
+    // Check combat lock
+    const { CombatTracker } = require('../utils/combatTracker');
+    const combatConfig = await CombatTracker.getCombatLockConfig(serverId.toString(), 'hometp', null);
+    
+    if (combatConfig.enabled) {
+      const combatStatus = await CombatTracker.checkCombatLock(serverId.toString(), player);
+      if (combatStatus.isInCombatLock) {
+        sendRconCommand(ip, port, password, `say <color=#FF0000>[COMBATLOCK]</color> <color=#FF69B4>${player}</color> <color=white>You can't teleport right now please wait</color> <color=#800080>${combatStatus.timeRemaining} minutes</color>`);
         return;
       }
     }
@@ -7417,6 +7459,18 @@ async function handleTeleportSystem(client, guildId, serverName, serverId, ip, p
       if (allowedResult[0].length === 0) {
         console.log(`[TELEPORT] Player ${player} not allowed for ${teleportName}`);
         sendRconCommand(ip, port, password, `say <color=#FF0000>${player}</color> <color=white>you are not allowed to use ${teleportName.toUpperCase()} teleport</color>`);
+        return;
+      }
+    }
+
+    // Check combat lock
+    const { CombatTracker } = require('../utils/combatTracker');
+    const combatConfig = await CombatTracker.getCombatLockConfig(serverId.toString(), teleportName, null);
+    
+    if (combatConfig.enabled) {
+      const combatStatus = await CombatTracker.checkCombatLock(serverId.toString(), player);
+      if (combatStatus.isInCombatLock) {
+        sendRconCommand(ip, port, password, `say <color=#FF0000>[COMBATLOCK]</color> <color=#FF69B4>${player}</color> <color=white>You can't teleport right now please wait</color> <color=#800080>${combatStatus.timeRemaining} minutes</color>`);
         return;
       }
     }
