@@ -17,6 +17,7 @@ import AddServerScreen from "./screens/AddServerScreen";
 import PayPalCheckoutScreen from "./screens/PayPalCheckoutScreen";
 import ServerSetupScreen from "./screens/ServerSetupScreen";
 import ServerSettingsScreen from "./screens/ServerSettingsScreen";
+import ServerConfigsScreen from "./screens/ServerConfigsScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/checkout/:planId" element={<PayPalCheckoutScreen />} />
           <Route path="/setup-server" element={<ServerSetupScreen />} />
           <Route path="/server-settings" element={<ServerSettingsScreen />} />
+          <Route path="/server-configs" element={<ServerConfigsScreen />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
