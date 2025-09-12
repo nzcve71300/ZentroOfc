@@ -305,7 +305,7 @@ router.get('/:serverId/configs', async (req, res) => {
   }
 });
 
-// Update configuration
+// Update configuration - Direct database update like Discord bot
 router.post('/:serverId/configs', async (req, res) => {
   try {
     const { serverId } = req.params;
@@ -313,9 +313,9 @@ router.post('/:serverId/configs', async (req, res) => {
     
     console.log(`🔧 Updating configuration: ${config} = ${option} for server: ${serverId}`);
     
-    // Get server info
+    // Get server info from servers table
     const [serverResult] = await pool.query(
-      'SELECT * FROM unified_servers WHERE id = ?',
+      'SELECT * FROM servers WHERE id = ?',
       [serverId]
     );
     
@@ -327,8 +327,8 @@ router.post('/:serverId/configs', async (req, res) => {
     
     // Get rust server ID
     const [rustServerResult] = await pool.query(
-      'SELECT id FROM rust_servers WHERE server_nickname = ? OR server_name = ?',
-      [serverData.nickname, serverData.name]
+      'SELECT id FROM rust_servers WHERE nickname = ? OR guild_id = ?',
+      [serverData.name, serverData.guild_id]
     );
     
     if (rustServerResult.length === 0) {
@@ -337,35 +337,462 @@ router.post('/:serverId/configs', async (req, res) => {
     
     const rustServerId = rustServerResult[0].id;
     
-    // Send configuration update to Discord bot via webhook
-    const webhookData = {
-      type: 'set_config',
-      serverId: rustServerId,
-      serverName: serverData.name,
-      config: config,
-      option: option,
-      guildId: serverData.guild_id
-    };
+    // Parse the config to determine what type it is
+    const teleportMatch = config.match(/^(TPN|TPNE|TPE|TPSE|TPS|TPSW|TPW|TPNW)-/);
+    const eventMatch = config.match(/^(BRADLEY|HELICOPTER)-/);
+    const barMatch = config.match(/^BAR-/);
+    const economyMatch = config.match(/^(BLACKJACK|COINFLIP|DAILY|STARTING|PLAYERKILLS|MISCKILLS|BOUNTY)-/);
+    const killfeedMatch = config.match(/^(KILLFEEDGAME|KILLFEED-SETUP|KILLFEED-RANDOMIZER)$/);
+    const positionMatch = config.match(/^(OUTPOST|BANDIT)(?:-|$)/);
+    const crateMatch = config.match(/^(CRATE-[1-4])(?:-|$)/);
+    const zorpMatch = config.match(/^ZORP-/);
+    const prisonMatch = config.match(/^Prison-/);
+    const recyclerMatch = config.match(/^RECYCLER-/);
+    const hometpMatch = config.match(/^HOMETP-/);
     
-    // For now, just log the configuration update request
-    // TODO: Implement proper webhook communication with Discord bot
-    try {
-      console.log('Configuration update requested:', webhookData);
-      
-      res.json({ 
-        success: true, 
-        message: 'Configuration update request logged. Please use the /set command in Discord to apply changes.',
-        data: webhookData
-      });
-      
-    } catch (error) {
-      console.error('Error processing configuration update:', error);
-      res.status(500).json({ error: 'Failed to process configuration update request' });
+    // Extract config type
+    let configType = '';
+    if (crateMatch) {
+      const crateParts = config.split('-');
+      configType = crateParts.length >= 3 ? crateParts[2] : '';
+    } else if (prisonMatch) {
+      configType = config;
+    } else {
+      const parts = config.split('-');
+      configType = parts.length >= 3 ? parts.slice(1).join('-') : (parts[1] || '');
     }
+    
+    // Validate and process the option value
+    let validatedOption = option;
+    
+    // Handle boolean values
+    if (['USE', 'USELIST', 'USE-DELAY', 'USE-KIT', 'CBL', 'SCOUT', 'ENABLE', 'ON', 'OUTPOST', 'BANDIT', 'HORSE', 'RHIB', 'MINI', 'CAR', 'WELCOME-MESSAGE', 'RECYCLER-USE', 'RECYCLER-USELIST', 'ZORP-USELIST', 'HOMETP-USE', 'HOMETP-USELIST', 'Prison-System', ''].includes(configType)) {
+      if (!['on', 'off', 'true', 'false'].includes(option.toLowerCase())) {
+        return res.status(400).json({ error: `Invalid value for ${configType || 'enable/disable'}. Use: on/off or true/false` });
+      }
+      validatedOption = option.toLowerCase();
+    }
+    
+    // Handle numeric values
+    if (['TIME', 'DELAYTIME', 'COOLDOWN', 'CBL-TIME', 'HOMETP-TIME', 'AMOUNT', 'DELAY', 'FUEL-AMOUNT', 'RECYCLER-TIME'].includes(configType)) {
+      const numValue = parseInt(option);
+      if (isNaN(numValue) || numValue < 0) {
+        return res.status(400).json({ error: `Invalid value for ${configType}. Use a positive number` });
+      }
+      validatedOption = numValue;
+    }
+    
+    // Now update the database based on config type
+    let updateQuery = '';
+    let updateParams = [];
+    
+    if (teleportMatch) {
+      const teleport = teleportMatch[1].toLowerCase();
+      
+      // Ensure teleport config exists
+      const [existingConfig] = await pool.query(
+        'SELECT * FROM teleport_configs WHERE server_id = ? AND teleport_name = ?',
+        [rustServerId, teleport]
+      );
+      
+      if (existingConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO teleport_configs (server_id, teleport_name, enabled, cooldown_minutes, delay_minutes, display_name, use_list, use_delay, use_kit, kit_name, position_x, position_y, position_z, combat_lock_enabled, combat_lock_time_minutes)
+          VALUES (?, ?, false, 60, 0, ?, false, false, false, '', 0, 0, 0, false, 0)
+        `, [rustServerId, teleport, teleport.toUpperCase()]);
+      }
+      
+      // Update based on config type
+      switch (configType) {
+        case 'USE':
+          updateQuery = 'UPDATE teleport_configs SET enabled = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, teleport];
+          break;
+        case 'TIME':
+          updateQuery = 'UPDATE teleport_configs SET cooldown_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, rustServerId, teleport];
+          break;
+        case 'DELAYTIME':
+          updateQuery = 'UPDATE teleport_configs SET delay_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, rustServerId, teleport];
+          break;
+        case 'NAME':
+          updateQuery = 'UPDATE teleport_configs SET display_name = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, rustServerId, teleport];
+          break;
+        case 'USELIST':
+          updateQuery = 'UPDATE teleport_configs SET use_list = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, teleport];
+          break;
+        case 'USE-DELAY':
+          updateQuery = 'UPDATE teleport_configs SET use_delay = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, teleport];
+          break;
+        case 'USE-KIT':
+          updateQuery = 'UPDATE teleport_configs SET use_kit = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, teleport];
+          break;
+        case 'KITNAME':
+          updateQuery = 'UPDATE teleport_configs SET kit_name = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, rustServerId, teleport];
+          break;
+        case 'CBL':
+          updateQuery = 'UPDATE teleport_configs SET combat_lock_enabled = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, teleport];
+          break;
+        case 'CBL-TIME':
+          updateQuery = 'UPDATE teleport_configs SET combat_lock_time_minutes = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [validatedOption, rustServerId, teleport];
+          break;
+        case 'COORDINATES':
+          const coords = option.split(',').map(coord => parseFloat(coord.trim()));
+          if (coords.length !== 3 || coords.some(isNaN)) {
+            return res.status(400).json({ error: 'Invalid coordinates format. Use: x,y,z (e.g., 100,50,200)' });
+          }
+          updateQuery = 'UPDATE teleport_configs SET position_x = ?, position_y = ?, position_z = ? WHERE server_id = ? AND teleport_name = ?';
+          updateParams = [coords[0], coords[1], coords[2], rustServerId, teleport];
+          break;
+      }
+    } else if (economyMatch) {
+      // Handle economy configurations
+      let settingName = '';
+      switch (config) {
+        case 'BLACKJACK-TOGGLE':
+          settingName = 'blackjack_toggle';
+          break;
+        case 'COINFLIP-TOGGLE':
+          settingName = 'coinflip_toggle';
+          break;
+        case 'DAILY-AMOUNT':
+          settingName = 'daily_amount';
+          break;
+        case 'STARTING-BALANCE':
+          settingName = 'starting_balance';
+          break;
+        case 'PLAYERKILLS-AMOUNT':
+          settingName = 'playerkills_amount';
+          break;
+        case 'MISCKILLS-AMOUNT':
+          settingName = 'misckills_amount';
+          break;
+        case 'BOUNTY-TOGGLE':
+          settingName = 'bounty_toggle';
+          break;
+        case 'BOUNTY-REWARDS':
+          settingName = 'bounty_rewards';
+          break;
+        case 'BLACKJACK-MIN':
+          settingName = 'blackjack_min';
+          break;
+        case 'BLACKJACK-MAX':
+          settingName = 'blackjack_max';
+          break;
+        case 'COINFLIP-MIN':
+          settingName = 'coinflip_min';
+          break;
+        case 'COINFLIP-MAX':
+          settingName = 'coinflip_max';
+          break;
+      }
+      
+      let settingValue = '';
+      if (config.includes('TOGGLE')) {
+        const enabled = validatedOption === 'on' || validatedOption === 'true';
+        settingValue = enabled ? 'true' : 'false';
+      } else {
+        settingValue = validatedOption.toString();
+      }
+      
+      updateQuery = `INSERT INTO eco_games_config (server_id, setting_name, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`;
+      updateParams = [rustServerId, settingName, settingValue];
+    } else if (eventMatch) {
+      const eventType = eventMatch[1].toLowerCase();
+      
+      // Ensure event config exists
+      const [existingEventConfig] = await pool.query(
+        'SELECT * FROM event_configs WHERE server_id = ? AND event_type = ?',
+        [rustServerId, eventType]
+      );
+      
+      if (existingEventConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO event_configs (server_id, event_type, enabled, kill_message, respawn_message)
+          VALUES (?, ?, false, ?, ?)
+        `, [
+          rustServerId,
+          eventType,
+          eventType === 'bradley' ? '<color=#00ffff>Brad got taken</color>' : '<color=#00ffff>Heli got taken</color>',
+          eventType === 'bradley' ? '<color=#00ffff>Bradley APC has respawned</color>' : '<color=#00ffff>Patrol Helicopter has respawned</color>'
+        ]);
+      }
+      
+      switch (configType) {
+        case 'SCOUT':
+          updateQuery = 'UPDATE event_configs SET enabled = ? WHERE server_id = ? AND event_type = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, eventType];
+          break;
+        case 'KILLMSG':
+          updateQuery = 'UPDATE event_configs SET kill_message = ? WHERE server_id = ? AND event_type = ?';
+          updateParams = [validatedOption, rustServerId, eventType];
+          break;
+        case 'RESPAWNMSG':
+          updateQuery = 'UPDATE event_configs SET respawn_message = ? WHERE server_id = ? AND event_type = ?';
+          updateParams = [validatedOption, rustServerId, eventType];
+          break;
+      }
+    } else if (barMatch) {
+      // Ensure BAR config exists
+      const [existingBarConfig] = await pool.query(
+        'SELECT * FROM rider_config WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (existingBarConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO rider_config (server_id, enabled, cooldown, horse_enabled, rhib_enabled, mini_enabled, car_enabled, fuel_amount, use_list, welcome_message_enabled, welcome_message_text) 
+          VALUES (?, 1, 300, 1, 1, 0, 0, 100, 0, 1, 'Welcome to Book-a-Ride!')
+        `, [rustServerId]);
+      }
+      
+      switch (configType) {
+        case 'USE':
+          updateQuery = 'UPDATE rider_config SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'USELIST':
+          updateQuery = 'UPDATE rider_config SET use_list = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'COOLDOWN':
+          updateQuery = 'UPDATE rider_config SET cooldown = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+        case 'HORSE':
+          updateQuery = 'UPDATE rider_config SET horse_enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'RHIB':
+          updateQuery = 'UPDATE rider_config SET rhib_enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'MINI':
+          updateQuery = 'UPDATE rider_config SET mini_enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'CAR':
+          updateQuery = 'UPDATE rider_config SET car_enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'WELCOME-MESSAGE':
+          updateQuery = 'UPDATE rider_config SET welcome_message_enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'WELCOME-MSG-TEXT':
+          updateQuery = 'UPDATE rider_config SET welcome_message_text = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+        case 'FUEL-AMOUNT':
+          updateQuery = 'UPDATE rider_config SET fuel_amount = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+      }
+    } else if (recyclerMatch) {
+      // Ensure recycler config exists
+      const [existingRecyclerConfig] = await pool.query(
+        'SELECT * FROM recycler_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (existingRecyclerConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO recycler_configs (server_id, enabled, use_list, cooldown_minutes) 
+          VALUES (?, false, false, 5)
+        `, [rustServerId]);
+      }
+      
+      switch (configType) {
+        case 'RECYCLER-USE':
+          updateQuery = 'UPDATE recycler_configs SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'RECYCLER-USELIST':
+          updateQuery = 'UPDATE recycler_configs SET use_list = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'RECYCLER-TIME':
+          updateQuery = 'UPDATE recycler_configs SET cooldown_minutes = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+      }
+    } else if (hometpMatch) {
+      // Ensure home teleport config exists
+      const [existingHometpConfig] = await pool.query(
+        'SELECT * FROM home_teleport_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (existingHometpConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO home_teleport_configs (server_id, enabled, use_list, cooldown_minutes) 
+          VALUES (?, false, false, 5)
+        `, [rustServerId]);
+      }
+      
+      switch (configType) {
+        case 'HOMETP-USE':
+          updateQuery = 'UPDATE home_teleport_configs SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'HOMETP-USELIST':
+          updateQuery = 'UPDATE home_teleport_configs SET use_list = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'HOMETP-TIME':
+          updateQuery = 'UPDATE home_teleport_configs SET cooldown_minutes = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+      }
+    } else if (prisonMatch) {
+      // Ensure prison config exists
+      const [existingPrisonConfig] = await pool.query(
+        'SELECT * FROM prison_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (existingPrisonConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO prison_configs (server_id, enabled, zone_size, zone_color) 
+          VALUES (?, false, 50, '(255,0,0)')
+        `, [rustServerId]);
+      }
+      
+      switch (configType) {
+        case 'Prison-System':
+          updateQuery = 'UPDATE prison_configs SET enabled = ? WHERE server_id = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+          break;
+        case 'Prison-Z-Size':
+          updateQuery = 'UPDATE prison_configs SET zone_size = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+        case 'Prison-Z-Color':
+          updateQuery = 'UPDATE prison_configs SET zone_color = ? WHERE server_id = ?';
+          updateParams = [validatedOption, rustServerId];
+          break;
+      }
+    } else if (positionMatch) {
+      const positionType = positionMatch[1].toLowerCase();
+      
+      // Ensure position config exists
+      const [existingPositionConfig] = await pool.query(
+        'SELECT * FROM position_configs WHERE server_id = ? AND position_type = ?',
+        [rustServerId, positionType]
+      );
+      
+      if (existingPositionConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO position_configs (server_id, position_type, enabled, delay_seconds, cooldown_minutes, combat_lock_enabled, combat_lock_time_minutes) 
+          VALUES (?, ?, true, 0, 5, false, 0)
+        `, [rustServerId, positionType]);
+      }
+      
+      switch (configType) {
+        case 'ENABLE':
+        case '':
+        case 'OUTPOST':
+        case 'BANDIT':
+          updateQuery = 'UPDATE position_configs SET enabled = ? WHERE server_id = ? AND position_type = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, positionType];
+          break;
+        case 'DELAY':
+          updateQuery = 'UPDATE position_configs SET delay_seconds = ? WHERE server_id = ? AND position_type = ?';
+          updateParams = [validatedOption, rustServerId, positionType];
+          break;
+        case 'COOLDOWN':
+          updateQuery = 'UPDATE position_configs SET cooldown_minutes = ? WHERE server_id = ? AND position_type = ?';
+          updateParams = [validatedOption, rustServerId, positionType];
+          break;
+        case 'CBL':
+          updateQuery = 'UPDATE position_configs SET combat_lock_enabled = ? WHERE server_id = ? AND position_type = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, positionType];
+          break;
+        case 'CBL-TIME':
+          updateQuery = 'UPDATE position_configs SET combat_lock_time_minutes = ? WHERE server_id = ? AND position_type = ?';
+          updateParams = [validatedOption, rustServerId, positionType];
+          break;
+      }
+    } else if (crateMatch) {
+      const crateType = crateMatch[1].toLowerCase();
+      
+      // Ensure crate config exists
+      const [existingCrateConfig] = await pool.query(
+        'SELECT * FROM crate_event_configs WHERE server_id = ? AND crate_type = ?',
+        [rustServerId, crateType]
+      );
+      
+      if (existingCrateConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO crate_event_configs (server_id, crate_type, enabled, spawn_interval_minutes, spawn_amount, spawn_message) 
+          VALUES (?, ?, false, 60, 1, ?)
+        `, [rustServerId, crateType, '<b><size=45><color=#00FF00>CRATE EVENT SPAWNED</color></size></b>']);
+      }
+      
+      switch (configType) {
+        case 'ON':
+        case '':
+          updateQuery = 'UPDATE crate_event_configs SET enabled = ? WHERE server_id = ? AND crate_type = ?';
+          updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId, crateType];
+          break;
+        case 'TIME':
+          updateQuery = 'UPDATE crate_event_configs SET spawn_interval_minutes = ? WHERE server_id = ? AND crate_type = ?';
+          updateParams = [validatedOption, rustServerId, crateType];
+          break;
+        case 'AMOUNT':
+          updateQuery = 'UPDATE crate_event_configs SET spawn_amount = ? WHERE server_id = ? AND crate_type = ?';
+          updateParams = [validatedOption, rustServerId, crateType];
+          break;
+        case 'MSG':
+          updateQuery = 'UPDATE crate_event_configs SET spawn_message = ? WHERE server_id = ? AND crate_type = ?';
+          updateParams = [validatedOption, rustServerId, crateType];
+          break;
+      }
+    } else if (zorpMatch) {
+      // Ensure ZORP config exists
+      const [existingZorpConfig] = await pool.query(
+        'SELECT * FROM zorp_configs WHERE server_id = ?',
+        [rustServerId]
+      );
+      
+      if (existingZorpConfig.length === 0) {
+        await pool.query(`
+          INSERT INTO zorp_configs (server_id, use_list) 
+          VALUES (?, false)
+        `, [rustServerId]);
+      }
+      
+      if (configType === 'USELIST') {
+        updateQuery = 'UPDATE zorp_configs SET use_list = ? WHERE server_id = ?';
+        updateParams = [validatedOption === 'on' || validatedOption === 'true', rustServerId];
+      }
+    }
+    
+    // Execute the update query
+    if (updateQuery) {
+      await pool.query(updateQuery, updateParams);
+      console.log(`✅ Successfully updated configuration: ${config} = ${validatedOption}`);
+    } else {
+      return res.status(400).json({ error: `Unknown config type: ${configType}` });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `✅ **${config}** set to **${validatedOption}** on **${serverData.name}**`,
+      data: { config, option: validatedOption, server: serverData.name }
+    });
     
   } catch (error) {
     console.error('Error updating configuration:', error);
-    res.status(500).json({ error: 'Failed to update configuration' });
+    res.status(500).json({ error: 'Failed to update configuration', details: error.message });
   }
 });
 

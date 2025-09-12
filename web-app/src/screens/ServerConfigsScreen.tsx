@@ -85,17 +85,96 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
   const updateConfiguration = async (category: string, config: string, value: any) => {
     try {
-      // This would update via your API
-      console.log(`Updating ${category}.${config} to ${value}`);
+      // Map the config to the Discord bot format
+      let discordConfig = '';
+      let discordOption = value;
       
-      // Update local state
-      setConfigs((prev: any) => ({
-        ...prev,
-        [category]: {
-          ...prev[category],
-          [config]: value
+      // Map economy configs
+      if (category === 'economy') {
+        switch (config) {
+          case 'dailyAmount':
+            discordConfig = 'DAILY-AMOUNT';
+            break;
+          case 'startingBalance':
+            discordConfig = 'STARTING-BALANCE';
+            break;
+          case 'playerKillsAmount':
+            discordConfig = 'PLAYERKILLS-AMOUNT';
+            break;
+          case 'misckillsAmount':
+            discordConfig = 'MISCKILLS-AMOUNT';
+            break;
+          case 'blackjackMin':
+            discordConfig = 'BLACKJACK-MIN';
+            break;
+          case 'blackjackMax':
+            discordConfig = 'BLACKJACK-MAX';
+            break;
+          case 'coinflipMin':
+            discordConfig = 'COINFLIP-MIN';
+            break;
+          case 'coinflipMax':
+            discordConfig = 'COINFLIP-MAX';
+            break;
+          case 'bountyRewards':
+            discordConfig = 'BOUNTY-REWARDS';
+            break;
+          case 'killfeedSetup':
+            discordConfig = 'KILLFEED-SETUP';
+            break;
+          case 'blackjackToggle':
+            discordConfig = 'BLACKJACK-TOGGLE';
+            discordOption = value ? 'on' : 'off';
+            break;
+          case 'coinflipToggle':
+            discordConfig = 'COINFLIP-TOGGLE';
+            discordOption = value ? 'on' : 'off';
+            break;
+          case 'bountyToggle':
+            discordConfig = 'BOUNTY-TOGGLE';
+            discordOption = value ? 'on' : 'off';
+            break;
+          case 'killfeedToggle':
+            discordConfig = 'KILLFEEDGAME';
+            discordOption = value ? 'on' : 'off';
+            break;
+          case 'killfeedRandomizer':
+            discordConfig = 'KILLFEED-RANDOMIZER';
+            discordOption = value ? 'on' : 'off';
+            break;
         }
-      }));
+      }
+      
+      if (discordConfig) {
+        const response = await fetch(`/api/servers/${selectedServer?.id}/configs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            config: discordConfig,
+            option: discordOption,
+            server: selectedServer?.name
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Configuration updated:', result.message);
+          
+          // Update local state
+          setConfigs((prev: any) => ({
+            ...prev,
+            [category]: {
+              ...prev[category],
+              [config]: value
+            }
+          }));
+        } else {
+          const error = await response.json();
+          console.error('Error updating configuration:', error);
+        }
+      }
     } catch (error) {
       console.error('Error updating configuration:', error);
     }
@@ -103,18 +182,86 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
   const updateTeleportConfig = async (teleport: string, config: string, value: any) => {
     try {
-      console.log(`Updating teleport ${teleport}.${config} to ${value}`);
+      // Map teleport config to Discord bot format
+      let discordConfig = '';
+      let discordOption = value;
       
-      setConfigs((prev: any) => ({
-        ...prev,
-        teleports: {
-          ...prev.teleports,
-          [teleport]: {
-            ...prev.teleports[teleport],
-            [config]: value
-          }
+      const teleportUpper = teleport.toUpperCase();
+      
+      switch (config) {
+        case 'enabled':
+          discordConfig = `${teleportUpper}-USE`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'cooldown':
+          discordConfig = `${teleportUpper}-TIME`;
+          break;
+        case 'delay':
+          discordConfig = `${teleportUpper}-DELAYTIME`;
+          break;
+        case 'displayName':
+          discordConfig = `${teleportUpper}-NAME`;
+          break;
+        case 'useList':
+          discordConfig = `${teleportUpper}-USELIST`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'useDelay':
+          discordConfig = `${teleportUpper}-USE-DELAY`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'useKit':
+          discordConfig = `${teleportUpper}-USE-KIT`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'kitName':
+          discordConfig = `${teleportUpper}-KITNAME`;
+          break;
+        case 'coordinates':
+          discordConfig = `${teleportUpper}-COORDINATES`;
+          break;
+        case 'combatLock':
+          discordConfig = `${teleportUpper}-CBL`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'combatLockTime':
+          discordConfig = `${teleportUpper}-CBL-TIME`;
+          break;
+      }
+      
+      if (discordConfig) {
+        const response = await fetch(`/api/servers/${selectedServer?.id}/configs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            config: discordConfig,
+            option: discordOption,
+            server: selectedServer?.name
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Teleport configuration updated:', result.message);
+          
+          // Update local state
+          setConfigs((prev: any) => ({
+            ...prev,
+            teleports: {
+              ...prev.teleports,
+              [teleport]: {
+                ...prev.teleports[teleport],
+                [config]: value
+              }
+            }
+          }));
+        } else {
+          const error = await response.json();
+          console.error('Error updating teleport configuration:', error);
         }
-      }));
+      }
     } catch (error) {
       console.error('Error updating teleport configuration:', error);
     }
@@ -122,18 +269,58 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
   const updateEventConfig = async (event: string, config: string, value: any) => {
     try {
-      console.log(`Updating event ${event}.${config} to ${value}`);
+      // Map event config to Discord bot format
+      let discordConfig = '';
+      let discordOption = value;
       
-      setConfigs((prev: any) => ({
-        ...prev,
-        events: {
-          ...prev.events,
-          [event]: {
-            ...prev.events[event],
-            [config]: value
-          }
+      const eventUpper = event.toUpperCase();
+      
+      switch (config) {
+        case 'scout':
+          discordConfig = `${eventUpper}-SCOUT`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'killMsg':
+          discordConfig = `${eventUpper}-KILLMSG`;
+          break;
+        case 'respawnMsg':
+          discordConfig = `${eventUpper}-RESPAWNMSG`;
+          break;
+      }
+      
+      if (discordConfig) {
+        const response = await fetch(`/api/servers/${selectedServer?.id}/configs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            config: discordConfig,
+            option: discordOption,
+            server: selectedServer?.name
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Event configuration updated:', result.message);
+          
+          // Update local state
+          setConfigs((prev: any) => ({
+            ...prev,
+            events: {
+              ...prev.events,
+              [event]: {
+                ...prev.events[event],
+                [config]: value
+              }
+            }
+          }));
+        } else {
+          const error = await response.json();
+          console.error('Error updating event configuration:', error);
         }
-      }));
+      }
     } catch (error) {
       console.error('Error updating event configuration:', error);
     }
@@ -141,18 +328,131 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
   const updateSystemConfig = async (system: string, config: string, value: any) => {
     try {
-      console.log(`Updating system ${system}.${config} to ${value}`);
+      // Map system config to Discord bot format
+      let discordConfig = '';
+      let discordOption = value;
       
-      setConfigs((prev: any) => ({
-        ...prev,
-        systems: {
-          ...prev.systems,
-          [system]: {
-            ...prev.systems[system],
-            [config]: value
+      switch (system) {
+        case 'bar':
+          switch (config) {
+            case 'enabled':
+              discordConfig = 'BAR-USE';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'cooldown':
+              discordConfig = 'BAR-COOLDOWN';
+              break;
+            case 'fuelAmount':
+              discordConfig = 'BAR-FUEL-AMOUNT';
+              break;
+            case 'welcomeMsgText':
+              discordConfig = 'BAR-WELCOME-MSG-TEXT';
+              break;
+            case 'useList':
+              discordConfig = 'BAR-USELIST';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'welcomeMessage':
+              discordConfig = 'BAR-WELCOME-MESSAGE';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'horse':
+              discordConfig = 'BAR-HORSE';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'rhib':
+              discordConfig = 'BAR-RHIB';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'mini':
+              discordConfig = 'BAR-MINI';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'car':
+              discordConfig = 'BAR-CAR';
+              discordOption = value ? 'on' : 'off';
+              break;
           }
+          break;
+        case 'recycler':
+          switch (config) {
+            case 'enabled':
+              discordConfig = 'RECYCLER-USE';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'useList':
+              discordConfig = 'RECYCLER-USELIST';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'cooldown':
+              discordConfig = 'RECYCLER-TIME';
+              break;
+          }
+          break;
+        case 'hometp':
+          switch (config) {
+            case 'enabled':
+              discordConfig = 'HOMETP-USE';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'useList':
+              discordConfig = 'HOMETP-USELIST';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'cooldown':
+              discordConfig = 'HOMETP-TIME';
+              break;
+          }
+          break;
+        case 'prison':
+          switch (config) {
+            case 'enabled':
+              discordConfig = 'Prison-System';
+              discordOption = value ? 'on' : 'off';
+              break;
+            case 'zoneSize':
+              discordConfig = 'Prison-Z-Size';
+              break;
+            case 'zoneColor':
+              discordConfig = 'Prison-Z-Color';
+              break;
+          }
+          break;
+      }
+      
+      if (discordConfig) {
+        const response = await fetch(`/api/servers/${selectedServer?.id}/configs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            config: discordConfig,
+            option: discordOption,
+            server: selectedServer?.name
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('System configuration updated:', result.message);
+          
+          // Update local state
+          setConfigs((prev: any) => ({
+            ...prev,
+            systems: {
+              ...prev.systems,
+              [system]: {
+                ...prev.systems[system],
+                [config]: value
+              }
+            }
+          }));
+        } else {
+          const error = await response.json();
+          console.error('Error updating system configuration:', error);
         }
-      }));
+      }
     } catch (error) {
       console.error('Error updating system configuration:', error);
     }
@@ -160,18 +460,65 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
   const updatePositionConfig = async (position: string, config: string, value: any) => {
     try {
-      console.log(`Updating position ${position}.${config} to ${value}`);
+      // Map position config to Discord bot format
+      let discordConfig = '';
+      let discordOption = value;
       
-      setConfigs((prev: any) => ({
-        ...prev,
-        positions: {
-          ...prev.positions,
-          [position]: {
-            ...prev.positions[position],
-            [config]: value
-          }
+      const positionUpper = position.toUpperCase();
+      
+      switch (config) {
+        case 'enabled':
+          discordConfig = positionUpper;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'delay':
+          discordConfig = `${positionUpper}-DELAY`;
+          break;
+        case 'cooldown':
+          discordConfig = `${positionUpper}-COOLDOWN`;
+          break;
+        case 'combatLock':
+          discordConfig = `${positionUpper}-CBL`;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'combatLockTime':
+          discordConfig = `${positionUpper}-CBL-TIME`;
+          break;
+      }
+      
+      if (discordConfig) {
+        const response = await fetch(`/api/servers/${selectedServer?.id}/configs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            config: discordConfig,
+            option: discordOption,
+            server: selectedServer?.name
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Position configuration updated:', result.message);
+          
+          // Update local state
+          setConfigs((prev: any) => ({
+            ...prev,
+            positions: {
+              ...prev.positions,
+              [position]: {
+                ...prev.positions[position],
+                [config]: value
+              }
+            }
+          }));
+        } else {
+          const error = await response.json();
+          console.error('Error updating position configuration:', error);
         }
-      }));
+      }
     } catch (error) {
       console.error('Error updating position configuration:', error);
     }
@@ -179,21 +526,64 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
 
   const updateCrateConfig = async (crate: string, config: string, value: any) => {
     try {
-      console.log(`Updating crate ${crate}.${config} to ${value}`);
+      // Map crate config to Discord bot format
+      let discordConfig = '';
+      let discordOption = value;
       
-      setConfigs((prev: any) => ({
-        ...prev,
-        misc: {
-          ...prev.misc,
-          crates: {
-            ...prev.misc.crates,
-            [crate]: {
-              ...prev.misc.crates[crate],
-              [config]: value
+      const crateUpper = crate.toUpperCase();
+      
+      switch (config) {
+        case 'enabled':
+          discordConfig = crateUpper;
+          discordOption = value ? 'on' : 'off';
+          break;
+        case 'time':
+          discordConfig = `${crateUpper}-TIME`;
+          break;
+        case 'amount':
+          discordConfig = `${crateUpper}-AMOUNT`;
+          break;
+        case 'message':
+          discordConfig = `${crateUpper}-MSG`;
+          break;
+      }
+      
+      if (discordConfig) {
+        const response = await fetch(`/api/servers/${selectedServer?.id}/configs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            config: discordConfig,
+            option: discordOption,
+            server: selectedServer?.name
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Crate configuration updated:', result.message);
+          
+          // Update local state
+          setConfigs((prev: any) => ({
+            ...prev,
+            misc: {
+              ...prev.misc,
+              crates: {
+                ...prev.misc.crates,
+                [crate]: {
+                  ...prev.misc.crates[crate],
+                  [config]: value
+                }
+              }
             }
-          }
+          }));
+        } else {
+          const error = await response.json();
+          console.error('Error updating crate configuration:', error);
         }
-      }));
+      }
     } catch (error) {
       console.error('Error updating crate configuration:', error);
     }
@@ -208,105 +598,106 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-2 sm:p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        {/* Header - Mobile Optimized */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate('/server-settings')}
-            className="text-white hover:bg-gray-800"
+            className="text-white hover:bg-gray-800 w-fit"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Server Settings
+            <span className="hidden sm:inline">Back to Server Settings</span>
+            <span className="sm:hidden">Back</span>
           </Button>
-          <h1 className="text-3xl font-bold text-white">Server Configurations</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">Server Configurations</h1>
         </div>
 
-        {/* Configuration Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Configuration Cards Grid - Mobile First */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           
           {/* Economy Configuration */}
           <Card className="gaming-card border-orange-500 hover:border-orange-400 transition-colors">
-            <CardHeader>
-              <CardTitle className="text-orange-500 flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="text-orange-500 flex items-center gap-2 text-sm sm:text-base">
+                <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
                 Economy Settings
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Currency, rewards, and gambling configurations
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               {/* Daily Reward */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">Daily Reward Amount</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-white text-xs sm:text-sm">Daily Reward Amount</Label>
                 <Input
                   placeholder="100"
-                  className="bg-gray-700 border-gray-600 text-white text-sm"
+                  className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
                   defaultValue={configs.economy?.dailyAmount || ''}
                   onBlur={(e) => updateConfiguration('economy', 'dailyAmount', e.target.value)}
                 />
               </div>
 
               {/* Starting Balance */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">Starting Balance</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-white text-xs sm:text-sm">Starting Balance</Label>
                 <Input
                   placeholder="1000"
-                  className="bg-gray-700 border-gray-600 text-white text-sm"
+                  className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
                   defaultValue={configs.economy?.startingBalance || ''}
                   onBlur={(e) => updateConfiguration('economy', 'startingBalance', e.target.value)}
                 />
               </div>
 
               {/* Player Kill Reward */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">Player Kill Reward</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-white text-xs sm:text-sm">Player Kill Reward</Label>
                 <Input
                   placeholder="50"
-                  className="bg-gray-700 border-gray-600 text-white text-sm"
+                  className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
                   defaultValue={configs.economy?.playerKillsAmount || ''}
                   onBlur={(e) => updateConfiguration('economy', 'playerKillsAmount', e.target.value)}
                 />
               </div>
 
               {/* Misc Kill Reward */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">Misc Kill Reward</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-white text-xs sm:text-sm">Misc Kill Reward</Label>
                 <Input
                   placeholder="25"
-                  className="bg-gray-700 border-gray-600 text-white text-sm"
+                  className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
                   defaultValue={configs.economy?.misckillsAmount || ''}
                   onBlur={(e) => updateConfiguration('economy', 'misckillsAmount', e.target.value)}
                 />
               </div>
 
               {/* Bounty Rewards */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">Bounty Rewards Amount</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-white text-xs sm:text-sm">Bounty Rewards Amount</Label>
                 <Input
                   placeholder="100"
-                  className="bg-gray-700 border-gray-600 text-white text-sm"
+                  className="bg-gray-700 border-gray-600 text-white text-xs sm:text-sm h-8 sm:h-10"
                   defaultValue={configs.economy?.bountyRewards || ''}
                   onBlur={(e) => updateConfiguration('economy', 'bountyRewards', e.target.value)}
                 />
               </div>
 
               {/* Blackjack Settings */}
-              <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
-                <Label className="text-white text-sm font-semibold">Blackjack Settings</Label>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
+                <Label className="text-white text-xs sm:text-sm font-semibold">Blackjack Settings</Label>
+                <div className="grid grid-cols-2 gap-1 sm:gap-2">
                   <Input
                     placeholder="Min Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs"
+                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                     defaultValue={configs.economy?.blackjackMin || ''}
                     onBlur={(e) => updateConfiguration('economy', 'blackjackMin', e.target.value)}
                   />
                   <Input
                     placeholder="Max Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs"
+                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                     defaultValue={configs.economy?.blackjackMax || ''}
                     onBlur={(e) => updateConfiguration('economy', 'blackjackMax', e.target.value)}
                   />
@@ -315,24 +706,25 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                   <Switch
                     checked={configs.economy?.blackjackToggle || false}
                     onCheckedChange={(checked) => updateConfiguration('economy', 'blackjackToggle', checked)}
+                    className="scale-75 sm:scale-100"
                   />
                   <Label className="text-white text-xs">Enable Blackjack</Label>
                 </div>
               </div>
 
               {/* Coinflip Settings */}
-              <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
-                <Label className="text-white text-sm font-semibold">Coinflip Settings</Label>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
+                <Label className="text-white text-xs sm:text-sm font-semibold">Coinflip Settings</Label>
+                <div className="grid grid-cols-2 gap-1 sm:gap-2">
                   <Input
                     placeholder="Min Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs"
+                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                     defaultValue={configs.economy?.coinflipMin || ''}
                     onBlur={(e) => updateConfiguration('economy', 'coinflipMin', e.target.value)}
                   />
                   <Input
                     placeholder="Max Bet"
-                    className="bg-gray-700 border-gray-600 text-white text-xs"
+                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                     defaultValue={configs.economy?.coinflipMax || ''}
                     onBlur={(e) => updateConfiguration('economy', 'coinflipMax', e.target.value)}
                   />
@@ -341,32 +733,35 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                   <Switch
                     checked={configs.economy?.coinflipToggle || false}
                     onCheckedChange={(checked) => updateConfiguration('economy', 'coinflipToggle', checked)}
+                    className="scale-75 sm:scale-100"
                   />
                   <Label className="text-white text-xs">Enable Coinflip</Label>
                 </div>
               </div>
 
               {/* Killfeed Settings */}
-              <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
-                <Label className="text-white text-sm font-semibold">Killfeed Settings</Label>
+              <div className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
+                <Label className="text-white text-xs sm:text-sm font-semibold">Killfeed Settings</Label>
                 <Input
                   placeholder="{Killer} ☠️ {Victim}"
-                  className="bg-gray-700 border-gray-600 text-white text-xs"
+                  className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                   defaultValue={configs.economy?.killfeedSetup || ''}
                   onBlur={(e) => updateConfiguration('economy', 'killfeedSetup', e.target.value)}
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center space-x-2">
+                <div className="grid grid-cols-2 gap-1 sm:gap-2">
+                  <div className="flex items-center space-x-1 sm:space-x-2">
                     <Switch
                       checked={configs.economy?.killfeedToggle || false}
                       onCheckedChange={(checked) => updateConfiguration('economy', 'killfeedToggle', checked)}
+                      className="scale-75 sm:scale-100"
                     />
                     <Label className="text-white text-xs">Enable Killfeed</Label>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1 sm:space-x-2">
                     <Switch
                       checked={configs.economy?.killfeedRandomizer || false}
                       onCheckedChange={(checked) => updateConfiguration('economy', 'killfeedRandomizer', checked)}
+                      className="scale-75 sm:scale-100"
                     />
                     <Label className="text-white text-xs">Randomizer</Label>
                   </div>
@@ -378,59 +773,61 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                 <Switch
                   checked={configs.economy?.bountyToggle || false}
                   onCheckedChange={(checked) => updateConfiguration('economy', 'bountyToggle', checked)}
+                  className="scale-75 sm:scale-100"
                 />
-                <Label className="text-white text-sm">Enable Bounty System</Label>
+                <Label className="text-white text-xs sm:text-sm">Enable Bounty System</Label>
               </div>
             </CardContent>
           </Card>
 
           {/* Teleports Configuration */}
           <Card className="gaming-card border-blue-500 hover:border-blue-400 transition-colors">
-            <CardHeader>
-              <CardTitle className="text-blue-500 flex items-center gap-2">
-                <Target className="w-5 h-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="text-blue-500 flex items-center gap-2 text-sm sm:text-base">
+                <Target className="w-4 h-4 sm:w-5 sm:h-5" />
                 Teleport Settings
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Configure all 8 teleport locations
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               {['TPN', 'TPNE', 'TPE', 'TPSE', 'TPS', 'TPSW', 'TPW', 'TPNW'].map((tp) => (
-                <div key={tp} className="space-y-2 p-3 bg-gray-800 rounded-lg">
+                <div key={tp} className="space-y-2 p-2 sm:p-3 bg-gray-800 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <Label className="text-white text-sm font-semibold">{tp} Teleport</Label>
+                    <Label className="text-white text-xs sm:text-sm font-semibold">{tp} Teleport</Label>
                     <Switch
                       checked={configs.teleports?.[tp.toLowerCase()]?.enabled || false}
                       onCheckedChange={(checked) => updateTeleportConfig(tp.toLowerCase(), 'enabled', checked)}
+                      className="scale-75 sm:scale-100"
                     />
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1 sm:gap-2">
                     <Input
                       placeholder="Display Name"
-                      className="bg-gray-700 border-gray-600 text-white text-xs"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                       defaultValue={configs.teleports?.[tp.toLowerCase()]?.displayName || ''}
                       onBlur={(e) => updateTeleportConfig(tp.toLowerCase(), 'displayName', e.target.value)}
                     />
                     <Input
                       placeholder="Cooldown (min)"
-                      className="bg-gray-700 border-gray-600 text-white text-xs"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                       defaultValue={configs.teleports?.[tp.toLowerCase()]?.cooldown || ''}
                       onBlur={(e) => updateTeleportConfig(tp.toLowerCase(), 'cooldown', e.target.value)}
                     />
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1 sm:gap-2">
                     <Input
                       placeholder="Delay (sec)"
-                      className="bg-gray-700 border-gray-600 text-white text-xs"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                       defaultValue={configs.teleports?.[tp.toLowerCase()]?.delay || ''}
                       onBlur={(e) => updateTeleportConfig(tp.toLowerCase(), 'delay', e.target.value)}
                     />
                     <Input
                       placeholder="Kit Name"
-                      className="bg-gray-700 border-gray-600 text-white text-xs"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                       defaultValue={configs.teleports?.[tp.toLowerCase()]?.kitName || ''}
                       onBlur={(e) => updateTeleportConfig(tp.toLowerCase(), 'kitName', e.target.value)}
                     />
@@ -438,16 +835,17 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                   
                   <Input
                     placeholder="Coordinates (x,y,z)"
-                    className="bg-gray-700 border-gray-600 text-white text-xs"
+                    className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                     defaultValue={configs.teleports?.[tp.toLowerCase()]?.coordinates || ''}
                     onBlur={(e) => updateTeleportConfig(tp.toLowerCase(), 'coordinates', e.target.value)}
                   />
                   
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-2">
                     <div className="flex items-center space-x-1">
                       <Switch
                         checked={configs.teleports?.[tp.toLowerCase()]?.useList || false}
                         onCheckedChange={(checked) => updateTeleportConfig(tp.toLowerCase(), 'useList', checked)}
+                        className="scale-75 sm:scale-100"
                       />
                       <Label className="text-white text-xs">Use List</Label>
                     </div>
@@ -455,6 +853,7 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                       <Switch
                         checked={configs.teleports?.[tp.toLowerCase()]?.useDelay || false}
                         onCheckedChange={(checked) => updateTeleportConfig(tp.toLowerCase(), 'useDelay', checked)}
+                        className="scale-75 sm:scale-100"
                       />
                       <Label className="text-white text-xs">Use Delay</Label>
                     </div>
@@ -462,6 +861,7 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                       <Switch
                         checked={configs.teleports?.[tp.toLowerCase()]?.useKit || false}
                         onCheckedChange={(checked) => updateTeleportConfig(tp.toLowerCase(), 'useKit', checked)}
+                        className="scale-75 sm:scale-100"
                       />
                       <Label className="text-white text-xs">Use Kit</Label>
                     </div>
@@ -469,6 +869,7 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                       <Switch
                         checked={configs.teleports?.[tp.toLowerCase()]?.combatLock || false}
                         onCheckedChange={(checked) => updateTeleportConfig(tp.toLowerCase(), 'combatLock', checked)}
+                        className="scale-75 sm:scale-100"
                       />
                       <Label className="text-white text-xs">Combat Lock</Label>
                     </div>
@@ -477,7 +878,7 @@ const ServerConfigsScreen: React.FC<ServerConfigsScreenProps> = () => {
                   {configs.teleports?.[tp.toLowerCase()]?.combatLock && (
                     <Input
                       placeholder="Combat Lock Time (min)"
-                      className="bg-gray-700 border-gray-600 text-white text-xs"
+                      className="bg-gray-700 border-gray-600 text-white text-xs h-7 sm:h-8"
                       defaultValue={configs.teleports?.[tp.toLowerCase()]?.combatLockTime || ''}
                       onBlur={(e) => updateTeleportConfig(tp.toLowerCase(), 'combatLockTime', e.target.value)}
                     />

@@ -231,7 +231,7 @@ const StoreItemsScreen = () => {
                       </DialogTrigger>
                       
                       {selectedItem?.id === item.id && (
-                        <DialogContent className="gaming-card border-0">
+                        <DialogContent className="gaming-card border-0 max-w-md mx-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-full max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Confirm Purchase</DialogTitle>
                             <DialogDescription>
@@ -241,7 +241,7 @@ const StoreItemsScreen = () => {
                           
                           <div className="space-y-4">
                             {/* Quantity Selection */}
-                            <div className="space-y-2">
+                            <div className="space-y-2 flex-shrink-0">
                               <Label htmlFor="quantity">Quantity</Label>
                               <Input
                                 id="quantity"
@@ -250,12 +250,12 @@ const StoreItemsScreen = () => {
                                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                                 min={1}
                                 max={Math.floor(balance / selectedItem.price)}
-                                className="gaming-input"
+                                className="gaming-input w-full"
                               />
                             </div>
                             
                             {/* Balance Summary */}
-                            <div className="space-y-2 p-4 bg-muted/20 rounded-lg">
+                            <div className="space-y-2 p-4 bg-muted/20 rounded-lg flex-shrink-0">
                               <div className="flex justify-between text-sm">
                                 <span>Item Cost:</span>
                                 <span>{selectedItem.price} {currency} each</span>
@@ -271,29 +271,29 @@ const StoreItemsScreen = () => {
                               <hr className="border-border" />
                               <div className="flex justify-between text-sm">
                                 <span>Balance before:</span>
-                                <span>{balance.toLocaleString()} {currency}</span>
+                                <span className="font-mono">{balance.toLocaleString()} {currency}</span>
                               </div>
                               <div className="flex justify-between text-sm">
                                 <span>Balance after:</span>
-                                <span className={calculateBalance(selectedItem, quantity).afterPurchase < 0 ? 'text-red-400' : 'text-green-400'}>
+                                <span className={`font-mono ${calculateBalance(selectedItem, quantity).afterPurchase < 0 ? 'text-red-400' : 'text-green-400'}`}>
                                   {calculateBalance(selectedItem, quantity).afterPurchase.toLocaleString()} {currency}
                                 </span>
                               </div>
                             </div>
                           </div>
                           
-                          <DialogFooter className="gap-2">
+                          <DialogFooter className="gap-2 flex-shrink-0 sticky bottom-0 bg-background pt-4 border-t border-border">
                             <Button
                               variant="outline"
                               onClick={handleCancel}
-                              className="btn-gaming-secondary"
+                              className="btn-gaming-secondary flex-1"
                             >
                               Cancel
                             </Button>
                             <Button
                               onClick={() => handlePurchase(selectedItem)}
                               disabled={purchasing || calculateBalance(selectedItem, quantity).afterPurchase < 0}
-                              className="btn-gaming"
+                              className="btn-gaming flex-1"
                             >
                               {purchasing ? (
                                 <div className="loading-spinner w-4 h-4 mr-2"></div>
