@@ -93,6 +93,15 @@ client.once('ready', async () => {
     console.error('❌ Failed to initialize leaderboard scheduler:', error);
   }
   
+  // Initialize KOTH manager
+  try {
+    const { initializeKothManager } = require('./systems/kothManager');
+    await initializeKothManager();
+    console.log('👑 KOTH manager initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize KOTH manager:', error);
+  }
+  
   // Restore zones after a short delay to ensure RCON connections are established
   setTimeout(async () => {
     try {
@@ -167,7 +176,9 @@ client.on('interactionCreate', async interaction => {
       command.data.name.startsWith('autokits-') || command.data.name.startsWith('killfeed') ||
       command.data.name.startsWith('view-') || command.data.name.startsWith('list-') ||
       command.data.name.startsWith('open-') || command.data.name.startsWith('allow-') ||
-              command.data.name.startsWith('unlink')) {
+      command.data.name.startsWith('unlink') || command.data.name.startsWith('koth') ||
+      command.data.name.startsWith('startkoth') || command.data.name.startsWith('removekoth') ||
+      command.data.name.startsWith('setupkoth')) {
     
     const isAuthorized = await isAuthorizedGuild(interaction.guild);
     if (!isAuthorized) {

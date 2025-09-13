@@ -30,7 +30,19 @@ module.exports = {
           { name: 'Prison-Cell-4', value: 'prison-cell-4' },
           { name: 'Prison-Cell-5', value: 'prison-cell-5' },
           { name: 'Prison-Cell-6', value: 'prison-cell-6' },
-          { name: 'Prison Zone', value: 'prison-zone' }
+          { name: 'Prison Zone', value: 'prison-zone' },
+          { name: 'Koth-Gate-1', value: 'koth-gate-1' },
+          { name: 'Koth-Gate-2', value: 'koth-gate-2' },
+          { name: 'Koth-Gate-3', value: 'koth-gate-3' },
+          { name: 'Koth-Gate-4', value: 'koth-gate-4' },
+          { name: 'Koth-Gate-5', value: 'koth-gate-5' },
+          { name: 'Koth-Gate-6', value: 'koth-gate-6' },
+          { name: 'Koth-Gate-7', value: 'koth-gate-7' },
+          { name: 'Koth-Gate-8', value: 'koth-gate-8' },
+          { name: 'Koth-Gate-9', value: 'koth-gate-9' },
+          { name: 'Koth-Gate-10', value: 'koth-gate-10' },
+          { name: 'Koth-Gate-11', value: 'koth-gate-11' },
+          { name: 'Koth-Gate-12', value: 'koth-gate-12' }
         ))
     .addStringOption(option =>
       option.setName('coordinates')
@@ -239,6 +251,52 @@ module.exports = {
               [serverId, `${xNum},${yNum},${zNum}`]
             );
           }
+        } else if (positionType.startsWith('koth-gate-')) {
+          // Handle KOTH gate positions
+          const gateNumber = parseInt(positionType.replace('koth-gate-', ''));
+          const gateName = `Koth-Gate-${gateNumber}`;
+          
+          // Check if koth_gates table exists, create if not
+          try {
+            await pool.query(`
+              CREATE TABLE IF NOT EXISTS koth_gates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                server_id VARCHAR(32) NOT NULL,
+                gate_name VARCHAR(50) NOT NULL,
+                gate_number INT NOT NULL,
+                x_pos DECIMAL(10,2) NOT NULL,
+                y_pos DECIMAL(10,2) NOT NULL,
+                z_pos DECIMAL(10,2) NOT NULL,
+                zone_size INT DEFAULT 50,
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_server_gate (server_id, gate_number)
+              )
+            `);
+          } catch (error) {
+            console.error('Error creating koth_gates table:', error);
+          }
+
+          // Check if KOTH gate position exists
+          const [existingKothResult] = await pool.query(
+            'SELECT * FROM koth_gates WHERE server_id = ? AND gate_number = ?',
+            [serverId, gateNumber]
+          );
+
+          if (existingKothResult.length > 0) {
+            // Update existing KOTH gate coordinates
+            await pool.query(
+              'UPDATE koth_gates SET x_pos = ?, y_pos = ?, z_pos = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ? AND gate_number = ?',
+              [xNum, yNum, zNum, serverId, gateNumber]
+            );
+          } else {
+            // Create new KOTH gate coordinates
+            await pool.query(
+              'INSERT INTO koth_gates (server_id, gate_name, gate_number, x_pos, y_pos, z_pos, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [serverId, gateName, gateNumber, xNum, yNum, zNum]
+            );
+          }
         } else {
           // Handle regular position coordinates
           // Check if position coordinates exist
@@ -292,6 +350,15 @@ module.exports = {
           const [x, y, z] = prisonZoneCoords[0].zone_position.split(',').map(coord => parseFloat(coord.trim()));
           currentCoords = [{ x_pos: x, y_pos: y, z_pos: z }];
         }
+      } else if (positionType.startsWith('koth-gate-')) {
+        const gateNumber = parseInt(positionType.replace('koth-gate-', ''));
+        positionDisplayName = `KOTH Gate ${gateNumber}`;
+        
+        const [kothCoords] = await pool.query(
+          'SELECT x_pos, y_pos, z_pos FROM koth_gates WHERE server_id = ? AND gate_number = ?',
+          [serverId, gateNumber]
+        );
+        currentCoords = kothCoords;
       } else {
         const [regularCoords] = await pool.query(
           'SELECT x_pos, y_pos, z_pos FROM position_coordinates WHERE server_id = ? AND position_type = ?',

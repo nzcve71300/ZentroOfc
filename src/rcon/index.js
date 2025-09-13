@@ -1636,6 +1636,43 @@ async function handlePositionTeleport(client, guildId, serverName, serverId, ip,
   }
 }
 
+async function handleKothGateTeleport(client, guildId, serverName, serverId, ip, port, password, gateNumber, player) {
+  try {
+    // Get KOTH gate coordinates
+    const coordResult = await pool.query(
+      'SELECT x_pos, y_pos, z_pos, gate_name FROM koth_gates WHERE server_id = ? AND gate_number = ?',
+      [serverId.toString(), gateNumber]
+    );
+
+    if (coordResult[0].length === 0) {
+      Logger.warn(`No KOTH gate found for gate number ${gateNumber} on server ${serverId}`);
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>KOTH gate ${gateNumber} not configured</color>`);
+      return;
+    }
+
+    const gate = coordResult[0][0];
+    const gateName = gate.gate_name || `KOTH Gate ${gateNumber}`;
+
+    // Check if coordinates are valid (not 0,0,0)
+    if (gate.x_pos === 0 && gate.y_pos === 0 && gate.z_pos === 0) {
+      sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>KOTH gate ${gateNumber} coordinates not set</color>`);
+      return;
+    }
+
+    // Execute teleport using the same format as OUTPOST and BANDITCAMP
+    const teleportCommand = `global.teleportposrot "${gate.x_pos},${gate.y_pos},${gate.z_pos}" "${player}" "1"`;
+    sendRconCommand(ip, port, password, teleportCommand);
+    
+    // Send success message
+    sendRconCommand(ip, port, password, `say <color=#FF69B4>${player}</color> <color=white>teleported to</color> <color=#800080>${gateName}</color> <color=white>successfully</color>`);
+    
+    Logger.info(`KOTH Gate teleport completed: ${player} → ${gateName} (${gate.x_pos},${gate.y_pos},${gate.z_pos})`);
+
+  } catch (error) {
+    console.error('Error handling KOTH gate teleport:', error);
+  }
+}
+
 async function handleBookARide(client, guildId, serverName, parsed, ip, port, password) {
   try {
     const msg = parsed.Message;
