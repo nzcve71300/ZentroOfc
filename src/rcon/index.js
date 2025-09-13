@@ -3981,12 +3981,20 @@ async function processKitDelivery(client, guildId, serverName, ip, port, passwor
     
     // Get player ID - use case-insensitive search
     const [playerResult] = await pool.query(
-      'SELECT id FROM players WHERE server_id = ? AND LOWER(ign) = LOWER(?)',
+      'SELECT id, ign FROM players WHERE server_id = ? AND LOWER(ign) = LOWER(?)',
       [serverId, player]
     );
     
     if (playerResult.length === 0) {
       console.log(`[KIT DELIVERY] Player not found: ${player} on server ${serverId}`);
+      
+      // Debug: Show all players on this server
+      const [allPlayers] = await pool.query(
+        'SELECT ign FROM players WHERE server_id = ?',
+        [serverId]
+      );
+      console.log(`[KIT DELIVERY] Available players on server ${serverId}:`, allPlayers.map(p => p.ign));
+      
       await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>player not found in database - please link your Discord account</color>`);
       return;
     }
@@ -4034,13 +4042,23 @@ async function processKitDelivery(client, guildId, serverName, ip, port, passwor
       }
     }
     
-    console.log(`[KIT DELIVERY] Delivering kit ${queueEntry.kit_name} to ${player}`);
+    const playerRecord = playerResult[0];
+    console.log(`[KIT DELIVERY] Delivering kit ${queueEntry.kit_name} to ${player} (DB IGN: ${playerRecord.ign})`);
     
-    // Send the kit via RCON - use the exact player name from the queue entry
+    // Send the kit via RCON - use the exact player name from the emote (not the DB name)
     const kitCommand = `kit givetoplayer ${queueEntry.kit_name} "${player}"`;
     try {
+      console.log(`[KIT DELIVERY] Sending kit command: ${kitCommand}`);
+      console.log(`[KIT DELIVERY] Player from emote: "${player}", Player from DB: "${playerRecord.ign}"`);
       const result = await sendRconCommand(ip, port, password, kitCommand);
-      console.log(`[KIT DELIVERY] Kit command sent: ${kitCommand}, result: ${result}`);
+      console.log(`[KIT DELIVERY] Kit command sent successfully: ${kitCommand}, result: ${result}`);
+      
+      // Verify the kit was actually given by checking if the result contains success indicators
+      if (result && (result.includes('given') || result.includes('success') || result.includes('delivered'))) {
+        console.log(`[KIT DELIVERY] Kit delivery confirmed by server response`);
+      } else {
+        console.log(`[KIT DELIVERY] Server response unclear, but command was sent: ${result}`);
+      }
     } catch (error) {
       console.error(`[KIT DELIVERY] Failed to send kit command: ${error.message}`);
       await sendRconCommand(ip, port, password, `say <color=#FF6B35>[KIT DELIVERY]</color> <color=#FFD700>${player}</color> <color=#FF6B35>failed to deliver kit - please contact an admin</color>`);
