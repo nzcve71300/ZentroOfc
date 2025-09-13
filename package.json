@@ -1,0 +1,47 @@
+{
+  "name": "zentro-bot",
+  "version": "1.0.0",
+  "description": "Zentro Bot - Advanced Discord bot for Rust server management",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "deploy-commands": "node deploy-commands.js",
+    "deploy-commands-guild": "node deploy-commands-guild.js",
+    "deploy-commands-win": "deploy-commands.bat",
+    "deploy-commands-guild-win": "deploy-commands-guild.bat",
+    "deploy-commands-unix": "chmod +x deploy-commands.sh && ./deploy-commands.sh",
+    "deploy-commands-guild-unix": "chmod +x deploy-commands-guild.sh && ./deploy-commands-guild.sh",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "rust",
+    "gaming",
+    "server-management",
+    "koth",
+    "economy"
+  ],
+  "author": "Zentro Team",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "mysql2": "^3.6.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/zentro-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/zentro-bot/issues"
+  },
+  "homepage": "https://github.com/your-org/zentro-bot#readme"
+}
