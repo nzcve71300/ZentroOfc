@@ -258,10 +258,10 @@ module.exports = {
               
               // Update size using zones.editcustomzone command
               if (size !== null) {
-                // Convert size from diameter to radius (divide by 2) since zones.editcustomzone uses radius
-                const radius = size / 2;
-                await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" size ${radius}`);
-                console.log(`[EDIT-ZORP] Updated zone ${zone.name} size to ${size} (radius: ${radius})`);
+                // For spheres, size is radius. For boxes, we need to convert to (x,y,z) format
+                // Since ZORP zones are typically spheres, we'll use the size as radius
+                await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" size ${size}`);
+                console.log(`[EDIT-ZORP] Updated zone ${zone.name} size to ${size} (radius)`);
               }
 
               // Update colors using zones.editcustomzone command
@@ -297,10 +297,22 @@ module.exports = {
                       colorToApply = colorOnline || '0,255,0';
                   }
                   
-                  // Apply the color using zones.editcustomzone
+                  // Apply the color using zones.editcustomzone with proper format
                   await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" color (${colorToApply})`);
                   console.log(`[EDIT-ZORP] Updated zone ${zone.name} color to (${colorToApply}) (state: ${currentState})`);
                 }
+              }
+
+              // Update radiation if specified
+              if (radiation !== null) {
+                await sendRconCommand(server.ip, server.port, server.password, `zones.editcustomzone "${zone.name}" radiationdamage ${radiation}`);
+                console.log(`[EDIT-ZORP] Updated zone ${zone.name} radiation to ${radiation}`);
+              }
+
+              // Update building permissions if specified
+              if (minTeam !== null || maxTeam !== null) {
+                // Note: Team size limits are handled by ZORP logic, not zone properties
+                console.log(`[EDIT-ZORP] Team size limits (${minTeam}-${maxTeam}) are handled by ZORP system logic`);
               }
             }
           } catch (rconError) {
@@ -426,13 +438,23 @@ module.exports = {
 
       // Create success embed
       const uniqueUpdatedFields = [...new Set(updatedFields)];
-      const embed = successEmbed('Success', `Updated **${zones.length}** zones on server **${server.nickname}**.`);
+      let embed;
       
-      embed.addFields({
-        name: 'Updated Fields',
-        value: uniqueUpdatedFields.map(field => `• ${field}`).join('\n'),
-        inline: true
-      });
+      if (zones.length === 0) {
+        embed = successEmbed('Success', `Updated server defaults for **${server.nickname}**.`);
+        embed.addFields({
+          name: 'Note',
+          value: 'No existing zones found to update. New zones will use these settings.',
+          inline: false
+        });
+      } else {
+        embed = successEmbed('Success', `Updated **${zones.length}** zones on server **${server.nickname}**.`);
+        embed.addFields({
+          name: 'Updated Fields',
+          value: uniqueUpdatedFields.map(field => `• ${field}`).join('\n') || 'Server defaults only',
+          inline: true
+        });
+      }
 
       embed.addFields({
         name: 'Server Defaults',
