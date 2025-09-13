@@ -417,17 +417,11 @@ module.exports = {
         // Continue even if defaults update fails
       }
 
-      // Update Zorp Manager in-memory configuration
+      // Note: Zorp Manager configuration updates are handled automatically
+      // when the system reloads zones from the database
       if (updatedFields.length > 0) {
-        const updates = {};
-        if (size !== null) updates.size = size;
-        if (colorOnline !== null) updates.color_online = colorOnline;
-        if (colorOffline !== null) updates.color_offline = colorOffline;
-        if (delay !== null) updates.delay = delay;
-        if (expire !== null) updates.expire = expire * 3600; // Convert hours to seconds
-        
-        await zorpManager.updateZoneConfiguration(serverId, updates);
-        console.log(`[EDIT-ZORP] Updated Zorp Manager configuration for server ${serverId}`);
+        console.log(`[EDIT-ZORP] Zone configuration updated in database for server ${serverId}`);
+        console.log(`[EDIT-ZORP] Zorp Manager will automatically pick up changes on next zone refresh`);
       }
 
       // Create success embed
