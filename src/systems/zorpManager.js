@@ -242,6 +242,25 @@ async function refreshZonesForServer(ip, port, password, serverId, serverName) {
 }
 
 /**
+ * Unified zone updater (scheduled task)
+ */
+async function runZoneUpdater() {
+  try {
+    console.log("[ZorpManager] Running zone updater...");
+    const [servers] = await pool.query(`
+      SELECT rs.*, g.discord_id as guild_id
+      FROM rust_servers rs
+      JOIN guilds g ON rs.guild_id = g.id
+    `);
+    for (const server of servers) {
+      await refreshZonesForServer(server.ip, server.port, server.password, server.id, server.nickname);
+    }
+  } catch (error) {
+    console.error("[ZorpManager] Zone updater error:", error);
+  }
+}
+
+/**
  * Verify all zones for all servers (scheduled task)
  */
 async function runZoneVerification() {
